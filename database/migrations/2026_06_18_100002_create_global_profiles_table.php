@@ -53,6 +53,10 @@ return new class extends Migration
             // Platform-wide invitation flag. True = "Show my profile to new studios."
             $table->boolean('open_to_invitations')->default(true);
 
+            // The new CPM Constraint Columns
+            $table->string('timezone', 50)->default('UTC');
+            $table->smallInteger('max_hours_per_week')->default(40);
+
             $table->timestamps();
         });
     }

@@ -47,6 +47,17 @@ class User extends Authenticatable
         return $this->hasOne(GlobalProfile::class);
     }
 
+    /**
+     * Get the studios (tenants) owned by this user.
+     * Stub for the Fork middleware logic.
+     */
+    public function ownedStudios()
+    {
+        // TODO: Implement actual tenant relationship (e.g. return $this->hasMany(Tenant::class, 'owner_id'))
+        // For now, return a dummy relationship or query builder that returns false for exists()
+        return $this->hasMany(GlobalProfile::class)->where('id', -1); // Dummy relationship that will return empty
+    }
+
     // -------------------------------------------------------------------------
     // Helper Methods
     // -------------------------------------------------------------------------
