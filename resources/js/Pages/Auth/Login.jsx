@@ -23,7 +23,12 @@ export default function Login({ status, canResetPassword }) {
 
     return (
         <GuestLayout>
-            <Head title="Log in" />
+            <Head title="Log In — StudioSprint" />
+
+            <div className="mb-6 text-center">
+                <h2 className="text-2xl font-bold text-text-primary">Welcome back</h2>
+                <p className="text-sm text-text-muted mt-1">Log in to your studio account</p>
+            </div>
 
             {status && (
                 <div className="mb-4 text-sm font-medium text-green-600">
@@ -84,7 +89,7 @@ export default function Login({ status, canResetPassword }) {
                     {canResetPassword && (
                         <Link
                             href={route('password.request')}
-                            className="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                            className="rounded-md text-sm text-text-muted underline hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2"
                         >
                             Forgot your password?
                         </Link>
@@ -95,6 +100,16 @@ export default function Login({ status, canResetPassword }) {
                     </PrimaryButton>
                 </div>
             </form>
+
+            <div className="mt-6 text-center text-sm text-text-muted">
+                Don't have an account?{' '}
+                <Link
+                    href={route('register')}
+                    className="font-medium text-brand hover:text-brand-light hover:underline focus:outline-none focus:underline"
+                >
+                    Register
+                </Link>
+            </div>
         </GuestLayout>
     );
 }

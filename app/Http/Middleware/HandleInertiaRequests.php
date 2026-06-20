@@ -34,6 +34,9 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            // Provides the active studio UUID to all React pages.
+            // null on central pages; UUID string on /studio/{tenant}/... pages.
+            'activeWorkspace' => tenant('id'),
         ];
     }
 }

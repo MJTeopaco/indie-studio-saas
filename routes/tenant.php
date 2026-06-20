@@ -2,28 +2,28 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\TenantDashboardController;
 use Illuminate\Support\Facades\Route;
-use Stancl\Tenancy\Middleware\InitializeTenancyByDomain;
-use Stancl\Tenancy\Middleware\PreventAccessFromCentralDomains;
+use Stancl\Tenancy\Middleware\InitializeTenancyByPath;
 
 /*
 |--------------------------------------------------------------------------
-| Tenant Routes
+| Tenant Routes (Path-Based)
 |--------------------------------------------------------------------------
 |
-| Here you can register the tenant routes for your application.
-| These routes are loaded by the TenantRouteServiceProvider.
-|
-| Feel free to customize them however you want. Good luck!
+| All tenant routes are prefixed with /studio/{tenant} where {tenant} is
+| the studio's unique ID (slug). This works with php artisan serve and
+| requires no special DNS, Herd, or web server configuration.
 |
 */
 
-Route::middleware([
+Route::prefix('/studio/{tenant}')->middleware([
     'web',
-    InitializeTenancyByDomain::class,
-    PreventAccessFromCentralDomains::class,
+    InitializeTenancyByPath::class,
+    'auth',
 ])->group(function () {
-    Route::get('/', function () {
-        return 'This is your multi-tenant application. The id of the current tenant is ' . tenant('id');
-    });
+
+    Route::get('/dashboard', [TenantDashboardController::class, 'index'])
+        ->name('tenant.dashboard');
+
 });

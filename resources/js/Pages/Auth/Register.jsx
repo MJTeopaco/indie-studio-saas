@@ -23,7 +23,12 @@ export default function Register() {
 
     return (
         <GuestLayout>
-            <Head title="Register" />
+            <Head title="Create Account — StudioSprint" />
+
+            <div className="mb-6 text-center">
+                <h2 className="text-2xl font-bold text-text-primary">Create your studio</h2>
+                <p className="text-sm text-text-muted mt-1">Sign up to manage your team and projects</p>
+            </div>
 
             <form onSubmit={submit}>
                 <div>
@@ -105,7 +110,7 @@ export default function Register() {
                 <div className="mt-4 flex items-center justify-end">
                     <Link
                         href={route('login')}
-                        className="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                        className="rounded-md text-sm text-text-muted underline hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2"
                     >
                         Already registered?
                     </Link>

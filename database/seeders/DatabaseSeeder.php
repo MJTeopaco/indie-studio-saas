@@ -12,14 +12,30 @@ class DatabaseSeeder extends Seeder
 
     /**
      * Seed the application's database.
+     *
+     * Order matters: lookup tables (positions, skills) must be seeded before
+     * any records that reference them via foreign keys.
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        // 1. Seed lookup dictionaries first
+        $this->call([
+            PositionsSeeder::class,
+            SkillsSeeder::class,
+        ]);
 
+        // 2. Seed a test developer account (role: programmer)
         User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+            'name'  => 'Test Developer',
+            'email' => 'developer@example.com',
+            'role'  => User::ROLE_PROGRAMMER,
+        ]);
+
+        // 3. Seed a test admin account
+        User::factory()->create([
+            'name'  => 'Test Admin',
+            'email' => 'admin@example.com',
+            'role'  => User::ROLE_ADMIN,
         ]);
     }
 }
