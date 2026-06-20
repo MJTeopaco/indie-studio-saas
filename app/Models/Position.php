@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Position extends Model
 {
-    use HasFactory;
+    use HasFactory, \Stancl\Tenancy\Database\Concerns\CentralConnection;
 
     protected $fillable = ['name'];
 

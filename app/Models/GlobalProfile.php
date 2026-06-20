@@ -9,7 +9,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class GlobalProfile extends Model
 {
-    use HasFactory;
+    /** @use HasFactory<\Database\Factories\GlobalProfileFactory> */
+    use HasFactory, \Stancl\Tenancy\Database\Concerns\CentralConnection;
 
     protected $fillable = [
         'user_id',

@@ -3,8 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreGlobalProfileRequest;
+use App\Http\Requests\StoreStudioRequest;
+use App\Http\Requests\JoinStudioRequest;
 use App\Models\Position;
 use App\Models\Skill;
+use App\Models\Studio;
+use App\Models\StudioInvitation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -61,5 +65,47 @@ class OnboardingController extends Controller
         });
 
         return redirect()->route('dashboard');
+    }
+
+    /**
+     * Create a new Studio.
+     */
+    public function createStudio(StoreStudioRequest $request)
+    {
+        $user = $request->user();
+
+        // 1. Create the studio
+        $studio = Studio::create([
+            'name' => $request->studio_name,
+            'owner_id' => $user->id,
+        ]);
+
+        // Redirect to the path-based tenant dashboard — same domain, no cross-domain tricks needed.
+        return redirect()->route('tenant.dashboard', ['tenant' => $studio->id]);
+    }
+
+    /**
+     * Join an existing Studio using an invitation code.
+     */
+    public function joinStudio(JoinStudioRequest $request)
+    {
+        $user = $request->user();
+
+        // Find valid invitation
+        $invitation = StudioInvitation::valid()->where('token', $request->invitation_code)->first();
+
+        if (!$invitation) {
+            return back()->withErrors([
+                'invitation_code' => 'Invalid or expired code.',
+            ]);
+        }
+
+        $studio = Studio::findOrFail($invitation->studio_id);
+
+        // Mark as used
+        $invitation->markAsUsed();
+
+        // Redirect to the path-based tenant dashboard — same domain, no cross-domain tricks needed.
+        return redirect()->route('tenant.dashboard', ['tenant' => $studio->id]);
     }
 }

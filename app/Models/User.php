@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -15,7 +16,7 @@ use Illuminate\Notifications\Notifiable;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, \Stancl\Tenancy\Database\Concerns\CentralConnection;
 
     /** Role constants — use these instead of magic strings throughout the app */
     const ROLE_PROGRAMMER = 'programmer';
@@ -49,13 +50,10 @@ class User extends Authenticatable
 
     /**
      * Get the studios (tenants) owned by this user.
-     * Stub for the Fork middleware logic.
      */
-    public function ownedStudios()
+    public function ownedStudios(): HasMany
     {
-        // TODO: Implement actual tenant relationship (e.g. return $this->hasMany(Tenant::class, 'owner_id'))
-        // For now, return a dummy relationship or query builder that returns false for exists()
-        return $this->hasMany(GlobalProfile::class)->where('id', -1); // Dummy relationship that will return empty
+        return $this->hasMany(Studio::class, 'owner_id');
     }
 
     // -------------------------------------------------------------------------
