@@ -12,7 +12,7 @@ export default function Welcome({ auth }) {
                 <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-brand/10 blur-[150px] rounded-full pointer-events-none"></div>
 
                 <header className="relative z-10 mx-auto w-full max-w-7xl px-6 py-6 flex items-center justify-between">
-                    <Link href="/">
+                    <Link href={auth?.user ? route('dashboard') : '/'}>
                         <ApplicationLogo className="text-2xl" />
                     </Link>
                     

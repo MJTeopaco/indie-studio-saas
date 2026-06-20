@@ -69,9 +69,8 @@ export default function TenantLayout({ children, studioName }) {
             {/* ── Sidebar ─────────────────────────────────────── */}
             <aside className="w-64 flex-shrink-0 flex flex-col bg-surface-elevated border-r border-surface-border">
 
-                {/* Brand / Studio identity */}
                 <div className="flex items-center gap-3 px-5 py-5 border-b border-surface-border">
-                    <Link href="/" className="flex items-center gap-2">
+                    <Link href={route('dashboard')} className="flex items-center gap-2">
                         <ApplicationLogo className="text-lg" />
                     </Link>
                 </div>

@@ -80,6 +80,9 @@ class OnboardingController extends Controller
             'owner_id' => $user->id,
         ]);
 
+        // 2. Add to central members list
+        $user->joinedStudios()->attach($studio->id, ['role' => 'owner']);
+
         // Redirect to the path-based tenant dashboard — same domain, no cross-domain tricks needed.
         return redirect()->route('tenant.dashboard', ['tenant' => $studio->id]);
     }
@@ -104,6 +107,11 @@ class OnboardingController extends Controller
 
         // Mark as used
         $invitation->markAsUsed();
+
+        // Add to central members list
+        $user->joinedStudios()->syncWithoutDetaching([
+            $studio->id => ['role' => 'member']
+        ]);
 
         // Redirect to the path-based tenant dashboard — same domain, no cross-domain tricks needed.
         return redirect()->route('tenant.dashboard', ['tenant' => $studio->id]);

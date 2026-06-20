@@ -56,6 +56,16 @@ class User extends Authenticatable
         return $this->hasMany(Studio::class, 'owner_id');
     }
 
+    /**
+     * Get the studios the user is a member of (including ones they own).
+     */
+    public function joinedStudios(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Studio::class, 'studio_members', 'user_id', 'studio_id')
+                    ->withPivot('role')
+                    ->withTimestamps();
+    }
+
     // -------------------------------------------------------------------------
     // Helper Methods
     // -------------------------------------------------------------------------

@@ -11,13 +11,11 @@ class CentralDashboardController extends Controller
     {
         $user = $request->user();
 
-        // If the user owns a studio, take them straight there.
-        $studio = $user->ownedStudios()->first();
-        if ($studio) {
-            return redirect()->route('tenant.dashboard', ['tenant' => $studio->id]);
-        }
-
-        // Otherwise (developer path), show the central dashboard.
-        return Inertia::render('Dashboard');
+        return Inertia::render('Dashboard', [
+            'ownedStudios'  => $user->ownedStudios()->get(['id', 'name', 'created_at']),
+            'joinedStudios' => $user->joinedStudios()
+                                    ->where('tenants.owner_id', '!=', $user->id)
+                                    ->get(['tenants.id', 'tenants.name', 'tenants.created_at']),
+        ]);
     }
 }

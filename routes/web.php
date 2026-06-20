@@ -14,6 +14,11 @@ Route::get('/', function () {
 
 Route::middleware(['auth', 'verified', 'requires.onboarding'])->group(function () {
     Route::get('/dashboard', [\App\Http\Controllers\CentralDashboardController::class, 'index'])->name('dashboard');
+    
+    // Hub actions
+    Route::post('/hub/studio',  [\App\Http\Controllers\HubController::class, 'createStudio'])->name('hub.studio.store');
+    Route::post('/hub/join',    [\App\Http\Controllers\HubController::class, 'joinStudio'])->name('hub.join.store');
+    Route::post('/hub/studio/{studio}/invite', [\App\Http\Controllers\HubController::class, 'generateInvite'])->name('hub.studio.invite');
 });
 
 Route::middleware('auth')->group(function () {
