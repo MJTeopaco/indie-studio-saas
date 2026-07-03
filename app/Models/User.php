@@ -71,6 +71,23 @@ class User extends Authenticatable
     // -------------------------------------------------------------------------
 
     /**
+     * Get the developer's micro-domains (cross-database query).
+     * Retrieves the pivot records from the current tenant database,
+     * then fetches the corresponding MicroDomain records from the central database.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
+    public function microDomains()
+    {
+        // Get the micro_domain_ids for this user from the tenant database
+        $microDomainIds = \App\Models\Tenant\UserDomain::where('user_id', $this->id)
+            ->pluck('micro_domain_id');
+
+        // Fetch the actual MicroDomain models from the central database
+        return MicroDomain::whereIn('id', $microDomainIds)->get();
+    }
+
+    /**
      * Determine if this user is an admin.
      */
     public function isAdmin(): bool
