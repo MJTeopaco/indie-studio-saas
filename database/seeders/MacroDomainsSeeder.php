@@ -43,6 +43,9 @@ class MacroDomainsSeeder extends Seeder
                 'Statistical Modeling',
                 'Computer Vision',
                 'Data Pipeline Engineering',
+                'LLM Fine-Tuning & Prompt Engineering', 
+                'RAG (Retrieval-Augmented Generation)', 
+                'Vector Databases (Pinecone/Milvus)',
             ],
             'Hardware Prototyping & Embedded Systems' => [
                 'Microcontroller Programming (Arduino/ESP32)',
@@ -61,6 +64,7 @@ class MacroDomainsSeeder extends Seeder
                 'Motion Design & Animation',
                 'Brand Identity Design',
                 'Accessibility Design (WCAG)',
+                'Conversational UI/UX Design',
             ],
             'Mobile Application Development' => [
                 'Native iOS (Swift/SwiftUI)',
@@ -80,6 +84,8 @@ class MacroDomainsSeeder extends Seeder
                 'Cybersecurity & Hardening',
                 'Infrastructure as Code (Terraform)',
                 'Site Reliability Engineering',
+                'MLOps & Model Deployment',
+                'AI Agent Orchestration (LangChain)',
             ],
         ];
 

@@ -27,10 +27,18 @@ class PositionsSeeder extends Seeder
             'Full Stack Developer',
             'Game Developer',
             'DevOps Engineer',
+            'MLOps Engineer',
             'QA Engineer',
             'UI/UX Designer',
             'Mobile Developer',
             'Data / ML Engineer',
+            'AI Engineer',
+            'Data Analyst',
+            'Cybersecurity Engineer',
+            'Technical Product Manager',
+            'Project Manager',
+            'Solutions Architect',
+            'Research Scientist',
         ];
 
         foreach ($positions as $name) {
