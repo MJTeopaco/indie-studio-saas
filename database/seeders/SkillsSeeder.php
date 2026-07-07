@@ -78,10 +78,11 @@ class SkillsSeeder extends Seeder
             // ── DevOps, Cloud & MLOps ─────────────────────────────────────────
             ['name' => 'Docker',          'category' => 'DevOps'],
             ['name' => 'Kubernetes',      'category' => 'DevOps'],
-            ['name' => 'GitHub Actions',  'category' => 'DevOps'],
+            ['name' => 'Git',             'category' => 'DevOps'],
             ['name' => 'AWS',             'category' => 'DevOps'],
             ['name' => 'Google Cloud',    'category' => 'DevOps'],
             ['name' => 'Azure',           'category' => 'DevOps'],
+            ['name' => 'Cloudflare',      'category' => 'DevOps'],
             ['name' => 'Terraform',       'category' => 'DevOps'],
             ['name' => 'Nginx',           'category' => 'DevOps'],
             ['name' => 'Linux',           'category' => 'DevOps'],
@@ -116,6 +117,34 @@ class SkillsSeeder extends Seeder
             ['name' => 'LlamaIndex',   'category' => 'Data & ML'],
             ['name' => 'Hugging Face', 'category' => 'Data & ML'],
             ['name' => 'Keras',        'category' => 'Data & ML'],
+
+            // ── Professional & ADLC ───────────────────────────────────────────
+            ['name' => 'Strategic Leadership',     'category' => 'Professional'],
+            ['name' => 'Business Development',     'category' => 'Professional'],
+            ['name' => 'Financial Management',     'category' => 'Professional'],
+            ['name' => 'Project Management',       'category' => 'Professional'],
+            ['name' => 'Academic Research',        'category' => 'Professional'],
+            ['name' => 'Partnership Management',   'category' => 'Professional'],
+            ['name' => 'Digital Marketing',        'category' => 'Professional'],
+            ['name' => 'Legal & Compliance',       'category' => 'Professional'],
+
+            // ── APIs & Integration ────────────────────────────────────────────
+            // Core Protocols
+            ['name' => 'REST APIs',          'category' => 'API & Integration'],
+            ['name' => 'GraphQL',            'category' => 'API & Integration'],
+            ['name' => 'gRPC',               'category' => 'API & Integration'],
+            ['name' => 'WebSockets',         'category' => 'API & Integration'],
+            
+            // AI & LLM APIs (Crucial for R&D)
+            ['name' => 'OpenAI API',         'category' => 'API & Integration'],
+            ['name' => 'Anthropic API',      'category' => 'API & Integration'],
+            ['name' => 'ElevenLabs API',     'category' => 'API & Integration'],
+            ['name' => 'Hugging Face APIs',  'category' => 'API & Integration'],
+            
+            // SaaS & Business Integrations
+            ['name' => 'Stripe API',         'category' => 'API & Integration'],
+            ['name' => 'Twilio API',         'category' => 'API & Integration'],
+            ['name' => 'OAuth / Auth0',      'category' => 'API & Integration'],
         ];
 
         foreach ($skills as $skill) {
