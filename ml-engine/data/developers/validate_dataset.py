@@ -1,6 +1,7 @@
 import csv
+import os
 
-path = r'e:\PROGRAMMING\Thesis\Project\indie-studio-saas\database\seeders\data\developer_node_features.csv'
+path = os.path.join(os.path.dirname(__file__), 'developer_node_features.csv')
 
 skill_cols = []
 rows = []
