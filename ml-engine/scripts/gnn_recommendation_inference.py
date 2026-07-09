@@ -124,12 +124,8 @@ class DeveloperDataLoader:
         df = pd.read_csv(self.csv_path)
         self.raw_df = df.copy()
 
-        # 1. Extract metadata for final display table
-        self.metadata_df = df[[
-            "employee_id", "position", "experience_years",
-            "historical_task_velocity", "availability_status",
-            "daily_update_compliance_rate", "concurrent_tasks_count"
-        ]].copy()
+        # 1. Retain full candidate DataFrame (including skill_* columns) for explainability display
+        self.metadata_df = df.copy()
 
         # 2. Identify skill columns (starts with 'skill_')
         self.skill_cols = [col for col in df.columns if col.startswith("skill_")]
@@ -371,26 +367,26 @@ def load_gnn_model(in_dim: int, model_path: Optional[str] = None, device: str = 
 
 def simulate_task_input() -> Dict[str, Any]:
     """
-    Simulates a concrete, specific incoming task request dictionary for practical
-    Developer-Task Fit showcase in Indie Studio SaaS project management.
+    Simulates an incoming task request dictionary using true task attributes:
+    task_difficulty, priority, estimated_hours, days_until_deadline, required_skills.
     """
     return {
-        "task_id": "TASK-2026-8841",
-        "task_title": "Distributed Multi-Region Matchmaking & UE5 Netcode Integration",
-        "task_classification": "Multiplayer Networking & Backend Infrastructure",
-        "required_position": "Game Developer",
+        "task_title": "Production Graph Neural Network Recommendation Microservice",
+        "task_classification": "Feature Implementation",
+        "required_position": "Full Stack Developer",
         "task_difficulty": "Hard",
         "priority": "Critical",
-        "estimated_hours": 80.0,
+        "estimated_hours": 45.0,
         "days_until_deadline": 14.0,
-        "target_macro_domains": ["Game Development & Interactive Media", "DevOps & IT Infrastructure"],
+        "target_macro_domains": [0, 1, 1, 1, 0, 0, 0, 0],  # Web & SaaS + Data Science + DevOps
         "required_skills": {
-            "C++": 5.0,
-            "Unreal Engine": 5.0,
-            "Multiplayer / Networking (Photon/Mirror)": 4.0,
+            "Python": 4.0,
+            "PyTorch": 4.0,
+            "JavaScript": 3.0,
+            "React": 3.0,
+            "PostgreSQL": 3.0,
             "Docker": 3.0,
-            "AWS / Cloud": 4.0,
-            "Redis": 3.0,
+            "REST APIs": 4.0,
         }
     }
 
@@ -410,9 +406,20 @@ def run_gnn_recommendation_inference(
       1. Temporarily integrates the incoming task node into a bipartite evaluation graph.
       2. Performs message passing forward pass strictly inside `with torch.no_grad():`.
       3. Computes Match Fit Probability Scores across all candidate developers.
+
+    Args:
+        model: Evaluated HeteroGNNRecommendationModel
+        X_dev: Developer features (N_dev x D)
+        X_task: Task feature vector (1 x D)
+        device: CPU or CUDA device
+
+    Returns:
+        scores (np.ndarray): Array of N_dev probability scores in [0.0, 1.0]
     """
     num_devs = X_dev.shape[0]
 
+    # Construct temporary evaluation graph connecting task node (id 0) to all candidate developers (0 .. num_devs-1)
+    # Edge index shape (2, num_devs) where source is task (0) and targets are developers [0..num_devs-1]
     task_indices = torch.zeros(num_devs, dtype=torch.long)
     dev_indices = torch.arange(num_devs, dtype=torch.long)
     edge_index = torch.stack([task_indices, dev_indices], dim=0).to(device)
@@ -420,6 +427,7 @@ def run_gnn_recommendation_inference(
     X_dev_t = X_dev.to(device)
     X_task_t = X_task.to(device)
 
+    # Strictly disable gradients during evaluation pass
     with torch.no_grad():
         match_probs, z_dev, z_task = model(X_dev_t, X_task_t, edge_index=edge_index)
 
@@ -447,27 +455,22 @@ def print_recommendation_table(
     sorted_df = results_df.sort_values(by="Match Fit Score", ascending=False).reset_index(drop=True)
     top_candidates = sorted_df.head(top_n)
 
-    print("\n" + "=" * 90)
-    print(" >>> PRACTICAL APPLICATION: DEVELOPER-TASK FIT SCORE SHOWCASE (GNN INFERENCE) <<< ")
-    print("=" * 90)
-    print(f" Task ID                  : {task_dict.get('task_id', 'N/A')}")
+    print("\n" + "=" * 92)
+    print(" >>> GNN DEVELOPER RECOMMENDATION INFERENCE REPORT <<< ")
+    print("=" * 92)
     print(f" Task Title               : {task_dict.get('task_title', 'Incoming Task Request')}")
-    print(f" Classification           : {task_dict.get('task_classification', 'N/A')}")
-    print(f" Required Position Role   : {task_dict.get('required_position', 'N/A')}")
-    print(f" Task Difficulty          : {task_dict.get('task_difficulty', 'Medium')} | Priority: {task_dict.get('priority', 'High')}")
-    print(f" Estimated Workload       : {task_dict.get('estimated_hours', 40)} hours | Deadline: {task_dict.get('days_until_deadline', 14)} days")
-    domains = task_dict.get("target_macro_domains", [])
-    print(f" Target Macro Domains     : {', '.join(domains) if isinstance(domains, list) else domains}")
-    req_skills = [f"{k} (L{int(v)})" for k, v in task_dict.get("required_skills", {}).items() if v > 0]
+    print(f" Target Position Role     : {task_dict.get('required_position', 'N/A')}")
+    print(f" Minimum Experience       : {task_dict.get('minimum_experience_years', 0)} years")
+    req_skills = [k for k, v in task_dict.get("required_skills", {}).items() if v > 0]
     print(f" Required Technical Skills: {', '.join(req_skills)}")
-    print("=" * 90)
+    print("=" * 92)
 
-    # Table headers (without Velocity)
+    # Table headers
     header_format = " | ".join([
-        "{r:<4}", "{eid:<7}", "{pos:<32}", "{exp:<10}", "{status:<12}", "{score:<14}"
+        "{r:<4}", "{eid:<7}", "{pos:<28}", "{exp:<8}", "{vel:<10}", "{status:<10}", "{score:<14}"
     ])
     row_format = " | ".join([
-        "{r:<4}", "{eid:<7}", "{pos:<32}", "{exp:<10.1f}", "{status:<12}", "{score:<14}"
+        "{r:<4}", "{eid:<7}", "{pos:<28}", "{exp:<8.1f}", "{vel:<10.2f}", "{status:<10}", "{score:<14}"
     ])
 
     print(header_format.format(
@@ -475,31 +478,35 @@ def print_recommendation_table(
         eid="Emp ID",
         pos="Position Role",
         exp="Exp (yr)",
-        status="Availability",
+        vel="Velocity",
+        status="Status",
         score="Match Fit Score"
     ))
-    print("-" * 90)
+    print("-" * 92)
 
     for rank, idx in enumerate(top_candidates.index, 1):
         row = top_candidates.loc[idx]
         emp_id = int(row["employee_id"])
         pos = str(row["position"])
         exp = float(row["experience_years"])
+        vel = float(row["historical_task_velocity"])
         status = str(row["availability_status"])
         score = float(row["Match Fit Score"])
 
+        # Color or format top scores clearly
         score_str = f"{score * 100.0:6.2f}%"
 
         print(row_format.format(
             r=f"#{rank}",
             eid=f"#{emp_id}",
-            pos=pos[:32],
+            pos=pos[:28],
             exp=exp,
+            vel=vel,
             status=status,
             score=score_str
         ))
 
-    print("=" * 90 + "\n")
+    print("=" * 92 + "\n")
 
 
 # ==============================================================================
@@ -538,8 +545,19 @@ def main():
     print("[INFO] Constructing Bipartite Evaluation Graph & Executing Single-Node Inference Pass...")
     match_scores = run_gnn_recommendation_inference(model, X_dev, X_task, device=device)
 
-    # 5. Display Formatted Terminal Output
-    print_recommendation_table(metadata_df, match_scores, task_dict, top_n=10)
+    # 5. Display Formatted Terminal Output (Rich Thesis Visualizer or ASCII fallback)
+    use_ascii = "--ascii" in sys.argv
+    scored_df = metadata_df.copy()
+    scored_df["Match Fit Score"] = match_scores
+
+    if not use_ascii:
+        try:
+            from gnn_thesis_visualization import print_thesis_comparison
+            print_thesis_comparison(task_dict, scored_df, top_n=10)
+        except ImportError:
+            print_recommendation_table(metadata_df, match_scores, task_dict, top_n=10)
+    else:
+        print_recommendation_table(metadata_df, match_scores, task_dict, top_n=10)
 
 
 if __name__ == "__main__":
