@@ -38,49 +38,56 @@ class SkillsSeeder extends Seeder
             ['name' => 'Ruby',       'category' => 'Language'],
             ['name' => 'Dart',       'category' => 'Language'],
             ['name' => 'Lua',        'category' => 'Language'],
+            ['name' => 'R',          'category' => 'Language'], 
 
             // ── Web Frameworks ────────────────────────────────────────────────
-            ['name' => 'Laravel',     'category' => 'Framework'],
-            ['name' => 'React',       'category' => 'Framework'],
-            ['name' => 'Vue.js',      'category' => 'Framework'],
-            ['name' => 'Next.js',     'category' => 'Framework'],
-            ['name' => 'Nuxt.js',     'category' => 'Framework'],
-            ['name' => 'Angular',     'category' => 'Framework'],
-            ['name' => 'Svelte',      'category' => 'Framework'],
-            ['name' => 'Django',      'category' => 'Framework'],
-            ['name' => 'FastAPI',     'category' => 'Framework'],
-            ['name' => 'Flask',       'category' => 'Framework'],
-            ['name' => 'Spring Boot', 'category' => 'Framework'],
+            ['name' => 'Laravel',       'category' => 'Framework'],
+            ['name' => 'React',         'category' => 'Framework'],
+            ['name' => 'Vue.js',        'category' => 'Framework'],
+            ['name' => 'Next.js',       'category' => 'Framework'],
+            ['name' => 'Nuxt.js',       'category' => 'Framework'],
+            ['name' => 'Angular',       'category' => 'Framework'],
+            ['name' => 'Svelte',        'category' => 'Framework'],
+            ['name' => 'Django',        'category' => 'Framework'],
+            ['name' => 'FastAPI',       'category' => 'Framework'], 
+            ['name' => 'Flask',         'category' => 'Framework'],
+            ['name' => 'Spring Boot',   'category' => 'Framework'],
             ['name' => 'Ruby on Rails', 'category' => 'Framework'],
-            ['name' => 'Express.js',  'category' => 'Framework'],
-            ['name' => 'NestJS',      'category' => 'Framework'],
+            ['name' => 'Express.js',    'category' => 'Framework'],
+            ['name' => 'NestJS',        'category' => 'Framework'],
 
             // ── Mobile ────────────────────────────────────────────────────────
-            ['name' => 'Flutter',       'category' => 'Mobile'],
-            ['name' => 'React Native',  'category' => 'Mobile'],
+            ['name' => 'Flutter',          'category' => 'Mobile'],
+            ['name' => 'React Native',     'category' => 'Mobile'],
             ['name' => 'Android (Native)', 'category' => 'Mobile'],
-            ['name' => 'iOS (Native)',   'category' => 'Mobile'],
+            ['name' => 'iOS (Native)',     'category' => 'Mobile'],
 
-            // ── Databases ─────────────────────────────────────────────────────
-            ['name' => 'PostgreSQL',  'category' => 'Database'],
-            ['name' => 'MySQL',       'category' => 'Database'],
-            ['name' => 'SQLite',      'category' => 'Database'],
-            ['name' => 'MongoDB',     'category' => 'Database'],
-            ['name' => 'Redis',       'category' => 'Database'],
+            // ── Databases (Standard & Vector) ─────────────────────────────────
+            ['name' => 'PostgreSQL',    'category' => 'Database'],
+            ['name' => 'MySQL',         'category' => 'Database'],
+            ['name' => 'SQLite',        'category' => 'Database'],
+            ['name' => 'MongoDB',       'category' => 'Database'],
+            ['name' => 'Redis',         'category' => 'Database'],
             ['name' => 'Elasticsearch', 'category' => 'Database'],
-            ['name' => 'Firebase',    'category' => 'Database'],
-            ['name' => 'Supabase',    'category' => 'Database'],
+            ['name' => 'Firebase',      'category' => 'Database'],
+            ['name' => 'Supabase',      'category' => 'Database'],
+            ['name' => 'Pinecone',      'category' => 'Database'], 
+            ['name' => 'Milvus',        'category' => 'Database'],
+            ['name' => 'ChromaDB',      'category' => 'Database'],
 
-            // ── DevOps & Cloud ────────────────────────────────────────────────
+            // ── DevOps, Cloud & MLOps ─────────────────────────────────────────
             ['name' => 'Docker',          'category' => 'DevOps'],
             ['name' => 'Kubernetes',      'category' => 'DevOps'],
-            ['name' => 'GitHub Actions',  'category' => 'DevOps'],
+            ['name' => 'Git',             'category' => 'DevOps'],
             ['name' => 'AWS',             'category' => 'DevOps'],
             ['name' => 'Google Cloud',    'category' => 'DevOps'],
             ['name' => 'Azure',           'category' => 'DevOps'],
+            ['name' => 'Cloudflare',      'category' => 'DevOps'],
             ['name' => 'Terraform',       'category' => 'DevOps'],
             ['name' => 'Nginx',           'category' => 'DevOps'],
             ['name' => 'Linux',           'category' => 'DevOps'],
+            ['name' => 'MLflow',          'category' => 'DevOps'], 
+            ['name' => 'Ollama',          'category' => 'DevOps'],
 
             // ── Game Engines ──────────────────────────────────────────────────
             ['name' => 'Unity',         'category' => 'Game Engine'],
@@ -100,12 +107,44 @@ class SkillsSeeder extends Seeder
             ['name' => 'Selenium',  'category' => 'Testing'],
             ['name' => 'Pest',      'category' => 'Testing'],
 
-            // ── Data & ML ─────────────────────────────────────────────────────
-            ['name' => 'TensorFlow', 'category' => 'Data & ML'],
-            ['name' => 'PyTorch',    'category' => 'Data & ML'],
+            // ── Data & AI / ML ────────────────────────────────────────────────
+            ['name' => 'TensorFlow',   'category' => 'Data & ML'],
+            ['name' => 'PyTorch',      'category' => 'Data & ML'],
             ['name' => 'scikit-learn', 'category' => 'Data & ML'],
-            ['name' => 'Pandas',     'category' => 'Data & ML'],
-            ['name' => 'NumPy',      'category' => 'Data & ML'],
+            ['name' => 'Pandas',       'category' => 'Data & ML'],
+            ['name' => 'NumPy',        'category' => 'Data & ML'],
+            ['name' => 'LangChain',    'category' => 'Data & ML'],
+            ['name' => 'LlamaIndex',   'category' => 'Data & ML'],
+            ['name' => 'Hugging Face', 'category' => 'Data & ML'],
+            ['name' => 'Keras',        'category' => 'Data & ML'],
+
+            // ── Professional & ADLC ───────────────────────────────────────────
+            ['name' => 'Strategic Leadership',     'category' => 'Professional'],
+            ['name' => 'Business Development',     'category' => 'Professional'],
+            ['name' => 'Financial Management',     'category' => 'Professional'],
+            ['name' => 'Project Management',       'category' => 'Professional'],
+            ['name' => 'Academic Research',        'category' => 'Professional'],
+            ['name' => 'Partnership Management',   'category' => 'Professional'],
+            ['name' => 'Digital Marketing',        'category' => 'Professional'],
+            ['name' => 'Legal & Compliance',       'category' => 'Professional'],
+
+            // ── APIs & Integration ────────────────────────────────────────────
+            // Core Protocols
+            ['name' => 'REST APIs',          'category' => 'API & Integration'],
+            ['name' => 'GraphQL',            'category' => 'API & Integration'],
+            ['name' => 'gRPC',               'category' => 'API & Integration'],
+            ['name' => 'WebSockets',         'category' => 'API & Integration'],
+            
+            // AI & LLM APIs (Crucial for R&D)
+            ['name' => 'OpenAI API',         'category' => 'API & Integration'],
+            ['name' => 'Anthropic API',      'category' => 'API & Integration'],
+            ['name' => 'ElevenLabs API',     'category' => 'API & Integration'],
+            ['name' => 'Hugging Face APIs',  'category' => 'API & Integration'],
+            
+            // SaaS & Business Integrations
+            ['name' => 'Stripe API',         'category' => 'API & Integration'],
+            ['name' => 'Twilio API',         'category' => 'API & Integration'],
+            ['name' => 'OAuth / Auth0',      'category' => 'API & Integration'],
         ];
 
         foreach ($skills as $skill) {

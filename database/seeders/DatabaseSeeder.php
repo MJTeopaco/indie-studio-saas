@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             PositionsSeeder::class,
             SkillsSeeder::class,
+            MacroDomainsSeeder::class,
         ]);
 
         // 2. Seed a test developer account (role: programmer)

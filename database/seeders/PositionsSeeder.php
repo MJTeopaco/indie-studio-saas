@@ -22,15 +22,38 @@ class PositionsSeeder extends Seeder
     public function run(): void
     {
         $positions = [
+            // ── Core Software & Product Development ─────────────
+            'Full Stack Developer',
             'Backend Developer',
             'Frontend Developer',
-            'Full Stack Developer',
-            'Game Developer',
-            'DevOps Engineer',
-            'QA Engineer',
-            'UI/UX Designer',
             'Mobile Developer',
-            'Data / ML Engineer',
+            'Game Developer',
+            'Product Engineer',
+            'Product Design Engineer',
+
+            // ── AI, ML & Data Engineering ───────────────────────
+            'AI / ML Engineer',
+            'Data Engineer',
+            'Data Scientist',
+            'Research Scientist',
+            'Research Analyst',
+
+            // ── Infrastructure, DevOps & Security ───────────────
+            'DevOps Engineer',
+            'DevSecOps',
+            'MLOps Engineer',
+            'QA Automation Engineer',
+
+            // ── Hardware & Embedded Systems ─────────────────────
+            'Hardware / Embedded Engineer',
+            'Hardware-in-the-Loop (HIL) Engineer',
+
+            // ── Product, Strategy & Architecture ────────────────
+            'Technical Product Manager',
+            'Project Manager',
+            'Business Analyst',
+            'Solutions Architect',
+            'AI Solutions Architect',
         ];
 
         foreach ($positions as $name) {

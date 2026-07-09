@@ -11,17 +11,34 @@ A robust SaaS platform designed for indie studios. StudioSprint integrates power
 
 ## 🏗 Architecture & Tenancy (Global Hub -> Path-Based Routing)
 
-When a new developer looks at the code, it's essential to understand the "big picture" of how users and workspaces are managed.
+When a new developer looks at the code, it's essential to understand the "big picture" of how users and workspaces are managed in our architecture.
 
-**The Multi-Tenant Flow:**
-The system uses a **Global User Hub** approach. Users log into a central hub where their identity is verified. From there, they are routed to specific workspaces (tenants) they have access to.
+### 1. The Global User Hub
+The application does not have a single entry point for all users. Instead, it utilizes a **Global User Hub**. 
+- **Authentication:** All users authenticate against a central database (the "landlord" database).
+- **Workspace Resolution:** Once logged in, the hub determines which specific studios (workspaces) the user belongs to and what their role is in each. 
+- **Central Dashboard:** The hub acts as a launching pad. Users select the studio they want to work on and are then routed into that specific tenant's context.
 
-**Routing Logic:**
-We use **Path-Based Tenancy** (via `stancl/tenancy`). This means tenant context is derived from the URL path rather than subdomains. 
-- Example: You will be working with URLs like `/studios/{studio-slug}/dashboard`.
-- State and tenant context live entirely within this path prefix. Ensure any tenant-specific routes are wrapped in the appropriate tenancy middleware group.
+### 2. Path-Based Tenancy (Workspace Routing)
+Once a user selects a studio from the Hub, they are redirected into the tenant context. We use **Path-Based Tenancy** (powered by `stancl/tenancy`).
+
+- **How it Works:** Instead of creating physical subdomains (like `studio1.domain.com`), the tenant ID (or slug) is injected directly into the URL path. 
+- **Example URL:** You will be working with URLs like `/studios/{studio-slug}/dashboard`.
+- **The Magic:** When a request hits a URL matching `/studios/{tenant}`, the `InitializeTenancyByPath` middleware intercepts it. It extracts the `{tenant}` parameter, switches the active database connection to that specific studio's database, sets up the tenant context, and then removes the `{tenant}` parameter from the route so our controllers don't have to manually manage it.
+- **Developer Rule:** State and tenant context live entirely within this path prefix. You must ensure any tenant-specific routes are wrapped in the `tenant` middleware group so the context switch happens automatically.
 
 ## ⚙️ Local Setup & Installation
+
+To run this platform locally, you will need to install a few foundational technologies. Please ensure you have downloaded and installed the following prerequisites before proceeding:
+
+### Prerequisites (What to Download)
+- **PHP (8.3+)**: Required to run the Laravel backend. [Download PHP](https://windows.php.net/download/)
+- **Composer**: The dependency manager for PHP. [Download Composer](https://getcomposer.org/download/)
+- **Node.js (LTS)**: Required for compiling the React/InertiaJS frontend assets. [Download Node.js](https://nodejs.org/)
+- **PostgreSQL**: Our primary database engine. You will need the Postgres server running locally. [Download PostgreSQL](https://www.postgresql.org/download/)
+- **Python (3.10+)**: Required to run the Machine Learning Engine (FastAPI). [Download Python](https://www.python.org/downloads/)
+
+### Installation Steps
 
 1. **Clone the repository:**
    ```bash
@@ -39,18 +56,21 @@ We use **Path-Based Tenancy** (via `stancl/tenancy`). This means tenant context 
    | Variable | Description |
    |----------|-------------|
    | `DB_CONNECTION` | Database driver (defaults to `pgsql`). |
-   | `DB_DATABASE` | Your local database name (e.g., `indie_studio_db`). |
+   | `DB_DATABASE` | Your local central database name (e.g., `indie_studio_db`). |
    | `AWS_*` | Used for S3 file storage (uploads/assets). |
    | `VITE_APP_NAME` | Frontend display name. |
 
 3. **Install Dependencies:**
+   Install both PHP packages and JavaScript node modules:
    ```bash
    composer install
    npm install
    ```
 
-4. **Database Requirements:**
-   Ensure your local environment has the **PostgreSQL** extension enabled (and **mysqli** if your setup requires connecting to legacy tables).
+4. **Database Configuration:**
+   - Make sure your local **PostgreSQL** server is running.
+   - Ensure your PHP installation has the `pdo_pgsql` extension enabled (and `mysqli` if your setup requires connecting to legacy tables).
+   - Create a central database in Postgres (e.g., `indie_studio_db`) to match your `.env` file.
 
 5. **Generate App Key:**
    ```bash
@@ -69,42 +89,20 @@ php artisan migrate:fresh --seed
 ```
 *Note: Our seeders are specifically configured to generate the matrices the Random Forest models need.*
 
-## 🧠 Algorithms (Random Forest & Critical Path execution)
+## 🧠 Machine Learning Engine Setup
 
-Bridging web frameworks and complex algorithms can be tricky. Our ML logic lives in the `ml-engine/` directory.
+Our ML logic lives in the `ml-engine/` directory. It must be running alongside the main Laravel application for predictive features to work.
 
-**Predictive Models & The Sandbox:**
-Our predictive algorithms (Random Forest) and optimization logic (DEAP) run as a separate service. 
-- **Setup:** You need Python 3 installed.
-  ```bash
-  cd ml-engine
-  python -m venv venv
-  source venv/bin/activate  # Or `venv\Scripts\activate` on Windows
-  pip install -r requirements.txt
-  ```
-- **Running Locally:** The engine runs on FastAPI. You can start it using Uvicorn:
-  ```bash
-  uvicorn main:app --reload
-  ```
+1. **Setup Python Environment:**
+   ```bash
+   cd ml-engine
+   python -m venv venv
+   source venv/bin/activate  # Or `venv\Scripts\activate` on Windows
+   pip install -r requirements.txt
+   ```
 
-**Scheduling Logic:**
-The **Critical Path Algorithm** executes primarily within the Python ML service, but the coordination, payload generation, and response handling happen in our Laravel service classes. Check the `app/Services` directory for the PHP classes that dispatch tasks to the ML engine.
-
-## 🤝 Contribution Workflow (Branching & Commits)
-
-To keep our Git history clean and readable, please adhere to the following collaboration ground rules:
-
-**Branch Naming Conventions:**
-| Prefix | Purpose | Example |
-|--------|---------|---------|
-| `feat/` | New features or additions | `feat/studio-dashboard` |
-| `bugfix/` | Fixing a bug | `bugfix/tenant-routing-error` |
-| `chore/` | Maintenance, dependencies, or refactoring | `chore/update-readme` |
-
-**Commit Messages:**
-We mandate the **Conventional Commits** format. This ensures our timeline remains readable and automated changelogs can be generated.
-- `feat(db): initialized tables`
-- `fix(routing): resolved path collision in hub`
-- `docs(readme): added local setup instructions`
-
-Always ensure tests pass and code is formatted before opening a Pull Request!
+2. **Run the FastAPI Server:**
+   The engine runs on FastAPI. You can start it using Uvicorn:
+   ```bash
+   uvicorn main:app --reload
+   ```
