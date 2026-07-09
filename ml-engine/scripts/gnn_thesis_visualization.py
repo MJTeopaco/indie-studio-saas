@@ -187,6 +187,7 @@ def build_task_summary_panel(task_dict: Dict[str, Any]) -> Panel:
     Creates a screenshot-ready summary panel displaying the Target Task requirements.
     """
     task_title = task_dict.get("task_title", "Unspecified Task Request")
+    task_desc = task_dict.get("task_description", "")
     req_position = task_dict.get("required_position", task_dict.get("task_classification", "Full Stack Developer"))
     min_exp = task_dict.get("minimum_experience_years", task_dict.get("min_experience", 0))
     difficulty = task_dict.get("task_difficulty", "Medium")
@@ -211,6 +212,8 @@ def build_task_summary_panel(task_dict: Dict[str, Any]) -> Panel:
     grid.add_column("Value", style="white", justify="left")
 
     grid.add_row("Task Title :", f"[bold white]{task_title}[/bold white]")
+    if task_desc:
+        grid.add_row("Objective :", f"[dim white]{task_desc}[/dim white]")
     grid.add_row("Target Role :", f"[bold yellow]{req_position}[/bold yellow]")
     grid.add_row("Min Experience :", f"[bold]{min_exp} years[/bold]  [dim]({difficulty} Difficulty | {priority} Priority)[/dim]")
     grid.add_row("Macro Domain(s) :", f"[magenta]{macro_domains_str}[/magenta]")
@@ -250,8 +253,8 @@ def build_top_developers_table(
 
     table.add_column("Rank & Score", justify="center", width=16, no_wrap=True)
     table.add_column("Employee Details", justify="left", width=24)
-    table.add_column("Active Skills (Explainable Overlap)", justify="left", width=46)
-    table.add_column("Operational Capacity", justify="center", width=24)
+    table.add_column("Active Skills (Explainable Overlap)", justify="left", width=50)
+    table.add_column("Operational Capacity", justify="center", width=20)
 
     for rank_idx, (_, row) in enumerate(top_df.iterrows(), start=1):
         # 1. Rank & GNN Match Fit Score (Formatted to exactly 4 decimal places)
@@ -290,7 +293,7 @@ def build_top_developers_table(
         # 3. Active Skills with explainable Green Overlap
         skills_col_text = extract_and_format_skills_with_overlap(row, task_required_skills)
 
-        # 4. Operational Capacity (Status, Concurrent Workload, Velocity)
+        # 4. Operational Capacity (Status, Concurrent Workload - Velocity removed per request)
         status_raw = str(row.get("availability_status", "Available")).strip()
         status_styled = (
             f"[bold bright_green]● {status_raw}[/bold bright_green]"
@@ -299,16 +302,10 @@ def build_top_developers_table(
         )
 
         workload = row.get("concurrent_tasks_count", 0)
-        velocity = row.get("historical_task_velocity", 1.0)
-        try:
-            vel_str = f"{float(velocity):.2f}x"
-        except (ValueError, TypeError):
-            vel_str = f"{velocity}"
 
         ops_col_text = (
             f"{status_styled}\n"
-            f"[white]Active Tasks: [bold]{workload}[/bold][/white]\n"
-            f"[white]Velocity: [bold cyan]{vel_str}[/bold cyan][/white]"
+            f"[white]Active Tasks: [bold]{workload}[/bold][/white]"
         )
 
         table.add_row(rank_col_text, emp_col_text, skills_col_text, ops_col_text)
@@ -359,10 +356,11 @@ def _create_mock_thesis_data() -> tuple:
     schema so you can test and screenshot the Rich visualizer immediately.
     """
     mock_task = {
-        "task_title": "Production Graph Neural Network Recommendation Microservice",
-        "task_classification": "Feature Implementation",
+        "task_title": "Real-Time PyTorch GNN Matchmaking & Candidate Inference Microservice",
+        "task_description": "Architect an asynchronous PyTorch Geometric link-prediction microservice with sub-50ms latency, containerized Docker deployment, and PostgreSQL state sync.",
+        "task_classification": "Core Infrastructure / ML Engineering",
         "required_position": "Full Stack Developer",
-        "minimum_experience_years": 3.0,
+        "minimum_experience_years": 4.0,
         "task_difficulty": "Hard",
         "priority": "Critical",
         "target_macro_domains": [0, 1, 1, 1, 0, 0, 0, 0],

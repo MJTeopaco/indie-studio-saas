@@ -371,9 +371,11 @@ def simulate_task_input() -> Dict[str, Any]:
     task_difficulty, priority, estimated_hours, days_until_deadline, required_skills.
     """
     return {
-        "task_title": "Production Graph Neural Network Recommendation Microservice",
-        "task_classification": "Feature Implementation",
+        "task_title": "Real-Time PyTorch GNN Matchmaking & Candidate Inference Microservice",
+        "task_description": "Architect an asynchronous PyTorch Geometric link-prediction microservice with sub-50ms latency, containerized Docker deployment, and PostgreSQL state sync.",
+        "task_classification": "Core Infrastructure / ML Engineering",
         "required_position": "Full Stack Developer",
+        "minimum_experience_years": 4.0,
         "task_difficulty": "Hard",
         "priority": "Critical",
         "estimated_hours": 45.0,
@@ -467,10 +469,10 @@ def print_recommendation_table(
 
     # Table headers
     header_format = " | ".join([
-        "{r:<4}", "{eid:<7}", "{pos:<28}", "{exp:<8}", "{vel:<10}", "{status:<10}", "{score:<14}"
+        "{r:<4}", "{eid:<7}", "{pos:<28}", "{exp:<8}", "{status:<10}", "{score:<14}"
     ])
     row_format = " | ".join([
-        "{r:<4}", "{eid:<7}", "{pos:<28}", "{exp:<8.1f}", "{vel:<10.2f}", "{status:<10}", "{score:<14}"
+        "{r:<4}", "{eid:<7}", "{pos:<28}", "{exp:<8.1f}", "{status:<10}", "{score:<14}"
     ])
 
     print(header_format.format(
@@ -478,18 +480,16 @@ def print_recommendation_table(
         eid="Emp ID",
         pos="Position Role",
         exp="Exp (yr)",
-        vel="Velocity",
         status="Status",
         score="Match Fit Score"
     ))
-    print("-" * 92)
+    print("-" * 80)
 
     for rank, idx in enumerate(top_candidates.index, 1):
         row = top_candidates.loc[idx]
         emp_id = int(row["employee_id"])
         pos = str(row["position"])
         exp = float(row["experience_years"])
-        vel = float(row["historical_task_velocity"])
         status = str(row["availability_status"])
         score = float(row["Match Fit Score"])
 
@@ -501,12 +501,11 @@ def print_recommendation_table(
             eid=f"#{emp_id}",
             pos=pos[:28],
             exp=exp,
-            vel=vel,
             status=status,
             score=score_str
         ))
 
-    print("=" * 92 + "\n")
+    print("=" * 80 + "\n")
 
 
 # ==============================================================================
