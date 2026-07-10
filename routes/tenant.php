@@ -26,6 +26,9 @@ Route::prefix('/studio/{tenant}')->middleware([
     Route::get('/dashboard', [TenantDashboardController::class, 'index'])
         ->name('tenant.dashboard');
 
+    Route::get('/projects', [\App\Http\Controllers\TenantProjectController::class, 'index'])
+        ->name('tenant.projects.index');
+
     Route::get('/projects/{project}', [\App\Http\Controllers\TenantProjectController::class, 'show'])
         ->name('tenant.projects.show');
 
