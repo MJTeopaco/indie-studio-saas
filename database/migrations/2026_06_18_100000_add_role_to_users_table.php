@@ -21,11 +21,13 @@ return new class extends Migration
         });
 
         // PostgreSQL CHECK constraint — enforces only valid role values
-        DB::statement("
-            ALTER TABLE users
-            ADD CONSTRAINT chk_users_role
-            CHECK (role IN ('programmer', 'admin'))
-        ");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("
+                ALTER TABLE users
+                ADD CONSTRAINT chk_users_role
+                CHECK (role IN ('programmer', 'admin'))
+            ");
+        }
     }
 
     /**
@@ -34,7 +36,9 @@ return new class extends Migration
     public function down(): void
     {
         // Drop the CHECK constraint first before removing the column
-        DB::statement('ALTER TABLE users DROP CONSTRAINT IF EXISTS chk_users_role');
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement('ALTER TABLE users DROP CONSTRAINT IF EXISTS chk_users_role');
+        }
 
         Schema::table('users', function (Blueprint $table) {
             $table->dropColumn('role');

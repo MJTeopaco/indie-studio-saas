@@ -97,79 +97,98 @@ def format_macro_domains(macro_domains_val: Any) -> str:
     return ", ".join(active_domains) if active_domains else "General Software Development"
 
 
-def get_task_required_skills_set(task_dict: Dict[str, Any]) -> Set[str]:
+def format_skill_level(level_val: Any) -> str:
     """
-    Extracts a clean set of required skill names (without 'skill_' prefix)
-    from task_dict where value > 0 or flagged as active.
+    Formats a numeric skill level cleanly (e.g. 5.0 -> '5', 4.5 -> '4.5').
+    """
+    try:
+        val = float(level_val)
+        if val == int(val):
+            return str(int(val))
+        return f"{val:.1f}"
+    except (ValueError, TypeError):
+        return str(level_val)
+
+
+def get_task_required_skills_map(task_dict: Dict[str, Any]) -> Dict[str, float]:
+    """
+    Extracts a clean dictionary mapping skill name -> required numeric level (> 0)
+    from task_dict.
     """
     req_skills = task_dict.get("required_skills", {})
-    skill_set = set()
+    skill_map: Dict[str, float] = {}
 
     if isinstance(req_skills, dict):
         for k, v in req_skills.items():
-            if float(v) > 0:
-                clean_name = k[6:] if k.startswith("skill_") else k
-                skill_set.add(clean_name)
+            try:
+                num_v = float(v)
+            except (ValueError, TypeError):
+                num_v = 1.0
+            if num_v > 0:
+                clean_name = k[6:] if str(k).startswith("skill_") else str(k)
+                skill_map[clean_name] = num_v
     elif isinstance(req_skills, (list, set, tuple)):
         for item in req_skills:
             clean_name = str(item)[6:] if str(item).startswith("skill_") else str(item)
-            skill_set.add(clean_name)
+            skill_map[clean_name] = 1.0
 
-    return skill_set
+    return skill_map
 
 
 def extract_and_format_skills_with_overlap(
     row: pd.Series,
-    task_required_skills: Set[str],
-    max_display_skills: int = 12
+    task_required_skills_map: Dict[str, float],
+    max_display_skills: int = 14
 ) -> Text:
     """
     Scans a developer's `skill_*` columns and constructs an explainable Rich Text
-    object.
+    object showing ONLY active skills (level > 0) alongside their level indicator.
     
     Explainability Rules:
       - Overlapping Skills (in Task Requirements): Highlighted in BOLD BRIGHT GREEN
-        with a checkmark prefix (`✓ Python`), explaining direct functional overlap.
-      - Additional Active Skills: Displayed in subtle DIM CYAN, showing broader
-        technical competency without cluttering attention.
+        with a checkmark and the developer's level (`✓ Python (L5)`).
+      - Additional Active Skills (level > 0): Displayed in subtle DIM CYAN with
+        their developer level (`TensorFlow (L4)`).
     """
-    overlapping_skills: List[str] = []
-    additional_skills: List[str] = []
+    overlapping_skills: List[tuple] = []  # (skill_name, dev_level)
+    additional_skills: List[tuple] = []   # (skill_name, dev_level)
 
     for col in row.index:
         if str(col).startswith("skill_"):
             val = row[col]
-            # Check if skill is active (1 for binary one-hot, or > 0 for ratings)
             try:
                 num_val = float(val)
             except (ValueError, TypeError):
                 num_val = 0.0
 
             if num_val > 0.0:
-                skill_name = str(col)[6:]  # Remove 'skill_' prefix
-                if skill_name in task_required_skills:
-                    overlapping_skills.append(skill_name)
+                skill_name = str(col)[6:]
+                if skill_name in task_required_skills_map:
+                    overlapping_skills.append((skill_name, num_val))
                 else:
-                    additional_skills.append(skill_name)
+                    additional_skills.append((skill_name, num_val))
 
-    # Sort alphabetically for polished presentation
-    overlapping_skills.sort()
-    additional_skills.sort()
+    # Sort overlapping skills alphabetically
+    overlapping_skills.sort(key=lambda x: x[0])
+    # Sort additional developer skills descending by their skill level so highest expertise shows first
+    additional_skills.sort(key=lambda x: (-x[1], x[0]))
 
     formatted_text = Text()
 
-    # First render overlapping skills in bright bold green
-    for idx, skill in enumerate(overlapping_skills):
-        formatted_text.append(f"✓ {skill}", style="bold bright_green")
+    # 1. Render overlapping required skills in bright bold green
+    for idx, (skill, dev_lvl) in enumerate(overlapping_skills):
+        lvl_str = format_skill_level(dev_lvl)
+        formatted_text.append(f"✓ {skill} (L{lvl_str})", style="bold bright_green")
         if idx < len(overlapping_skills) - 1 or additional_skills:
             formatted_text.append(", ", style="dim white")
 
-    # Then render additional active skills up to budget
+    # 2. Render additional active skills up to budget
     remaining_slots = max(0, max_display_skills - len(overlapping_skills))
     displayed_extras = additional_skills[:remaining_slots]
 
-    for idx, skill in enumerate(displayed_extras):
-        formatted_text.append(skill, style="dim cyan")
+    for idx, (skill, dev_lvl) in enumerate(displayed_extras):
+        lvl_str = format_skill_level(dev_lvl)
+        formatted_text.append(f"{skill} (L{lvl_str})", style="dim cyan")
         if idx < len(displayed_extras) - 1:
             formatted_text.append(", ", style="dim white")
 
@@ -194,13 +213,14 @@ def build_task_summary_panel(task_dict: Dict[str, Any]) -> Panel:
     priority = task_dict.get("priority", "High")
     macro_domains_str = format_macro_domains(task_dict.get("target_macro_domains", []))
 
-    # Extract required skills into styled tags
-    req_skills_set = get_task_required_skills_set(task_dict)
+    # Extract required skills into styled tags with required level indicators
+    req_skills_map = get_task_required_skills_map(task_dict)
     skills_text = Text()
-    if req_skills_set:
-        sorted_req = sorted(list(req_skills_set))
-        for idx, skill in enumerate(sorted_req):
-            skills_text.append(skill, style="bold bright_green")
+    if req_skills_map:
+        sorted_req = sorted(req_skills_map.items(), key=lambda x: x[0])
+        for idx, (skill, lvl) in enumerate(sorted_req):
+            lvl_str = format_skill_level(lvl)
+            skills_text.append(f"{skill} (L{lvl_str})", style="bold bright_green")
             if idx < len(sorted_req) - 1:
                 skills_text.append(" • ", style="dim white")
     else:
@@ -239,7 +259,7 @@ def build_top_developers_table(
     justifying GNN decisions with Match Fit Scores, exact skill overlap,
     and operational capacity.
     """
-    task_required_skills = get_task_required_skills_set(task_dict)
+    task_required_skills_map = get_task_required_skills_map(task_dict)
 
     table = Table(
         title="[bold bright_white]🏆 TOP RECOMMENDED DEVELOPERS (GNN MATCH FIT COMPARISON)[/bold bright_white]",
@@ -290,8 +310,8 @@ def build_top_developers_table(
             f"[dim]Experience: {exp_val}[/dim]"
         )
 
-        # 3. Active Skills with explainable Green Overlap
-        skills_col_text = extract_and_format_skills_with_overlap(row, task_required_skills)
+        # 3. Active Skills with explainable Green Overlap & Levels
+        skills_col_text = extract_and_format_skills_with_overlap(row, task_required_skills_map)
 
         # 4. Operational Capacity (Status, Concurrent Workload - Velocity removed per request)
         status_raw = str(row.get("availability_status", "Available")).strip()
@@ -356,47 +376,48 @@ def _create_mock_thesis_data() -> tuple:
     schema so you can test and screenshot the Rich visualizer immediately.
     """
     mock_task = {
-        "task_title": "Real-Time PyTorch GNN Matchmaking & Candidate Inference Microservice",
-        "task_description": "Architect an asynchronous PyTorch Geometric link-prediction microservice with sub-50ms latency, containerized Docker deployment, and PostgreSQL state sync.",
-        "task_classification": "Core Infrastructure / ML Engineering",
-        "required_position": "Full Stack Developer",
-        "minimum_experience_years": 4.0,
+        "task_title": "Autonomous NPC AI Agent & LLM Orchestration Inference Microservice",
+        "task_description": "Architect and deploy a low-latency generative AI behavior microservice for autonomous game NPCs using PyTorch, Hugging Face Transformers, LangChain, and ChromaDB vector memory.",
+        "task_classification": "AI / ML Engine Development",
+        "required_position": "AI / ML Engineer",
+        "minimum_experience_years": 5.0,
         "task_difficulty": "Hard",
         "priority": "Critical",
-        "target_macro_domains": [0, 1, 1, 1, 0, 0, 0, 0],
+        "target_macro_domains": [0, 0, 1, 0, 0, 0, 0, 1],
         "required_skills": {
-            "skill_Python": 1,
-            "skill_PyTorch": 1,
-            "skill_JavaScript": 1,
-            "skill_React": 1,
-            "skill_PostgreSQL": 1,
-            "skill_Docker": 1,
-            "skill_REST APIs": 1,
+            "skill_Python": 5.0,
+            "skill_PyTorch": 5.0,
+            "skill_Hugging Face": 4.0,
+            "skill_LangChain": 4.0,
+            "skill_ChromaDB": 4.0,
+            "skill_FastAPI": 4.0,
+            "skill_Docker": 3.0,
+            "skill_REST APIs": 4.0,
         }
     }
 
     mock_candidates = pd.DataFrame([
         {
-            "employee_id": 54,
-            "position": "Full Stack Developer",
-            "experience_years": 7.0,
+            "employee_id": 86,
+            "position": "AI / ML Engineer",
+            "experience_years": 11.0,
             "availability_status": "Available",
-            "concurrent_tasks_count": 1,
-            "historical_task_velocity": 0.98,
-            "Match Fit Score": 0.928512,
-            "skill_Python": 1, "skill_PyTorch": 1, "skill_JavaScript": 1, "skill_React": 1,
-            "skill_PostgreSQL": 1, "skill_Docker": 1, "skill_REST APIs": 1, "skill_AWS": 1, "skill_GraphQL": 1
+            "concurrent_tasks_count": 0,
+            "Match Fit Score": 0.941208,
+            "skill_Python": 5.0, "skill_PyTorch": 5.0, "skill_Hugging Face": 5.0, "skill_LangChain": 4.0,
+            "skill_ChromaDB": 4.0, "skill_FastAPI": 5.0, "skill_Docker": 4.0, "skill_REST APIs": 4.0,
+            "skill_TensorFlow": 4.0, "skill_OpenAI API": 5.0, "skill_Git": 4.0
         },
         {
-            "employee_id": 33,
-            "position": "Full Stack Developer",
-            "experience_years": 9.0,
+            "employee_id": 44,
+            "position": "MLOps Engineer",
+            "experience_years": 8.0,
             "availability_status": "Available",
-            "concurrent_tasks_count": 2,
-            "historical_task_velocity": 0.89,
-            "Match Fit Score": 0.920045,
-            "skill_Python": 1, "skill_PyTorch": 1, "skill_JavaScript": 1, "skill_React": 1,
-            "skill_PostgreSQL": 1, "skill_Docker": 1, "skill_REST APIs": 0, "skill_Kubernetes": 1
+            "concurrent_tasks_count": 1,
+            "Match Fit Score": 0.918451,
+            "skill_Python": 5.0, "skill_PyTorch": 4.0, "skill_Hugging Face": 4.0, "skill_LangChain": 3.0,
+            "skill_ChromaDB": 4.0, "skill_FastAPI": 4.0, "skill_Docker": 5.0, "skill_REST APIs": 4.0,
+            "skill_Kubernetes": 4.0, "skill_AWS": 4.0
         },
         {
             "employee_id": 90,
@@ -404,32 +425,29 @@ def _create_mock_thesis_data() -> tuple:
             "experience_years": 6.0,
             "availability_status": "Available",
             "concurrent_tasks_count": 1,
-            "historical_task_velocity": 0.94,
-            "Match Fit Score": 0.910931,
-            "skill_Python": 1, "skill_PyTorch": 1, "skill_PostgreSQL": 1, "skill_Docker": 1,
-            "skill_REST APIs": 1, "skill_Airflow": 1, "skill_Spark": 1
+            "Match Fit Score": 0.887612,
+            "skill_Python": 5.0, "skill_PyTorch": 4.0, "skill_ChromaDB": 3.0, "skill_FastAPI": 4.0,
+            "skill_Docker": 4.0, "skill_REST APIs": 4.0, "skill_PostgreSQL": 5.0, "skill_Spark": 4.0
         },
         {
-            "employee_id": 22,
+            "employee_id": 100,
+            "position": "Solutions Architect",
+            "experience_years": 14.0,
+            "availability_status": "Busy",
+            "concurrent_tasks_count": 3,
+            "Match Fit Score": 0.865410,
+            "skill_Python": 5.0, "skill_PyTorch": 3.0, "skill_FastAPI": 5.0, "skill_Docker": 5.0,
+            "skill_REST APIs": 5.0, "skill_AWS": 5.0, "skill_Azure": 4.0
+        },
+        {
+            "employee_id": 54,
             "position": "Full Stack Developer",
-            "experience_years": 3.0,
+            "experience_years": 7.0,
             "availability_status": "Available",
             "concurrent_tasks_count": 0,
-            "historical_task_velocity": 1.08,
-            "Match Fit Score": 0.908611,
-            "skill_Python": 1, "skill_JavaScript": 1, "skill_React": 1, "skill_PostgreSQL": 1,
-            "skill_REST APIs": 1, "skill_TypeScript": 1
-        },
-        {
-            "employee_id": 5,
-            "position": "Full Stack Developer",
-            "experience_years": 6.0,
-            "availability_status": "Busy",
-            "concurrent_tasks_count": 4,
-            "historical_task_velocity": 0.95,
-            "Match Fit Score": 0.892404,
-            "skill_Python": 1, "skill_PyTorch": 1, "skill_JavaScript": 1, "skill_React": 1,
-            "skill_PostgreSQL": 1, "skill_Docker": 1
+            "Match Fit Score": 0.831204,
+            "skill_Python": 4.0, "skill_FastAPI": 4.0, "skill_Docker": 3.0, "skill_REST APIs": 4.0,
+            "skill_JavaScript": 5.0, "skill_React": 4.0
         }
     ])
 
