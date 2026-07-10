@@ -50,11 +50,13 @@ return new class extends Migration
 
         // Native PostgreSQL CHECK constraint — enforces the 1–5 proficiency scale
         // at the storage layer, not just at the application layer
-        DB::statement("
-            ALTER TABLE global_profile_skill
-            ADD CONSTRAINT chk_proficiency_level
-            CHECK (proficiency_level BETWEEN 1 AND 5)
-        ");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("
+                ALTER TABLE global_profile_skill
+                ADD CONSTRAINT chk_proficiency_level
+                CHECK (proficiency_level BETWEEN 1 AND 5)
+            ");
+        }
     }
 
     /**
@@ -62,7 +64,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        DB::statement('ALTER TABLE global_profile_skill DROP CONSTRAINT IF EXISTS chk_proficiency_level');
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement('ALTER TABLE global_profile_skill DROP CONSTRAINT IF EXISTS chk_proficiency_level');
+        }
         Schema::dropIfExists('global_profile_skill');
     }
 };

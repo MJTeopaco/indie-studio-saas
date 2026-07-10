@@ -371,22 +371,23 @@ def simulate_task_input() -> Dict[str, Any]:
     task_difficulty, priority, estimated_hours, days_until_deadline, required_skills.
     """
     return {
-        "task_title": "Real-Time PyTorch GNN Matchmaking & Candidate Inference Microservice",
-        "task_description": "Architect an asynchronous PyTorch Geometric link-prediction microservice with sub-50ms latency, containerized Docker deployment, and PostgreSQL state sync.",
-        "task_classification": "Core Infrastructure / ML Engineering",
-        "required_position": "Full Stack Developer",
-        "minimum_experience_years": 4.0,
+        "task_title": "Autonomous NPC AI Agent & LLM Orchestration Inference Microservice",
+        "task_description": "Architect and deploy a low-latency generative AI behavior microservice for autonomous game NPCs using PyTorch, Hugging Face Transformers, LangChain, and ChromaDB vector memory.",
+        "task_classification": "AI / ML Engine Development",
+        "required_position": "AI / ML Engineer",
+        "minimum_experience_years": 5.0,
         "task_difficulty": "Hard",
         "priority": "Critical",
         "estimated_hours": 45.0,
         "days_until_deadline": 14.0,
-        "target_macro_domains": [0, 1, 1, 1, 0, 0, 0, 0],  # Web & SaaS + Data Science + DevOps
+        "target_macro_domains": [0, 0, 1, 0, 0, 0, 0, 1],  # Data Science & Predictive Modeling + Game Dev
         "required_skills": {
-            "Python": 4.0,
-            "PyTorch": 4.0,
-            "JavaScript": 3.0,
-            "React": 3.0,
-            "PostgreSQL": 3.0,
+            "Python": 5.0,
+            "PyTorch": 5.0,
+            "Hugging Face": 4.0,
+            "LangChain": 4.0,
+            "ChromaDB": 4.0,
+            "FastAPI": 4.0,
             "Docker": 3.0,
             "REST APIs": 4.0,
         }
