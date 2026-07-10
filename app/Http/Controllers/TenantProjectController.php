@@ -23,7 +23,7 @@ class TenantProjectController extends Controller
             $projectModel = null;
         }
 
-        return Inertia::render('Tenant/ProjectWorkspace', [
+        return Inertia::render('Tenant/Projects/Show', [
             'studio' => [
                 'id'   => $studio ? $studio->id : tenant('id'),
                 'name' => $studio ? $studio->name : 'Studio',
