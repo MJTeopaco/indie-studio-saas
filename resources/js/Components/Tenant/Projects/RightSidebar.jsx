@@ -19,8 +19,8 @@ function PinnedActionCard({ onDraftNewTask }) {
             className="group cursor-pointer rounded-2xl border-2 border-dashed border-gray-300 dark:border-slate-700 bg-gray-50/80 dark:bg-slate-800/30 hover:bg-gray-100/80 hover:dark:bg-slate-800/50 p-3.5 transition-all duration-200 active:scale-[0.99]"
         >
             <div className="flex items-center justify-center gap-2">
-                <Sparkles className="w-4 h-4 text-indigo-500 dark:text-indigo-400 group-hover:scale-110 transition-transform" />
-                <span className="text-sm font-semibold text-gray-700 dark:text-slate-300 group-hover:text-gray-900 dark:group-hover:text-slate-100 transition-colors">
+                <Sparkles className="w-4 h-4 text-brand dark:text-brand-light group-hover:scale-110 transition-transform" />
+                <span className="font-heading text-sm font-semibold text-gray-700 dark:text-slate-300 group-hover:text-gray-900 dark:group-hover:text-slate-100 transition-colors">
                     Draft New Task
                 </span>
             </div>
@@ -110,7 +110,7 @@ function TaskSidebarCard({ task }) {
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                     {assigneeName ? (
                         <div className="flex items-center gap-1.5">
-                            <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/60 flex items-center justify-center text-[10px] font-bold">
+                            <div className="w-5 h-5 rounded-full bg-brand-10 dark:bg-brand-20 text-brand dark:text-brand-light border border-brand-30 flex items-center justify-center text-[10px] font-bold">
                                 {assigneeInitials}
                             </div>
                             {task.gnnMatchScore && (
@@ -129,7 +129,7 @@ function TaskSidebarCard({ task }) {
                             className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500 dark:text-slate-400"
                             title="Unassigned — Needs AI routing"
                         >
-                            <Bot className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
+                            <Bot className="w-3.5 h-3.5 text-brand dark:text-brand-light" />
                             <span>Unassigned</span>
                         </span>
                     )}
@@ -212,7 +212,7 @@ export default function RightSidebar({ tasks = [], onDraftNewTask }) {
         <aside className="w-80 lg:w-96 border-l border-gray-200 dark:border-slate-800 bg-gray-50/60 dark:bg-slate-900/50 hidden lg:flex flex-col flex-shrink-0 h-full">
             {/* Sidebar Header */}
             <div className="p-6 pb-2 flex items-center justify-between">
-                <h3 className="text-sm sm:text-base font-bold text-gray-900 dark:text-slate-200">
+                <h3 className="font-heading text-sm sm:text-base font-bold text-gray-900 dark:text-slate-200">
                     Active Sprint Tasks
                 </h3>
 

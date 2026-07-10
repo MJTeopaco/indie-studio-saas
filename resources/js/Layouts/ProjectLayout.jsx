@@ -44,7 +44,7 @@ export default function ProjectLayout({ auth, project, children }) {
                             <div className="h-6 w-px bg-gray-200 dark:bg-gray-800 hidden sm:block" />
 
                             <div>
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-brand dark:text-brand-light">
                                     StudioSprint Workspace
                                 </span>
                                 <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100 leading-tight">
@@ -59,7 +59,7 @@ export default function ProjectLayout({ auth, project, children }) {
                                 <button
                                     type="button"
                                     onClick={() => alert('Assign Members modal coming soon!')}
-                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-sm shadow-indigo-500/20 transition-all"
+                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-brand hover:bg-brand-light shadow-sm shadow-brand/20 transition-all"
                                 >
                                     {/* UserPlus icon */}
                                     <svg
@@ -82,7 +82,7 @@ export default function ProjectLayout({ auth, project, children }) {
                             )}
 
                             <div className="flex items-center gap-3.5 pl-3 border-l border-gray-200 dark:border-gray-800">
-                                <div className="w-8 h-8 rounded-full bg-indigo-500/10 dark:bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                                <div className="w-8 h-8 rounded-full bg-brand-10 dark:bg-brand-20 border border-brand-30 flex items-center justify-center text-xs font-bold text-brand dark:text-brand-light">
                                     {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
                                 </div>
                                 <div className="hidden md:block text-left">

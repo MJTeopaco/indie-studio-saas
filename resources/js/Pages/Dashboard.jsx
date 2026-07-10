@@ -17,7 +17,7 @@ export default function Dashboard({ ownedStudios = [], joinedStudios = [] }) {
                     {/* Action Bar */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div>
-                            <h1 className="text-3xl font-bold text-text-primary">Your Hub</h1>
+                            <h1 className="font-heading text-3xl font-bold text-text-primary">Your Hub</h1>
                             <p className="mt-1 text-sm text-text-muted">Manage and access all your studio workspaces.</p>
                         </div>
                         <div className="flex items-center gap-3">
@@ -33,7 +33,7 @@ export default function Dashboard({ ownedStudios = [], joinedStudios = [] }) {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                                 </svg>
                             </div>
-                            <h3 className="text-lg font-bold text-text-primary mb-2">No Workspaces Yet</h3>
+                            <h3 className="font-heading text-lg font-bold text-text-primary mb-2">No Workspaces Yet</h3>
                             <p className="text-text-muted mb-6 max-w-md mx-auto">
                                 You haven't joined or created any studios yet. Create a new studio to get started, or join an existing one using an invitation code.
                             </p>
@@ -47,7 +47,7 @@ export default function Dashboard({ ownedStudios = [], joinedStudios = [] }) {
                             {/* Section A: Workspaces You Manage */}
                             {ownedStudios.length > 0 && (
                                 <section>
-                                    <h2 className="text-xl font-bold text-text-primary mb-4 flex items-center gap-2">
+                                    <h2 className="font-heading text-xl font-bold text-text-primary mb-4 flex items-center gap-2">
                                         Workspaces You Manage
                                         <span className="bg-brand/10 text-brand text-xs px-2 py-0.5 rounded-full font-semibold">
                                             {ownedStudios.length}
@@ -64,7 +64,7 @@ export default function Dashboard({ ownedStudios = [], joinedStudios = [] }) {
                             {/* Section B: Workspaces You've Joined */}
                             {joinedStudios.length > 0 && (
                                 <section>
-                                    <h2 className="text-xl font-bold text-text-primary mb-4 flex items-center gap-2">
+                                    <h2 className="font-heading text-xl font-bold text-text-primary mb-4 flex items-center gap-2">
                                         Workspaces You've Joined
                                         <span className="bg-surface-border text-text-muted text-xs px-2 py-0.5 rounded-full font-semibold">
                                             {joinedStudios.length}

@@ -19,7 +19,7 @@ export default function AuthenticatedLayout({ header, children }) {
                         <div className="flex">
                             <div className="flex shrink-0 items-center">
                                 <Link href={route('dashboard')}>
-                                    <ApplicationLogo className="text-xl" />
+                                    <ApplicationLogo variant="horizontal" className="h-7" />
                                 </Link>
                             </div>
 

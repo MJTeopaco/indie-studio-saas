@@ -33,7 +33,7 @@ export default function JoinStudioModal({ triggerText = "Join via Code" }) {
 
             <Modal show={isOpen} onClose={closeModal} maxWidth="md">
                 <form onSubmit={submit} className="p-6">
-                    <h2 className="text-xl font-bold text-text-primary mb-4">
+                    <h2 className="font-heading text-xl font-bold text-text-primary mb-4">
                         Join a Studio
                     </h2>
                     <p className="text-sm text-text-muted mb-4">

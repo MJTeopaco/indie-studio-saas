@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import {
-    Sparkles,
     PanelLeftClose,
     PanelLeftOpen,
     Search,
@@ -14,6 +13,7 @@ import {
     Sun,
     Moon,
 } from 'lucide-react';
+import ApplicationLogo from '@/Components/ApplicationLogo';
 
 /**
  * Reusable NavItem sub-component handling both expanded (w-64) and collapsed (w-16) states.
@@ -27,13 +27,13 @@ function NavItem({ icon: Icon, label, href = '#', active = false, badge = null, 
                 isCollapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2.25'
             } rounded-xl text-sm font-medium transition-all duration-200 ${
                 active
-                    ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold shadow-xs'
+                    ? 'bg-brand-10 text-brand font-semibold shadow-xs'
                     : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 hover:dark:bg-slate-800/50 hover:text-gray-900 hover:dark:text-slate-200'
             }`}
         >
             <Icon
                 className={`w-4.5 h-4.5 shrink-0 transition-transform duration-200 group-hover:scale-105 ${
-                    active ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-slate-400 group-hover:text-gray-900 group-hover:dark:text-slate-200'
+                    active ? 'text-brand' : 'text-gray-500 dark:text-slate-400 group-hover:text-gray-900 group-hover:dark:text-slate-200'
                 }`}
             />
 
@@ -44,7 +44,7 @@ function NavItem({ icon: Icon, label, href = '#', active = false, badge = null, 
                         <span
                             className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md transition-colors ${
                                 badge === 'GNN'
-                                    ? 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30'
+                                    ? 'bg-brand-10 text-brand border border-brand-30'
                                     : 'bg-gray-200 dark:bg-slate-800 text-gray-600 dark:text-slate-400 border border-gray-300 dark:border-slate-700'
                             }`}
                         >
@@ -56,7 +56,7 @@ function NavItem({ icon: Icon, label, href = '#', active = false, badge = null, 
 
             {/* Collapsed floating indicator dot for active state */}
             {isCollapsed && active && (
-                <span className="absolute right-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                <span className="absolute right-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-brand" />
             )}
         </Link>
     );
@@ -73,10 +73,11 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
     // Mini-Sidebar collapse state
     const [isCollapsed, setIsCollapsed] = useState(false);
 
-    // Interactive theme state synced with document.documentElement
+    // Interactive theme state synced with document.documentElement and localStorage
     const [isDark, setIsDark] = useState(() => {
-        if (typeof document !== 'undefined') {
-            return document.documentElement.classList.contains('dark');
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('theme') === 'dark' || 
+                (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
         }
         return true;
     });
@@ -85,8 +86,10 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
         if (typeof document !== 'undefined') {
             if (isDark) {
                 document.documentElement.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
             } else {
                 document.documentElement.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
             }
         }
     }, [isDark]);
@@ -155,11 +158,13 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                         className="flex items-center gap-2.5 overflow-hidden focus:outline-none"
                         title={studioName}
                     >
-                        <div className="w-8 h-8 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
-                            <Sparkles className="w-4.5 h-4.5 text-indigo-600 dark:text-indigo-400" />
-                        </div>
+                        {/* Vaultera Labs symbol logo — collapses to symbol only */}
+                        <ApplicationLogo
+                            variant="symbol"
+                            className="w-8 h-8 shrink-0"
+                        />
                         {!isCollapsed && (
-                            <span className="font-bold text-base tracking-tight text-gray-900 dark:text-slate-100 truncate">
+                            <span className="font-heading font-bold text-base tracking-tight text-gray-900 dark:text-slate-100 truncate">
                                 StudioSprint
                             </span>
                         )}
@@ -184,7 +189,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                     <button
                         type="button"
                         onClick={() => alert('Search (⌘K)')}
-                        className="w-full flex items-center justify-center py-2 rounded-xl bg-gray-100 dark:bg-slate-800/50 text-gray-400 dark:text-slate-500 hover:text-indigo-500 dark:hover:text-indigo-400 hover:bg-gray-200 dark:hover:bg-slate-800 transition-colors"
+                        className="w-full flex items-center justify-center py-2 rounded-xl bg-gray-100 dark:bg-slate-800/50 text-gray-400 dark:text-slate-500 hover:text-brand dark:hover:text-brand hover:bg-gray-200 dark:hover:bg-slate-800 transition-colors"
                         title="Search (⌘K)"
                     >
                         <Search className="w-4 h-4" />
@@ -197,7 +202,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                             placeholder="Search..."
                             readOnly
                             onClick={() => alert('Quick Search (⌘K)')}
-                            className="w-full pl-9 pr-12 py-2 rounded-xl bg-gray-100 dark:bg-slate-800/50 border border-transparent focus:border-indigo-500 dark:focus:border-indigo-500 text-xs text-gray-800 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none cursor-pointer transition-all"
+                            className="w-full pl-9 pr-12 py-2 rounded-xl bg-gray-100 dark:bg-slate-800/50 border border-transparent focus:border-brand dark:focus:border-brand text-xs text-gray-800 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none cursor-pointer transition-all"
                         />
                         <span className="absolute right-2.5 text-[10px] font-mono text-gray-500 dark:text-slate-400 bg-gray-200 dark:bg-slate-700/80 rounded px-1.5 py-0.5 pointer-events-none">
                             ⌘K
@@ -223,7 +228,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                 {/* 3. Secondary Navigation */}
                 <div className="pt-4 pb-1">
                     {!isCollapsed ? (
-                        <p className="text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-3 uppercase tracking-wider">
+                        <p className="font-heading text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-3 uppercase tracking-wider">
                             Settings & Help
                         </p>
                     ) : (
@@ -253,7 +258,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                         className="w-full flex items-center justify-center py-2 rounded-xl bg-gray-100 dark:bg-slate-800/50 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
                         title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                     >
-                        {isDark ? <Moon className="w-4 h-4 text-indigo-400" /> : <Sun className="w-4 h-4 text-amber-500" />}
+                        {isDark ? <Moon className="w-4 h-4 text-brand" /> : <Sun className="w-4 h-4 text-amber-500" />}
                     </button>
                 ) : (
                     <div className="flex items-center rounded-full bg-gray-100 dark:bg-slate-800/50 p-1 border border-gray-200/60 dark:border-slate-700/50">
@@ -278,7 +283,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                                     : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'
                             }`}
                         >
-                            <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                            <Moon className="w-3.5 h-3.5 text-brand" />
                             <span>Dark</span>
                         </button>
                     </div>
@@ -291,13 +296,13 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                         isCollapsed ? 'justify-center p-1.5' : 'gap-3 p-2'
                     } rounded-xl hover:bg-gray-100 hover:dark:bg-slate-800/60 cursor-pointer transition-all duration-200`}
                 >
-                    <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-sm">
+                    <div className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-sm">
                         {(user?.name || 'U').charAt(0).toUpperCase()}
                     </div>
 
                     {!isCollapsed && (
                         <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold text-gray-900 dark:text-slate-200 truncate">
+                            <p className="font-heading text-sm font-semibold text-gray-900 dark:text-slate-200 truncate">
                                 {user?.name || 'Studio Member'}
                             </p>
                             <p className="text-xs text-gray-500 dark:text-slate-500 truncate">

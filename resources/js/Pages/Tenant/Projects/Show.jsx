@@ -42,7 +42,7 @@ function PriorityBadge({ priority }) {
  */
 function KanbanCard({ task, onMoveColumn }) {
     return (
-        <div className="group relative rounded-2xl bg-white dark:bg-slate-900/90 border border-gray-200 dark:border-slate-800 hover:border-indigo-500/60 dark:hover:border-indigo-500/60 p-4 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col gap-3">
+        <div className="group relative rounded-2xl bg-white dark:bg-slate-900/90 border border-gray-200 dark:border-slate-800 hover:border-brand/60 dark:hover:border-brand/60 p-4 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col gap-3">
             {/* Top row: ID + Priority */}
             <div className="flex items-center justify-between">
                 <span className="text-[11px] font-mono font-semibold text-gray-400 dark:text-slate-500">
@@ -52,7 +52,7 @@ function KanbanCard({ task, onMoveColumn }) {
             </div>
 
             {/* Task Title */}
-            <h4 className="text-sm font-bold text-gray-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors leading-snug">
+            <h4 className="text-sm font-bold text-gray-900 dark:text-slate-100 group-hover:text-brand dark:group-hover:text-brand-light transition-colors leading-snug">
                 {task.title}
             </h4>
 
@@ -63,7 +63,7 @@ function KanbanCard({ task, onMoveColumn }) {
                 </span>
 
                 {task.gnnMatchScore ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 shrink-0">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg bg-brand-10 text-brand dark:text-brand-light border border-brand-30 shrink-0">
                         <Cpu className="w-3 h-3" />
                         {task.gnnMatchScore}
                     </span>
@@ -79,7 +79,7 @@ function KanbanCard({ task, onMoveColumn }) {
                 <div className="flex items-center gap-2">
                     {task.assignee ? (
                         <>
-                            <div className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-bold">
+                            <div className="w-5 h-5 rounded-full bg-brand text-white flex items-center justify-center text-[10px] font-bold">
                                 {task.assignee.charAt(0)}
                             </div>
                             <span className="text-xs font-medium text-gray-700 dark:text-slate-300 truncate max-w-[100px]">
@@ -170,7 +170,7 @@ export default function Show({ project, auth }) {
         {
             id: 'in_progress',
             title: 'In Progress',
-            badgeClass: 'bg-indigo-500/15 text-indigo-400',
+            badgeClass: 'bg-brand/15 text-brand dark:text-brand-light',
             tasks: [
                 {
                     id: 101,
@@ -248,7 +248,7 @@ export default function Show({ project, auth }) {
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="Search sprint tasks, assignees, or tags..."
-                                className="w-full pl-9 pr-4 py-2 rounded-xl bg-gray-100 dark:bg-slate-800/60 border border-transparent focus:border-indigo-500 text-xs text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none"
+                                className="w-full pl-9 pr-4 py-2 rounded-xl bg-gray-100 dark:bg-slate-800/60 border border-transparent focus:border-brand text-xs text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none"
                             />
                         </div>
                     </div>
@@ -258,16 +258,16 @@ export default function Show({ project, auth }) {
                         <button
                             type="button"
                             onClick={handleAIOptimize}
-                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 transition-all cursor-pointer"
+                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-brand-10 hover:bg-brand-20 text-brand dark:text-brand-light border border-brand-30 transition-all cursor-pointer"
                         >
-                            <Sparkles className="w-4 h-4 text-indigo-500" />
+                            <Sparkles className="w-4 h-4 text-brand" />
                             <span>AI Balance Board</span>
                         </button>
 
                         <button
                             type="button"
                             onClick={() => alert('Add Task modal coming soon!')}
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm shadow-indigo-500/20 transition-all cursor-pointer"
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-brand hover:bg-brand-light text-white shadow-sm shadow-brand/20 transition-all cursor-pointer"
                         >
                             <Plus className="w-4 h-4" />
                             <span>New Task</span>

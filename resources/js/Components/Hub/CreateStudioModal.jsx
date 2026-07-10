@@ -33,7 +33,7 @@ export default function CreateStudioModal({ triggerText = "+ New Studio" }) {
 
             <Modal show={isOpen} onClose={closeModal} maxWidth="md">
                 <form onSubmit={submit} className="p-6">
-                    <h2 className="text-xl font-bold text-text-primary mb-4">
+                    <h2 className="font-heading text-xl font-bold text-text-primary mb-4">
                         Create a New Studio
                     </h2>
 
