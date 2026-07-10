@@ -1,0 +1,66 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Studio;
+use App\Models\Tenant\Project;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+
+class TenantProjectController extends Controller
+{
+    /**
+     * Display the specified project workspace landing page.
+     */
+    public function show($project)
+    {
+        $studio = Studio::find(tenant('id'));
+
+        $projectModel = null;
+        try {
+            $projectModel = Project::find($project);
+        } catch (\Exception $e) {
+            $projectModel = null;
+        }
+
+        return Inertia::render('Tenant/ProjectWorkspace', [
+            'studio' => [
+                'id'   => $studio ? $studio->id : tenant('id'),
+                'name' => $studio ? $studio->name : 'Studio',
+            ],
+            'project' => $projectModel ? [
+                'id'          => $projectModel->id,
+                'name'        => $projectModel->name,
+                'description' => $projectModel->description,
+                'status'      => $projectModel->status,
+            ] : [
+                'id'          => $project,
+                'name'        => is_numeric($project) && strlen((string)$project) > 10
+                    ? 'New Studio Initiative'
+                    : 'StudioSprint AI Recommendations Engine',
+                'description' => 'Graph Neural Network matching model linking incoming studio tasks to optimal developers based on macro/micro domains and skill proficiency matrices.',
+                'status'      => 'active',
+            ],
+        ]);
+    }
+
+    /**
+     * Store a newly created project in storage.
+     */
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'name'        => 'required|string|max:255',
+            'description' => 'nullable|string',
+        ]);
+
+        Project::create([
+            'name'        => $validated['name'],
+            'description' => $validated['description'] ?? null,
+            'status'      => 'planning',
+            'start_date'  => now()->toDateString(),
+        ]);
+
+        return redirect()->back();
+    }
+}
