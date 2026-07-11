@@ -2,33 +2,34 @@
  * ApplicationLogo — Vaultera Labs brand logo component.
  *
  * Props:
- *   variant  "symbol" | "vertical" | "horizontal"  (default: "symbol")
+ *   variant    "symbol" | "vertical" | "horizontal"  (default: "symbol")
  *   className  Additional CSS classes for sizing (e.g. "h-8", "h-12")
- *
- * SVG files live in /public/brand/ and are PLACEHOLDER assets.
- * <!-- PLACEHOLDER: Replace SVG files in public/brand/ with final Vaultera Labs assets -->
  */
 export default function ApplicationLogo({ variant = 'symbol', className = 'h-8', ...props }) {
-    const srcMap = {
-        symbol:     '/brand/vaultera-symbol.svg',
-        vertical:   '/brand/vaultera-logo-vertical.svg',
-        horizontal: '/brand/vaultera-logo-horizontal.svg',
-    };
+    // If the variant is 'symbol', we wrap the image and use CSS to display only the left-most square portion (the hexagon symbol)
+    if (variant === 'symbol') {
+        return (
+            <div 
+                className={`overflow-hidden relative flex items-center justify-start ${className}`} 
+                {...props}
+            >
+                <img
+                    src="/brand/vaultera-logo.png"
+                    alt="Vaultera Labs"
+                    className="h-full max-w-none object-cover object-left"
+                    style={{ aspectRatio: '1024 / 278' }}
+                />
+            </div>
+        );
+    }
 
-    const altMap = {
-        symbol:     'Vaultera Labs',
-        vertical:   'Vaultera Labs',
-        horizontal: 'Vaultera Labs',
-    };
-
-    const src = srcMap[variant] ?? srcMap.symbol;
-    const alt = altMap[variant] ?? 'Vaultera Labs';
-
+    // Otherwise, we show the full horizontal brand logo
     return (
         <img
-            src={src}
-            alt={alt}
+            src="/brand/vaultera-logo.png"
+            alt="Vaultera Labs"
             className={className}
+            style={{ aspectRatio: '1024 / 278' }}
             {...props}
         />
     );

@@ -10,7 +10,7 @@ export default function GuestLayout({ children }) {
             {/* Vertical Vaultera Labs logo — auth context */}
             <div className="relative z-10 mb-2">
                 <Link href="/">
-                    <ApplicationLogo variant="vertical" className="h-20" />
+                    <ApplicationLogo variant="vertical" className="h-12" />
                 </Link>
             </div>
 

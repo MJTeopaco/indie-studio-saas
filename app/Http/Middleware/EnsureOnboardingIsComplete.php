@@ -17,16 +17,16 @@ class EnsureOnboardingIsComplete
     {
         $user = $request->user();
 
-        // Condition 1: Have they completed the Developer Profile Wizard?
+        // 1. Force Developer Profile (Passport Wizard) completion first
         $hasProfile = $user->globalProfile !== null;
+        if (!$hasProfile) {
+            return redirect()->route('onboarding.show');
+        }
 
-        // Condition 2: Have they created a Studio instead?
-        $ownsStudio = $user->ownedStudios()->exists(); 
-
-        // If they have done NEITHER, trap them in the onboarding funnel.
-        if (!$hasProfile && !$ownsStudio) {
-            // Redirect them to the initial "Fork in the Road" screen
-            return redirect()->route('onboarding.fork'); 
+        // 2. Force Workspace connection (creating or joining a studio) second
+        $belongsToStudio = $user->ownedStudios()->exists() || $user->joinedStudios()->exists();
+        if (!$belongsToStudio) {
+            return redirect()->route('onboarding.fork');
         }
 
         return $next($request);
