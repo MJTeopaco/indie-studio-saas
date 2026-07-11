@@ -35,11 +35,7 @@ Route::prefix('/studio/{tenant}')->middleware([
     })->name('tenant.tasks');
 
     Route::get('/schedule', function () {
-        return \Inertia\Inertia::render('Tenant/Placeholder', [
-            'title' => 'Studio Schedule & Timelines',
-            'description' => 'Manage active sprints, developer allocations, and division release dates. Automatically synchronized with member availability.',
-            'status' => 'Calendar Sync Pending'
-        ]);
+        return \Inertia\Inertia::render('Tenant/Schedule/Index');
     })->name('tenant.schedule');
 
     Route::get('/automation', function () {
