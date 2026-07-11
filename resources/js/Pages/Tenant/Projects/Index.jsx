@@ -40,7 +40,7 @@ export default function TenantProjectsIndex({ studio, projects: serverProjects }
         <TenantLayout studioName={studio?.name || 'Pixel Play Studio'}>
             <Head title={`${studio?.name || 'Studio'} — Projects`} />
 
-            <div className="flex flex-col py-10 px-8 space-y-10 max-w-7xl mx-auto">
+            <div className="flex-1 overflow-y-auto py-10 px-8 space-y-10 max-w-7xl mx-auto w-full">
                 {/* Welcome Banner */}
                 <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 shadow-xl p-8">
                     <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-brand/10 rounded-full blur-3xl pointer-events-none" />
