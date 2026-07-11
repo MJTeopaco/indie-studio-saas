@@ -1,8 +1,24 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Montserrat:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --color-surface-bg: #F8FAFC;        /* light background (slate-50) */
+  --color-surface-elevated: #FFFFFF;  /* light elevated (white) */
+  --color-surface-border: #E2E8F0;    /* light border (slate-200) */
+  --color-text-primary: #0F172A;      /* dark text (slate-900) */
+  --color-text-muted: #64748B;        /* muted text (slate-500) */
+}
+
+.dark {
+  --color-surface-bg: #0F172A;        /* dark background (slate-950) */
+  --color-surface-elevated: #1E293B;  /* dark elevated (slate-800) */
+  --color-surface-border: #334155;    /* dark border (slate-700) */
+  --color-text-primary: #F1F5F9;      /* light text (slate-100) */
+  --color-text-muted: #94A3B8;        /* muted text (slate-400) */
+}
 
 @layer base {
   body {

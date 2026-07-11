@@ -26,15 +26,40 @@ export default function Login({ status, canResetPassword }) {
             <Head title="Log In — StudioSprint" />
 
             <div className="mb-6 text-center">
-                <h2 className="text-2xl font-bold text-text-primary">Welcome back</h2>
-                <p className="text-sm text-text-muted mt-1">Log in to your studio account</p>
+                <h2 className="font-heading text-2xl font-bold text-text-primary">Login to StudioSprint</h2>
+                <p className="font-sans text-sm text-text-muted mt-1">Log in to your studio account</p>
             </div>
 
             {status && (
-                <div className="mb-4 text-sm font-medium text-green-600">
+                <div className="mb-4 text-sm font-medium text-green-400">
                     {status}
                 </div>
             )}
+
+            <div className="mb-6">
+                <button
+                    type="button"
+                    onClick={() => alert('Google authentication placeholder')}
+                    className="w-full flex items-center justify-center rounded-lg border border-surface-border bg-transparent px-4 py-2.5 text-sm font-heading font-semibold text-text-primary hover:bg-brand-10 transition-colors"
+                >
+                    <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
+                        <path fill="#EA4335" d="M12 5.04c1.62 0 3.08.56 4.22 1.65l3.16-3.16C17.47 1.7 14.94 1 12 1 7.24 1 3.2 3.73 1.24 7.74l3.77 2.92C5.9 7.6 8.7 5.04 12 5.04z" />
+                        <path fill="#4285F4" d="M23.49 12.27c0-.81-.07-1.59-.2-2.36H12v4.51h6.44c-.28 1.47-1.11 2.71-2.36 3.55l3.66 2.84c2.14-1.98 3.39-4.89 3.39-8.54z" />
+                        <path fill="#FBBC05" d="M5.01 10.66C4.77 11.39 4.63 12.18 4.63 13s.14 1.61.38 2.34l-3.77 2.92C.44 16.71 0 14.91 0 13s.44-3.71 1.24-5.26l3.77 2.92z" />
+                        <path fill="#34A853" d="M12 23c3.24 0 5.97-1.07 7.96-2.91l-3.66-2.84c-1.01.68-2.31 1.08-4.3 1.08-3.3 0-6.1-2.56-7.09-5.62L1.24 16.63C3.2 20.27 7.24 23 12 23z" />
+                    </svg>
+                    Sign in with Google
+                </button>
+            </div>
+
+            <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-surface-border"></div>
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-surface-elevated px-2 text-text-muted">or</span>
+                </div>
+            </div>
 
             <form onSubmit={submit}>
                 <div>
@@ -45,26 +70,40 @@ export default function Login({ status, canResetPassword }) {
                         type="email"
                         name="email"
                         value={data.email}
-                        className="mt-1 block w-full"
+                        className="mt-1 block w-full text-sm font-sans"
                         autoComplete="username"
                         isFocused={true}
                         onChange={(e) => setData('email', e.target.value)}
+                        required
+                        placeholder="Email address"
                     />
 
                     <InputError message={errors.email} className="mt-2" />
                 </div>
 
                 <div className="mt-4">
-                    <InputLabel htmlFor="password" value="Password" />
+                    <div className="flex items-center justify-between">
+                        <InputLabel htmlFor="password" value="Password" />
+                        {canResetPassword && (
+                            <Link
+                                href={route('password.request')}
+                                className="text-xs text-brand hover:underline font-semibold"
+                            >
+                                Forgot Password?
+                            </Link>
+                        )}
+                    </div>
 
                     <TextInput
                         id="password"
                         type="password"
                         name="password"
                         value={data.password}
-                        className="mt-1 block w-full"
+                        className="mt-1 block w-full text-sm font-sans"
                         autoComplete="current-password"
                         onChange={(e) => setData('password', e.target.value)}
+                        required
+                        placeholder="Password"
                     />
 
                     <InputError message={errors.password} className="mt-2" />
@@ -79,35 +118,26 @@ export default function Login({ status, canResetPassword }) {
                                 setData('remember', e.target.checked)
                             }
                         />
-                        <span className="ms-2 text-sm text-gray-600">
-                            Remember me
+                        <span className="ms-2 text-sm text-text-muted font-sans">
+                            Remember Me
                         </span>
                     </label>
                 </div>
 
-                <div className="mt-4 flex items-center justify-end">
-                    {canResetPassword && (
-                        <Link
-                            href={route('password.request')}
-                            className="rounded-md text-sm text-text-muted underline hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2"
-                        >
-                            Forgot your password?
-                        </Link>
-                    )}
-
-                    <PrimaryButton className="ms-4" disabled={processing}>
-                        Log in
+                <div className="mt-6">
+                    <PrimaryButton className="w-full justify-center py-2.5 text-xs font-heading font-semibold uppercase tracking-widest" disabled={processing}>
+                        Sign in
                     </PrimaryButton>
                 </div>
             </form>
 
-            <div className="mt-6 text-center text-sm text-text-muted">
+            <div className="mt-6 text-center text-sm font-sans text-text-muted">
                 Don't have an account?{' '}
                 <Link
                     href={route('register')}
-                    className="font-medium text-brand hover:text-brand-light hover:underline focus:outline-none focus:underline"
+                    className="text-brand hover:underline font-semibold"
                 >
-                    Register
+                    Sign up now
                 </Link>
             </div>
         </GuestLayout>

@@ -82,7 +82,7 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate }) {
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200 dark:border-gray-800">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                        <div className="w-10 h-10 rounded-xl bg-brand-10 dark:bg-brand-20 flex items-center justify-center text-brand dark:text-brand-light">
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
                                 className="w-5 h-5"
@@ -98,7 +98,7 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate }) {
                             </svg>
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                            <h2 className="font-heading text-lg font-bold text-gray-900 dark:text-gray-100">
                                 Create New Project
                             </h2>
                             <p className="text-xs text-gray-600 dark:text-gray-400">
@@ -142,7 +142,7 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate }) {
                             htmlFor="project-title"
                             className="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-200 mb-2"
                         >
-                            Title <span className="text-indigo-600 dark:text-indigo-400">*</span>
+                            Title <span className="text-brand dark:text-brand-light">*</span>
                         </label>
                         <input
                             id="project-title"
@@ -152,7 +152,7 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate }) {
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
                             placeholder="e.g. Autonomous NPC AI Agent Engine"
-                            className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 px-4 py-3 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-colors"
+                            className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 px-4 py-3 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30 transition-colors"
                         />
                     </div>
 
@@ -170,7 +170,7 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate }) {
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             placeholder="Briefly describe the project goals, target domains, and scope..."
-                            className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 px-4 py-3 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-colors resize-none"
+                            className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 px-4 py-3 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30 transition-colors resize-none"
                         />
                     </div>
 
@@ -187,7 +187,7 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate }) {
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-md shadow-indigo-500/20 disabled:opacity-50 transition-all"
+                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-brand hover:bg-brand-light shadow-md shadow-brand/20 disabled:opacity-50 transition-all"
                         >
                             {isSubmitting ? 'Creating...' : 'Create Project'}
                         </button>

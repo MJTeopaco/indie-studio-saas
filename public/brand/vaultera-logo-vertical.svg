@@ -1,0 +1,33 @@
+<!-- PLACEHOLDER: Replace with final Vaultera Labs vertical logo asset (symbol stacked above wordmark) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 100" fill="none" role="img" aria-label="Vaultera Labs vertical logo">
+  <!-- Symbol (centered above wordmark) -->
+  <polygon
+    points="80,4 100,15.5 100,38.5 80,50 60,38.5 60,15.5"
+    fill="#007CFF"
+  />
+  <!-- Lock body -->
+  <rect x="68" y="33" width="24" height="13" rx="2.5" ry="2.5" fill="white"/>
+  <!-- Lock shackle -->
+  <path
+    d="M72 33v-4a8 8 0 0 1 16 0v4"
+    stroke="white"
+    stroke-width="3"
+    stroke-linecap="round"
+    fill="none"
+  />
+  <!-- Lock keyhole -->
+  <circle cx="80" cy="39.5" r="2.5" fill="#007CFF"/>
+  <rect x="78.75" y="39.5" width="2.5" height="4" rx="1" fill="#007CFF"/>
+
+  <!-- Wordmark: "Vaultera Labs" -->
+  <text
+    x="80"
+    y="70"
+    text-anchor="middle"
+    font-family="Poppins, sans-serif"
+    font-size="13"
+    font-weight="700"
+    fill="#007CFF"
+    letter-spacing="0.5"
+  >Vaultera Labs</text>
+</svg>

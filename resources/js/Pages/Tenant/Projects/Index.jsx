@@ -43,18 +43,18 @@ export default function TenantProjectsIndex({ studio, projects: serverProjects }
             <div className="flex flex-col py-10 px-8 space-y-10 max-w-7xl mx-auto">
                 {/* Welcome Banner */}
                 <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 shadow-xl p-8">
-                    <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+                    <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-brand/10 rounded-full blur-3xl pointer-events-none" />
 
                     <div className="relative flex items-center justify-between flex-wrap gap-6">
                         <div className="flex items-center gap-5">
                             {/* Studio Avatar */}
-                            <div className="flex-shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                            <div className="flex-shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-br from-brand to-brand-dark flex-shrink-0 flex items-center justify-center shadow-lg shadow-brand/20">
                                 <span className="text-3xl font-extrabold text-white">
                                     {(studio?.name || 'P').charAt(0).toUpperCase()}
                                 </span>
                             </div>
                             <div>
-                                <p className="text-xs text-indigo-500 dark:text-indigo-400 font-semibold uppercase tracking-widest mb-1">
+                                <p className="text-xs text-brand dark:text-brand-light font-semibold uppercase tracking-widest mb-1">
                                     Studio Workspace
                                 </p>
                                 <h1 className="text-3xl font-extrabold text-gray-900 dark:text-slate-100 tracking-tight">
@@ -96,9 +96,9 @@ export default function TenantProjectsIndex({ studio, projects: serverProjects }
                         <button
                             type="button"
                             onClick={() => setIsCreateModalOpen(true)}
-                            className="group flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-500 bg-gray-50/50 dark:bg-slate-900/50 hover:bg-gray-100/80 dark:hover:bg-slate-800/80 p-8 text-center transition-all duration-200 min-h-[14rem] focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                            className="group flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 dark:border-slate-700 hover:border-brand dark:hover:border-brand bg-gray-50/50 dark:bg-slate-900/50 hover:bg-gray-100/80 dark:hover:bg-slate-800/80 p-8 text-center transition-all duration-200 min-h-[14rem] focus:outline-none focus:ring-2 focus:ring-brand cursor-pointer"
                         >
-                            <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950/80 group-hover:bg-indigo-600 group-hover:text-white text-indigo-600 dark:text-indigo-400 flex items-center justify-center transition-all duration-200 group-hover:scale-110 shadow-md">
+                            <div className="w-14 h-14 rounded-2xl bg-brand-10 dark:bg-brand-20 group-hover:bg-brand group-hover:text-white text-brand dark:text-brand-light flex items-center justify-center transition-all duration-200 group-hover:scale-110 shadow-md">
                                 <svg
                                     xmlns="http://www.w3.org/2000/svg"
                                     className="w-7 h-7"
@@ -114,7 +114,7 @@ export default function TenantProjectsIndex({ studio, projects: serverProjects }
                                 </svg>
                             </div>
 
-                            <h3 className="mt-4 text-base font-bold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                            <h3 className="mt-4 text-base font-bold text-gray-900 dark:text-gray-100 group-hover:text-brand dark:group-hover:text-brand-light transition-colors">
                                 Create New Project
                             </h3>
                             <p className="mt-1 text-xs text-gray-600 dark:text-gray-400 max-w-[14rem]">

@@ -44,7 +44,7 @@ export default function StudioCard({ studio, role = 'Member' }) {
                             </span>
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-text-primary group-hover:text-brand transition-colors">
+                            <h3 className="font-heading text-lg font-bold text-text-primary group-hover:text-brand transition-colors">
                                 {studio.name}
                             </h3>
                             <div className="flex items-center gap-3 mt-1">

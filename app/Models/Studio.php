@@ -33,4 +33,11 @@ class Studio extends BaseTenant implements TenantWithDatabase
     {
         return $this->hasMany(StudioInvitation::class, 'studio_id');
     }
+
+    public function users(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'studio_members', 'studio_id', 'user_id')
+                    ->withPivot('role')
+                    ->withTimestamps();
+    }
 }

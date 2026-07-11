@@ -10,15 +10,15 @@ export default function ProjectCard({ project, tenantId }) {
     return (
         <Link
             href={`/studio/${tenantId}/projects/${project.id}`}
-            className="group relative block rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 p-6 shadow-sm hover:shadow-xl transition-all duration-200 hover:-translate-y-1 hover:border-indigo-500 dark:hover:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 overflow-hidden"
+            className="group relative block rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 p-6 shadow-sm hover:shadow-xl transition-all duration-200 hover:-translate-y-1 hover:border-brand dark:hover:border-brand focus:outline-none focus:ring-2 focus:ring-brand overflow-hidden"
         >
-            {/* Top decorative indigo accent line on hover */}
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 to-purple-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+            {/* Top decorative brand accent line on hover */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-brand to-brand-light opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
 
             {/* Card Header */}
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800/40 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:scale-105 transition-transform">
+                    <div className="w-10 h-10 rounded-xl bg-brand-10 dark:bg-brand-20 border border-brand-30 flex items-center justify-center text-brand dark:text-brand-light group-hover:scale-105 transition-transform">
                         {/* Folder icon */}
                         <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -33,12 +33,12 @@ export default function ProjectCard({ project, tenantId }) {
                             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                         </svg>
                     </div>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold tracking-wider uppercase bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold tracking-wider uppercase bg-brand-10 dark:bg-brand-20 text-brand dark:text-brand-light border border-brand-30">
                         {project.status || 'ACTIVE'}
                     </span>
                 </div>
 
-                <span className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500 transition-colors">
+                <span className="text-gray-400 dark:text-gray-500 group-hover:text-brand transition-colors">
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
                         className="w-5 h-5"
@@ -55,7 +55,7 @@ export default function ProjectCard({ project, tenantId }) {
             </div>
 
             {/* Title */}
-            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-1">
+            <h3 className="font-heading text-lg font-bold text-gray-900 dark:text-gray-100 group-hover:text-brand dark:group-hover:text-brand-light transition-colors line-clamp-1">
                 {title}
             </h3>
 
@@ -70,7 +70,7 @@ export default function ProjectCard({ project, tenantId }) {
                     {/* Users icon */}
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
-                        className="w-4 h-4 text-indigo-500 dark:text-indigo-400"
+                        className="w-4 h-4 text-brand dark:text-brand-light"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"

@@ -3,6 +3,7 @@ import forms from '@tailwindcss/forms';
 
 /** @type {import('tailwindcss').Config} */
 export default {
+    darkMode: 'class',
     content: [
         './vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php',
         './storage/framework/views/*.php',
@@ -13,24 +14,38 @@ export default {
     theme: {
         extend: {
             colors: {
+                // Vaultera Labs brand blue — #007CFF with full opacity tint scale
                 brand: {
-                    DEFAULT: '#7C3AED',  // violet-600
-                    light: '#8B5CF6',    // violet-500
-                    dark: '#6D28D9',     // violet-700
-                    muted: '#EDE9FE',    // violet-100
+                    DEFAULT: '#007CFF',
+                    light:   '#3396FF',  // hover state
+                    dark:    '#0062CC',  // active / pressed
+                    muted:   'rgba(0, 124, 255, 0.1)',
+                    90: 'rgba(0, 124, 255, 0.9)',
+                    80: 'rgba(0, 124, 255, 0.8)',
+                    70: 'rgba(0, 124, 255, 0.7)',
+                    60: 'rgba(0, 124, 255, 0.6)',
+                    50: 'rgba(0, 124, 255, 0.5)',
+                    40: 'rgba(0, 124, 255, 0.4)',
+                    30: 'rgba(0, 124, 255, 0.3)',
+                    20: 'rgba(0, 124, 255, 0.2)',
+                    10: 'rgba(0, 124, 255, 0.1)',
                 },
+                // Dark slate surface system — mapped to CSS variables
                 surface: {
-                    DEFAULT: '#0F172A',  // slate-950
-                    elevated: '#1E293B', // slate-800
-                    border: '#334155',   // slate-700
+                    DEFAULT: 'var(--color-surface-bg)',
+                    elevated: 'var(--color-surface-elevated)',
+                    border: 'var(--color-surface-border)',
                 },
                 text: {
-                    primary: '#F1F5F9',  // slate-100
-                    muted: '#94A3B8',    // slate-400
-                }
+                    primary: 'var(--color-text-primary)',
+                    muted: 'var(--color-text-muted)',
+                },
             },
             fontFamily: {
-                sans: ['Inter', ...defaultTheme.fontFamily.sans],
+                // Montserrat — body / paragraphs / form help text
+                sans:    ['Montserrat', ...defaultTheme.fontFamily.sans],
+                // Poppins — headings / buttons / nav labels
+                heading: ['Poppins',    ...defaultTheme.fontFamily.sans],
             },
         },
     },
