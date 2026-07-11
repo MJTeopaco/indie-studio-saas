@@ -12,6 +12,7 @@ import {
     HelpCircle,
     Sun,
     Moon,
+    LogOut,
 } from 'lucide-react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
 
@@ -289,28 +290,51 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                     </div>
                 )}
 
-                {/* User Profile Card */}
-                <div
-                    title={isCollapsed ? `${user?.name || 'User'} (${user?.role || 'Member'})` : undefined}
-                    className={`flex items-center ${
-                        isCollapsed ? 'justify-center p-1.5' : 'gap-3 p-2'
-                    } rounded-xl hover:bg-gray-100 hover:dark:bg-slate-800/60 cursor-pointer transition-all duration-200`}
-                >
-                    <div className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-sm">
-                        {(user?.name || 'U').charAt(0).toUpperCase()}
-                    </div>
-
-                    {!isCollapsed && (
-                        <div className="min-w-0 flex-1">
-                            <p className="font-heading text-sm font-semibold text-gray-900 dark:text-slate-200 truncate">
-                                {user?.name || 'Studio Member'}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-slate-500 truncate">
-                                {user?.role || 'Project Manager'}
-                            </p>
+                {/* User Profile Card & Log Out */}
+                {isCollapsed ? (
+                    <div className="flex flex-col gap-3 items-center">
+                        <div
+                            title={`${user?.name || 'User'} (${user?.role || 'Member'})`}
+                            className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-sm"
+                        >
+                            {(user?.name || 'U').charAt(0).toUpperCase()}
                         </div>
-                    )}
-                </div>
+                        <Link
+                            href={route('logout')}
+                            method="post"
+                            as="button"
+                            className="w-8 h-8 flex items-center justify-center rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all duration-200 border border-red-500/20"
+                            title="Log Out"
+                        >
+                            <LogOut className="w-4 h-4" />
+                        </Link>
+                    </div>
+                ) : (
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-gray-50/50 dark:bg-slate-800/20 border border-gray-100 dark:border-slate-800/40">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-sm">
+                                {(user?.name || 'U').charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="font-heading text-sm font-semibold text-gray-900 dark:text-slate-200 truncate">
+                                    {user?.name || 'Studio Member'}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-slate-500 truncate">
+                                    {user?.role || 'Project Manager'}
+                                </p>
+                            </div>
+                        </div>
+                        <Link
+                            href={route('logout')}
+                            method="post"
+                            as="button"
+                            className="p-2 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all duration-200 shrink-0 ml-2 border border-red-500/20"
+                            title="Log Out"
+                        >
+                            <LogOut className="w-4 h-4" />
+                        </Link>
+                    </div>
+                )}
             </div>
         </aside>
     );

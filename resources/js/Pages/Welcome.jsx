@@ -13,7 +13,7 @@ export default function Welcome({ auth }) {
 
                 <header className="relative z-10 mx-auto w-full max-w-7xl px-6 py-6 flex items-center justify-between">
                     <Link href={auth?.user ? route('dashboard') : '/'}>
-                        <ApplicationLogo className="text-2xl" />
+                        <ApplicationLogo variant="horizontal" className="h-8" />
                     </Link>
                     
                     <nav className="flex items-center gap-6">
