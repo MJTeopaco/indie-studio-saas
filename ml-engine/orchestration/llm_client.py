@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 # Default: llama3.2:3b (fast dev model). Override via OLLAMA_MODEL env var
 # for benchmark runs (e.g. OLLAMA_MODEL=llama3.1:8b-instruct).
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
 
 
 def _is_ollama_available() -> bool:

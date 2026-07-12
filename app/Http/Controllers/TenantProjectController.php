@@ -6,6 +6,8 @@ use App\Jobs\RecomputeProjectSchedule;
 use App\Models\Studio;
 use App\Models\Tenant\Project;
 use App\Models\Tenant\Task;
+use App\Models\Position;
+use App\Models\Skill;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -18,6 +20,7 @@ class TenantProjectController extends Controller
     public function index()
     {
         $studio = Studio::find(tenant('id'));
+        $membersCount = $studio ? $studio->users()->count() : 0;
 
         $projects = Project::withCount(['projectMembers as members_count', 'tasks'])
             ->latest()
@@ -36,6 +39,7 @@ class TenantProjectController extends Controller
             'studio' => [
                 'id' => $studio ? $studio->id : tenant('id'),
                 'name' => $studio ? $studio->name : 'Pixel Play Studio',
+                'members_count' => $membersCount,
             ],
             'projects' => $projects,
         ]);
@@ -53,6 +57,9 @@ class TenantProjectController extends Controller
 
         $teamMembers = $studio ? $studio->users()->get()->map(fn ($u) => ['id' => $u->id, 'name' => $u->name]) : [];
 
+        $skills = Skill::orderBy('name')->get(['id', 'name', 'category'])->all();
+        $positions = Position::orderBy('name')->get(['id', 'name'])->all();
+
         return Inertia::render('Tenant/Projects/Show', [
             'studio' => [
                 'id' => $studio ? $studio->id : tenant('id'),
@@ -66,6 +73,8 @@ class TenantProjectController extends Controller
                 'status' => $projectModel->status,
                 'tasks' => $projectModel->tasks,
             ],
+            'skills' => $skills,
+            'positions' => $positions,
         ]);
     }
 
@@ -187,6 +196,13 @@ class TenantProjectController extends Controller
             'status' => 'required|string|in:todo,in_progress,review,completed',
             'depends_on' => 'nullable|array',
             'depends_on.*' => 'integer',
+            'task_classification' => 'nullable|string|max:255',
+            'required_position' => 'nullable|string|max:255',
+            'minimum_experience_years' => 'nullable|numeric|min:0',
+            'task_difficulty' => 'nullable|string|in:Easy,Medium,Hard',
+            'target_macro_domains' => 'nullable|array',
+            'target_macro_domains.*' => 'integer',
+            'required_skills' => 'nullable|array',
         ]);
 
         $projectModel = Project::findOrFail($project);
@@ -199,6 +215,12 @@ class TenantProjectController extends Controller
                 'estimated_hours' => $validated['estimated_hours'],
                 'priority' => $validated['priority'],
                 'status' => $validated['status'],
+                'task_classification' => $validated['task_classification'] ?? 'Engineering',
+                'required_position' => $validated['required_position'] ?? null,
+                'minimum_experience_years' => (float) ($validated['minimum_experience_years'] ?? 0.0),
+                'task_difficulty' => $validated['task_difficulty'] ?? 'Medium',
+                'target_macro_domains' => $validated['target_macro_domains'] ?? [0, 0, 0, 0, 0, 0, 0, 0],
+                'required_skills' => $validated['required_skills'] ?? [],
             ]);
 
             $this->syncTaskDependencies($task, $validated['depends_on'] ?? []);
@@ -207,6 +229,13 @@ class TenantProjectController extends Controller
         });
 
         RecomputeProjectSchedule::dispatch($projectModel->id);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'status' => 'success',
+                'task' => $task,
+            ]);
+        }
 
         return redirect()->back()->with('success', "Task '{$task->title}' created. The timeline is being recalculated.");
     }
@@ -234,6 +263,13 @@ class TenantProjectController extends Controller
             'status' => 'sometimes|required|string|in:todo,in_progress,review,completed',
             'depends_on' => 'sometimes|array',
             'depends_on.*' => 'integer',
+            'task_classification' => 'nullable|string|max:255',
+            'required_position' => 'nullable|string|max:255',
+            'minimum_experience_years' => 'nullable|numeric|min:0',
+            'task_difficulty' => 'nullable|string|in:Easy,Medium,Hard',
+            'target_macro_domains' => 'nullable|array',
+            'target_macro_domains.*' => 'integer',
+            'required_skills' => 'nullable|array',
         ]);
 
         DB::transaction(function () use ($taskModel, $validated): void {
@@ -245,6 +281,13 @@ class TenantProjectController extends Controller
         });
 
         RecomputeProjectSchedule::dispatch($projectModel->id);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'status' => 'success',
+                'task' => $taskModel,
+            ]);
+        }
 
         return redirect()->back()->with('success', 'Task updated. The timeline is being recalculated.');
     }

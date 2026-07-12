@@ -129,21 +129,22 @@ def embed_text(request: EmbedRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-# ===========================================================================
-# Phase 4 stub — GNN /best-fit
-# ===========================================================================
+class GNNBestFitRequest(BaseModel):
+    task: TaskInput
+    employee_profiles: List[EmployeeProfile] = Field(default_factory=list)
 
 
 @app.post("/api/best-fit", tags=["gnn"])
-def best_fit(task: TaskInput, studio_id: str = "unknown"):
+def best_fit(request: GNNBestFitRequest):
     """
     Returns ranked candidates using the trained GNN model.
     """
     try:
         from orchestration.gnn import gnn_rank_employees
 
-        task_dict = task.model_dump()
-        ranked = gnn_rank_employees(task_dict)
+        task_dict = request.task.model_dump()
+        profiles = [p.model_dump() for p in request.employee_profiles]
+        ranked = gnn_rank_employees(task_dict, employee_profiles=profiles)
         return {"status": "success", "match_source": "gnn", "results": ranked}
     except Exception as exc:
         logger.exception("GNN ranking failed")
@@ -171,6 +172,7 @@ class AssignmentInput(BaseModel):
 
 class ComputeScheduleRequest(BaseModel):
     tasks: List[TaskScheduleInput] = Field(description="All tasks in the project")
+    deadline_hours: Optional[float] = Field(default=None, description="Project deadline in working hours")
 
 
 class ValidateAssignmentsRequest(BaseModel):
@@ -193,7 +195,7 @@ def schedule_compute(request: ComputeScheduleRequest):
 
         engine = CPAEngine()
         task_dicts = [t.model_dump() for t in request.tasks]
-        result = engine.compute(task_dicts)
+        result = engine.compute(task_dicts, request.deadline_hours)
         return {"status": "success", **result}
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))

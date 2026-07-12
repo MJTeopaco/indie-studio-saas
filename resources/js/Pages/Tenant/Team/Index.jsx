@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import TenantLayout from '@/Layouts/TenantLayout';
 import {
@@ -13,9 +13,34 @@ import {
     ChevronRight,
     Grid,
     List,
+    X,
 } from 'lucide-react';
 import TeamMemberCard from '@/Components/Tenant/TeamMemberCard';
 import TeamTimeline from '@/Components/Tenant/TeamTimeline';
+
+// Helper to determine department based on position
+const getDepartment = (position) => {
+    const pos = (position || '').toLowerCase();
+    if (pos.includes('design') || pos.includes('ui') || pos.includes('ux') || pos.includes('artist') || pos.includes('graphics')) {
+        return 'Design';
+    }
+    if (pos.includes('product') || pos.includes('manager') || pos.includes('analyst') || pos.includes('strategy')) {
+        return 'Product';
+    }
+    if (pos.includes('qa') || pos.includes('tester') || pos.includes('quality') || pos.includes('testing')) {
+        return 'QA';
+    }
+    return 'Engineering';
+};
+
+const DEPARTMENTS = ['Engineering', 'Product', 'Design', 'QA'];
+const STATUSES = ['Active', 'Remote', 'Part-time'];
+
+const statusStyles = {
+    Active: 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50',
+    Remote: 'bg-orange-50 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800/50',
+    'Part-time': 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800/50',
+};
 
 export default function TeamIndex({ studio, members = [], canManage = false }) {
     const studioName = studio?.name || 'Studio';
@@ -23,15 +48,54 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
     // UI state
     const [activeTab, setActiveTab] = useState('Team Overview');
     const [timelineMode, setTimelineMode] = useState('Day');
+    
+    // Filter & Search states
     const [searchQuery, setSearchQuery] = useState('');
+    const [selectedDepartment, setSelectedDepartment] = useState('All');
+    const [selectedStatus, setSelectedStatus] = useState('All');
+    const [filterOpen, setFilterOpen] = useState(false);
 
-    // Filter members based on search query
-    const filteredMembers = members.filter(
-        (m) =>
-            m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            m.position.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            m.email.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    // Map each member's status and department based on their index/data
+    const enrichedMembers = useMemo(() => {
+        return members.map((m, idx) => {
+            const status = STATUSES[idx % STATUSES.length];
+            const dept = getDepartment(m.position);
+            return {
+                ...m,
+                status,
+                department: dept,
+                badgeClass: statusStyles[status],
+            };
+        });
+    }, [members]);
+
+    // Filter members based on search and selected filters
+    const filteredMembers = useMemo(() => {
+        return enrichedMembers.filter((m) => {
+            const matchesSearch =
+                m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                m.position.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                m.email.toLowerCase().includes(searchQuery.toLowerCase());
+            
+            const matchesDept = selectedDepartment === 'All' || m.department === selectedDepartment;
+            const matchesStatus = selectedStatus === 'All' || m.status === selectedStatus;
+            
+            return matchesSearch && matchesDept && matchesStatus;
+        });
+    }, [enrichedMembers, searchQuery, selectedDepartment, selectedStatus]);
+
+    // Group filtered members by department for the Department Board
+    const groupedMembers = useMemo(() => {
+        const groups = { Engineering: [], Product: [], Design: [], QA: [] };
+        filteredMembers.forEach((m) => {
+            if (groups[m.department]) {
+                groups[m.department].push(m);
+            } else {
+                groups.Engineering.push(m);
+            }
+        });
+        return groups;
+    }, [filteredMembers]);
 
     // Mock timeline tasks matching the reference image layout
     const timelineTasks = [
@@ -64,12 +128,12 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
         },
     ];
 
-    // Mock statuses for cards layout
-    const statuses = ['Active', 'Remote', 'Part-time'];
-    const statusStyles = {
-        Active: 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50',
-        Remote: 'bg-orange-50 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800/50',
-        'Part-time': 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800/50',
+    const hasActiveFilters = searchQuery !== '' || selectedDepartment !== 'All' || selectedStatus !== 'All';
+
+    const clearFilters = () => {
+        setSearchQuery('');
+        setSelectedDepartment('All');
+        setSelectedStatus('All');
     };
 
     return (
@@ -115,9 +179,9 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
                     )}
                 </div>
 
-                {/* 2. Sub-navigation tabs */}
+                {/* 2. Sub-navigation tabs (Removed 'All tasks') */}
                 <div className="flex items-center gap-6 mt-8 border-b border-surface-border">
-                    {['Department Board', 'Team Overview', 'All tasks'].map((tab) => {
+                    {['Department Board', 'Team Overview'].map((tab) => {
                         const isActive = activeTab === tab;
                         return (
                             <button
@@ -167,10 +231,21 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
                         {/* Subsection Title and Control Bar */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <h3 className="font-heading text-lg font-bold text-gray-900 dark:text-slate-100">
-                                Members
+                                {activeTab}
                             </h3>
 
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 relative">
+                                {/* Clear filters if active */}
+                                {hasActiveFilters && (
+                                    <button
+                                        onClick={clearFilters}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs font-heading text-rose-600 dark:text-rose-400 hover:bg-rose-100 transition-colors"
+                                    >
+                                        <X className="w-3.5 h-3.5" />
+                                        <span>Clear</span>
+                                    </button>
+                                )}
+
                                 {/* Search input */}
                                 <div className="relative flex items-center">
                                     <Search className="w-4 h-4 absolute left-3 text-gray-400 dark:text-slate-500 pointer-events-none" />
@@ -186,43 +261,121 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
                                     </span>
                                 </div>
 
-                                {/* Filter trigger */}
-                                <button className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-slate-800/40 border border-gray-200 dark:border-slate-800 text-xs font-sans text-text-muted hover:text-text-primary transition-colors">
-                                    <Filter className="w-3.5 h-3.5" />
-                                    <span>Filter</span>
-                                </button>
+                                {/* Filter trigger & Dropdown */}
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setFilterOpen(o => !o)}
+                                        className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-sans transition-colors ${
+                                            hasActiveFilters
+                                                ? 'bg-brand text-white border-brand'
+                                                : 'bg-white dark:bg-slate-800/40 border-gray-200 dark:border-slate-800 text-text-muted hover:text-text-primary'
+                                        }`}
+                                    >
+                                        <Filter className="w-3.5 h-3.5" />
+                                        <span>Filter</span>
+                                    </button>
 
-                                {/* Mock Layout buttons */}
-                                <div className="flex items-center bg-gray-100 dark:bg-slate-800/50 p-1 border border-gray-200/60 dark:border-slate-700/50 rounded-xl">
-                                    <button className="p-1 rounded-lg text-brand bg-white dark:bg-slate-700 shadow-sm">
-                                        <Grid className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button className="p-1 rounded-lg text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-400 transition-colors">
-                                        <List className="w-3.5 h-3.5" />
-                                    </button>
+                                    {filterOpen && (
+                                        <>
+                                            <div className="fixed inset-0 z-30" onClick={() => setFilterOpen(false)} />
+                                            <div className="absolute right-0 top-full mt-2 z-40 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-xl p-4 w-60 space-y-4">
+                                                {/* Department Filter */}
+                                                <div>
+                                                    <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-2">Department</p>
+                                                    <select
+                                                        value={selectedDepartment}
+                                                        onChange={(e) => { setSelectedDepartment(e.target.value); setFilterOpen(false); }}
+                                                        className="w-full text-xs bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-2 focus:outline-none focus:border-brand"
+                                                    >
+                                                        <option value="All">All Departments</option>
+                                                        {DEPARTMENTS.map(d => (
+                                                            <option key={d} value={d}>{d}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                {/* Status Filter */}
+                                                <div>
+                                                    <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-2">Status</p>
+                                                    <select
+                                                        value={selectedStatus}
+                                                        onChange={(e) => { setSelectedStatus(e.target.value); setFilterOpen(false); }}
+                                                        className="w-full text-xs bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-2 focus:outline-none focus:border-brand"
+                                                    >
+                                                        <option value="All">All Statuses</option>
+                                                        {STATUSES.map(s => (
+                                                            <option key={s} value={s}>{s}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </div>
 
-                        {/* 8-member Grid view */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                            {filteredMembers.map((member, index) => {
-                                const status = statuses[index % statuses.length];
-                                const badgeClass = statusStyles[status];
-                                const department = ['Engineering', 'Product', 'Design', 'QA'][index % 4];
+                        {/* Rendering View based on activeTab */}
+                        {activeTab === 'Team Overview' ? (
+                            /* ── VIEW A: Team Overview Grid ── */
+                            filteredMembers.length === 0 ? (
+                                <div className="py-20 text-center text-text-muted">
+                                    <p className="text-sm font-semibold">No team members match your criteria.</p>
+                                    <button onClick={clearFilters} className="mt-2 text-xs text-brand hover:underline">Clear filters</button>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                                    {filteredMembers.map((member, idx) => (
+                                        <TeamMemberCard
+                                            key={member.id}
+                                            member={member}
+                                            index={idx}
+                                            status={member.status}
+                                            badgeClass={member.badgeClass}
+                                            department={member.department}
+                                        />
+                                    ))}
+                                </div>
+                            )
+                        ) : (
+                            /* ── VIEW B: Department Board (Categorization Grid) ── */
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                {DEPARTMENTS.map((dept) => {
+                                    const deptMembers = groupedMembers[dept] || [];
+                                    return (
+                                        <div key={dept} className="bg-gray-100/50 dark:bg-slate-900/30 rounded-2xl p-4 border border-gray-200/50 dark:border-slate-800/50 flex flex-col min-h-[300px]">
+                                            <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-200/60 dark:border-slate-800">
+                                                <h4 className="font-heading text-sm font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2">
+                                                    <span>{dept}</span>
+                                                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-200 dark:bg-slate-800 text-gray-500 font-sans">
+                                                        {deptMembers.length}
+                                                    </span>
+                                                </h4>
+                                            </div>
 
-                                return (
-                                    <TeamMemberCard
-                                        key={member.id}
-                                        member={member}
-                                        index={index}
-                                        status={status}
-                                        badgeClass={badgeClass}
-                                        department={department}
-                                    />
-                                );
-                            })}
-                        </div>
+                                            <div className="space-y-4 flex-1">
+                                                {deptMembers.length === 0 ? (
+                                                    <div className="flex flex-col items-center justify-center h-full text-center text-gray-400 py-10">
+                                                        <span className="text-xs italic">No members</span>
+                                                    </div>
+                                                ) : (
+                                                    deptMembers.map((member, idx) => (
+                                                        <TeamMemberCard
+                                                            key={member.id}
+                                                            member={member}
+                                                            index={idx}
+                                                            status={member.status}
+                                                            badgeClass={member.badgeClass}
+                                                            department={member.department}
+                                                        />
+                                                    ))
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
 
                         {/* 4. Timeline Schedule View */}
                         <div className="rounded-2xl border border-gray-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/20 p-6 shadow-sm space-y-6">
