@@ -1,0 +1,221 @@
+#!/usr/bin/env python3
+"""
+response_synthesizer.py
+================================================================================
+Phase 6 — Response Synthesizer
+
+Takes deterministic computation results (GNN fit scores + CPA-validated
+schedule) and produces plain-language explanations for the manager chat
+interface.
+
+CONSTRAINT: This module ONLY phrases results. It never computes scores,
+schedules, or durations — those come in as arguments from the GNN and CPA
+modules and are passed directly to the LLM as grounding data.
+================================================================================
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Prompts
+# ---------------------------------------------------------------------------
+
+_ASSIGNMENT_EXPLAIN_SYSTEM = """You are a project management assistant explaining AI assignment recommendations.
+You will receive JSON data containing GNN match results and a CPA-validated schedule.
+Write a clear, concise explanation (3-5 sentences) that:
+1. Names which developer is best suited for which task and why (reference skill overlap).
+2. Notes which tasks are on the critical path.
+3. Mentions any scheduling constraints the system enforced.
+Do NOT invent numbers. Use only the data provided. Write in plain English, not markdown."""
+
+_RISK_ALERT_SYSTEM = """You are a project risk analyst. You will receive a JSON object describing
+project risks (overdue tasks, overloaded employees, conflicts). Write a brief plain-language
+alert (2-4 sentences) that is actionable and specific. Do not add recommendations that
+aren't supported by the data. Use only the provided data."""
+
+_SUMMARY_SYSTEM = """You are summarising a software project's current status.
+You will receive JSON project stats. Write a 2-3 sentence status update for a manager.
+Be factual and brief. Use only the data provided — do NOT guess or extrapolate."""
+
+_CHATBOT_SYSTEM = """You are a helpful project management assistant for a software studio.
+You have access to real project data provided in the conversation.
+Answer the user's question based ONLY on the data provided.
+If the data does not contain enough information to answer, say so.
+Do not fabricate task names, developer names, dates, or scores."""
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _call_llm(system_prompt: str, user_content: str) -> str | None:
+    """Generic single-turn LLM call. Returns None if LLM unavailable."""
+    from orchestration.llm_client import get_llm
+
+    llm = get_llm()
+    if llm is None:
+        return None
+
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    try:
+        response = llm.invoke(
+            [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_content),
+            ]
+        )
+        return response.content.strip()
+    except Exception as exc:
+        logger.error("LLM call failed: %s", exc)
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
+def synthesize_assignment_explanation(
+    gnn_results: list[dict[str, Any]],
+    cpa_schedule: dict[str, Any] | None = None,
+) -> str:
+    """
+    Generate a plain-language explanation for the manager about the proposed
+    assignments.
+
+    gnn_results: list of {employee_user_id, display_name, match_fit_score,
+                           skill_overlap, match_source, ...}
+    cpa_schedule: optional output from /schedule/compute with critical_path list
+    """
+    payload = json.dumps(
+        {"gnn_results": gnn_results[:5], "cpa_schedule": cpa_schedule},
+        indent=2,
+    )
+
+    explanation = _call_llm(_ASSIGNMENT_EXPLAIN_SYSTEM, payload)
+    if explanation is None:
+        # Fallback: build a plain summary without LLM
+        lines = ["AI assignment recommendations (LLM offline — summary only):"]
+        for i, r in enumerate(gnn_results[:5], 1):
+            score_pct = int(r.get("match_fit_score", 0) * 100)
+            overlap = ", ".join(r.get("skill_overlap", [])[:4]) or "general fit"
+            lines.append(
+                f"{i}. {r.get('display_name', 'Developer')} — {score_pct}% fit "
+                f"(matched on: {overlap})"
+            )
+        if cpa_schedule and (cp := cpa_schedule.get("critical_path")):
+            lines.append(f"Critical path tasks: {', '.join(str(t) for t in cp[:5])}")
+        return "\n".join(lines)
+
+    return explanation
+
+
+def synthesize_risk_alert(risk_data: dict[str, Any]) -> str:
+    """
+    Generate a plain-language risk alert from deterministic risk detection data.
+
+    risk_data keys (all optional):
+        overdue_tasks         (list of task titles)
+        overloaded_employees  (list of {name, task_count})
+        conflicts             (list of strings describing conflicts)
+    """
+    if not any(risk_data.get(k) for k in ("overdue_tasks", "overloaded_employees", "conflicts")):
+        return "No critical risks detected at this time."
+
+    payload = json.dumps(risk_data, indent=2)
+    alert = _call_llm(_RISK_ALERT_SYSTEM, payload)
+    if alert is None:
+        parts = []
+        if risk_data.get("overdue_tasks"):
+            parts.append(f"{len(risk_data['overdue_tasks'])} task(s) are overdue.")
+        if risk_data.get("overloaded_employees"):
+            names = [e.get("name", "Unknown") for e in risk_data["overloaded_employees"]]
+            parts.append(f"Overloaded employees: {', '.join(names)}.")
+        if risk_data.get("conflicts"):
+            parts.append(f"{len(risk_data['conflicts'])} scheduling conflict(s) detected.")
+        return " ".join(parts)
+
+    return alert
+
+
+def synthesize_project_summary(stats: dict[str, Any]) -> str:
+    """
+    Phrase a project status summary from deterministic stats.
+
+    stats keys:
+        project_name, total_tasks, completed, in_progress, overdue,
+        estimated_completion_date, velocity_tasks_per_day
+    """
+    payload = json.dumps(stats, indent=2)
+    summary = _call_llm(_SUMMARY_SYSTEM, payload)
+    if summary is None:
+        done = stats.get("completed", 0)
+        total = stats.get("total_tasks", 0)
+        pct = int((done / total) * 100) if total else 0
+        return (
+            f"{stats.get('project_name', 'Project')} is {pct}% complete "
+            f"({done}/{total} tasks). "
+            f"{stats.get('in_progress', 0)} in progress, "
+            f"{stats.get('overdue', 0)} overdue."
+        )
+    return summary
+
+
+def chat_with_project_data(
+    user_message: str,
+    project_context: dict[str, Any],
+    conversation_history: Optional[list[dict]] = None,
+) -> str:
+    """
+    Answer a manager's natural-language question about the project,
+    grounding all responses in real project_context data.
+
+    project_context should include relevant DB-fetched data: tasks, members,
+    assignments, stats — whatever the calling endpoint retrieved.
+
+    conversation_history: list of {"role": "user"|"assistant", "content": str}
+    """
+    from orchestration.llm_client import get_llm
+
+    llm = get_llm()
+    if llm is None:
+        return (
+            "AI chat assistant is currently offline (Ollama not detected). "
+            "Please install Ollama from https://ollama.com and run: "
+            "ollama pull llama3.1:8b-instruct"
+        )
+
+    from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
+    context_json = json.dumps(project_context, indent=2, default=str)
+    system_with_context = (
+        f"{_CHATBOT_SYSTEM}\n\nProject data:\n{context_json}"
+    )
+
+    messages = [SystemMessage(content=system_with_context)]
+
+    # Replay conversation history
+    if conversation_history:
+        for turn in conversation_history[-10:]:  # cap at 10 turns to stay within context
+            if turn["role"] == "user":
+                messages.append(HumanMessage(content=turn["content"]))
+            elif turn["role"] == "assistant":
+                messages.append(AIMessage(content=turn["content"]))
+
+    messages.append(HumanMessage(content=user_message))
+
+    try:
+        response = llm.invoke(messages)
+        return response.content.strip()
+    except Exception as exc:
+        logger.error("Chat LLM call failed: %s", exc)
+        return "An error occurred while processing your request. Please try again."

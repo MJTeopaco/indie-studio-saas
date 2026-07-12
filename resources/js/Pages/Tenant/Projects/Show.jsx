@@ -1,339 +1,69 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Head, usePage } from '@inertiajs/react';
 import ProjectLayout from '@/Layouts/ProjectLayout';
-import {
-    Plus,
-    Sparkles,
-    Search,
-    Filter,
-    MoreHorizontal,
-    Clock,
-    User,
-    CheckCircle2,
-    CircleDashed,
-    AlertCircle,
-    ArrowUpRight,
-    Cpu,
-} from 'lucide-react';
+import { CalendarDays, Clock, Columns3, Cpu, Plus, Search, TableProperties } from 'lucide-react';
+import BestFitModal from '@/Components/ML/BestFitModal';
+import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
+import ProjectAiAssistant from '@/Components/Tenant/Projects/ProjectAiAssistant';
 
-/**
- * Priority Badge helper
- */
+const statuses = [
+    { id: 'todo', title: 'To Do', className: 'bg-slate-500/15 text-slate-500' },
+    { id: 'in_progress', title: 'In Progress', className: 'bg-brand/15 text-brand' },
+    { id: 'review', title: 'In Review', className: 'bg-amber-500/15 text-amber-500' },
+    { id: 'completed', title: 'Done', className: 'bg-emerald-500/15 text-emerald-500' },
+];
+
 function PriorityBadge({ priority }) {
-    const map = {
-        CRITICAL: 'bg-rose-500/15 text-rose-400 border-rose-500/30',
-        HIGH: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
-        MEDIUM: 'bg-sky-500/15 text-sky-400 border-sky-500/30',
-        LOW: 'bg-slate-500/15 text-slate-400 border-slate-500/30',
-    };
-    return (
-        <span
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${
-                map[priority] || map.MEDIUM
-            }`}
-        >
-            {priority}
-        </span>
-    );
+    const colors = { Critical: 'bg-rose-500/15 text-rose-500 border-rose-500/30', High: 'bg-amber-500/15 text-amber-500 border-amber-500/30', Medium: 'bg-sky-500/15 text-sky-500 border-sky-500/30', Low: 'bg-slate-500/15 text-slate-500 border-slate-500/30' };
+    return <span className={`inline-flex rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${colors[priority] || colors.Medium}`}>{priority || 'Medium'}</span>;
 }
 
-/**
- * Kanban Task Card
- */
-function KanbanCard({ task, onMoveColumn }) {
-    return (
-        <div className="group relative rounded-2xl bg-white dark:bg-slate-900/90 border border-gray-200 dark:border-slate-800 hover:border-brand/60 dark:hover:border-brand/60 p-4 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col gap-3">
-            {/* Top row: ID + Priority */}
-            <div className="flex items-center justify-between">
-                <span className="text-[11px] font-mono font-semibold text-gray-400 dark:text-slate-500">
-                    #{task.id}
-                </span>
-                <PriorityBadge priority={task.priority} />
-            </div>
-
-            {/* Task Title */}
-            <h4 className="text-sm font-bold text-gray-900 dark:text-slate-100 group-hover:text-brand dark:group-hover:text-brand-light transition-colors leading-snug">
-                {task.title}
-            </h4>
-
-            {/* Classification & GNN Score */}
-            <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] px-2 py-0.5 rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400 font-medium truncate">
-                    {task.classification}
-                </span>
-
-                {task.gnnMatchScore ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg bg-brand-10 text-brand dark:text-brand-light border border-brand-30 shrink-0">
-                        <Cpu className="w-3 h-3" />
-                        {task.gnnMatchScore}
-                    </span>
-                ) : (
-                    <span className="text-[10px] text-gray-400 dark:text-slate-600 italic">
-                        Unmatched
-                    </span>
-                )}
-            </div>
-
-            {/* Footer row: Assignee + Hours */}
-            <div className="pt-2 border-t border-gray-100 dark:border-slate-800/80 flex items-center justify-between text-xs text-gray-500 dark:text-slate-400">
-                <div className="flex items-center gap-2">
-                    {task.assignee ? (
-                        <>
-                            <div className="w-5 h-5 rounded-full bg-brand text-white flex items-center justify-center text-[10px] font-bold">
-                                {task.assignee.charAt(0)}
-                            </div>
-                            <span className="text-xs font-medium text-gray-700 dark:text-slate-300 truncate max-w-[100px]">
-                                {task.assignee}
-                            </span>
-                        </>
-                    ) : (
-                        <span className="text-xs italic text-gray-400 dark:text-slate-500">
-                            Unassigned
-                        </span>
-                    )}
-                </div>
-
-                <div className="flex items-center gap-1 font-mono text-[11px]">
-                    <Clock className="w-3 h-3 text-gray-400 dark:text-slate-500" />
-                    <span>{task.estimatedHours}</span>
-                </div>
-            </div>
-        </div>
-    );
+function TaskAssignee({ task, onFindFit }) {
+    if (!task.assignee) return <button onClick={() => onFindFit(task)} className="inline-flex items-center gap-1 rounded-lg border border-brand/20 bg-brand/10 px-2 py-1 text-[10px] font-semibold text-brand hover:bg-brand hover:text-white"><Cpu className="h-3 w-3" />Find Fit</button>;
+    return <div className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand text-[10px] font-bold text-white">{task.assignee.name.charAt(0)}</span><span className="max-w-28 truncate text-xs font-medium text-gray-700 dark:text-slate-300">{task.assignee.name}</span></div>;
 }
 
-export default function Show({ project, auth }) {
+function KanbanCard({ task, onFindFit }) {
+    return <div className={`rounded-xl border bg-white p-4 shadow-sm dark:bg-slate-900 ${task.is_critical ? 'border-rose-400/60' : 'border-gray-200 dark:border-slate-800'}`}>
+        <div className="flex items-center justify-between"><span className="font-mono text-[11px] text-gray-400">#{task.id}</span><PriorityBadge priority={task.priority} /></div>
+        <h4 className="mt-3 text-sm font-bold text-gray-900 dark:text-slate-100">{task.title}</h4>
+        <p className="mt-1 truncate text-xs text-gray-500 dark:text-slate-400">{task.task_classification || 'Task'}</p>
+        {(task.es !== null && task.ef !== null) && <div className="mt-3 rounded-lg bg-slate-50 px-2 py-1 text-[10px] font-mono text-slate-500 dark:bg-slate-950">ES {task.es} · EF {task.ef}{task.is_critical ? ' · Critical' : ''}</div>}
+        <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3 dark:border-slate-800"><TaskAssignee task={task} onFindFit={onFindFit} /><span className="flex items-center gap-1 font-mono text-[11px] text-gray-500"><Clock className="h-3 w-3" />{task.estimated_hours}h</span></div>
+    </div>;
+}
+
+function Spreadsheet({ groups, onFindFit }) {
+    return <div className="space-y-6 overflow-auto p-6">
+        {groups.map(group => <section key={group.id} className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center gap-2 border-b border-gray-100 bg-gray-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/50"><span className={`h-2 w-2 rounded-full ${group.id === 'completed' ? 'bg-emerald-500' : group.id === 'review' ? 'bg-amber-500' : group.id === 'in_progress' ? 'bg-brand' : 'bg-slate-400'}`} /><h2 className="text-xs font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-300">{group.title}</h2><span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-bold text-gray-500 dark:bg-slate-800">{group.tasks.length}</span></div>
+            <div className="min-w-[850px]"><div className="grid grid-cols-[2fr_2fr_1.2fr_.8fr_.8fr_1fr] gap-4 border-b border-gray-100 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:border-slate-800"><span>Task</span><span>Description</span><span>Assignee</span><span>Hours</span><span>Priority</span><span>Status</span></div>{group.tasks.map(task => <div key={task.id} className="grid grid-cols-[2fr_2fr_1.2fr_.8fr_.8fr_1fr] items-center gap-4 border-b border-gray-100 px-4 py-3 last:border-0 dark:border-slate-800"><span className="text-sm font-semibold text-gray-900 dark:text-slate-100">{task.title}</span><span className="truncate text-xs text-gray-500 dark:text-slate-400">{task.description || '—'}</span><TaskAssignee task={task} onFindFit={onFindFit} /><span className="font-mono text-xs text-gray-600 dark:text-slate-300">{task.estimated_hours}h</span><PriorityBadge priority={task.priority} /><span className={`w-fit rounded-full px-2 py-1 text-[10px] font-bold ${group.className}`}>{group.title}</span></div>)}{!group.tasks.length && <div className="px-4 py-7 text-center text-xs text-gray-400">No tasks in this status.</div>}</div>
+        </section>)}
+    </div>;
+}
+
+function Timeline({ tasks }) {
+    const scheduled = tasks.filter(task => task.es !== null && task.ef !== null);
+    const maxFinish = Math.max(1, ...scheduled.map(task => Number(task.ef)));
+    const formatHours = hours => `${Number(hours).toFixed(1)}h · ${(Number(hours) / 8).toFixed(1)} working days`;
+
+    return <div className="overflow-auto p-6"><div className="min-w-[720px] rounded-2xl border border-gray-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"><div className="mb-5 flex items-center justify-between"><div><h2 className="text-sm font-bold text-gray-900 dark:text-slate-100">CPA Timeline</h2><p className="mt-1 text-xs text-gray-500">Schedule values use working hours (8 hours per workday), not calendar days.</p></div><CalendarDays className="h-5 w-5 text-brand" /></div>{scheduled.length ? <div className="space-y-4">{scheduled.map(task => <div key={task.id} className="grid grid-cols-[190px_1fr] items-center gap-4"><div><p className="truncate text-xs font-semibold text-gray-800 dark:text-slate-200">{task.title}</p><p className="mt-0.5 font-mono text-[10px] text-gray-400">Start {formatHours(task.es)} · Finish {formatHours(task.ef)}</p></div><div className="relative h-7 rounded bg-slate-100 dark:bg-slate-800"><div title={`${formatHours(task.es)} – ${formatHours(task.ef)}`} className={`absolute top-1 h-5 rounded ${task.is_critical ? 'bg-rose-500' : 'bg-brand'}`} style={{ left: `${(Number(task.es) / maxFinish) * 100}%`, width: `${Math.max(3, ((Number(task.ef) - Number(task.es)) / maxFinish) * 100)}%` }} /></div></div>)}</div> : <div className="py-16 text-center text-sm text-gray-400">The timeline will appear once the background schedule calculation completes.</div>}</div></div>;
+}
+
+export default function Show({ project, studio, teamMembers, auth }) {
     const pageProps = usePage().props;
-    const currentAuth = auth || pageProps.auth || { user: { name: 'Studio Member', role: 'manager' } };
-
-    const projectData = project || {
-        id: 1,
-        name: 'Lumora: E-commerce website',
-        title: 'Lumora: E-commerce website',
-        description: 'e-commerce website for niche aesthetic products',
-    };
-
-    const projectTitle = projectData.name || projectData.title || 'Lumora: E-commerce website';
-
-    // Kanban state with initial tasks divided into columns
-    const [columns, setColumns] = useState([
-        {
-            id: 'backlog',
-            title: 'Backlog',
-            badgeClass: 'bg-gray-500/15 text-gray-400',
-            tasks: [
-                {
-                    id: 105,
-                    title: 'Telemetry & Token Usage Dashboard',
-                    classification: 'Analytics',
-                    estimatedHours: '12h',
-                    priority: 'LOW',
-                    assignee: null,
-                    gnnMatchScore: null,
-                },
-                {
-                    id: 106,
-                    title: 'Stripe Checkout Webhook Resiliency',
-                    classification: 'Payment Gateway',
-                    estimatedHours: '18h',
-                    priority: 'MEDIUM',
-                    assignee: null,
-                    gnnMatchScore: '91% Fit',
-                },
-            ],
-        },
-        {
-            id: 'todo',
-            title: 'To Do',
-            badgeClass: 'bg-sky-500/15 text-sky-400',
-            tasks: [
-                {
-                    id: 103,
-                    title: 'Real-time CPA Scheduling Engine',
-                    classification: 'Algorithmic',
-                    estimatedHours: '32h',
-                    priority: 'HIGH',
-                    assignee: 'Alex Chen',
-                    gnnMatchScore: '94% Fit',
-                },
-                {
-                    id: 104,
-                    title: 'Tenant Isolation Path Validation',
-                    classification: 'Security',
-                    estimatedHours: '16h',
-                    priority: 'MEDIUM',
-                    assignee: 'Marcus Vance',
-                    gnnMatchScore: '89% Fit',
-                },
-            ],
-        },
-        {
-            id: 'in_progress',
-            title: 'In Progress',
-            badgeClass: 'bg-brand/15 text-brand dark:text-brand-light',
-            tasks: [
-                {
-                    id: 101,
-                    title: 'Autonomous NPC AI Agent Core',
-                    classification: 'Model Training',
-                    estimatedHours: '40h',
-                    priority: 'CRITICAL',
-                    assignee: 'Alex Chen',
-                    gnnMatchScore: '96% Fit',
-                },
-                {
-                    id: 102,
-                    title: 'GNN Node Embedding Layer',
-                    classification: 'AI/ML Core',
-                    estimatedHours: '24h',
-                    priority: 'HIGH',
-                    assignee: 'Maya Lin',
-                    gnnMatchScore: '94% Fit',
-                },
-            ],
-        },
-        {
-            id: 'review',
-            title: 'In Review',
-            badgeClass: 'bg-amber-500/15 text-amber-400',
-            tasks: [
-                {
-                    id: 100,
-                    title: 'Product Catalog GraphQL API Schema',
-                    classification: 'Backend Architecture',
-                    estimatedHours: '20h',
-                    priority: 'HIGH',
-                    assignee: 'Sarah Jenkins',
-                    gnnMatchScore: '95% Fit',
-                },
-            ],
-        },
-        {
-            id: 'done',
-            title: 'Done',
-            badgeClass: 'bg-emerald-500/15 text-emerald-400',
-            tasks: [
-                {
-                    id: 99,
-                    title: 'Initial Figma Design Token Extraction',
-                    classification: 'UI/UX Design',
-                    estimatedHours: '16h',
-                    priority: 'MEDIUM',
-                    assignee: 'Elena Rostova',
-                    gnnMatchScore: '98% Fit',
-                },
-            ],
-        },
-    ]);
-
+    const [activeView, setActiveView] = useState('spreadsheet');
     const [searchQuery, setSearchQuery] = useState('');
+    const [bestFitTask, setBestFitTask] = useState(null);
+    const [isManualTaskOpen, setIsManualTaskOpen] = useState(false);
+    const currentAuth = auth || pageProps.auth || { user: { name: 'Studio Member', role: 'manager' } };
+    const allTasks = project?.tasks || [];
+    const visibleTasks = useMemo(() => allTasks.filter(task => !searchQuery || task.title.toLowerCase().includes(searchQuery.toLowerCase()) || task.assignee?.name?.toLowerCase().includes(searchQuery.toLowerCase())), [allTasks, searchQuery]);
+    const groups = statuses.map(status => ({ ...status, tasks: visibleTasks.filter(task => task.status === status.id) }));
+    const tabs = [{ id: 'spreadsheet', label: 'Spreadsheet', icon: TableProperties }, { id: 'timeline', label: 'Timeline', icon: CalendarDays }, { id: 'board', label: 'Board', icon: Columns3 }];
 
-    const handleAIOptimize = () => {
-        alert('StudioSprint AI: Running GNN Graph Optimization to balance developer workload across columns!');
-    };
-
-    return (
-        <ProjectLayout auth={currentAuth} project={projectData}>
-            <Head title={`Kanban Board — ${projectTitle}`} />
-
-            <div className="flex-1 flex flex-col overflow-hidden bg-gray-50 dark:bg-slate-950">
-                {/* Kanban Toolbar Bar */}
-                <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md flex flex-wrap items-center justify-between gap-4 shrink-0">
-                    {/* Left: Search & Filters */}
-                    <div className="flex items-center gap-3 flex-1 max-w-md">
-                        <div className="relative w-full">
-                            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500" />
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Search sprint tasks, assignees, or tags..."
-                                className="w-full pl-9 pr-4 py-2 rounded-xl bg-gray-100 dark:bg-slate-800/60 border border-transparent focus:border-brand text-xs text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Right: Actions */}
-                    <div className="flex items-center gap-3">
-                        <button
-                            type="button"
-                            onClick={handleAIOptimize}
-                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-brand-10 hover:bg-brand-20 text-brand dark:text-brand-light border border-brand-30 transition-all cursor-pointer"
-                        >
-                            <Sparkles className="w-4 h-4 text-brand" />
-                            <span>AI Balance Board</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => alert('Add Task modal coming soon!')}
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-brand hover:bg-brand-light text-white shadow-sm shadow-brand/20 transition-all cursor-pointer"
-                        >
-                            <Plus className="w-4 h-4" />
-                            <span>New Task</span>
-                        </button>
-                    </div>
-                </div>
-
-                {/* Kanban Board Columns Container */}
-                <div className="flex-1 overflow-x-auto overflow-y-hidden p-6">
-                    <div className="flex gap-5 h-full min-w-max pb-2">
-                        {columns.map((column) => {
-                            const filteredTasks = column.tasks.filter((t) =>
-                                searchQuery
-                                    ? t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                      (t.assignee && t.assignee.toLowerCase().includes(searchQuery.toLowerCase()))
-                                    : true
-                            );
-
-                            return (
-                                <div
-                                    key={column.id}
-                                    className="w-80 flex flex-col rounded-2xl bg-gray-100/70 dark:bg-slate-900/50 border border-gray-200/80 dark:border-slate-800/80 max-h-full overflow-hidden"
-                                >
-                                    {/* Column Header */}
-                                    <div className="px-4 py-3.5 border-b border-gray-200/60 dark:border-slate-800/80 flex items-center justify-between shrink-0">
-                                        <div className="flex items-center gap-2.5">
-                                            <h3 className="text-xs font-extrabold uppercase tracking-wider text-gray-800 dark:text-slate-200">
-                                                {column.title}
-                                            </h3>
-                                            <span
-                                                className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${column.badgeClass}`}
-                                            >
-                                                {filteredTasks.length}
-                                            </span>
-                                        </div>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => alert(`Add task to ${column.title}`)}
-                                            className="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-gray-200/60 dark:hover:bg-slate-800 transition-colors"
-                                            title="Add task to column"
-                                        >
-                                            <Plus className="w-4 h-4" />
-                                        </button>
-                                    </div>
-
-                                    {/* Cards Scrollable Area */}
-                                    <div className="flex-1 overflow-y-auto p-3 space-y-3 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-700">
-                                        {filteredTasks.map((task) => (
-                                            <KanbanCard key={task.id} task={task} />
-                                        ))}
-
-                                        {filteredTasks.length === 0 && (
-                                            <div className="py-12 text-center rounded-xl border border-dashed border-gray-300 dark:border-slate-800">
-                                                <p className="text-xs text-gray-400 dark:text-slate-600">
-                                                    No tasks in {column.title}
-                                                </p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            </div>
-        </ProjectLayout>
-    );
+    return <ProjectLayout auth={currentAuth} project={project}><Head title={`${project?.name || 'Project'} — Workspace`} /><div className="flex flex-1 flex-col overflow-hidden bg-gray-50 dark:bg-slate-950">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 bg-white/80 px-6 py-4 dark:border-slate-800 dark:bg-slate-900/80"><div className="flex rounded-xl bg-gray-100 p-1 dark:bg-slate-800">{tabs.map(tab => { const Icon = tab.icon; return <button key={tab.id} onClick={() => setActiveView(tab.id)} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold ${activeView === tab.id ? 'bg-white text-brand shadow-sm dark:bg-slate-700 dark:text-brand-light' : 'text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200'}`}><Icon className="h-4 w-4" />{tab.label}</button>; })}</div><div className="flex flex-1 items-center justify-end gap-3"><div className="relative w-full max-w-sm"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" /><input value={searchQuery} onChange={event => setSearchQuery(event.target.value)} placeholder="Search tasks or assignees..." className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-xs outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800" /></div><button onClick={() => setIsManualTaskOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-xs font-semibold text-white shadow-sm"><Plus className="h-4 w-4" />New Task</button></div></div>
+        <div className="min-h-0 flex-1 overflow-auto">{activeView === 'spreadsheet' && <Spreadsheet groups={groups} onFindFit={setBestFitTask} />}{activeView === 'timeline' && <Timeline tasks={visibleTasks} />}{activeView === 'board' && <div className="flex min-w-max gap-5 p-6">{groups.map(group => <section key={group.id} className="flex w-80 flex-col rounded-2xl border border-gray-200 bg-gray-100/70 dark:border-slate-800 dark:bg-slate-900/50"><header className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-slate-800"><h2 className="text-xs font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">{group.title}</h2><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${group.className}`}>{group.tasks.length}</span></header><div className="space-y-3 p-3">{group.tasks.map(task => <KanbanCard key={task.id} task={task} onFindFit={setBestFitTask} />)}{!group.tasks.length && <p className="py-10 text-center text-xs text-gray-400">No tasks in {group.title}</p>}</div></section>)}</div>}</div>
+    </div><ManualTaskModal isOpen={isManualTaskOpen} onClose={() => setIsManualTaskOpen(false)} project={project} tenantId={studio.id} teamMembers={teamMembers} /><BestFitModal isOpen={Boolean(bestFitTask)} onClose={() => setBestFitTask(null)} task={bestFitTask} teamMembers={teamMembers} tenantId={studio.id} /><ProjectAiAssistant projectId={project.id} tenantId={studio.id} /></ProjectLayout>;
 }
