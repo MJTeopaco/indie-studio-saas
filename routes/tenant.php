@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\MLEngineIntegrationController;
 use App\Http\Controllers\TenantDashboardController;
+use App\Http\Controllers\TenantProjectController;
+use App\Http\Controllers\TenantTeamController;
 use Illuminate\Support\Facades\Route;
 use Stancl\Tenancy\Middleware\InitializeTenancyByPath;
 
@@ -46,16 +49,16 @@ Route::prefix('/studio/{tenant}')->middleware([
         ]);
     })->name('tenant.automation');
 
-    Route::get('/team', [\App\Http\Controllers\TenantTeamController::class, 'index'])
+    Route::get('/team', [TenantTeamController::class, 'index'])
         ->name('tenant.team');
 
-    Route::get('/projects', [\App\Http\Controllers\TenantProjectController::class, 'index'])
+    Route::get('/projects', [TenantProjectController::class, 'index'])
         ->name('tenant.projects.index');
 
-    Route::get('/projects/{project}', [\App\Http\Controllers\TenantProjectController::class, 'show'])
+    Route::get('/projects/{project}', [TenantProjectController::class, 'show'])
         ->name('tenant.projects.show');
 
-    Route::post('/projects', [\App\Http\Controllers\TenantProjectController::class, 'store'])
+    Route::post('/projects', [TenantProjectController::class, 'store'])
         ->name('tenant.projects.store');
 
     Route::get('/settings', function () {
@@ -73,5 +76,25 @@ Route::prefix('/studio/{tenant}')->middleware([
             'status' => 'V1.0 Documentation Published'
         ]);
     })->name('tenant.docs');
+
+    // Project Task Bulk Save Route
+    Route::post('/projects/{project}/tasks/bulk', [TenantProjectController::class, 'storeBulkTasks'])
+        ->name('tenant.projects.tasks.bulk');
+    Route::post('/projects/{project}/tasks', [TenantProjectController::class, 'storeTask'])
+        ->name('tenant.projects.tasks.store');
+    Route::patch('/projects/{project}/tasks/{task}', [TenantProjectController::class, 'updateTask'])
+        ->name('tenant.projects.tasks.update');
+
+    // ML Engine Integration Routes
+    Route::post('/projects/{project}/ml/sprint-decompose', [MLEngineIntegrationController::class, 'decomposeSprint'])
+        ->name('tenant.ml.decompose');
+    Route::post('/projects/{project}/ml/compute-schedule', [MLEngineIntegrationController::class, 'computeSchedule'])
+        ->name('tenant.ml.schedule');
+    Route::post('/projects/{project}/ai-assistant', [MLEngineIntegrationController::class, 'projectAssistant'])
+        ->name('tenant.projects.ai-assistant');
+    Route::post('/tasks/{task}/ml/best-fit', [MLEngineIntegrationController::class, 'bestFit'])
+        ->name('tenant.ml.best-fit');
+    Route::post('/tasks/{task}/assign', [MLEngineIntegrationController::class, 'assignTask'])
+        ->name('tenant.tasks.assign');
 
 });

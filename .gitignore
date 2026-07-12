@@ -31,3 +31,10 @@ Thumbs.db
 /ml-engine/__pycache__/
 *.py[cod]
 *$py.class
+
+database/tenanttest*
+.agents/
+AGENTS.md
+boost.json
+ml-engine/venv/
+ml-engine/__pycache__/

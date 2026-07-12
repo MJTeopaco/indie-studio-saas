@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import TenantLayout from '@/Layouts/TenantLayout';
 import { Head, usePage } from '@inertiajs/react';
 import ProjectCard from '@/Components/Tenant/Projects/ProjectCard';
@@ -8,29 +8,14 @@ export default function TenantProjectsIndex({ studio, projects: serverProjects }
     const { activeWorkspace } = usePage().props;
     const tenantId = activeWorkspace || (studio ? studio.id : 'default');
 
-    const initialProjects = Array.isArray(serverProjects) && serverProjects.length > 0
-        ? serverProjects
-        : [
-              {
-                  id: 1,
-                  name: 'Lumora: E-commerce website',
-                  description: 'e-commerce website for niche aesthetic products',
-                  status: 'planning',
-                  members_count: 4,
-                  tasks_count: 18,
-              },
-              {
-                  id: 2,
-                  name: 'StudioSprint AI Recommendations Engine',
-                  description: 'Graph Neural Network matching model linking incoming studio tasks to optimal developers.',
-                  status: 'active',
-                  members_count: 6,
-                  tasks_count: 24,
-              },
-          ];
+    const initialProjects = Array.isArray(serverProjects) ? serverProjects : [];
 
     const [projects, setProjects] = useState(initialProjects);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+    useEffect(() => {
+        setProjects(initialProjects);
+    }, [serverProjects]);
 
     const handleCreateProject = (newProject) => {
         setProjects((prev) => [newProject, ...prev]);
