@@ -57,7 +57,7 @@ export default function TenantProjectsIndex({ studio, projects: serverProjects }
                             <div className="bg-gray-50 dark:bg-slate-800/80 border border-gray-200 dark:border-slate-700/80 rounded-xl px-4 py-2.5 text-center">
                                 <p className="text-[11px] text-gray-500 dark:text-slate-400 uppercase font-semibold">Active Members</p>
                                 <p className="text-lg font-bold text-gray-900 dark:text-slate-100 mt-0.5">
-                                    {projects.reduce((acc, p) => acc + (p.members_count || 0), 0)}
+                                    {studio?.members_count ?? projects.reduce((acc, p) => acc + (p.members_count || 0), 0)}
                                 </p>
                             </div>
                         </div>

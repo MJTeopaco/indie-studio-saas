@@ -46,7 +46,7 @@ class MLEngineService
     {
         try {
             // TaskData needs to match TaskInput model in FastAPI
-            $response = Http::post("{$this->baseUrl}/api/best-fit", $taskData);
+            $response = Http::timeout(120)->post("{$this->baseUrl}/api/best-fit", $taskData);
 
             if ($response->successful()) {
                 return $response->json();
@@ -63,11 +63,12 @@ class MLEngineService
     /**
      * Compute the CPA schedule for a list of tasks.
      */
-    public function computeSchedule(array $tasks): array
+    public function computeSchedule(array $tasks, ?float $deadlineHours = null): array
     {
         try {
-            $response = Http::post("{$this->baseUrl}/api/schedule/compute", [
+            $response = Http::timeout(60)->post("{$this->baseUrl}/api/schedule/compute", [
                 'tasks' => $tasks,
+                'deadline_hours' => $deadlineHours,
             ]);
 
             if ($response->successful()) {
@@ -108,7 +109,28 @@ class MLEngineService
             ];
         })->all();
 
-        $result = $this->computeSchedule($payload);
+        // Calculate project deadline in working hours based on start_date and target_end_date
+        $deadlineHours = null;
+        if ($project->start_date && $project->target_end_date) {
+            try {
+                $start = new \DateTime($project->start_date);
+                $end = new \DateTime($project->target_end_date);
+                $workdays = 0;
+                // Count business days (Monday-Friday) between start and end date
+                $temp = clone $start;
+                while ($temp <= $end) {
+                    if ((int)$temp->format('N') < 6) {
+                        $workdays++;
+                    }
+                    $temp->modify('+1 day');
+                }
+                $deadlineHours = (float) ($workdays * 8.0);
+            } catch (\Exception $e) {
+                Log::error('CPA Deadline calculation failed: ' . $e->getMessage());
+            }
+        }
+
+        $result = $this->computeSchedule($payload, $deadlineHours);
 
         if (($result['status'] ?? null) !== 'success') {
             return $result;

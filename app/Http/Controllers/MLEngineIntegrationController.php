@@ -6,6 +6,7 @@ use App\Models\Tenant\Project;
 use App\Models\Tenant\Task;
 use App\Services\MLEngineService;
 use App\Models\User;
+use App\Models\Studio;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -61,7 +62,53 @@ class MLEngineIntegrationController extends Controller
         $task = Task::findOrFail($task);
         // LLM generation for explanations can take several minutes on local CPU
         set_time_limit(0);
-        $payload = $task->toGNNFeatureDict();
+
+        $studio = Studio::with([
+            'users.globalProfile.position',
+            'users.globalProfile.skills',
+        ])->find(tenant('id'));
+
+        $employeeProfiles = [];
+        if ($studio && $studio->users) {
+            foreach ($studio->users as $user) {
+                if ($user->role === 'admin' && !$user->globalProfile) {
+                    continue;
+                }
+
+                $skills = [];
+                if ($user->globalProfile && $user->globalProfile->skills) {
+                    foreach ($user->globalProfile->skills as $s) {
+                        $skills[] = [
+                            'name' => $s->name,
+                            'level' => (int) ($s->pivot->proficiency_level ?? 3),
+                        ];
+                    }
+                }
+
+                $macroDomains = [];
+                try {
+                    $macroDomains = $user->microDomains()->pluck('name')->all();
+                } catch (\Exception $e) {
+                }
+
+                $employeeProfiles[] = [
+                    'user_id' => $user->id,
+                    'display_name' => $user->name,
+                    'position' => $user->globalProfile && $user->globalProfile->position 
+                        ? $user->globalProfile->position->name 
+                        : 'Developer',
+                    'experience_years' => (float) ($user->globalProfile->experience_years ?? 0.0),
+                    'skills' => $skills,
+                    'macro_domains' => $macroDomains,
+                ];
+            }
+        }
+
+        $payload = [
+            'task' => $task->toGNNFeatureDict(),
+            'employee_profiles' => $employeeProfiles,
+        ];
+
         $response = $this->mlService->getBestFit($payload);
 
         if ($response['status'] === 'success' && ! empty($response['results'])) {
@@ -96,8 +143,9 @@ class MLEngineIntegrationController extends Controller
     {
         $task = $routeTask ?? $task;
         $task = Task::findOrFail($task);
+        $centralConn = config('tenancy.database.central_connection', 'mysql');
         $validated = $request->validate([
-            'employee_user_id' => 'required|integer|exists:users,id',
+            'employee_user_id' => "required|integer|exists:{$centralConn}.users,id",
             'match_fit_score' => 'nullable|numeric|min:0|max:1',
             'assigned_by' => 'nullable|string|in:gnn,cold_start_baseline,manual',
         ]);

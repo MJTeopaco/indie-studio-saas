@@ -4,6 +4,7 @@ import axios from 'axios';
 import TenantLayout from '@/Layouts/TenantLayout';
 import RightSidebar from '@/Components/Tenant/Projects/RightSidebar';
 import SprintDecomposeModal from '@/Components/ML/SprintDecomposeModal';
+import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
 import { CheckSquare, Cpu, Calendar, Users, Paperclip, Mic, Send, Sparkles, Bot, Loader2, X } from 'lucide-react';
 
 function QuickActionCard({ title, description, icon: Icon, badgeColor, onClick }) {
@@ -34,7 +35,7 @@ function deadlineDaysFromPrompt(prompt) {
     return Math.max(0, Math.ceil((deadline.getTime() - Date.now()) / 86_400_000));
 }
 
-export default function TenantDashboard({ studio, projects = [] }) {
+export default function TenantDashboard({ studio, projects = [], activeTasks = [], skills = [], positions = [], teamMembers = [] }) {
     const studioName = studio?.name || 'Pixel Play Studio';
 
     const [prompt, setPrompt] = useState('');
@@ -43,6 +44,7 @@ export default function TenantDashboard({ studio, projects = [] }) {
     const [generation, setGeneration] = useState(null);
     const [draftTasks, setDraftTasks] = useState(null);
     const [isPlanOpen, setIsPlanOpen] = useState(false);
+    const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const abortRef = useRef(null);
     const chatEndRef = useRef(null);
 
@@ -50,66 +52,18 @@ export default function TenantDashboard({ studio, projects = [] }) {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }, [messages, generation]);
 
-    // Mock Active Tasks for Right Sidebar enriched with StudioSprint AI routing
-    const mockActiveTasks = [
-        {
-            id: 101,
-            title: 'Autonomous NPC AI Agent',
-            classification: 'Model Training',
-            estimatedHours: '40h',
-            priority: 'CRITICAL',
-            isCriticalPath: true,
-            assignee: 'Alex Chen',
-            gnnMatchScore: '96% Fit',
-        },
-        {
-            id: 102,
-            title: 'GNN Node Embedding Layer',
-            classification: 'AI/ML Core',
-            estimatedHours: '24h',
-            priority: 'HIGH',
-            isCriticalPath: true,
-            assignee: 'Maya Lin',
-            gnnMatchScore: '94% Fit',
-        },
-        {
-            id: 103,
-            title: 'Real-time CPA Scheduling Engine',
-            classification: 'Algorithmic',
-            estimatedHours: '32h',
-            priority: 'HIGH',
-            isCriticalPath: false,
-            assignee: null,
-            gnnMatchScore: null,
-        },
-        {
-            id: 104,
-            title: 'Tenant Isolation Path Validation',
-            classification: 'Security',
-            estimatedHours: '16h',
-            priority: 'MEDIUM',
-            isCriticalPath: false,
-            assignee: 'Marcus Vance',
-            gnnMatchScore: '89% Fit',
-        },
-        {
-            id: 105,
-            title: 'Telemetry & Token Usage Dashboard',
-            classification: 'Analytics',
-            estimatedHours: '12h',
-            priority: 'LOW',
-            isCriticalPath: false,
-            assignee: null,
-            gnnMatchScore: null,
-        },
-    ];
+
 
     const addAssistantMessage = (content) => {
         setMessages(current => [...current, { id: crypto.randomUUID(), role: 'assistant', content }]);
     };
 
     const handleQuickAction = (actionTitle) => {
-        setPrompt(`StudioSprint AI, please help me ${actionTitle.toLowerCase()} for ${studioName}.`);
+        if (actionTitle === 'Create Task') {
+            setIsTaskModalOpen(true);
+        } else {
+            setPrompt(`StudioSprint AI, please help me ${actionTitle.toLowerCase()} for ${studioName}.`);
+        }
     };
 
     const handlePromptSubmit = async (e) => {
@@ -273,6 +227,18 @@ export default function TenantDashboard({ studio, projects = [] }) {
                         />
                     )}
 
+                    {isTaskModalOpen && selectedProjectId && (
+                        <ManualTaskModal
+                            isOpen={isTaskModalOpen}
+                            onClose={() => setIsTaskModalOpen(false)}
+                            project={projects.find(p => Number(p.id) === Number(selectedProjectId))}
+                            tenantId={studio.id}
+                            teamMembers={teamMembers}
+                            skills={skills}
+                            positions={positions}
+                        />
+                    )}
+
                     {/* Agentic Chat Bar (Taller, rounded-2xl, dual-row layout) */}
                     <div className="sticky bottom-0 z-20 pt-4 pb-2 w-full max-w-3xl mx-auto">
                         <form
@@ -361,10 +327,8 @@ export default function TenantDashboard({ studio, projects = [] }) {
 
                 {/* Right Sidebar Component: Active Sprint Tasks Feed */}
                 <RightSidebar
-                    tasks={mockActiveTasks}
-                    onDraftNewTask={() =>
-                        setPrompt(`StudioSprint AI, please draft a new sprint task for ${studioName} and run GNN developer routing.`)
-                    }
+                    tasks={activeTasks}
+                    onDraftNewTask={() => setIsTaskModalOpen(true)}
                 />
             </div>
         </TenantLayout>

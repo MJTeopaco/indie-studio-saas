@@ -6,6 +6,8 @@ use App\Http\Controllers\MLEngineIntegrationController;
 use App\Http\Controllers\TenantDashboardController;
 use App\Http\Controllers\TenantProjectController;
 use App\Http\Controllers\TenantTeamController;
+use App\Http\Controllers\TenantTaskController;
+use App\Http\Controllers\TenantOverviewController;
 use Illuminate\Support\Facades\Route;
 use Stancl\Tenancy\Middleware\InitializeTenancyByPath;
 
@@ -29,13 +31,11 @@ Route::prefix('/studio/{tenant}')->middleware([
     Route::get('/dashboard', [TenantDashboardController::class, 'index'])
         ->name('tenant.dashboard');
 
-    Route::get('/overview', function () {
-        return \Inertia\Inertia::render('Tenant/Dashboard/Overview');
-    })->name('tenant.overview');
+    Route::get('/overview', [TenantOverviewController::class, 'index'])
+        ->name('tenant.overview');
 
-    Route::get('/tasks', function () {
-        return \Inertia\Inertia::render('Tenant/Tasks/Index');
-    })->name('tenant.tasks');
+    Route::get('/tasks', [TenantTaskController::class, 'index'])
+        ->name('tenant.tasks');
 
     Route::get('/schedule', function () {
         return \Inertia\Inertia::render('Tenant/Schedule/Index');

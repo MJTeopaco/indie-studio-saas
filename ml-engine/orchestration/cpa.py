@@ -81,7 +81,7 @@ class CPAEngine:
     # Entry point
     # ------------------------------------------------------------------
 
-    def compute(self, tasks: list[dict[str, Any]]) -> dict[str, Any]:
+    def compute(self, tasks: list[dict[str, Any]], deadline_hours: float | None = None) -> dict[str, Any]:
         """
         Run the full CPM on a list of task dicts.
 
@@ -134,8 +134,11 @@ class CPAEngine:
                 es[task_id] = 0.0
             ef[task_id] = es[task_id] + duration
 
-        # Project finish = latest EF across all tasks
-        project_finish = max(ef.values()) if ef else 0.0
+        # Project finish / anchor
+        if deadline_hours is not None:
+            project_finish = float(deadline_hours)
+        else:
+            project_finish = max(ef.values()) if ef else 0.0
 
         # Backward pass (reverse topological order)
         ls: dict[Any, float] = {}

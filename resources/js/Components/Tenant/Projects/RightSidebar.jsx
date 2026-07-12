@@ -144,62 +144,6 @@ function TaskSidebarCard({ task }) {
  * Modern, minimalist, scrollable feed of sprint tasks for StudioSprint Project Workspace.
  */
 export default function RightSidebar({ tasks = [], onDraftNewTask }) {
-    // Default StudioSprint tasks if none passed
-    const defaultTasks = [
-        {
-            id: 1,
-            title: 'Autonomous NPC AI Agent',
-            classification: 'Model Training',
-            estimatedHours: '40h',
-            priority: 'CRITICAL',
-            isCriticalPath: true,
-            assignee: 'Alex Chen',
-            gnnMatchScore: '96% Fit',
-        },
-        {
-            id: 2,
-            title: 'GNN Node Embedding Layer',
-            classification: 'AI/ML Core',
-            estimatedHours: '24h',
-            priority: 'HIGH',
-            isCriticalPath: true,
-            assignee: 'Maya Lin',
-            gnnMatchScore: '94% Fit',
-        },
-        {
-            id: 3,
-            title: 'Real-time CPA Scheduling Engine',
-            classification: 'Algorithmic',
-            estimatedHours: '32h',
-            priority: 'HIGH',
-            isCriticalPath: false,
-            assignee: null, // Unassigned
-            gnnMatchScore: null,
-        },
-        {
-            id: 4,
-            title: 'Tenant Isolation Path Validation',
-            classification: 'Security',
-            estimatedHours: '16h',
-            priority: 'MEDIUM',
-            isCriticalPath: false,
-            assignee: 'Marcus Vance',
-            gnnMatchScore: '89% Fit',
-        },
-        {
-            id: 5,
-            title: 'Telemetry & Token Usage Dashboard',
-            classification: 'Analytics',
-            estimatedHours: '12h',
-            priority: 'LOW',
-            isCriticalPath: false,
-            assignee: null, // Unassigned
-            gnnMatchScore: null,
-        },
-    ];
-
-    const displayTasks = tasks && tasks.length > 0 ? tasks : defaultTasks;
-
     const handleDraftNewTask = () => {
         if (onDraftNewTask) {
             onDraftNewTask();
@@ -230,10 +174,20 @@ export default function RightSidebar({ tasks = [], onDraftNewTask }) {
                 {/* Pinned "Draft New Task" Card */}
                 <PinnedActionCard onDraftNewTask={handleDraftNewTask} />
 
-                {/* Task Cards */}
-                {displayTasks.map((task) => (
-                    <TaskSidebarCard key={task.id} task={task} />
-                ))}
+                {/* Task Cards or Empty State */}
+                {tasks.length > 0 ? (
+                    tasks.map((task) => (
+                        <TaskSidebarCard key={task.id} task={task} />
+                    ))
+                ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-center text-gray-400 dark:text-slate-500">
+                        <Bot className="w-10 h-10 mb-2 text-gray-300 dark:text-slate-700" />
+                        <p className="text-xs font-semibold">No active tasks</p>
+                        <p className="text-[10px] text-gray-500 max-w-[200px] mt-1 mx-auto">
+                            Ask the AI to schedule a sprint or draft a new task to get started.
+                        </p>
+                    </div>
+                )}
             </div>
         </aside>
     );
