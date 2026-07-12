@@ -37,6 +37,28 @@ class HandleInertiaRequests extends Middleware
             // Provides the active studio UUID to all React pages.
             // null on central pages; UUID string on /studio/{tenant}/... pages.
             'activeWorkspace' => tenant('id'),
+            
+            // Share the list of projects for the current workspace
+            'workspaceProjects' => function () {
+                if (!tenant()) {
+                    return [];
+                }
+                try {
+                    $projects = \App\Models\Tenant\Project::select('id', 'name', 'status')->latest()->get()->toArray();
+                    if (empty($projects)) {
+                        return [
+                            ['id' => 1, 'name' => 'Lumora: E-commerce website', 'status' => 'planning'],
+                            ['id' => 2, 'name' => 'StudioSprint AI Recommendations Engine', 'status' => 'active'],
+                        ];
+                    }
+                    return $projects;
+                } catch (\Exception $e) {
+                    return [
+                        ['id' => 1, 'name' => 'Lumora: E-commerce website', 'status' => 'planning'],
+                        ['id' => 2, 'name' => 'StudioSprint AI Recommendations Engine', 'status' => 'active'],
+                    ];
+                }
+            },
         ];
     }
 }

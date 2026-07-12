@@ -9,7 +9,7 @@ export default function ProjectLayout({ auth, project, children }) {
     const projectTitle = project?.title || project?.name || 'Project Workspace';
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-gray-100 flex">
+        <div className="h-screen w-full overflow-hidden bg-surface text-text-primary flex">
             {/* AI-Agentic StudioSprint Left Sidebar */}
             <Sidebar user={user} />
 
@@ -99,7 +99,7 @@ export default function ProjectLayout({ auth, project, children }) {
                 </header>
 
                 {/* Main Content Area */}
-                <main className="flex-1 flex flex-col overflow-y-auto">
+                <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
                     {children}
                 </main>
             </div>

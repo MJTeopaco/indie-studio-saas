@@ -29,6 +29,29 @@ Route::prefix('/studio/{tenant}')->middleware([
     Route::get('/dashboard', [TenantDashboardController::class, 'index'])
         ->name('tenant.dashboard');
 
+    Route::get('/overview', function () {
+        return \Inertia\Inertia::render('Tenant/Dashboard/Overview');
+    })->name('tenant.overview');
+
+    Route::get('/tasks', function () {
+        return \Inertia\Inertia::render('Tenant/Tasks/Index');
+    })->name('tenant.tasks');
+
+    Route::get('/schedule', function () {
+        return \Inertia\Inertia::render('Tenant/Schedule/Index');
+    })->name('tenant.schedule');
+
+    Route::get('/automation', function () {
+        return \Inertia\Inertia::render('Tenant/Placeholder', [
+            'title' => 'Agentic Automation Hub',
+            'description' => 'Orchestrate automated developer assignment, branch creation, code reviews, and deployment triggers with Vaultera Labs AI agents.',
+            'status' => 'Agent Core Offline'
+        ]);
+    })->name('tenant.automation');
+
+    Route::get('/team', [TenantTeamController::class, 'index'])
+        ->name('tenant.team');
+
     Route::get('/projects', [TenantProjectController::class, 'index'])
         ->name('tenant.projects.index');
 
@@ -38,8 +61,21 @@ Route::prefix('/studio/{tenant}')->middleware([
     Route::post('/projects', [TenantProjectController::class, 'store'])
         ->name('tenant.projects.store');
 
-    Route::get('/team', [TenantTeamController::class, 'index'])
-        ->name('tenant.team');
+    Route::get('/settings', function () {
+        return \Inertia\Inertia::render('Tenant/Placeholder', [
+            'title' => 'Studio Settings',
+            'description' => 'Configure workspace details, developer roles, division integrations, and default GNN model thresholds.',
+            'status' => 'Active Configuration'
+        ]);
+    })->name('tenant.settings');
+
+    Route::get('/docs', function () {
+        return \Inertia\Inertia::render('Tenant/Placeholder', [
+            'title' => 'Developer Documentation',
+            'description' => 'Read StudioSprint developer handbook, internal platform architecture specs, and division onboarding playbooks.',
+            'status' => 'V1.0 Documentation Published'
+        ]);
+    })->name('tenant.docs');
 
     // Project Task Bulk Save Route
     Route::post('/projects/{project}/tasks/bulk', [TenantProjectController::class, 'storeBulkTasks'])

@@ -12,13 +12,13 @@ export default function TenantLayout({ children, studioName }) {
     const user = auth?.user;
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-gray-100 flex">
+        <div className="h-screen w-full overflow-hidden bg-surface text-text-primary flex">
             {/* AI-Agentic StudioSprint Left Sidebar */}
             <Sidebar user={user} studioName={studioName} />
 
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                <main className="flex-1 overflow-y-auto">
+                <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
                     {children}
                 </main>
             </div>

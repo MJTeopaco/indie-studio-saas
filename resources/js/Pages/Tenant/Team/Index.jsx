@@ -14,6 +14,8 @@ import {
     Grid,
     List,
 } from 'lucide-react';
+import TeamMemberCard from '@/Components/Tenant/TeamMemberCard';
+import TeamTimeline from '@/Components/Tenant/TeamTimeline';
 
 export default function TeamIndex({ studio, members = [], canManage = false }) {
     const studioName = studio?.name || 'Studio';
@@ -205,79 +207,19 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
                         {/* 8-member Grid view */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                             {filteredMembers.map((member, index) => {
-                                // Assign mock attributes for design fidelity (Active/Remote/Part-time, phone, etc.)
                                 const status = statuses[index % statuses.length];
                                 const badgeClass = statusStyles[status];
-                                const phone = `(${201 + index}) 555-010${index}`;
                                 const department = ['Engineering', 'Product', 'Design', 'QA'][index % 4];
 
                                 return (
-                                    <div
+                                    <TeamMemberCard
                                         key={member.id}
-                                        className="group rounded-2xl bg-white dark:bg-slate-800/40 border border-gray-200 dark:border-slate-800 p-5 shadow-sm hover:shadow-lg transition-all duration-200 relative flex flex-col justify-between"
-                                    >
-                                        <div>
-                                            {/* Header avatar & Status badge */}
-                                            <div className="flex items-center justify-between">
-                                                <div className="w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center text-sm font-bold shadow-sm">
-                                                    {member.name.charAt(0).toUpperCase()}
-                                                </div>
-                                                <span
-                                                    className={`rounded-full text-[10px] px-2 py-0.5 font-bold uppercase ${badgeClass}`}
-                                                >
-                                                    {status}
-                                                </span>
-                                            </div>
-
-                                            {/* Names */}
-                                            <div className="mt-4">
-                                                <h4 className="font-heading text-base font-bold text-gray-900 dark:text-slate-100 truncate group-hover:text-brand dark:group-hover:text-brand-light transition-colors">
-                                                    {member.name}
-                                                </h4>
-                                                <p className="text-xs text-text-muted font-sans mt-0.5 truncate">
-                                                    {member.position}
-                                                </p>
-                                            </div>
-
-                                            {/* Divider */}
-                                            <div className="my-4 border-t border-gray-100 dark:border-slate-800/50"></div>
-
-                                            {/* Department & Join Date */}
-                                            <div className="grid grid-cols-2 gap-2 text-xs font-sans text-text-muted">
-                                                <div>
-                                                    <span className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-slate-500 font-semibold block">
-                                                        Department
-                                                    </span>
-                                                    <span className="font-semibold text-gray-900 dark:text-slate-200">
-                                                        {department}
-                                                    </span>
-                                                </div>
-                                                <div>
-                                                    <span className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-slate-500 font-semibold block">
-                                                        Joining
-                                                    </span>
-                                                    <span className="font-semibold text-gray-900 dark:text-slate-200">
-                                                        {member.joined_at}
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            {/* Email & Phone */}
-                                            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800/50 space-y-1 text-xs font-sans">
-                                                <p className="text-text-muted truncate hover:text-brand dark:hover:text-brand-light cursor-pointer">
-                                                    {member.email}
-                                                </p>
-                                                <p className="text-text-muted">
-                                                    {phone}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        {/* Action Link Arrow */}
-                                        <div className="absolute bottom-4 right-4 text-gray-400 dark:text-slate-500 group-hover:text-brand dark:group-hover:text-brand-light transition-colors">
-                                            <ChevronRight className="w-5 h-5 transition-transform group-hover:translate-x-0.5" />
-                                        </div>
-                                    </div>
+                                        member={member}
+                                        index={index}
+                                        status={status}
+                                        badgeClass={badgeClass}
+                                        department={department}
+                                    />
                                 );
                             })}
                         </div>
@@ -314,75 +256,7 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
                                 </div>
                             </div>
 
-                            {/* Gantt Timeline Chart */}
-                            <div className="overflow-x-auto w-full [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                                <div className="min-w-[800px] border border-gray-200/60 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900/20 overflow-hidden font-sans">
-                                    {/* Timeline Hour Columns header */}
-                                    <div className="grid grid-cols-12 border-b border-gray-200 dark:border-slate-800 divide-x divide-gray-100 dark:divide-slate-800/40 text-[10px] font-semibold text-text-muted text-center py-2.5 bg-gray-50/50 dark:bg-slate-800/20">
-                                        {['10 AM', '11 AM', '12 PM', '1 PM', '2 PM', '3 PM', '4 PM', '5 PM', '6 PM', '7 PM', '8 PM', '9 PM'].map(
-                                            (hour) => (
-                                                <div key={hour} className="uppercase tracking-wider select-none">
-                                                    {hour}
-                                                </div>
-                                            )
-                                        )}
-                                    </div>
-
-                                    {/* Tasks Rows mapping */}
-                                    <div className="divide-y divide-gray-100 dark:divide-slate-800/40 text-xs">
-                                        {timelineTasks.map((task) => (
-                                            <div
-                                                key={task.name}
-                                                className="grid grid-cols-12 h-14 relative divide-x divide-gray-100/50 dark:divide-slate-800/20 items-center"
-                                            >
-                                                {/* Background Column lines */}
-                                                {[...Array(12)].map((_, i) => (
-                                                    <div key={i} className="h-full pointer-events-none" />
-                                                ))}
-
-                                                {/* Task Title Overlay (Left pinned hover) */}
-                                                <div className="absolute left-4 top-1.5 pointer-events-none">
-                                                    <span className="bg-white/80 dark:bg-slate-900/80 px-2 py-0.5 rounded text-[11px] font-bold text-gray-900 dark:text-slate-200 border border-gray-200/50 dark:border-slate-800/50">
-                                                        {task.name}
-                                                    </span>
-                                                </div>
-
-                                                {/* Task timeline blocks absolute mapping */}
-                                                {task.blocks.map((block, bIdx) => {
-                                                    // Map block coordinates to column span variables
-                                                    const startPercent = ((block.startCol - 1) / 12) * 100;
-                                                    const widthPercent = ((block.endCol - block.startCol) / 12) * 100;
-
-                                                    return (
-                                                        <div
-                                                            key={bIdx}
-                                                            style={{
-                                                                left: `${startPercent}%`,
-                                                                width: `${widthPercent}%`,
-                                                            }}
-                                                            className="absolute h-9 rounded-xl border border-brand-30 bg-brand-10 hover:bg-brand-20 hover:border-brand-50 transition-colors shadow-sm flex items-center justify-between px-3 select-none"
-                                                        >
-                                                            <span className="text-[10px] font-semibold text-brand truncate max-w-[70%]">
-                                                                {block.text}
-                                                            </span>
-                                                            <div className="flex -space-x-1 flex-shrink-0">
-                                                                {block.assignees.map((initial, aIdx) => (
-                                                                    <div
-                                                                        key={aIdx}
-                                                                        className="w-4.5 h-4.5 rounded-full bg-white dark:bg-slate-800 text-[8px] font-bold text-brand border border-brand-30 flex items-center justify-center"
-                                                                    >
-                                                                        {initial}
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
+                            <TeamTimeline timelineTasks={timelineTasks} />
                         </div>
                     </div>
                 )}

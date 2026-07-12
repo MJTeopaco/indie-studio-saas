@@ -219,7 +219,7 @@ export default function TenantDashboard({ studio, projects = [] }) {
             </div>
 
             {/* Split Screen Container: Center Canvas + Right Sidebar */}
-            <div className="flex-grow flex overflow-hidden min-h-[calc(100vh-8.5rem)]">
+            <div className="flex-1 flex overflow-hidden">
                 {/* Center Canvas */}
                 <div className="flex-1 flex flex-col justify-between overflow-y-auto relative p-6 sm:p-10 lg:p-12">
                     <div className={`mx-auto flex w-full max-w-3xl flex-1 flex-col py-6 ${messages.length === 0 && !generation ? 'justify-center' : 'justify-end'}`}>
