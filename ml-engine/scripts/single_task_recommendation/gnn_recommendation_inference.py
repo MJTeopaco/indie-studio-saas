@@ -97,6 +97,156 @@ MACRO_DOMAIN_NAMES = [
     "Game Development & Interactive Media",
 ]
 
+CANONICAL_SKILL_ALIASES = {
+    # Frontend / UI & Design variations
+    "Dark Mode": ["React", "JavaScript", "TypeScript"],
+    "Dark Mode Support": ["React", "JavaScript", "TypeScript"],
+    "CSS": ["React", "JavaScript", "TypeScript"],
+    "HTML": ["React", "JavaScript"],
+    "Frontend": ["React", "JavaScript", "TypeScript"],
+    "Responsive Design": ["React", "JavaScript"],
+    "UI Components": ["React", "JavaScript"],
+    "UI Testing": ["Jest", "Cypress"],
+    "Debugging": ["PHPUnit", "Jest"],
+    "Design System": ["Figma", "React"],
+    "UI/UX": ["Figma", "Adobe XD"],
+    "Tailwind": ["React", "JavaScript"],
+    "TailwindCSS": ["React", "JavaScript"],
+    "Styling": ["React", "JavaScript"],
+
+    # Backend / API variations
+    "Backend": ["Laravel", "PHP", "PostgreSQL", "REST APIs"],
+    "API": ["REST APIs"],
+    "Database": ["PostgreSQL", "MySQL"],
+    "SQL": ["PostgreSQL", "MySQL"],
+    "Authentication": ["OAuth / Auth0", "REST APIs"],
+
+    # DevOps variations
+    "CI/CD": ["Docker", "Git", "Linux"],
+    "Cloud": ["AWS", "Docker"],
+
+    # AI / ML variations
+    "LLM": ["Python", "PyTorch", "LangChain", "OpenAI API"],
+    "AI": ["Python", "PyTorch", "LangChain"],
+    "Machine Learning": ["Python", "PyTorch", "scikit-learn"],
+}
+
+
+class SemanticSkillMapper:
+    """
+    Singleton class wrapping EmbeddingService (all-MiniLM-L6-v2) for autonomous
+    semantic similarity vector search against canonical GNN training skills.
+    Implements Strict Drop & Log when similarity falls below threshold.
+    """
+    _instance: Optional["SemanticSkillMapper"] = None
+
+    def __new__(cls) -> "SemanticSkillMapper":
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+
+    def __init__(self):
+        if self._initialized:
+            return
+        self._initialized = True
+        self.canonical_names: List[str] = []
+        self.canonical_embeddings: List[List[float]] = []
+        self._cache: Dict[str, Optional[str]] = {}
+
+    def _ensure_embeddings(self, canonical_skill_cols: List[str]):
+        clean_names = [col.replace("skill_", "") for col in canonical_skill_cols]
+        if self.canonical_names == clean_names and len(self.canonical_embeddings) == len(clean_names):
+            return
+        self.canonical_names = clean_names
+        try:
+            from orchestration.embedding_service import get_embedding_service
+            svc = get_embedding_service()
+            self.canonical_embeddings = svc.embed_batch(clean_names)
+        except Exception:
+            self.canonical_embeddings = []
+
+    def map_skill(self, unknown_skill: str, canonical_skill_cols: List[str], threshold: float = 0.65) -> Optional[str]:
+        """
+        Embeds unknown_skill and returns closest canonical skill name if cosine similarity >= threshold.
+        Otherwise applies Strict Drop & Log (returns None).
+        """
+        clean_query = unknown_skill.replace("skill_", "").strip()
+        cache_key = f"{clean_query.lower()}_{threshold}"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+
+        self._ensure_embeddings(canonical_skill_cols)
+        if not self.canonical_embeddings:
+            self._cache[cache_key] = None
+            return None
+
+        try:
+            from orchestration.embedding_service import get_embedding_service
+            svc = get_embedding_service()
+            query_vec = svc.embed(clean_query)
+            scores = svc.cosine_similarity_matrix(query_vec, self.canonical_embeddings)
+            if not scores:
+                self._cache[cache_key] = None
+                return None
+            max_idx = int(np.argmax(scores))
+            max_sim = float(scores[max_idx])
+            if max_sim >= threshold:
+                mapped_name = self.canonical_names[max_idx]
+                print(f"[INFO] Semantic Vector Search mapped unknown skill '{clean_query}' -> '{mapped_name}' (Cosine sim: {max_sim:.4f})")
+                self._cache[cache_key] = mapped_name
+                return mapped_name
+            else:
+                print(f"[WARNING] Unrecognized skill '{clean_query}' dropped (max semantic similarity {max_sim:.4f} < {threshold:.2f} threshold). Strict Drop & Log applied.")
+                self._cache[cache_key] = None
+                return None
+        except Exception:
+            self._cache[cache_key] = None
+            return None
+
+
+def normalize_required_skills(req_skills_map: Dict[str, Any], canonical_skill_cols: List[str], similarity_threshold: float = 0.65) -> Dict[str, float]:
+    """
+    Normalizes any input required_skills dictionary (mapping skill names to proficiency levels 1..5)
+    to canonical skill column names recognized by the GNN model. Uses exact matching, O(1) aliases,
+    and autonomous Semantic Vector Search via all-MiniLM-L6-v2 with Strict Drop & Log fallback.
+    """
+    canonical_names = {col.replace("skill_", ""): col.replace("skill_", "") for col in canonical_skill_cols}
+    canonical_lower = {k.lower(): k for k in canonical_names}
+    alias_lower = {k.lower(): v for k, v in CANONICAL_SKILL_ALIASES.items()}
+
+    mapper = SemanticSkillMapper()
+
+    normalized: Dict[str, float] = {}
+    for skill_key, level in req_skills_map.items():
+        try:
+            val = float(level)
+        except (ValueError, TypeError):
+            val = 3.0
+
+        clean_key = str(skill_key).replace("skill_", "").strip()
+        clean_lower = clean_key.lower()
+
+        if clean_key in canonical_names:
+            normalized[clean_key] = max(normalized.get(clean_key, 0.0), val)
+        elif clean_lower in canonical_lower:
+            target = canonical_lower[clean_lower]
+            normalized[target] = max(normalized.get(target, 0.0), val)
+        elif clean_lower in alias_lower:
+            targets = alias_lower[clean_lower]
+            for target_skill in targets:
+                if target_skill in canonical_names:
+                    normalized[target_skill] = max(normalized.get(target_skill, 0.0), val)
+        else:
+            mapped_skill = mapper.map_skill(clean_key, canonical_skill_cols, threshold=similarity_threshold)
+            if mapped_skill and mapped_skill in canonical_names:
+                normalized[mapped_skill] = max(normalized.get(mapped_skill, 0.0), val)
+            else:
+                # Strict Drop & Log applied
+                pass
+
+    return normalized
+
 
 class DeveloperDataLoader:
     """Loads and preprocesses developer_node_features_v2.csv into PyG tensors."""
@@ -224,9 +374,10 @@ class DeveloperDataLoader:
         # 6. Required skills encoding (0..5 ratings normalized to [0,1])
         skills_row = []
         req_skills_map = task_dict.get("required_skills", {})
+        norm_skills_map = normalize_required_skills(req_skills_map, self.skill_cols)
         for col in self.skill_cols:
             raw_skill_name = col.replace("skill_", "")
-            val = req_skills_map.get(col, req_skills_map.get(raw_skill_name, 0.0))
+            val = norm_skills_map.get(col, norm_skills_map.get(raw_skill_name, 0.0))
             if val > 1.0:
                 val = float(val) / 5.0
             else:

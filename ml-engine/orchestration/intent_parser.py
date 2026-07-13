@@ -110,6 +110,8 @@ _TASK_EXTRACTION_SYSTEM = """You are a technical project management assistant.
 Extract structured task parameters from the user's free-text description.
 Respond ONLY with a single valid JSON object matching the schema. No markdown, no extra text.
 
+IMPORTANT: Select required_skills 'name' strictly from canonical engineering skills such as: React, JavaScript, TypeScript, Next.js, Vue.js, Figma, Python, PyTorch, Laravel, PHP, PostgreSQL, Docker, Kubernetes, Jest, Cypress, REST APIs. Do not use generic domain descriptors like 'Dark Mode' or 'CSS'.
+
 JSON Schema:
 {
   "title": string (max 80 chars),
@@ -132,6 +134,9 @@ Given a project description or task instruction:
 Estimate focused implementation effort, not calendar time. Use modern AI-assisted
 workflows when appropriate. If the user mentions a date, treat it
 as the overall delivery deadline, never as the duration of an individual task.
+
+IMPORTANT: Select required_skills 'name' strictly from canonical engineering skills such as: React, JavaScript, TypeScript, Next.js, Vue.js, Figma, Python, PyTorch, Laravel, PHP, PostgreSQL, Docker, Kubernetes, Jest, Cypress, REST APIs. Do not use generic domain descriptors like 'Dark Mode' or 'CSS'.
+
 Respond ONLY with a valid JSON array. Each element must match:
 {
   "title": string,
