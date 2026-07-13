@@ -4,10 +4,127 @@ import { router } from '@inertiajs/react';
 import {
     X, Sparkles, Loader2, Save, Trash2,
     CheckCircle2, Clock, Zap, Brain, ListChecks,
-    ChevronRight, AlertCircle
+    ChevronRight, AlertCircle, Plus, Layers
 } from 'lucide-react';
 
-// ─── Progress stage config ────────────────────────────────────────────────────
+// ─── Canonical Skills Dictionary ──────────────────────────────────────────────
+export const CANONICAL_SKILLS_LIST = [
+    // Languages
+    { name: 'PHP', category: 'Language' },
+    { name: 'Python', category: 'Language' },
+    { name: 'JavaScript', category: 'Language' },
+    { name: 'TypeScript', category: 'Language' },
+    { name: 'Go', category: 'Language' },
+    { name: 'Rust', category: 'Language' },
+    { name: 'C#', category: 'Language' },
+    { name: 'C++', category: 'Language' },
+    { name: 'Java', category: 'Language' },
+    { name: 'Kotlin', category: 'Language' },
+    { name: 'Swift', category: 'Language' },
+    { name: 'Ruby', category: 'Language' },
+    { name: 'Dart', category: 'Language' },
+    { name: 'Lua', category: 'Language' },
+    { name: 'R', category: 'Language' },
+    // Frameworks
+    { name: 'Laravel', category: 'Framework' },
+    { name: 'React', category: 'Framework' },
+    { name: 'Vue.js', category: 'Framework' },
+    { name: 'Next.js', category: 'Framework' },
+    { name: 'Nuxt.js', category: 'Framework' },
+    { name: 'Angular', category: 'Framework' },
+    { name: 'Svelte', category: 'Framework' },
+    { name: 'Django', category: 'Framework' },
+    { name: 'FastAPI', category: 'Framework' },
+    { name: 'Flask', category: 'Framework' },
+    { name: 'Spring Boot', category: 'Framework' },
+    { name: 'Ruby on Rails', category: 'Framework' },
+    { name: 'Express.js', category: 'Framework' },
+    { name: 'NestJS', category: 'Framework' },
+    // Mobile
+    { name: 'Flutter', category: 'Mobile' },
+    { name: 'React Native', category: 'Mobile' },
+    { name: 'Android (Native)', category: 'Mobile' },
+    { name: 'iOS (Native)', category: 'Mobile' },
+    // Databases
+    { name: 'PostgreSQL', category: 'Database' },
+    { name: 'MySQL', category: 'Database' },
+    { name: 'SQLite', category: 'Database' },
+    { name: 'MongoDB', category: 'Database' },
+    { name: 'Redis', category: 'Database' },
+    { name: 'Elasticsearch', category: 'Database' },
+    { name: 'Firebase', category: 'Database' },
+    { name: 'Supabase', category: 'Database' },
+    { name: 'Pinecone', category: 'Database' },
+    { name: 'Milvus', category: 'Database' },
+    { name: 'ChromaDB', category: 'Database' },
+    // DevOps
+    { name: 'Docker', category: 'DevOps' },
+    { name: 'Kubernetes', category: 'DevOps' },
+    { name: 'Git', category: 'DevOps' },
+    { name: 'AWS', category: 'DevOps' },
+    { name: 'Google Cloud', category: 'DevOps' },
+    { name: 'Azure', category: 'DevOps' },
+    { name: 'Cloudflare', category: 'DevOps' },
+    { name: 'Terraform', category: 'DevOps' },
+    { name: 'Nginx', category: 'DevOps' },
+    { name: 'Linux', category: 'DevOps' },
+    { name: 'MLflow', category: 'DevOps' },
+    { name: 'Ollama', category: 'DevOps' },
+    // Game Engines
+    { name: 'Unity', category: 'Game Engine' },
+    { name: 'Unreal Engine', category: 'Game Engine' },
+    { name: 'Godot', category: 'Game Engine' },
+    { name: 'Figma', category: 'Design' },
+    { name: 'Adobe XD', category: 'Design' },
+    { name: 'Blender', category: 'Design' },
+    { name: 'Photoshop', category: 'Design' },
+    // Testing
+    { name: 'PHPUnit', category: 'Testing' },
+    { name: 'Jest', category: 'Testing' },
+    { name: 'Cypress', category: 'Testing' },
+    { name: 'Selenium', category: 'Testing' },
+    { name: 'Pest', category: 'Testing' },
+    // Data & ML
+    { name: 'TensorFlow', category: 'Data & ML' },
+    { name: 'PyTorch', category: 'Data & ML' },
+    { name: 'scikit-learn', category: 'Data & ML' },
+    { name: 'Pandas', category: 'Data & ML' },
+    { name: 'NumPy', category: 'Data & ML' },
+    { name: 'LangChain', category: 'Data & ML' },
+    { name: 'LlamaIndex', category: 'Data & ML' },
+    { name: 'Hugging Face', category: 'Data & ML' },
+    { name: 'Keras', category: 'Data & ML' },
+    // Professional
+    { name: 'Strategic Leadership', category: 'Professional' },
+    { name: 'Business Development', category: 'Professional' },
+    { name: 'Financial Management', category: 'Professional' },
+    { name: 'Project Management', category: 'Professional' },
+    { name: 'Academic Research', category: 'Professional' },
+    { name: 'Partnership Management', category: 'Professional' },
+    { name: 'Digital Marketing', category: 'Professional' },
+    { name: 'Legal & Compliance', category: 'Professional' },
+    // API & Integration
+    { name: 'REST APIs', category: 'API & Integration' },
+    { name: 'GraphQL', category: 'API & Integration' },
+    { name: 'gRPC', category: 'API & Integration' },
+    { name: 'WebSockets', category: 'API & Integration' },
+    { name: 'OpenAI API', category: 'API & Integration' },
+    { name: 'Anthropic API', category: 'API & Integration' },
+    { name: 'ElevenLabs API', category: 'API & Integration' },
+    { name: 'Hugging Face APIs', category: 'API & Integration' },
+    { name: 'Stripe API', category: 'API & Integration' },
+    { name: 'Twilio API', category: 'API & Integration' },
+    { name: 'OAuth / Auth0', category: 'API & Integration' },
+];
+
+// Group skills by category for optgroup rendering
+const SKILL_CATEGORIES = CANONICAL_SKILLS_LIST.reduce((acc, skill) => {
+    acc[skill.category] = acc[skill.category] || [];
+    acc[skill.category].push(skill.name);
+    return acc;
+}, {});
+
+// ─── Progress Stage Indicator ────────────────────────────────────────────────
 const STAGES = [
     { key: 'intent',   icon: Brain,      label: 'Analysing Description' },
     { key: 'llm',      icon: Zap,        label: 'AI Generating Tasks'   },
@@ -18,11 +135,9 @@ function StageIndicator({ stages, currentStage, pct }) {
     const currentIdx = stages.findIndex(s => s.key === currentStage);
     return (
         <div className="flex flex-col gap-4">
-            {/* Pulsing headline */}
             <div className="flex items-center gap-3">
                 <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-brand/10">
                     <Brain className="w-5 h-5 text-brand animate-pulse" />
-                    {/* spinning ring */}
                     <span className="absolute inset-0 rounded-xl border-2 border-brand/30 border-t-brand animate-spin" />
                 </div>
                 <div>
@@ -35,7 +150,6 @@ function StageIndicator({ stages, currentStage, pct }) {
                 </div>
             </div>
 
-            {/* Progress bar */}
             <div className="w-full bg-gray-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
                 <div
                     className="h-full bg-gradient-to-r from-brand to-brand-light rounded-full transition-all duration-700 ease-out"
@@ -43,13 +157,11 @@ function StageIndicator({ stages, currentStage, pct }) {
                 />
             </div>
 
-            {/* Stage steps */}
             <div className="flex flex-col gap-2 mt-1">
                 {stages.map((stage, idx) => {
                     const done    = idx < currentIdx;
                     const active  = idx === currentIdx;
-                    const pending = idx > currentIdx;
-                    const Icon = stage.icon;
+                    const Icon    = stage.icon;
                     return (
                         <div
                             key={stage.key}
@@ -102,7 +214,6 @@ function StageIndicator({ stages, currentStage, pct }) {
                 })}
             </div>
 
-            {/* Patience note */}
             <p className="text-[11px] text-gray-400 dark:text-slate-600 flex items-center gap-1.5 mt-1">
                 <Clock className="w-3 h-3" />
                 The result will appear automatically when the AI finishes. Don't close this window.
@@ -111,23 +222,279 @@ function StageIndicator({ stages, currentStage, pct }) {
     );
 }
 
-// ─── Priority badge colours ───────────────────────────────────────────────────
-const PRIORITY_COLOURS = {
-    Critical: 'bg-rose-500/15 text-rose-500 border-rose-500/30',
-    High:     'bg-amber-500/15 text-amber-500 border-amber-500/30',
-    Medium:   'bg-sky-500/15 text-sky-500 border-sky-500/30',
-    Low:      'bg-slate-500/15 text-slate-400 border-slate-400/30',
-};
+// ─── Skill Pill Editor Sub-Component ──────────────────────────────────────────
+function SkillPillEditor({ skills = [], onChange }) {
+    const [isAdding, setIsAdding] = useState(false);
 
-function PriorityBadge({ priority }) {
+    const handleLevelChange = (index, newLevel) => {
+        const updated = skills.map((skill, i) =>
+            i === index ? { ...skill, level: Number(newLevel) } : skill
+        );
+        onChange(updated);
+    };
+
+    const handleRemove = (index) => {
+        const updated = skills.filter((_, i) => i !== index);
+        onChange(updated);
+    };
+
+    const handleAddSkill = (skillName) => {
+        if (!skillName) return;
+        const exists = skills.some(s => s.name.toLowerCase() === skillName.toLowerCase());
+        if (!exists) {
+            onChange([...skills, { name: skillName, level: 3 }]);
+        }
+        setIsAdding(false);
+    };
+
+    const existingNames = new Set(skills.map(s => s.name.toLowerCase()));
+
     return (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${PRIORITY_COLOURS[priority] || PRIORITY_COLOURS.Medium}`}>
-            {priority}
-        </span>
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+            {skills.map((skill, idx) => (
+                <div
+                    key={`${skill.name}-${idx}`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 dark:bg-indigo-500/15 border border-indigo-500/25 text-indigo-700 dark:text-indigo-300 text-xs font-semibold shadow-sm transition-all"
+                >
+                    <span>{skill.name}</span>
+
+                    {/* Level selector */}
+                    <div className="flex items-center border-l border-indigo-500/30 pl-1.5">
+                        <span className="text-[10px] text-indigo-500/80 mr-0.5">Lv</span>
+                        <select
+                            value={skill.level || 3}
+                            onChange={(e) => handleLevelChange(idx, e.target.value)}
+                            className="bg-transparent border-0 py-0 pl-0 pr-3 text-[11px] font-bold text-indigo-700 dark:text-indigo-300 focus:ring-0 cursor-pointer"
+                            aria-label={`Proficiency level for ${skill.name}`}
+                        >
+                            {[1, 2, 3, 4, 5].map(lvl => (
+                                <option key={lvl} value={lvl} className="bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100">
+                                    {lvl}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Remove button */}
+                    <button
+                        type="button"
+                        onClick={() => handleRemove(idx)}
+                        className="p-0.5 rounded-full hover:bg-indigo-500/20 text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-200 transition-colors"
+                        title={`Remove ${skill.name}`}
+                    >
+                        <X className="w-3 h-3" />
+                    </button>
+                </div>
+            ))}
+
+            {/* Add Skill section */}
+            {isAdding ? (
+                <div className="inline-flex items-center gap-1">
+                    <select
+                        autoFocus
+                        defaultValue=""
+                        onChange={(e) => handleAddSkill(e.target.value)}
+                        onBlur={() => setIsAdding(false)}
+                        className="text-xs rounded-full px-3 py-1 bg-white dark:bg-slate-800 border border-indigo-500 text-gray-900 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                    >
+                        <option value="" disabled>Select canonical skill...</option>
+                        {Object.entries(SKILL_CATEGORIES).map(([category, names]) => (
+                            <optgroup key={category} label={category}>
+                                {names
+                                    .filter(name => !existingNames.has(name.toLowerCase()))
+                                    .map(name => (
+                                        <option key={name} value={name}>{name}</option>
+                                    ))}
+                            </optgroup>
+                        ))}
+                    </select>
+                </div>
+            ) : (
+                <button
+                    type="button"
+                    onClick={() => setIsAdding(true)}
+                    className="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-dashed border-gray-300 dark:border-slate-600 hover:border-indigo-500 dark:hover:border-indigo-400 text-gray-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-300 text-xs font-medium transition-all"
+                >
+                    <Plus className="w-3 h-3" />
+                    <span>Add Skill</span>
+                </button>
+            )}
+        </div>
     );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Priority colour classes ──────────────────────────────────────────────────
+function getPriorityColorClass(priority) {
+    switch (priority) {
+        case 'Critical':
+            return 'text-rose-500 dark:text-rose-400';
+        case 'High':
+            return 'text-amber-500 dark:text-amber-400';
+        case 'Medium':
+            return 'text-sky-500 dark:text-sky-400';
+        case 'Low':
+            return 'text-slate-400 dark:text-slate-400';
+        default:
+            return 'text-sky-500 dark:text-sky-400';
+    }
+}
+
+// ─── Editable Task Card Sub-Component ─────────────────────────────────────────
+function EditableTaskCard({ task, index, updateTask, removeTask }) {
+    const handlePriorityChange = (e) => {
+        updateTask(index, 'priority', e.target.value);
+    };
+
+    const handleClassificationChange = (e) => {
+        updateTask(index, 'task_classification', e.target.value);
+    };
+
+    const handleDifficultyChange = (e) => {
+        updateTask(index, 'task_difficulty', e.target.value);
+    };
+
+    const handleHoursChange = (e) => {
+        const val = parseFloat(e.target.value);
+        const clamped = isNaN(val) ? 1 : Math.max(1, Math.min(100, val));
+        updateTask(index, 'estimated_hours', clamped);
+    };
+
+    const handleSkillsChange = (newSkills) => {
+        updateTask(index, 'required_skills', newSkills);
+    };
+
+    return (
+        <div className="group p-5 rounded-2xl border border-gray-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 shadow-sm hover:border-indigo-500/40 dark:hover:border-indigo-500/40 hover:shadow-md transition-all duration-300 space-y-4">
+            {/* Title Row */}
+            <div className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-full bg-indigo-500/10 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 text-xs font-extrabold flex items-center justify-center shrink-0 border border-indigo-500/20 shadow-inner">
+                    {index + 1}
+                </div>
+
+                <input
+                    type="text"
+                    value={task.title || ''}
+                    onChange={(e) => updateTask(index, 'title', e.target.value)}
+                    placeholder="Task Title..."
+                    className="flex-1 px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-slate-100 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder-gray-400 dark:placeholder-slate-500"
+                />
+
+                <button
+                    type="button"
+                    onClick={() => removeTask(index)}
+                    className="p-2 rounded-xl text-gray-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                    title="Remove Task"
+                >
+                    <Trash2 className="w-4 h-4" />
+                </button>
+            </div>
+
+            {/* Description Textarea */}
+            <div>
+                <textarea
+                    rows={3}
+                    value={task.objective || task.description || ''}
+                    onChange={(e) => {
+                        updateTask(index, 'objective', e.target.value);
+                        updateTask(index, 'description', e.target.value);
+                    }}
+                    placeholder="Describe the task objective and requirements..."
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 text-xs text-gray-700 dark:text-slate-300 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all resize-none placeholder-gray-400 dark:placeholder-slate-500 leading-relaxed"
+                />
+            </div>
+
+            {/* Metadata Row */}
+            <div className="flex flex-wrap items-center gap-3 pt-0.5">
+                {/* Priority Selector */}
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all">
+                    <span className="text-[11px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">
+                        Priority
+                    </span>
+                    <select
+                        value={task.priority || 'Medium'}
+                        onChange={handlePriorityChange}
+                        className={`bg-transparent border-0 py-0 pl-1 pr-6 text-xs font-bold focus:ring-0 cursor-pointer ${getPriorityColorClass(task.priority)}`}
+                    >
+                        <option value="Low" className="text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900">LOW</option>
+                        <option value="Medium" className="text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900">MEDIUM</option>
+                        <option value="High" className="text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900">HIGH</option>
+                        <option value="Critical" className="text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900">CRITICAL</option>
+                    </select>
+                </div>
+
+                {/* Classification / Type Selector */}
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all">
+                    <span className="text-[11px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">
+                        Type
+                    </span>
+                    <select
+                        value={task.task_classification || 'Feature'}
+                        onChange={handleClassificationChange}
+                        className="bg-transparent border-0 py-0 pl-1 pr-6 text-xs font-semibold text-gray-700 dark:text-slate-200 focus:ring-0 cursor-pointer"
+                    >
+                        <option value="Feature" className="bg-white dark:bg-slate-900">Feature</option>
+                        <option value="Bug" className="bg-white dark:bg-slate-900">Bug</option>
+                        <option value="Model Training" className="bg-white dark:bg-slate-900">Model Training</option>
+                        <option value="UI/UX" className="bg-white dark:bg-slate-900">UI/UX</option>
+                        <option value="Refactor" className="bg-white dark:bg-slate-900">Refactor</option>
+                        <option value="Documentation" className="bg-white dark:bg-slate-900">Documentation</option>
+                        <option value="DevOps" className="bg-white dark:bg-slate-900">DevOps</option>
+                    </select>
+                </div>
+
+                {/* Difficulty Selector */}
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all">
+                    <span className="text-[11px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">
+                        Difficulty
+                    </span>
+                    <select
+                        value={task.task_difficulty || 'Medium'}
+                        onChange={handleDifficultyChange}
+                        className="bg-transparent border-0 py-0 pl-1 pr-6 text-xs font-semibold text-gray-700 dark:text-slate-200 focus:ring-0 cursor-pointer"
+                    >
+                        <option value="Easy" className="bg-white dark:bg-slate-900">Easy</option>
+                        <option value="Medium" className="bg-white dark:bg-slate-900">Medium</option>
+                        <option value="Hard" className="bg-white dark:bg-slate-900">Hard</option>
+                    </select>
+                </div>
+
+                {/* Estimated Hours Input */}
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all">
+                    <span className="text-[11px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">
+                        Hours
+                    </span>
+                    <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={task.estimated_hours ?? 4}
+                        onChange={handleHoursChange}
+                        className="w-14 bg-transparent border-0 p-0 text-xs font-bold text-center text-gray-900 dark:text-slate-100 focus:ring-0"
+                    />
+                </div>
+
+                {task.days_until_deadline !== undefined && task.days_until_deadline !== null && (
+                    <span className="text-[11px] px-3 py-1.5 rounded-xl bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 font-medium">
+                        Due in {task.days_until_deadline} days
+                    </span>
+                )}
+            </div>
+
+            {/* Required Skills Editor */}
+            <div className="border-t border-gray-100 dark:border-slate-800/80 pt-3">
+                <span className="block text-[11px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+                    Required Skills &amp; Proficiency
+                </span>
+                <SkillPillEditor
+                    skills={task.required_skills || []}
+                    onChange={handleSkillsChange}
+                />
+            </div>
+        </div>
+    );
+}
+
+// ─── Main SprintDecomposeModal Component ──────────────────────────────────────
 export default function SprintDecomposeModal({
     isOpen,
     onClose,
@@ -142,7 +509,7 @@ export default function SprintDecomposeModal({
     const [description, setDescription] = useState('');
     const [phase, setPhase]             = useState('input');   // input | loading | review
     const [progress, setProgress]       = useState({ stage: null, message: '', pct: 0 });
-    const [draftTasks, setDraftTasks]   = useState(null);
+    const [editableTasks, setEditableTasks] = useState(null);
     const [isSaving, setIsSaving]       = useState(false);
     const [error, setError]             = useState(null);
 
@@ -157,7 +524,7 @@ export default function SprintDecomposeModal({
 
     useEffect(() => {
         if (isOpen && initialDraftTasks) {
-            setDraftTasks(initialDraftTasks);
+            setEditableTasks(initialDraftTasks);
             setPhase('review');
             setError(null);
         }
@@ -177,7 +544,6 @@ export default function SprintDecomposeModal({
 
     if (!isOpen) return null;
 
-    // ── Decompose via SSE stream directly to FastAPI ──────────────────────────
     const handleDecompose = async (promptOverride = null) => {
         const promptText = promptOverride ?? description;
         if (!promptText.trim()) return;
@@ -212,10 +578,8 @@ export default function SprintDecomposeModal({
                 if (done) break;
 
                 buffer += decoder.decode(value, { stream: true });
-
-                // Parse complete SSE messages (delimited by \n\n)
                 const messages = buffer.split('\n\n');
-                buffer = messages.pop() ?? ''; // keep incomplete tail
+                buffer = messages.pop() ?? '';
 
                 for (const msg of messages) {
                     if (!msg.trim()) continue;
@@ -233,7 +597,7 @@ export default function SprintDecomposeModal({
                         setProgress({ stage: payload.stage, message: payload.message, pct: payload.pct });
                     } else if (event === 'done') {
                         setProgress(p => ({ ...p, pct: 100 }));
-                        setDraftTasks(payload.tasks);
+                        setEditableTasks(payload.tasks);
                         setPhase('review');
                     } else if (event === 'error') {
                         throw new Error(payload.message || 'Unknown error from ML Engine');
@@ -241,7 +605,7 @@ export default function SprintDecomposeModal({
                 }
             }
         } catch (err) {
-            if (err.name === 'AbortError') return; // user cancelled
+            if (err.name === 'AbortError') return;
             console.error(err);
             setError(err.message || 'Error connecting to ML Engine. Make sure it is running on port 8001.');
             setPhase('input');
@@ -256,14 +620,13 @@ export default function SprintDecomposeModal({
         setError(null);
     };
 
-    // ── Save confirmed draft to DB ────────────────────────────────────────────
     const handleSaveDraft = async () => {
-        if (!draftTasks?.length) return;
+        if (!editableTasks?.length) return;
         setIsSaving(true);
         setError(null);
         try {
             const url = route('tenant.projects.tasks.bulk', { tenant: tenantId, project: projectId });
-            await axios.post(url, { tasks: draftTasks }, {
+            await axios.post(url, { tasks: editableTasks }, {
                 headers: { Accept: 'application/json' },
             });
             if (onSaveSuccess) {
@@ -271,7 +634,7 @@ export default function SprintDecomposeModal({
             } else {
                 router.reload({ only: ['project'] });
             }
-            setDraftTasks(null);
+            setEditableTasks(null);
             setDescription('');
             setPhase('input');
             onClose();
@@ -283,25 +646,26 @@ export default function SprintDecomposeModal({
         }
     };
 
-    const handleUpdateTask = (index, field, value) => {
-        const updated = [...draftTasks];
-        updated[index][field] = value;
-        setDraftTasks(updated);
+    const updateTask = (index, field, value) => {
+        setEditableTasks(currentTasks => {
+            const updated = [...currentTasks];
+            updated[index] = { ...updated[index], [field]: value };
+            return updated;
+        });
     };
 
-    const handleRemoveTask = (index) => {
-        setDraftTasks(draftTasks.filter((_, i) => i !== index));
+    const removeTask = (index) => {
+        setEditableTasks(currentTasks => currentTasks.filter((_, i) => i !== index));
     };
 
-    // ─── Render ───────────────────────────────────────────────────────────────
     return (
-        <div className={embedded ? 'mx-auto w-full max-w-3xl pt-6' : 'fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm'}>
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden border border-gray-200 dark:border-slate-700">
+        <div className={embedded ? 'mx-auto w-full max-w-4xl pt-6' : 'fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-md'}>
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border border-gray-200 dark:border-slate-700">
 
-                {/* ── Header ── */}
-                <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between bg-gray-50/50 dark:bg-slate-800/50 shrink-0">
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between bg-gray-50/70 dark:bg-slate-800/70 shrink-0">
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-brand/10 text-brand flex items-center justify-center">
+                        <div className="w-9 h-9 rounded-xl bg-brand/10 text-brand flex items-center justify-center shadow-inner">
                             <Sparkles className="w-4 h-4" />
                         </div>
                         <div>
@@ -309,24 +673,24 @@ export default function SprintDecomposeModal({
                                 AI Sprint Decomposition
                             </h2>
                             {phase === 'review' && (
-                                <p className="text-xs text-emerald-500 font-semibold mt-0.5">
-                                    ✓ {draftTasks?.length} tasks generated — review before saving
+                                <p className="text-xs text-emerald-500 font-semibold mt-0.5 flex items-center gap-1">
+                                    <span>✓ {editableTasks?.length || 0} editable task cards — tweak recommendations before saving</span>
                                 </p>
                             )}
                         </div>
                     </div>
                     <button
+                        type="button"
                         onClick={phase === 'loading' ? handleCancel : onClose}
-                        className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                        className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-slate-800 transition-colors"
                         title={phase === 'loading' ? 'Cancel generation' : 'Close'}
                     >
                         <X className="w-5 h-5 text-gray-500" />
                     </button>
                 </div>
 
-                {/* ── Body ── */}
+                {/* Body */}
                 <div className="flex-1 overflow-y-auto p-6">
-
                     {/* INPUT PHASE */}
                     {phase === 'input' && (
                         <div className="space-y-5">
@@ -339,7 +703,7 @@ export default function SprintDecomposeModal({
                                     onChange={e => setDescription(e.target.value)}
                                     placeholder="E.g. We need to build a new telemetry dashboard, add a user profile page, and secure the webhook endpoint..."
                                     rows={5}
-                                    className="w-full p-4 rounded-xl bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 focus:border-brand focus:ring-2 focus:ring-brand/20 transition-all text-sm resize-none outline-none text-gray-900 dark:text-slate-100 placeholder-gray-400"
+                                    className="w-full p-4 rounded-xl bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all text-sm resize-none outline-none text-gray-900 dark:text-slate-100 placeholder-gray-400"
                                 />
                             </div>
 
@@ -352,7 +716,8 @@ export default function SprintDecomposeModal({
 
                             <div className="flex justify-end">
                                 <button
-                                    onClick={handleDecompose}
+                                    type="button"
+                                    onClick={() => handleDecompose()}
                                     disabled={!description.trim()}
                                     className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand text-white font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-brand-light transition-colors shadow-md shadow-brand/20"
                                 >
@@ -373,9 +738,9 @@ export default function SprintDecomposeModal({
                                 pct={progress.pct}
                             />
 
-                            {/* Cancel button */}
                             <div className="flex justify-center">
                                 <button
+                                    type="button"
                                     onClick={handleCancel}
                                     className="text-xs text-gray-400 dark:text-slate-500 hover:text-red-400 dark:hover:text-red-400 transition-colors underline"
                                 >
@@ -386,10 +751,10 @@ export default function SprintDecomposeModal({
                     )}
 
                     {/* REVIEW PHASE */}
-                    {phase === 'review' && draftTasks && (
+                    {phase === 'review' && editableTasks && (
                         <div className="space-y-4">
                             <p className="text-sm text-gray-500 dark:text-slate-400">
-                                Review and edit the AI-generated tasks below. Remove any you don't need, then click <strong>Confirm &amp; Save</strong> to add them to the Kanban board.
+                                Review and tweak the AI's task cards below. Every field is inline-editable including skills and proficiency levels.
                             </p>
 
                             {error && (
@@ -399,104 +764,39 @@ export default function SprintDecomposeModal({
                                 </div>
                             )}
 
-                            <div className="space-y-3">
-                                {draftTasks.map((task, idx) => (
-                                    <div
+                            <div className="space-y-4">
+                                {editableTasks.map((task, idx) => (
+                                    <EditableTaskCard
                                         key={idx}
-                                        className="group p-4 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50 hover:border-brand/40 transition-colors"
-                                    >
-                                        <div className="flex gap-3">
-                                            {/* Index badge */}
-                                            <div className="w-6 h-6 rounded-full bg-brand/10 text-brand text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
-                                                {idx + 1}
-                                            </div>
-
-                                            <div className="flex-1 space-y-2.5">
-                                                {/* Title */}
-                                                <input
-                                                    type="text"
-                                                    value={task.title}
-                                                    onChange={e => handleUpdateTask(idx, 'title', e.target.value)}
-                                                    className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-semibold text-gray-900 dark:text-slate-100 outline-none focus:border-brand"
-                                                />
-
-                                                {/* Objective */}
-                                                <textarea
-                                                    value={task.objective || task.description || ''}
-                                                    onChange={e => handleUpdateTask(idx, 'objective', e.target.value)}
-                                                    className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-xs h-14 resize-none outline-none focus:border-brand text-gray-700 dark:text-slate-300"
-                                                    placeholder="Task objective..."
-                                                />
-
-                                                {/* Meta row */}
-                                                <div className="flex items-center flex-wrap gap-3">
-                                                    <PriorityBadge priority={task.priority} />
-                                                    <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-600 font-medium">
-                                                        {task.task_classification || 'Feature'}
-                                                    </span>
-                                                    <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-600 font-medium">
-                                                        {task.task_difficulty || 'Medium'}
-                                                    </span>
-                                                    {task.days_until_deadline !== undefined && task.days_until_deadline !== null && (
-                                                        <span className="text-[11px] px-2 py-0.5 rounded-md bg-brand/10 text-brand border border-brand/20 font-medium">
-                                                            Due in {task.days_until_deadline} days
-                                                        </span>
-                                                    )}
-                                                    <div className="flex items-center gap-1.5">
-                                                        <label className="text-[11px] text-gray-400">Hours</label>
-                                                        <input
-                                                            type="number"
-                                                            value={task.estimated_hours || 0}
-                                                            onChange={e => handleUpdateTask(idx, 'estimated_hours', parseFloat(e.target.value))}
-                                                            className="w-16 px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-xs text-center outline-none focus:border-brand"
-                                                            min={0}
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                {/* Skills */}
-                                                {task.required_skills?.length > 0 && (
-                                                    <div className="flex flex-wrap gap-1.5">
-                                                        {task.required_skills.map((s, si) => (
-                                                            <span key={si} className="text-[10px] px-2 py-0.5 rounded-full bg-brand/10 text-brand border border-brand/20 font-medium">
-                                                                {s.name}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Remove */}
-                                            <button
-                                                onClick={() => handleRemoveTask(idx)}
-                                                className="p-1.5 rounded-lg text-gray-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors self-start opacity-0 group-hover:opacity-100"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </div>
+                                        task={task}
+                                        index={idx}
+                                        updateTask={updateTask}
+                                        removeTask={removeTask}
+                                    />
                                 ))}
                             </div>
                         </div>
                     )}
                 </div>
 
-                {/* ── Footer (review only) ── */}
+                {/* Footer (review only) */}
                 {phase === 'review' && (
-                    <div className="px-6 py-4 border-t border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/50 flex items-center justify-between gap-3 shrink-0">
+                    <div className="px-6 py-4 border-t border-gray-100 dark:border-slate-800 bg-gray-50/70 dark:bg-slate-800/70 flex items-center justify-between gap-3 shrink-0">
                         <button
-                            onClick={() => { setDraftTasks(null); setPhase('input'); }}
+                            type="button"
+                            onClick={() => { setEditableTasks(null); setPhase('input'); }}
                             className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
                         >
                             ← Try Again
                         </button>
                         <button
+                            type="button"
                             onClick={handleSaveDraft}
-                            disabled={isSaving || !draftTasks?.length}
-                            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-brand text-white font-semibold shadow-md shadow-brand/20 disabled:opacity-50 hover:bg-brand-light transition-colors"
+                            disabled={isSaving || !editableTasks?.length}
+                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand text-white font-semibold shadow-md shadow-brand/20 disabled:opacity-50 hover:bg-brand-light transition-all"
                         >
                             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                            Confirm &amp; Save {draftTasks?.length ? `(${draftTasks.length} tasks)` : ''}
+                            Confirm &amp; Save {editableTasks?.length ? `(${editableTasks.length} tasks)` : ''}
                         </button>
                     </div>
                 )}
@@ -504,3 +804,4 @@ export default function SprintDecomposeModal({
         </div>
     );
 }
+
