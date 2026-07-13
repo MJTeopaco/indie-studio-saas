@@ -329,6 +329,7 @@ async def decompose_project_stream(request: DecomposeProjectRequest):
 class SynthesizeAssignmentRequest(BaseModel):
     gnn_results: List[dict] = Field(description="Ranked candidates from GNN or cold-start")
     cpa_schedule: Optional[dict] = None
+    task: Optional[dict] = None
 
 
 @app.post("/api/llm/synthesize-assignment", tags=["llm"])
@@ -341,7 +342,7 @@ def synthesize_assignment(request: SynthesizeAssignmentRequest):
         from orchestration.response_synthesizer import synthesize_assignment_explanation
 
         explanation = synthesize_assignment_explanation(
-            request.gnn_results, request.cpa_schedule
+            request.gnn_results, request.cpa_schedule, request.task
         )
         return {"status": "success", "explanation": explanation}
     except Exception as exc:

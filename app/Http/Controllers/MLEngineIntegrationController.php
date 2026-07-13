@@ -126,7 +126,15 @@ class MLEngineIntegrationController extends Controller
             }
 
             // Synthesize the explanation
-            $synthesis = $this->mlService->synthesizeAssignment($response['results'], $cpaSchedule);
+            $synthesis = $this->mlService->synthesizeAssignment(
+                $response['results'],
+                $cpaSchedule,
+                [
+                    'title' => $task->title,
+                    'difficulty' => $task->task_difficulty,
+                    'required_skills' => $task->required_skills,
+                ]
+            );
             if ($synthesis['status'] === 'success') {
                 $response['explanation'] = $synthesis['explanation'];
             }

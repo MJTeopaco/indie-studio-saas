@@ -154,12 +154,13 @@ class MLEngineService
     /**
      * Synthesize an explanation for an assignment using GNN results and CPA schedule.
      */
-    public function synthesizeAssignment(array $gnnResults, ?array $cpaSchedule = null): array
+    public function synthesizeAssignment(array $gnnResults, ?array $cpaSchedule = null, ?array $task = null): array
     {
         try {
             $response = Http::timeout(600)->post("{$this->baseUrl}/api/llm/synthesize-assignment", [
                 'gnn_results' => $gnnResults,
                 'cpa_schedule' => $cpaSchedule,
+                'task' => $task,
             ]);
 
             if ($response->successful()) {
