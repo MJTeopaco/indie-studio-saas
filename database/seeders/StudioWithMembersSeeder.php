@@ -28,22 +28,29 @@ class StudioWithMembersSeeder extends Seeder
         // 2. Create or find the Studio
         $studio = Studio::find('indiecraft-studios') ?? Studio::where('name', 'IndieCraft Studios')->first();
         if (! $studio) {
-            $studio = Studio::create([
-                'id' => 'indiecraft-studios',
-                'name' => 'IndieCraft Studios',
-                'owner_id' => $manager->id,
-            ]);
+            $dummy = new Studio(['id' => 'indiecraft-studios']);
+            $dbName = $dummy->database()->getName();
+
+            if ($dummy->database()->manager()->databaseExists($dbName)) {
+                $studio = Studio::withoutEvents(function () use ($manager) {
+                    return Studio::create([
+                        'id' => 'indiecraft-studios',
+                        'name' => 'IndieCraft Studios',
+                        'owner_id' => $manager->id,
+                    ]);
+                });
+                \Illuminate\Support\Facades\Artisan::call('tenants:migrate-fresh', [
+                    '--tenants' => [$studio->getTenantKey()],
+                ]);
+            } else {
+                $studio = Studio::create([
+                    'id' => 'indiecraft-studios',
+                    'name' => 'IndieCraft Studios',
+                    'owner_id' => $manager->id,
+                ]);
+            }
         } else {
             $studio->update(['owner_id' => $manager->id]);
-        }
-
-        // Ensure the PostgreSQL tenant database exists and is migrated
-        $dbName = $studio->database()->getName();
-        if (! $studio->database()->manager()->databaseExists($dbName)) {
-            $studio->database()->manager()->createDatabase($studio);
-            \Illuminate\Support\Facades\Artisan::call('tenants:migrate', [
-                '--tenants' => [$studio->getTenantKey()],
-            ]);
         }
 
         // 3. Attach Manager as owner in studio_members
@@ -63,6 +70,43 @@ class StudioWithMembersSeeder extends Seeder
             ]);
         }
 
-        $this->command->info('StudioWithMembersSeeder: Seeded studio "' . $studio->name . '" (ID: ' . $studio->id . ') with 1 manager and ' . $developers->count() . ' members.');
+        // 5. Seed user_domains in the tenant database
+        tenancy()->initialize($studio);
+
+        $positionDomainMap = [
+            'Frontend Developer' => ['Portal & Dashboard Development', 'Real-Time Web (WebSockets)', 'E-Commerce Systems'],
+            'Backend Developer' => ['Microservices & API Architecture', 'Database Architecture', 'GraphQL API Design', 'Third-Party API Integrations (Stripe, Twilio)'],
+            'Full Stack Developer' => ['Full-Stack Development', 'Portal & Dashboard Development', 'E-Commerce Systems', 'Multi-Tenant SaaS Architecture', 'Database Architecture'],
+            'Product Design Engineer' => ['Requirements Gathering & Business Analysis', 'Portal & Dashboard Development'],
+            'Technical Product Manager' => ['Product Roadmap Architecture', 'Agile / Scrum Sprint Planning', 'Requirements Gathering & Business Analysis', 'Technical Documentation & PRDs'],
+            'QA Automation Engineer' => ['Full-Stack Development', 'CI/CD Pipeline Design'],
+            'Solutions Architect' => ['Multi-Tenant SaaS Architecture', 'Microservices & API Architecture', 'Cloud Deployment (AWS/GCP/Azure)', 'Database Architecture'],
+            'DevOps Engineer' => ['Cloud Deployment (AWS/GCP/Azure)', 'Containerization (Docker/Kubernetes)', 'CI/CD Pipeline Design', 'Infrastructure as Code (Terraform)'],
+            'AI / ML Engineer' => ['LLM Fine-Tuning & Prompt Engineering', 'RAG (Retrieval-Augmented Generation)', 'Vector Databases (Pinecone/Milvus)', 'AI Agent Orchestration (LangChain)'],
+            'Mobile Developer' => ['Full-Stack Development', 'Real-Time Web (WebSockets)'],
+            'Game Developer' => ['Real-Time Web (WebSockets)'],
+            'Data Scientist' => ['Machine Learning (Supervised & Unsupervised)', 'Data Pipeline Engineering', 'Natural Language Processing & Computer Vision'],
+        ];
+
+        $microDomainsLookup = \App\Models\MicroDomain::pluck('id', 'name');
+
+        foreach ($developers as $developer) {
+            $positionName = $developer->globalProfile?->position?->name ?? 'Full Stack Developer';
+            $domainNames = $positionDomainMap[$positionName] ?? ['Full-Stack Development'];
+
+            foreach ($domainNames as $domainName) {
+                $microDomainId = $microDomainsLookup->get($domainName);
+                if ($microDomainId) {
+                    \App\Models\Tenant\UserDomain::firstOrCreate([
+                        'user_id' => $developer->id,
+                        'micro_domain_id' => $microDomainId,
+                    ]);
+                }
+            }
+        }
+
+        tenancy()->end();
+
+        $this->command->info('StudioWithMembersSeeder: Seeded studio "' . $studio->name . '" (ID: ' . $studio->id . ') with 1 manager, ' . $developers->count() . ' members, and tenant domain mappings.');
     }
 }

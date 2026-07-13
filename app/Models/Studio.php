@@ -40,4 +40,9 @@ class Studio extends BaseTenant implements TenantWithDatabase
                     ->withPivot('role')
                     ->withTimestamps();
     }
+
+    public function members(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->users();
+    }
 }
