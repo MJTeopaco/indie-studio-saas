@@ -44,19 +44,9 @@ class HandleInertiaRequests extends Middleware
                     return [];
                 }
                 try {
-                    $projects = \App\Models\Tenant\Project::select('id', 'name', 'status')->latest()->get()->toArray();
-                    if (empty($projects)) {
-                        return [
-                            ['id' => 1, 'name' => 'Lumora: E-commerce website', 'status' => 'planning'],
-                            ['id' => 2, 'name' => 'StudioSprint AI Recommendations Engine', 'status' => 'active'],
-                        ];
-                    }
-                    return $projects;
+                    return \App\Models\Tenant\Project::select('id', 'name', 'status')->latest()->get()->toArray();
                 } catch (\Exception $e) {
-                    return [
-                        ['id' => 1, 'name' => 'Lumora: E-commerce website', 'status' => 'planning'],
-                        ['id' => 2, 'name' => 'StudioSprint AI Recommendations Engine', 'status' => 'active'],
-                    ];
+                    return [];
                 }
             },
         ];

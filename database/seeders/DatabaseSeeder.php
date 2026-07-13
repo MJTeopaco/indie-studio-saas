@@ -8,7 +8,6 @@ use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
 
     /**
      * Seed the application's database.
@@ -25,18 +24,25 @@ class DatabaseSeeder extends Seeder
             MacroDomainsSeeder::class,
         ]);
 
-        // 2. Seed a test developer account (role: programmer)
-        User::factory()->create([
-            'name'  => 'Test Developer',
-            'email' => 'developer@example.com',
-            'role'  => User::ROLE_PROGRAMMER,
+        // 2. Seed developer users and their global skill profiles (Test Developer included)
+        $this->call([
+            DeveloperPoolSeeder::class,
         ]);
 
-        // 3. Seed a test admin account
-        User::factory()->create([
-            'name'  => 'Test Admin',
-            'email' => 'admin@example.com',
-            'role'  => User::ROLE_ADMIN,
+        // 3. Seed a studio with 1 manager and populate it with members from the developer pool
+        $this->call([
+            StudioWithMembersSeeder::class,
         ]);
+
+        // 4. Seed a test admin account (idempotent)
+        User::updateOrCreate(
+            ['email' => 'admin@example.com'],
+            [
+                'name' => 'Test Admin',
+                'password' => \Illuminate\Support\Facades\Hash::make('password123'),
+                'role' => User::ROLE_ADMIN,
+                'email_verified_at' => now(),
+            ]
+        );
     }
 }
