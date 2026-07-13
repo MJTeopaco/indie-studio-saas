@@ -24,7 +24,7 @@ def test_api():
     }
     
     print("\nCalling POST /api/best-fit...")
-    response = client.post("/api/best-fit", json=task_dict)
+    response = client.post("/api/best-fit", json={"task": task_dict})
     
     print("Status Code:", response.status_code)
     if response.status_code == 200:

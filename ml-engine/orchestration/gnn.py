@@ -7,7 +7,8 @@ from scripts.single_task_recommendation.gnn_recommendation_inference import (
     load_gnn_model,
     run_gnn_recommendation_inference,
     POSITIONS_SCHEMA,
-    MACRO_DOMAIN_NAMES
+    MACRO_DOMAIN_NAMES,
+    normalize_required_skills
 )
 
 # Cache model and data loader to avoid reloading on every request
@@ -130,8 +131,10 @@ def gnn_rank_employees(task_dict: dict, employee_profiles: list[dict] = None) ->
                 skills_map[s["name"]] = float(s.get("level", 3.0))
             elif isinstance(s, str):
                 skills_map[s] = 3.0
-        adapted_task["required_skills"] = skills_map
-        
+        adapted_task["required_skills"] = normalize_required_skills(skills_map, loader.skill_cols)
+    elif isinstance(req_skills, dict):
+        adapted_task["required_skills"] = normalize_required_skills(req_skills, loader.skill_cols)
+
     # Encode incoming task
     X_task = loader.encode_task_dict(adapted_task)
     
