@@ -28,12 +28,13 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _ASSIGNMENT_EXPLAIN_SYSTEM = """You are a project management assistant explaining AI assignment recommendations.
-You will receive JSON data containing GNN match results and a CPA-validated schedule.
-Write a clear, concise explanation (3-5 sentences) that:
-1. Names which developer is best suited for which task and why (reference skill overlap).
-2. Notes which tasks are on the critical path.
-3. Mentions any scheduling constraints the system enforced.
-Do NOT invent numbers. Use only the data provided. Write in plain English, not markdown."""
+You will receive JSON data containing the target task (if provided), developer candidate match results, optional schedule constraints, and a resource_deficit_flag.
+
+Write a clear, professional 2-4 sentence summary following these rules:
+1. If resource_deficit_flag is true (meaning all candidate match scores are below 50%), DO NOT confidently recommend them. Instead, issue a Capacity Warning explaining why the top candidates scored poorly and suggest options like upskilling, adjusting deadlines, or workload reallocation.
+2. If resource_deficit_flag is false, state clearly who is recommended for the task and explain WHY based on their matching skill overlap with the task.
+3. ONLY mention critical path or scheduling constraints if 'cpa_schedule' is explicitly provided and non-null in the JSON.
+4. CRITICAL RULE: DO NOT mention missing data, null values, or the Critical Path Algorithm if no scheduling constraints are provided in the payload. Do not speculate or invent numbers. Write in plain English."""
 
 _RISK_ALERT_SYSTEM = """You are a project risk analyst. You will receive a JSON object describing
 project risks (overdue tasks, overloaded employees, conflicts). Write a brief plain-language
@@ -87,6 +88,7 @@ def _call_llm(system_prompt: str, user_content: str) -> str | None:
 def synthesize_assignment_explanation(
     gnn_results: list[dict[str, Any]],
     cpa_schedule: dict[str, Any] | None = None,
+    task: dict[str, Any] | None = None,
 ) -> str:
     """
     Generate a plain-language explanation for the manager about the proposed
@@ -95,25 +97,50 @@ def synthesize_assignment_explanation(
     gnn_results: list of {employee_user_id, display_name, match_fit_score,
                            skill_overlap, match_source, ...}
     cpa_schedule: optional output from /schedule/compute with critical_path list
+    task: optional task dict with title, difficulty, required_skills
     """
+    payload_candidates = [
+        c for c in gnn_results if c.get("match_fit_score", 0) >= 0.50
+    ][:3]
+
+    deficit_warning = False
+    if not payload_candidates:
+        payload_candidates = gnn_results[:2]
+        deficit_warning = True
+
     payload = json.dumps(
-        {"gnn_results": gnn_results[:5], "cpa_schedule": cpa_schedule},
+        {
+            "task": task,
+            "gnn_results": payload_candidates,
+            "cpa_schedule": cpa_schedule,
+            "resource_deficit_flag": deficit_warning,
+        },
         indent=2,
     )
 
     explanation = _call_llm(_ASSIGNMENT_EXPLAIN_SYSTEM, payload)
     if explanation is None:
         # Fallback: build a plain summary without LLM
-        lines = ["AI assignment recommendations (LLM offline — summary only):"]
-        for i, r in enumerate(gnn_results[:5], 1):
+        lines = []
+        if deficit_warning:
+            lines.append("⚠️ Resource Deficit Detected: No candidates scored above 50% fit for this task. Closest matches:")
+        else:
+            lines.append("AI assignment recommendations (LLM offline — summary only):")
+
+        for i, r in enumerate(payload_candidates, 1):
             score_pct = int(r.get("match_fit_score", 0) * 100)
             overlap = ", ".join(r.get("skill_overlap", [])[:4]) or "general fit"
             lines.append(
                 f"{i}. {r.get('display_name', 'Developer')} — {score_pct}% fit "
                 f"(matched on: {overlap})"
             )
-        if cpa_schedule and (cp := cpa_schedule.get("critical_path")):
+
+        if cpa_schedule and (
+            (cp := cpa_schedule.get("critical_path"))
+            or (cp := cpa_schedule.get("critical_path_task_ids"))
+        ):
             lines.append(f"Critical path tasks: {', '.join(str(t) for t in cp[:5])}")
+
         return "\n".join(lines)
 
     return explanation

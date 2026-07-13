@@ -82,6 +82,8 @@ class Task extends Model
     public function toGNNFeatureDict(): array
     {
         return [
+            'task_title' => $this->title,
+            'task_description' => $this->description ?? '',
             'title' => $this->title,
             'description' => $this->description ?? '',
             'task_classification' => $this->task_classification ?? '',

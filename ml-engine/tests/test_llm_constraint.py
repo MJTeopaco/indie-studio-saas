@@ -218,3 +218,22 @@ class TestResponseSynthesizerDoesNotInventNumbers:
             )
         except ImportError:
             pytest.skip("response_synthesizer not importable — skipping synthesizer test")
+
+    def test_synthesizer_resource_deficit_fallback_when_all_scores_below_threshold(self):
+        """
+        When all candidate match scores are below 0.50, the synthesizer must fall back
+        to taking the top 2 candidates and include a resource deficit warning prefix.
+        """
+        from orchestration.response_synthesizer import synthesize_assignment_explanation
+
+        gnn_results = [
+            {"user_id": 201, "display_name": "Kenji Takahashi", "match_fit_score": 0.35, "skill_overlap": ["Testing"]},
+            {"user_id": 202, "display_name": "Elena Vance", "match_fit_score": 0.25, "skill_overlap": []},
+        ]
+
+        explanation = synthesize_assignment_explanation(gnn_results, cpa_schedule=None)
+        assert "Resource Deficit Detected" in explanation, (
+            "Explanation must flag Resource Deficit Detected when all candidates score < 50%."
+        )
+        assert "Kenji Takahashi" in explanation
+        assert "35%" in explanation
