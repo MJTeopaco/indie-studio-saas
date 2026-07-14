@@ -1,16 +1,25 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
+import axios from 'axios';
 
-export default function CreateProjectModal({ isOpen, onClose, onCreate }) {
+export default function CreateProjectModal({ isOpen, onClose, onCreate, onCreated, initialTitle = '', initialDescription = '', planCount = 0 }) {
     const { activeWorkspace } = usePage().props;
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
 
+    useEffect(() => {
+        if (isOpen) {
+            setTitle(initialTitle);
+            setDescription(initialDescription);
+            setError('');
+        }
+    }, [isOpen, initialTitle, initialDescription]);
+
     if (!isOpen) return null;
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         const trimmedTitle = title.trim();
 
@@ -28,18 +37,23 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate }) {
         };
 
         if (activeWorkspace) {
-            router.post(`/studio/${activeWorkspace}/projects`, payload, {
-                onSuccess: () => {
-                    setTitle('');
-                    setDescription('');
-                    setIsSubmitting(false);
-                    onClose();
-                },
-                onError: () => {
-                    setIsSubmitting(false);
-                    setError('Failed to create project.');
-                },
-            });
+            try {
+                const { data } = await axios.post(`/studio/${activeWorkspace}/projects`, payload, {
+                    headers: { Accept: 'application/json' },
+                });
+                setTitle('');
+                setDescription('');
+                setIsSubmitting(false);
+                if (onCreated) {
+                    onCreated(data.project);
+                } else {
+                    router.reload({ only: ['projects'] });
+                }
+                onClose();
+            } catch (err) {
+                setIsSubmitting(false);
+                setError(err.response?.data?.message || 'Failed to create project.');
+            }
         } else {
             setTimeout(() => {
                 if (onCreate) {
@@ -173,6 +187,12 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate }) {
                             className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 px-4 py-3 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30 transition-colors resize-none"
                         />
                     </div>
+
+                    {planCount > 0 && (
+                        <div className="rounded-xl border border-brand-30 bg-brand-10 px-4 py-3 text-sm text-brand dark:text-brand-light">
+                            Your AI draft is ready with {planCount} tasks. Give this project a name to continue to the plan review.
+                        </div>
+                    )}
 
                     {/* Footer Actions */}
                     <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-200 dark:border-gray-800">

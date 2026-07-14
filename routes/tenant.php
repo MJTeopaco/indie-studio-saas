@@ -92,6 +92,10 @@ Route::prefix('/studio/{tenant}')->middleware([
         ->name('tenant.ml.schedule');
     Route::post('/projects/{project}/ai-assistant', [MLEngineIntegrationController::class, 'projectAssistant'])
         ->name('tenant.projects.ai-assistant');
+    Route::post('/ai-assistant', [MLEngineIntegrationController::class, 'workspaceAssistant'])
+        ->name('tenant.workspace.ai-assistant');
+    Route::post('/ai/decompose-project', [MLEngineIntegrationController::class, 'decomposeWorkspaceProject'])
+        ->name('tenant.workspace.decompose');
     Route::post('/tasks/{task}/ml/best-fit', [MLEngineIntegrationController::class, 'bestFit'])
         ->name('tenant.ml.best-fit');
     Route::post('/tasks/{task}/assign', [MLEngineIntegrationController::class, 'assignTask'])

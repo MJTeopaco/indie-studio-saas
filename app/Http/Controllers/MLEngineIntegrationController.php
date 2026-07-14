@@ -42,6 +42,70 @@ class MLEngineIntegrationController extends Controller
         return response()->json($response);
     }
 
+    /** Generate an editable task plan before a new project exists. */
+    public function decomposeWorkspaceProject(Request $request)
+    {
+        set_time_limit(0);
+        $validated = $request->validate([
+            'description' => 'required|string|max:3000',
+        ]);
+
+        return response()->json($this->mlService->decomposeProject($validated['description']));
+    }
+
+    /**
+     * Handle conversational requests made from the studio workspace. Unlike
+     * project planning, this route does not require a project to be selected.
+     */
+    public function workspaceAssistant(Request $request)
+    {
+        $validated = $request->validate([
+            'message' => 'required|string|max:3000',
+            'history' => 'nullable|array|max:10',
+            'history.*.role' => 'required_with:history|string|in:user,assistant',
+            'history.*.content' => 'required_with:history|string|max:3000',
+        ]);
+
+        $message = trim($validated['message']);
+        if (preg_match('/^(hi|hello|hey|helo|good (morning|afternoon|evening))[!,. ]*$/i', $message)) {
+            return response()->json([
+                'status' => 'success',
+                'reply' => 'Hello! I’m StudioSprint AI. I can answer questions about your workspace, projects, and team. When you’re ready to plan work, describe the task and select a project.',
+            ]);
+        }
+
+        $projects = Project::query()
+            ->withCount('tasks')
+            ->latest()
+            ->get(['id', 'name', 'status'])
+            ->map(fn (Project $project): array => [
+                'id' => $project->id,
+                'name' => $project->name,
+                'status' => $project->status,
+                'task_count' => $project->tasks_count,
+            ])
+            ->all();
+
+        $activeTasks = Task::query()
+            ->whereIn('status', ['todo', 'in_progress', 'review'])
+            ->latest()
+            ->take(15)
+            ->get(['id', 'title', 'status', 'priority', 'estimated_hours', 'project_id'])
+            ->all();
+
+        $context = [
+            'studio' => Studio::find(tenant('id'))?->only(['id', 'name']),
+            'projects' => $projects,
+            'active_tasks' => $activeTasks,
+        ];
+        $result = $this->mlService->chatAboutProject($message, $context, $validated['history'] ?? []);
+
+        return response()->json([
+            'status' => $result['status'] ?? 'error',
+            'reply' => $result['reply'] ?? 'I could not answer that right now. Please try again.',
+        ]);
+    }
+
     /**
      * Recompute the CPA schedule for a given project and bulk update the tasks.
      */

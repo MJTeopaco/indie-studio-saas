@@ -88,12 +88,16 @@ class TenantProjectController extends Controller
             'description' => 'nullable|string',
         ]);
 
-        Project::create([
+        $project = Project::create([
             'name' => $validated['name'],
             'description' => $validated['description'] ?? null,
             'status' => 'planning',
             'start_date' => now()->toDateString(),
         ]);
+
+        if ($request->expectsJson()) {
+            return response()->json(['status' => 'success', 'project' => $project], 201);
+        }
 
         return redirect()->back();
     }
