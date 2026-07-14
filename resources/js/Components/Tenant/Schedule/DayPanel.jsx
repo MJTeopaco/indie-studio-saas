@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import CpaStatusBadge from '@/Components/Tenant/CpaStatusBadge';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const PlusIcon = () => (
@@ -219,13 +220,20 @@ export default function DayPanel({ selectedDate, onSelectDate, tasks = [], event
                                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${PRIORITY_DOT[task.priority] || 'bg-gray-400'}`} />
 
                                     {/* Title */}
-                                    <span className={`flex-1 text-xs font-medium leading-snug ${isChecked ? 'line-through text-gray-400 dark:text-slate-500' : 'text-gray-800 dark:text-slate-200'}`}>
+                                    <span className={`flex-1 text-xs font-medium leading-snug truncate ${isChecked ? 'line-through text-gray-400 dark:text-slate-500' : 'text-gray-800 dark:text-slate-200'}`}>
                                         {task.title}
                                     </span>
 
+                                    {/* CPA badge */}
+                                    {task.total_float !== undefined && (
+                                        <div className="shrink-0 scale-90">
+                                            <CpaStatusBadge totalFloat={task.total_float} isCritical={task.is_critical} />
+                                        </div>
+                                    )}
+
                                     {/* Project badge */}
                                     <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 font-medium truncate max-w-[60px]">
-                                        {task.client}
+                                        {task.client || task.project?.name || 'Project'}
                                     </span>
                                 </button>
                             );

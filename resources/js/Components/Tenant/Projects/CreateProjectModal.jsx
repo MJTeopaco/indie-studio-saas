@@ -6,6 +6,8 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate, onCreate
     const { activeWorkspace } = usePage().props;
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
+    const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const [targetEndDate, setTargetEndDate] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
 
@@ -13,6 +15,8 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate, onCreate
         if (isOpen) {
             setTitle(initialTitle);
             setDescription(initialDescription);
+            setStartDate(new Date().toISOString().split('T')[0]);
+            setTargetEndDate('');
             setError('');
         }
     }, [isOpen, initialTitle, initialDescription]);
@@ -34,6 +38,8 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate, onCreate
         const payload = {
             name: trimmedTitle,
             description: description.trim(),
+            start_date: startDate || new Date().toISOString().split('T')[0],
+            target_end_date: targetEndDate || null,
         };
 
         if (activeWorkspace) {
@@ -63,6 +69,8 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate, onCreate
                         title: trimmedTitle,
                         description: description.trim(),
                         status: 'planning',
+                        start_date: startDate || new Date().toISOString().split('T')[0],
+                        target_end_date: targetEndDate || null,
                         members_count: 1,
                         tasks_count: 0,
                     });
@@ -116,7 +124,7 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate, onCreate
                                 Create New Project
                             </h2>
                             <p className="text-xs text-gray-600 dark:text-gray-400">
-                                Launch a new workspace to organize tasks and assign team members.
+                                Launch a new workspace to organize tasks and anchor CPA schedules.
                             </p>
                         </div>
                     </div>
@@ -168,6 +176,42 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate, onCreate
                             placeholder="e.g. Autonomous NPC AI Agent Engine"
                             className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 px-4 py-3 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30 transition-colors"
                         />
+                    </div>
+
+                    {/* Dates Grid */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label
+                                htmlFor="project-start-date"
+                                className="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-200 mb-2"
+                            >
+                                Start Date
+                            </label>
+                            <input
+                                id="project-start-date"
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 px-3.5 py-2.5 text-sm text-gray-900 dark:text-gray-100 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30 transition-colors"
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                htmlFor="project-target-end-date"
+                                className="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-200 mb-2"
+                            >
+                                Target Deadline <span className="text-gray-400 dark:text-gray-500 font-normal">(CPA Anchor)</span>
+                            </label>
+                            <input
+                                id="project-target-end-date"
+                                type="date"
+                                min={startDate}
+                                value={targetEndDate}
+                                onChange={(e) => setTargetEndDate(e.target.value)}
+                                className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 px-3.5 py-2.5 text-sm text-gray-900 dark:text-gray-100 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30 transition-colors"
+                            />
+                        </div>
                     </div>
 
                     {/* Description Textarea */}

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\MLEngineIntegrationController;
+use App\Http\Controllers\TenantScheduleController;
 use App\Http\Controllers\TenantDashboardController;
 use App\Http\Controllers\TenantProjectController;
 use App\Http\Controllers\TenantTeamController;
@@ -37,9 +38,8 @@ Route::prefix('/studio/{tenant}')->middleware([
     Route::get('/tasks', [TenantTaskController::class, 'index'])
         ->name('tenant.tasks');
 
-    Route::get('/schedule', function () {
-        return \Inertia\Inertia::render('Tenant/Schedule/Index');
-    })->name('tenant.schedule');
+    Route::get('/schedule', [TenantScheduleController::class, 'index'])
+        ->name('tenant.schedule');
 
     Route::get('/automation', function () {
         return \Inertia\Inertia::render('Tenant/Placeholder', [
@@ -60,6 +60,9 @@ Route::prefix('/studio/{tenant}')->middleware([
 
     Route::post('/projects', [TenantProjectController::class, 'store'])
         ->name('tenant.projects.store');
+
+    Route::patch('/projects/{project}', [TenantProjectController::class, 'update'])
+        ->name('tenant.projects.update');
 
     Route::get('/settings', function () {
         return \Inertia\Inertia::render('Tenant/Placeholder', [

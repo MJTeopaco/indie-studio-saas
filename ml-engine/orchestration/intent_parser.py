@@ -25,6 +25,13 @@ import logging
 from typing import List, Optional
 
 from pydantic import BaseModel, Field, field_validator
+from orchestration.taxonomy import (
+    CANONICAL_CLASSIFICATIONS,
+    CANONICAL_TO_BROAD_MAP,
+    CLASSIFICATION_MACRO_MAP,
+    normalize_task_classification,
+    enrich_task_classification,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +52,8 @@ class TaskParseResult(BaseModel):
     title: str = Field(description="Short task title (max 80 chars)")
     objective: str = Field(description="One-sentence description of what this task achieves")
     task_classification: str = Field(
-        description="Category: Feature, Bug Fix, Research, DevOps, Testing, Documentation"
+        default="Feature Implementation",
+        description="Granular category (e.g. 'Feature Implementation', 'Bug Resolution & Hotfixing', 'Container Orchestration & Deployment')",
     )
     required_position: Optional[str] = Field(
         default=None, description="Primary role needed, e.g. 'Backend Developer'"
@@ -71,6 +79,16 @@ class TaskParseResult(BaseModel):
         description="Technical domains, e.g. ['Web & API Development', 'Cloud & DevOps']"
     )
 
+    @property
+    def broad_classification(self) -> str:
+        """Backward-compatible mapping to legacy 6 broad categories."""
+        return CANONICAL_TO_BROAD_MAP.get(self.task_classification, "Feature")
+
+    @property
+    def macro_domain(self) -> str:
+        """Macro technical domain corresponding to the task classification."""
+        return CLASSIFICATION_MACRO_MAP.get(self.task_classification, "Backend & Core Systems")
+
     @field_validator("task_difficulty")
     @classmethod
     def validate_difficulty(cls, v: str) -> str:
@@ -87,13 +105,13 @@ class TaskParseResult(BaseModel):
             return "Medium"
         return v
 
-    @field_validator("task_classification")
+    @field_validator("task_classification", mode="before")
     @classmethod
-    def validate_classification(cls, v: str) -> str:
-        allowed = {"Feature", "Bug Fix", "Research", "DevOps", "Testing", "Documentation"}
-        if v not in allowed:
-            return "Feature"
-        return v
+    def validate_classification(cls, v: str, values: Any = None) -> str:
+        skills = []
+        if isinstance(values, dict) and "required_skills" in values:
+            skills = values.get("required_skills", [])
+        return normalize_task_classification(str(v), skills=skills)
 
     @field_validator("estimated_hours")
     @classmethod
@@ -112,11 +130,14 @@ Respond ONLY with a single valid JSON object matching the schema. No markdown, n
 
 IMPORTANT: Select required_skills 'name' strictly from canonical engineering skills such as: React, JavaScript, TypeScript, Next.js, Vue.js, Figma, Python, PyTorch, Laravel, PHP, PostgreSQL, Docker, Kubernetes, Jest, Cypress, REST APIs. Do not use generic domain descriptors like 'Dark Mode' or 'CSS'.
 
+Select task_classification strictly from these 22 categories:
+Product Requirements & Analysis, Sprint & Roadmap Planning, Market Viability Research, Data Pre-processing & Pipeline Engineering, Model Training & Fine-Tuning, LLM Prompt Engineering & RAG Integration, Algorithm Evaluation & Benchmarking, System Architecture Design, Feature Implementation, Algorithm Optimization & Refactoring, Bug Resolution & Hotfixing, Third-Party API Setup, Client-Based Environment Provisioning, Container Orchestration & Deployment, DevSecOps & Security Auditing, Hardware-in-the-Loop Testing, Hardware Sensor Integration, Game Engine Logic & Asset Integration, UI/UX Prototyping & Wireframing, System Mechanics Planning, Unit & Integration Testing, Peer Code Review.
+
 JSON Schema:
 {
   "title": string (max 80 chars),
   "objective": string (one sentence),
-  "task_classification": "Feature" | "Bug Fix" | "Research" | "DevOps" | "Testing" | "Documentation",
+  "task_classification": string (one of the 22 categories listed above),
   "required_position": string or null,
   "task_difficulty": "Easy" | "Medium" | "Hard",
   "priority": "Low" | "Medium" | "High" | "Critical",
@@ -131,17 +152,26 @@ Given a project description or task instruction:
 1. Evaluate if it is a simple, single task (e.g. "update logo", "fix button color"). If so, return a JSON array containing ONLY that single task.
 2. If it is a heavy project/sprint goal, decompose it into a list of concrete development tasks (maximum of 5 most important high-level tasks to save time).
 
+CRITICAL REQUIREMENT FOR DEPENDENCIES (Critical Path Analysis):
+You MUST establish logical, realistic inter-task dependencies using "suggested_depends_on".
+Do NOT return standalone/unconnected tasks unless they are genuinely independent.
+Order tasks chronologically into chained workflow phases (e.g., Requirements/Planning → Architecture/Design → Core Backend Implementation → Frontend & API Integration → QA & Integration Testing).
+For each downstream task, include the 0-based array indices of its prerequisite tasks in "suggested_depends_on" (e.g., Task index 1 depends on [0], Task index 2 depends on [1], Task index 3 depends on [1, 2]).
+
 Estimate focused implementation effort, not calendar time. Use modern AI-assisted
 workflows when appropriate. If the user mentions a date, treat it
 as the overall delivery deadline, never as the duration of an individual task.
 
 IMPORTANT: Select required_skills 'name' strictly from canonical engineering skills such as: React, JavaScript, TypeScript, Next.js, Vue.js, Figma, Python, PyTorch, Laravel, PHP, PostgreSQL, Docker, Kubernetes, Jest, Cypress, REST APIs. Do not use generic domain descriptors like 'Dark Mode' or 'CSS'.
 
+Select task_classification strictly from these 22 categories:
+Product Requirements & Analysis, Sprint & Roadmap Planning, Market Viability Research, Data Pre-processing & Pipeline Engineering, Model Training & Fine-Tuning, LLM Prompt Engineering & RAG Integration, Algorithm Evaluation & Benchmarking, System Architecture Design, Feature Implementation, Algorithm Optimization & Refactoring, Bug Resolution & Hotfixing, Third-Party API Setup, Client-Based Environment Provisioning, Container Orchestration & Deployment, DevSecOps & Security Auditing, Hardware-in-the-Loop Testing, Hardware Sensor Integration, Game Engine Logic & Asset Integration, UI/UX Prototyping & Wireframing, System Mechanics Planning, Unit & Integration Testing, Peer Code Review.
+
 Respond ONLY with a valid JSON array. Each element must match:
 {
   "title": string,
   "objective": string,
-  "task_classification": "Feature"|"Bug Fix"|"Research"|"DevOps"|"Testing"|"Documentation",
+  "task_classification": string (one of the 22 categories listed above),
   "required_position": string or null,
   "task_difficulty": "Easy"|"Medium"|"Hard",
   "priority": "Low"|"Medium"|"High"|"Critical",
@@ -177,7 +207,7 @@ def _stub_task_parse(raw_text: str) -> TaskParseResult:
     return TaskParseResult(
         title=raw_text[:80].strip(),
         objective="(LLM unavailable — please fill in manually)",
-        task_classification="Feature",
+        task_classification="Feature Implementation",
         task_difficulty="Medium",
         priority="Medium",
         minimum_experience_years=0.0,

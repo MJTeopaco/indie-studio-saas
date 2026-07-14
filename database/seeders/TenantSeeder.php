@@ -189,6 +189,16 @@ class TenantSeeder extends Seeder
         DB::table('assignments')->insert($assignmentRows);
 
         $this->command->info('TenantSeeder: seeded 1 project, '.count($taskNumberToId).' tasks, '.count($dependencyRows).' dependencies, '.count($assignmentRows).' assignments.');
+
+        try {
+            $projectModel = \App\Models\Tenant\Project::find($project);
+            if ($projectModel) {
+                app(\App\Services\MLEngineService::class)->recomputeProjectSchedule($projectModel);
+                $this->command->info('TenantSeeder: CPA schedule recomputed successfully.');
+            }
+        } catch (\Exception $e) {
+            $this->command->warn('TenantSeeder: CPA calculation failed during seeding: '.$e->getMessage());
+        }
     }
 
     // -----------------------------------------------------------------------

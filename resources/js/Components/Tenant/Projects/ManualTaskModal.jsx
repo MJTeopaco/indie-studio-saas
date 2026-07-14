@@ -73,7 +73,7 @@ function FitRing({ percent, size = 44 }) {
     );
 }
 
-export default function ManualTaskModal({ isOpen, onClose, project, tenantId, teamMembers = [], skills = [], positions = [] }) {
+export default function ManualTaskModal({ isOpen, onClose, project, tenantId, teamMembers = [], skills = [], positions = [], editingTask = null }) {
     const safeSkills = Array.isArray(skills) ? skills : [];
     const safePositions = Array.isArray(positions) ? positions : [];
     const safeTeamMembers = Array.isArray(teamMembers) ? teamMembers : [];
@@ -83,6 +83,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, te
         description: '',
         assigned_user_id: '',
         estimated_hours: 8,
+        hard_constraint_date: '',
         priority: 'Medium',
         status: 'todo',
         task_classification: 'Engineering',
@@ -109,6 +110,36 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, te
     const [assigningId, setAssigningId] = useState(null);
 
     const positionsList = safePositions.length > 0 ? safePositions.map(p => p.name) : POSITIONS;
+
+    React.useEffect(() => {
+        if (isOpen) {
+            if (editingTask) {
+                setForm({
+                    title: editingTask.title || '',
+                    description: editingTask.description || '',
+                    assigned_user_id: editingTask.assigned_user_id || '',
+                    estimated_hours: editingTask.estimated_hours || 8,
+                    hard_constraint_date: editingTask.hard_constraint_date ? editingTask.hard_constraint_date.split('T')[0] : '',
+                    priority: editingTask.priority || 'Medium',
+                    status: editingTask.status || 'todo',
+                    task_classification: editingTask.task_classification || 'Engineering',
+                    required_position: editingTask.required_position || 'Backend Developer',
+                    minimum_experience_years: editingTask.minimum_experience_years || 1,
+                    task_difficulty: editingTask.task_difficulty || 'Medium',
+                    macro_domains: editingTask.target_macro_domains || [0, 0, 0, 0, 0, 0, 0, 0],
+                    required_skills: editingTask.required_skills || [],
+                    depends_on: Array.isArray(editingTask.depends_on) ? editingTask.depends_on : (editingTask.predecessors?.map(p => p.id) || []),
+                });
+            } else {
+                setForm(defaultForm);
+            }
+            setErrors({});
+            setStep('form');
+            setCreatedTask(null);
+            setRecommendations([]);
+            setExplanation('');
+        }
+    }, [isOpen, editingTask]);
 
     // Skills autocomplete search results
     const filteredSkills = useMemo(() => {
@@ -158,21 +189,27 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, te
         setIsSaving(true);
         setErrors({});
 
-        axios.post(route('tenant.projects.tasks.store', { tenant: tenantId, project: project.id }), {
+        const payload = {
             ...form,
             assigned_user_id: form.assigned_user_id || null,
             estimated_hours: Number(form.estimated_hours),
+            hard_constraint_date: form.hard_constraint_date || null,
             minimum_experience_years: Number(form.minimum_experience_years),
             target_macro_domains: form.macro_domains,
-        })
+        };
+
+        const requestPromise = editingTask
+            ? axios.patch(route('tenant.projects.tasks.update', { tenant: tenantId, project: project.id, task: editingTask.id }), payload)
+            : axios.post(route('tenant.projects.tasks.store', { tenant: tenantId, project: project.id }), payload);
+
+        requestPromise
         .then(response => {
-            if (response.data?.status === 'success' && response.data?.task) {
+            if (!editingTask && response.data?.status === 'success' && response.data?.task) {
                 const newTask = response.data.task;
                 setCreatedTask(newTask);
                 setStep('recommendations');
                 fetchRecommendations(newTask.id);
             } else {
-                // Fallback to standard Inertia reload if structure differs
                 router.reload();
                 handleClose();
             }
@@ -240,11 +277,11 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, te
                     <div>
                         <h2 className="font-heading text-base font-bold text-gray-900 dark:text-slate-100 flex items-center gap-1.5">
                             <Cpu className="w-4 h-4 text-brand animate-pulse" /> 
-                            {step === 'form' ? 'Create Task Requirements' : 'GNN Developer Recommendation Routing'}
+                            {step === 'form' ? (editingTask ? 'Edit Task Requirements & CPA Anchor' : 'Create Task Requirements') : 'GNN Developer Recommendation Routing'}
                         </h2>
                         <p className="mt-0.5 text-xs text-gray-500 dark:text-slate-400">
                             {step === 'form' 
-                                ? `Configure task specifications for ${project.name}.` 
+                                ? (editingTask ? `Updating specifications for #${editingTask.id} in ${project.name}.` : `Configure task specifications for ${project.name}.`) 
                                 : `Routing optimal matches for: ${createdTask?.title}.`}
                         </p>
                     </div>
@@ -294,7 +331,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, te
                                     </label>
                                     
                                     <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Description
-                                        <textarea value={form.description} onChange={event => updateField('description', event.target.value)} rows="4" className="mt-1.5 w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950" placeholder="Fully describe details and objective of the task..." />
+                                        <textarea value={form.description} onChange={event => updateField('description', event.target.value)} rows="3" className="mt-1.5 w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950" placeholder="Fully describe details and objective of the task..." />
                                     </label>
 
                                     <div className="grid grid-cols-2 gap-4">
@@ -305,13 +342,19 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, te
                                             <select value={form.priority} onChange={event => updateField('priority', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950">{['Low', 'Medium', 'High', 'Critical'].map(priority => <option key={priority}>{priority}</option>)}</select>
                                         </label>
                                     </div>
-                                    
+
                                     <div className="grid grid-cols-2 gap-4">
-                                        <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Assignee (Quick Manual)
-                                            <select value={form.assigned_user_id} onChange={event => updateField('assigned_user_id', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950"><option value="">Unassigned</option>{safeTeamMembers.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}</select>
+                                        <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Hard Constraint Date <span className="font-normal text-gray-400 dark:text-gray-500">(Fixed Deadline)</span>
+                                            <input type="date" value={form.hard_constraint_date} onChange={event => updateField('hard_constraint_date', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950" />
                                         </label>
                                         <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Status *
                                             <select value={form.status} onChange={event => updateField('status', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950">{STATUSES.map(status => <option key={status.value} value={status.value}>{status.label}</option>)}</select>
+                                        </label>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 gap-4">
+                                        <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Assignee (Quick Manual)
+                                            <select value={form.assigned_user_id} onChange={event => updateField('assigned_user_id', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950"><option value="">Unassigned</option>{safeTeamMembers.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}</select>
                                         </label>
                                     </div>
                                 </div>
@@ -557,7 +600,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, te
                                 className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50 hover:bg-brand-dark transition-all shadow-md"
                             >
                                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                                <span>Create Task</span>
+                                <span>{editingTask ? 'Update Task Specifications' : 'Create Task'}</span>
                             </button>
                         </>
                     ) : (

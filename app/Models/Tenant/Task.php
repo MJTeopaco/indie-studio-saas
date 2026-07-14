@@ -25,6 +25,7 @@ class Task extends Model
         'priority',
         'estimated_hours',
         'days_until_deadline',
+        'hard_constraint_date',
         'target_macro_domains',
         'required_skills',
         'assigned_user_id',
@@ -47,6 +48,7 @@ class Task extends Model
             'minimum_experience_years' => 'float',
             'estimated_hours' => 'float',
             'days_until_deadline' => 'integer',
+            'hard_constraint_date' => 'date',
         ];
     }
 
@@ -93,6 +95,7 @@ class Task extends Model
             'priority' => $this->priority ?? 'Medium',
             'estimated_hours' => (float) ($this->estimated_hours ?? 40.0),
             'days_until_deadline' => (int) ($this->days_until_deadline ?? 14),
+            'hard_constraint_date' => $this->hard_constraint_date?->format('Y-m-d'),
             'target_macro_domains' => $this->target_macro_domains ?? [0, 0, 0, 0, 0, 0, 0, 0],
             'required_skills' => $this->required_skills ?? [],
         ];
