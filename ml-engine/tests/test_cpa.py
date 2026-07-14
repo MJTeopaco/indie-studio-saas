@@ -325,3 +325,38 @@ class TestValidateAssignments:
         assert "cpa_result" in result
         assert "project_finish" in result["cpa_result"]
         assert result["cpa_result"]["project_finish"] == 32.0
+
+
+# ---------------------------------------------------------------------------
+# Negative Float & Hard Constraints (Thesis Defense Architecture)
+# ---------------------------------------------------------------------------
+
+
+class TestNegativeFloatAndHardConstraints:
+    def test_project_deadline_exceeded_produces_negative_float(self, engine):
+        """When project duration is 20h but deadline_hours is 15h, float must be -5h."""
+        tasks = [
+            {"id": "A", "estimated_hours": 10, "depends_on": []},
+            {"id": "B", "estimated_hours": 10, "depends_on": ["A"]},
+        ]
+        result = engine.compute(tasks, deadline_hours=15.0)
+        assert result["project_finish"] == 20.0
+        assert result["deadline_hours"] == 15.0
+        assert result["is_delayed"] is True
+        assert result["delay_hours"] == 5.0
+        assert result["tasks"]["B"]["total_float"] == -5.0
+        assert result["tasks"]["A"]["total_float"] == -5.0
+        assert result["tasks"]["B"]["is_critical"] is True
+
+    def test_task_hard_constraint_produces_negative_float(self, engine):
+        """When a specific task has a hard constraint earlier than its EF."""
+        tasks = [
+            {"id": "A", "estimated_hours": 10, "depends_on": []},
+            {"id": "B", "estimated_hours": 10, "depends_on": ["A"], "hard_constraint_hours": 16.0},
+        ]
+        result = engine.compute(tasks)
+        assert result["project_finish"] == 20.0
+        assert result["is_delayed"] is True
+        assert result["delay_hours"] == 4.0
+        assert result["tasks"]["B"]["total_float"] == -4.0
+        assert result["tasks"]["B"]["is_critical"] is True

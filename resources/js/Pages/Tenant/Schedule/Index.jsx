@@ -89,8 +89,22 @@ function addWeeks(date, n) {
     return d;
 }
 
+// Helper: Derive calendar date from project start date and working hours
+function deriveCalendarDate(startDateStr, hoursOffset) {
+    if (!startDateStr || hoursOffset === null || hoursOffset === undefined) return null;
+    const daysOffset = Math.floor(Number(hoursOffset) / 8);
+    const date = new Date(startDateStr);
+    let added = 0;
+    while (added < daysOffset) {
+        date.setDate(date.getDate() + 1);
+        const day = date.getDay();
+        if (day !== 0 && day !== 6) added++;
+    }
+    return date.toISOString().slice(0, 10);
+}
+
 // ── Index page ────────────────────────────────────────────────────────────────
-export default function ScheduleIndex() {
+export default function ScheduleIndex({ tasks = [], events = [], studio }) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -98,32 +112,41 @@ export default function ScheduleIndex() {
     const [currentDate,  setCurrentDate]  = useState(new Date(today));
     const [selectedDate, setSelectedDate] = useState(new Date(today));
 
+    const safeTasks = Array.isArray(tasks) && tasks.length > 0 ? tasks : ALL_TASKS;
+    const safeEvents = Array.isArray(events) && events.length > 0 ? events : ALL_EVENTS;
+
     // Derived calendar position
     const calYear  = currentDate.getFullYear();
     const calMonth = currentDate.getMonth();
     const weekStart = getMondayOfWeek(currentDate);
 
-    // Group tasks by their dueDate
+    // Group tasks by their date (hard_constraint_date > derived EF > dueDate)
     const tasksByDate = useMemo(() => {
         const map = {};
-        ALL_TASKS.forEach(t => {
-            if (t.dueDate) {
-                if (!map[t.dueDate]) map[t.dueDate] = [];
-                map[t.dueDate].push(t);
+        safeTasks.forEach(t => {
+            const dateKey = t.hard_constraint_date 
+                ? t.hard_constraint_date.split('T')[0]
+                : (t.ef !== null && t.ef !== undefined && (t.project?.start_date || studio?.start_date)
+                    ? deriveCalendarDate(t.project?.start_date || studio?.start_date, t.ef)
+                    : t.dueDate);
+
+            if (dateKey) {
+                if (!map[dateKey]) map[dateKey] = [];
+                map[dateKey].push(t);
             }
         });
         return map;
-    }, []);
+    }, [safeTasks, studio]);
 
     // Group events by date
     const eventsByDate = useMemo(() => {
         const map = {};
-        ALL_EVENTS.forEach(e => {
+        safeEvents.forEach(e => {
             if (!map[e.date]) map[e.date] = [];
             map[e.date].push(e);
         });
         return map;
-    }, []);
+    }, [safeEvents]);
 
     // Tasks and events for the selected date
     const selectedDateStr = toDateStr(selectedDate);

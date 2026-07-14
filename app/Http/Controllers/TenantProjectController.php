@@ -71,6 +71,8 @@ class TenantProjectController extends Controller
                 'name' => $projectModel->name,
                 'description' => $projectModel->description,
                 'status' => $projectModel->status,
+                'start_date' => $projectModel->start_date?->format('Y-m-d'),
+                'target_end_date' => $projectModel->target_end_date?->format('Y-m-d'),
                 'tasks' => $projectModel->tasks,
             ],
             'skills' => $skills,
@@ -86,13 +88,16 @@ class TenantProjectController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
+            'start_date' => 'nullable|date',
+            'target_end_date' => 'nullable|date|after_or_equal:start_date',
         ]);
 
         $project = Project::create([
             'name' => $validated['name'],
             'description' => $validated['description'] ?? null,
             'status' => 'planning',
-            'start_date' => now()->toDateString(),
+            'start_date' => $validated['start_date'] ?? now()->toDateString(),
+            'target_end_date' => $validated['target_end_date'] ?? null,
         ]);
 
         if ($request->expectsJson()) {
@@ -100,6 +105,31 @@ class TenantProjectController extends Controller
         }
 
         return redirect()->back();
+    }
+
+    /**
+     * Update an existing project (settings, dates).
+     */
+    public function update(Request $request, $project, $routeProject = null)
+    {
+        $project = $routeProject ?? $project;
+        $validated = $request->validate([
+            'name' => 'sometimes|required|string|max:255',
+            'description' => 'nullable|string',
+            'start_date' => 'nullable|date',
+            'target_end_date' => 'nullable|date|after_or_equal:start_date',
+        ]);
+
+        $projectModel = Project::findOrFail($project);
+        $projectModel->update($validated);
+
+        RecomputeProjectSchedule::dispatchSync($projectModel->id);
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json(['status' => 'success', 'project' => $projectModel]);
+        }
+
+        return redirect()->back()->with('success', 'Project settings updated. Timeline recalculating.');
     }
 
     /**
@@ -115,6 +145,7 @@ class TenantProjectController extends Controller
             'tasks.*.description' => 'nullable|string',
             'tasks.*.estimated_hours' => 'nullable|numeric',
             'tasks.*.days_until_deadline' => 'nullable|integer|min:0',
+            'tasks.*.hard_constraint_date' => 'nullable|date',
             'tasks.*.task_classification' => 'nullable|string',
             'tasks.*.task_difficulty' => 'nullable|string',
             'tasks.*.priority' => 'nullable|string',
@@ -128,9 +159,10 @@ class TenantProjectController extends Controller
 
         $projectModel = Project::findOrFail($project);
 
-        $idMapping = []; // map AI temp IDs to real DB IDs
+        $idMapping = []; // map AI temp IDs and 0-based array indices to real DB IDs
+        $allTasksArray = array_values($validated['tasks']);
 
-        foreach ($validated['tasks'] as $taskData) {
+        foreach ($allTasksArray as $index => $taskData) {
             $task = $projectModel->tasks()->create([
                 'title' => $taskData['title'],
                 'description' => $taskData['objective'] ?? $taskData['description'] ?? null,
@@ -139,6 +171,7 @@ class TenantProjectController extends Controller
                 'priority' => $taskData['priority'] ?? 'Medium',
                 'estimated_hours' => isset($taskData['estimated_hours']) ? (float) $taskData['estimated_hours'] : 0.0,
                 'days_until_deadline' => $taskData['days_until_deadline'] ?? null,
+                'hard_constraint_date' => $taskData['hard_constraint_date'] ?? null,
                 'minimum_experience_years' => isset($taskData['minimum_experience_years']) ? (float) $taskData['minimum_experience_years'] : 0.0,
                 'target_macro_domains' => $taskData['macro_domains'] ?? null,
                 'required_position' => $taskData['required_position'] ?? null,
@@ -149,30 +182,43 @@ class TenantProjectController extends Controller
             if (isset($taskData['id'])) {
                 $idMapping[$taskData['id']] = $task->id;
             }
+            $idMapping[$index] = $task->id;
         }
 
         // Now save dependencies if any
-        foreach ($validated['tasks'] as $taskData) {
-            if (! empty($taskData['depends_on']) && isset($taskData['id'])) {
-                $realTaskId = $idMapping[$taskData['id']] ?? null;
-                if ($realTaskId) {
-                    $realTask = Task::find($realTaskId);
+        foreach ($allTasksArray as $index => $taskData) {
+            $realTaskId = $idMapping[$taskData['id'] ?? $index] ?? null;
+            if ($realTaskId) {
+                $realTask = Task::find($realTaskId);
+                $realDependsOnIds = [];
 
-                    $realDependsOnIds = [];
+                if (! empty($taskData['depends_on'])) {
                     foreach ($taskData['depends_on'] as $tempDepId) {
                         if (isset($idMapping[$tempDepId])) {
                             $realDependsOnIds[] = $idMapping[$tempDepId];
                         }
                     }
+                }
 
-                    if (! empty($realDependsOnIds)) {
-                        $realTask->predecessors()->syncWithoutDetaching($realDependsOnIds);
+                if (! empty($taskData['suggested_depends_on'])) {
+                    foreach ($taskData['suggested_depends_on'] as $depIndex) {
+                        if (isset($allTasksArray[$depIndex])) {
+                            $depTaskData = $allTasksArray[$depIndex];
+                            $depRealId = $idMapping[$depTaskData['id'] ?? $depIndex] ?? $idMapping[$depIndex] ?? null;
+                            if ($depRealId && $depRealId !== $realTaskId) {
+                                $realDependsOnIds[] = $depRealId;
+                            }
+                        }
                     }
+                }
+
+                if (! empty($realDependsOnIds)) {
+                    $realTask->predecessors()->syncWithoutDetaching(array_unique($realDependsOnIds));
                 }
             }
         }
 
-        RecomputeProjectSchedule::dispatch($projectModel->id);
+        RecomputeProjectSchedule::dispatchSync($projectModel->id);
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -196,6 +242,7 @@ class TenantProjectController extends Controller
             'description' => 'nullable|string',
             'assigned_user_id' => 'nullable|integer',
             'estimated_hours' => 'required|numeric|min:0',
+            'hard_constraint_date' => 'nullable|date',
             'priority' => 'required|string|in:Low,Medium,High,Critical',
             'status' => 'required|string|in:todo,in_progress,review,completed',
             'depends_on' => 'nullable|array',
@@ -217,6 +264,7 @@ class TenantProjectController extends Controller
                 'description' => $validated['description'] ?? null,
                 'assigned_user_id' => $validated['assigned_user_id'] ?? null,
                 'estimated_hours' => $validated['estimated_hours'],
+                'hard_constraint_date' => $validated['hard_constraint_date'] ?? null,
                 'priority' => $validated['priority'],
                 'status' => $validated['status'],
                 'task_classification' => $validated['task_classification'] ?? 'Engineering',
@@ -232,7 +280,7 @@ class TenantProjectController extends Controller
             return $task;
         });
 
-        RecomputeProjectSchedule::dispatch($projectModel->id);
+        RecomputeProjectSchedule::dispatchSync($projectModel->id);
 
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json([
@@ -263,6 +311,7 @@ class TenantProjectController extends Controller
             'description' => 'nullable|string',
             'assigned_user_id' => 'nullable|integer',
             'estimated_hours' => 'sometimes|required|numeric|min:0',
+            'hard_constraint_date' => 'nullable|date',
             'priority' => 'sometimes|required|string|in:Low,Medium,High,Critical',
             'status' => 'sometimes|required|string|in:todo,in_progress,review,completed',
             'depends_on' => 'sometimes|array',
@@ -284,7 +333,7 @@ class TenantProjectController extends Controller
             }
         });
 
-        RecomputeProjectSchedule::dispatch($projectModel->id);
+        RecomputeProjectSchedule::dispatchSync($projectModel->id);
 
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json([

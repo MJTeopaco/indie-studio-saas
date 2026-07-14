@@ -135,20 +135,46 @@ class CPAEngine:
             ef[task_id] = es[task_id] + duration
 
         # Project finish / anchor
+        computed_project_finish = max(ef.values()) if ef else 0.0
         if deadline_hours is not None:
-            project_finish = float(deadline_hours)
+            anchor_finish = float(deadline_hours)
         else:
-            project_finish = max(ef.values()) if ef else 0.0
+            anchor_finish = computed_project_finish
 
-        # Backward pass (reverse topological order)
+        # Backward pass relative to computed_project_finish (topological graph critical path)
+        ls_graph: dict[Any, float] = {}
+        lf_graph: dict[Any, float] = {}
+        for task_id in reversed(topo_order):
+            duration = float(task_by_id[task_id].get("estimated_hours", 0))
+            if successors[task_id]:
+                lf_candidate = min(ls_graph[succ] for succ in successors[task_id])
+            else:
+                lf_candidate = computed_project_finish
+
+            hc = task_by_id[task_id].get("hard_constraint_hours")
+            if hc is not None:
+                lf_graph[task_id] = min(lf_candidate, float(hc))
+            else:
+                lf_graph[task_id] = lf_candidate
+
+            ls_graph[task_id] = lf_graph[task_id] - duration
+
+        # Backward pass (reverse topological order relative to anchor_finish)
         ls: dict[Any, float] = {}
         lf: dict[Any, float] = {}
         for task_id in reversed(topo_order):
             duration = float(task_by_id[task_id].get("estimated_hours", 0))
             if successors[task_id]:
-                lf[task_id] = min(ls[succ] for succ in successors[task_id])
+                lf_candidate = min(ls[succ] for succ in successors[task_id])
             else:
-                lf[task_id] = project_finish
+                lf_candidate = anchor_finish
+
+            hc = task_by_id[task_id].get("hard_constraint_hours")
+            if hc is not None:
+                lf[task_id] = min(lf_candidate, float(hc))
+            else:
+                lf[task_id] = lf_candidate
+
             ls[task_id] = lf[task_id] - duration
 
         # Slack and critical path
@@ -156,10 +182,12 @@ class CPAEngine:
         critical_path_ids: list[Any] = []
         for task_id in topo_order:
             tf = round(ls[task_id] - es[task_id], 6)
+            tf_graph = round(ls_graph[task_id] - es[task_id], 6)
             total_float[task_id] = tf
-            if tf == 0.0:
+            if tf <= 0.0 or abs(tf_graph) < 1e-5:
                 critical_path_ids.append(task_id)
 
+        critical_path_set = set(critical_path_ids)
         # Build per-task schedule output
         schedule: dict[Any, dict[str, Any]] = {}
         for task_id in topo_order:
@@ -170,12 +198,24 @@ class CPAEngine:
                 "ls":           round(ls[task_id], 4),
                 "lf":           round(lf[task_id], 4),
                 "total_float":  round(total_float[task_id], 4),
-                "is_critical":  total_float[task_id] == 0.0,
+                "is_critical":  (task_id in critical_path_set) or (total_float[task_id] <= 0.0),
             }
 
+        is_delayed = (deadline_hours is not None and computed_project_finish > float(deadline_hours)) or any(tf < 0.0 for tf in total_float.values())
+        delay_candidates = [0.0]
+        if deadline_hours is not None and computed_project_finish > float(deadline_hours):
+            delay_candidates.append(computed_project_finish - float(deadline_hours))
+        for tf in total_float.values():
+            if tf < 0.0:
+                delay_candidates.append(-tf)
+        delay_hours = round(max(delay_candidates), 4)
+
         return {
-            "project_finish": round(project_finish, 4),
-            "project_finish_workdays": round(project_finish / self.WORK_HOURS_PER_DAY, 4),
+            "project_finish": round(computed_project_finish, 4),
+            "project_finish_workdays": round(computed_project_finish / self.WORK_HOURS_PER_DAY, 4),
+            "deadline_hours": round(float(deadline_hours), 4) if deadline_hours is not None else None,
+            "is_delayed": is_delayed,
+            "delay_hours": delay_hours,
             "schedule_unit": "working_hours",
             "critical_path_task_ids": critical_path_ids,
             "tasks": schedule,

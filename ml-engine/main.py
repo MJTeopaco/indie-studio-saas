@@ -163,6 +163,9 @@ class TaskScheduleInput(BaseModel):
     depends_on: List[Any] = Field(
         default_factory=list, description="List of predecessor task IDs"
     )
+    hard_constraint_hours: Optional[float] = Field(
+        default=None, description="Optional hard constraint offset in hours from project start"
+    )
 
 
 class AssignmentInput(BaseModel):

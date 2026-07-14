@@ -101,11 +101,32 @@ class MLEngineService
             ->get()
             ->groupBy('task_id');
 
-        $payload = $tasks->map(function (Task $task) use ($dependencies): array {
+        $projectStart = $project->start_date ? new \DateTime($project->start_date) : now();
+
+        $payload = $tasks->map(function (Task $task) use ($dependencies, $projectStart): array {
+            $hardConstraintHours = null;
+            if ($task->hard_constraint_date) {
+                try {
+                    $taskDate = new \DateTime($task->hard_constraint_date);
+                    $workdays = 0;
+                    $temp = clone $projectStart;
+                    while ($temp <= $taskDate) {
+                        if ((int) $temp->format('N') < 6) {
+                            $workdays++;
+                        }
+                        $temp->modify('+1 day');
+                    }
+                    $hardConstraintHours = (float) ($workdays * 8.0);
+                } catch (\Exception $e) {
+                    Log::error('Task Hard Constraint calculation failed: '.$e->getMessage());
+                }
+            }
+
             return [
                 'id' => $task->id,
                 'estimated_hours' => (float) $task->estimated_hours,
                 'depends_on' => $dependencies->get($task->id, collect())->pluck('depends_on_task_id')->all(),
+                'hard_constraint_hours' => $hardConstraintHours,
             ];
         })->all();
 
@@ -119,14 +140,14 @@ class MLEngineService
                 // Count business days (Monday-Friday) between start and end date
                 $temp = clone $start;
                 while ($temp <= $end) {
-                    if ((int)$temp->format('N') < 6) {
+                    if ((int) $temp->format('N') < 6) {
                         $workdays++;
                     }
                     $temp->modify('+1 day');
                 }
                 $deadlineHours = (float) ($workdays * 8.0);
             } catch (\Exception $e) {
-                Log::error('CPA Deadline calculation failed: ' . $e->getMessage());
+                Log::error('CPA Deadline calculation failed: '.$e->getMessage());
             }
         }
 

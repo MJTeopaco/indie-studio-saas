@@ -152,6 +152,12 @@ Given a project description or task instruction:
 1. Evaluate if it is a simple, single task (e.g. "update logo", "fix button color"). If so, return a JSON array containing ONLY that single task.
 2. If it is a heavy project/sprint goal, decompose it into a list of concrete development tasks (maximum of 5 most important high-level tasks to save time).
 
+CRITICAL REQUIREMENT FOR DEPENDENCIES (Critical Path Analysis):
+You MUST establish logical, realistic inter-task dependencies using "suggested_depends_on".
+Do NOT return standalone/unconnected tasks unless they are genuinely independent.
+Order tasks chronologically into chained workflow phases (e.g., Requirements/Planning → Architecture/Design → Core Backend Implementation → Frontend & API Integration → QA & Integration Testing).
+For each downstream task, include the 0-based array indices of its prerequisite tasks in "suggested_depends_on" (e.g., Task index 1 depends on [0], Task index 2 depends on [1], Task index 3 depends on [1, 2]).
+
 Estimate focused implementation effort, not calendar time. Use modern AI-assisted
 workflows when appropriate. If the user mentions a date, treat it
 as the overall delivery deadline, never as the duration of an individual task.
