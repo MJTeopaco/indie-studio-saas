@@ -43,6 +43,7 @@ from unittest.mock import patch
 
 from orchestration.intent_parser import parse_task_from_text, decompose_project_into_tasks
 from orchestration.cpa import CPAEngine
+from orchestration.taxonomy import CANONICAL_CLASSIFICATIONS
 
 
 @pytest.fixture(autouse=True)
@@ -84,7 +85,8 @@ class TestIntentParserStubMode:
         result = parse_task_from_text("Some task description")
         assert result.task_difficulty in {"Easy", "Medium", "Hard"}
         assert result.priority in {"Low", "Medium", "High", "Critical"}
-        assert result.task_classification in {
+        assert result.task_classification in CANONICAL_CLASSIFICATIONS
+        assert result.broad_classification in {
             "Feature", "Bug Fix", "Research", "DevOps", "Testing", "Documentation"
         }
 
