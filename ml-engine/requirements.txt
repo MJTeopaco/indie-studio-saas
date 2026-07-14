@@ -29,12 +29,14 @@ jsonpatch==1.33
 jsonpointer==3.1.1
 langchain==1.3.13
 langchain-core==1.4.9
-langchain-ollama==1.1.0
+# langchain-ollama==1.1.0  # replaced by langchain-groq — safe to remove once Ollama is fully retired
 langchain-protocol==0.0.18
 langgraph==1.2.9
 langgraph-checkpoint==4.1.1
 langgraph-prebuilt==1.1.0
 langgraph-sdk==0.4.2
+langchain-groq==1.1.3
+groq==0.37.1
 langsmith==0.10.2
 markdown-it-py==4.2.0
 MarkupSafe==3.0.3
@@ -45,7 +47,8 @@ multidict==6.7.1
 narwhals==2.22.1
 networkx==3.6.1
 numpy==2.4.6
-ollama==0.6.2
+# ollama==0.6.2  # removed — using Groq cloud API instead
+python-dotenv==1.2.2
 orjson==3.11.9
 ormsgpack==1.12.2
 packaging==26.2

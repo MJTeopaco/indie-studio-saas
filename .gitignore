@@ -29,6 +29,7 @@ Thumbs.db
 # Python virtual environment and compilation cache
 /ml-engine/venv/
 /ml-engine/__pycache__/
+/ml-engine/.env
 *.py[cod]
 *$py.class
 

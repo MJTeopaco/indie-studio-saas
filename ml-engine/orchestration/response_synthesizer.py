@@ -216,9 +216,9 @@ def chat_with_project_data(
     llm = get_llm()
     if llm is None:
         return (
-            "AI chat assistant is currently offline (Ollama not detected). "
-            "Please install Ollama from https://ollama.com and run: "
-            "ollama pull llama3.1:8b-instruct"
+            "The AI project assistant is currently unavailable. "
+            "Please ensure GROQ_API_KEY is set in ml-engine/.env and "
+            "that your Groq daily quota has not been exceeded."
         )
 
     from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
