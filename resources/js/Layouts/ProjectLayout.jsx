@@ -3,7 +3,7 @@ import { Link, usePage } from '@inertiajs/react';
 import Sidebar from '@/Components/Sidebar';
 
 export default function ProjectLayout({ auth, project, children }) {
-    const { activeWorkspace } = usePage().props;
+    const { activeWorkspace, canManage, currentUserRole } = usePage().props;
     const user = auth?.user || { name: 'Demo User', role: 'manager' };
     const tenantId = activeWorkspace || 'default';
     const projectTitle = project?.title || project?.name || 'Project Workspace';
@@ -55,7 +55,7 @@ export default function ProjectLayout({ auth, project, children }) {
 
                         {/* Right: RBAC Conditional Button & User Info */}
                         <div className="flex items-center gap-4">
-                            {user.role === 'manager' && (
+                            {canManage && (
                                 <button
                                     type="button"
                                     onClick={() => alert('Assign Members modal coming soon!')}
@@ -90,7 +90,7 @@ export default function ProjectLayout({ auth, project, children }) {
                                         {user.name}
                                     </p>
                                     <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        {user.role || 'Member'}
+                                        {currentUserRole || 'Member'}
                                     </p>
                                 </div>
                             </div>

@@ -19,7 +19,15 @@ class ProjectTaskWorkspaceTest extends TestCase
     {
         parent::setUp();
 
-        $this->actingAs(User::factory()->create());
+        $user = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        \DB::table('studio_members')->insert([
+            'studio_id' => 'test',
+            'user_id' => $user->id,
+            'role' => 'owner',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $this->actingAs($user);
         $this->withoutMiddleware();
         $this->artisan('migrate', ['--path' => 'database/migrations/tenant']);
     }
@@ -129,6 +137,27 @@ class ProjectTaskWorkspaceTest extends TestCase
                 ->where('projects.0.name', 'Landing Page')
                 ->where('projects.0.tasks_count', 1)
                 ->where('projects.1.name', 'Mobile App')
+            );
+    }
+
+    public function test_overview_reports_task_status_counts_from_recorded_tasks(): void
+    {
+        $project = Project::factory()->create(['name' => 'Metrics Project', 'status' => 'planning']);
+        Task::factory()->create(['project_id' => $project->id, 'status' => 'todo']);
+        Task::factory()->create(['project_id' => $project->id, 'status' => 'in_progress']);
+        Task::factory()->create(['project_id' => $project->id, 'status' => 'review']);
+        Task::factory()->create(['project_id' => $project->id, 'status' => 'completed']);
+
+        $this->get(route('tenant.overview', ['tenant' => 'test']))
+            ->assertInertia(fn ($page) => $page
+                ->component('Tenant/Dashboard/Overview')
+                ->has('projects', 1)
+                ->where('projects.0.name', 'Metrics Project')
+                ->where('projects.0.tasks_count', 4)
+                ->where('projects.0.tasks_done', 1)
+                ->where('projects.0.tasks_under_review', 1)
+                ->where('projects.0.tasks_active', 2)
+                ->where('projects.0.computed_status', 'review')
             );
     }
 

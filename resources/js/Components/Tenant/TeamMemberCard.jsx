@@ -4,11 +4,28 @@ import { ChevronRight } from 'lucide-react';
 /**
  * TeamMemberCard — Renders a styled profile card for a team member.
  */
-export default function TeamMemberCard({ member, index, status, badgeClass, department }) {
+export default function TeamMemberCard({ member, index, status, badgeClass, department, onSelect }) {
     const phone = `(${201 + index}) 555-010${index}`;
+    const isClickable = typeof onSelect === 'function';
+    const handleSelect = () => {
+        if (isClickable) {
+            onSelect(member);
+        }
+    };
 
     return (
-        <div className="group rounded-2xl bg-white dark:bg-slate-800/40 border border-gray-200 dark:border-slate-800 p-5 shadow-sm hover:shadow-lg transition-all duration-200 relative flex flex-col justify-between">
+        <div
+            className={`group rounded-2xl bg-white dark:bg-slate-800/40 border border-gray-200 dark:border-slate-800 p-5 shadow-sm transition-all duration-200 relative flex flex-col justify-between ${isClickable ? 'hover:shadow-lg cursor-pointer' : ''}`}
+            role={isClickable ? 'button' : undefined}
+            tabIndex={isClickable ? 0 : undefined}
+            onClick={handleSelect}
+            onKeyDown={isClickable ? (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    handleSelect();
+                }
+            } : undefined}
+        >
             <div>
                 {/* Header avatar & Status badge */}
                 <div className="flex items-center justify-between">

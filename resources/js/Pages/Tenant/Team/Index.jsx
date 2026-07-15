@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import TenantLayout from '@/Layouts/TenantLayout';
 import {
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import TeamMemberCard from '@/Components/Tenant/TeamMemberCard';
 import TeamTimeline from '@/Components/Tenant/TeamTimeline';
+import TeamMemberProfileModal from '@/Components/Tenant/Team/TeamMemberProfileModal';
 
 // Helper to determine department based on position
 const getDepartment = (position) => {
@@ -35,6 +36,7 @@ const getDepartment = (position) => {
 
 const DEPARTMENTS = ['Engineering', 'Product', 'Design', 'QA'];
 const STATUSES = ['Active', 'Remote', 'Part-time'];
+const MEMBERS_PER_PAGE = 4;
 
 const statusStyles = {
     Active: 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50',
@@ -54,6 +56,14 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
     const [selectedDepartment, setSelectedDepartment] = useState('All');
     const [selectedStatus, setSelectedStatus] = useState('All');
     const [filterOpen, setFilterOpen] = useState(false);
+    const [selectedMember, setSelectedMember] = useState(null);
+    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+    const [deptPages, setDeptPages] = useState({ Engineering: 1, Product: 1, Design: 1, QA: 1 });
+
+    useEffect(() => {
+        setDeptPages({ Engineering: 1, Product: 1, Design: 1, QA: 1 });
+    }, [searchQuery, selectedDepartment, selectedStatus]);
+
 
     // Map each member's status and department based on their index/data
     const enrichedMembers = useMemo(() => {
@@ -102,28 +112,28 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
         {
             name: 'Research',
             blocks: [
-                { text: 'About 4 hours', startCol: 1, endCol: 5, assignees: ['AC', 'ML'] },
+                { text: 'About 4 hours', startCol: 1, endCol: 5, assignees: ['AC', 'ML'], status: 'completed' },
             ],
         },
         {
             name: 'Wireframe',
             blocks: [
-                { text: 'About 3 hours', startCol: 2, endCol: 5, assignees: ['MV'] },
-                { text: 'About 6 hours', startCol: 7, endCol: 13, assignees: ['AC', 'ML', 'PM'] },
+                { text: 'About 3 hours', startCol: 2, endCol: 5, assignees: ['MV'], status: 'completed' },
+                { text: 'About 6 hours', startCol: 7, endCol: 13, assignees: ['AC', 'ML', 'PM'], status: 'in_progress' },
             ],
         },
         {
             name: 'UI Design',
             blocks: [
-                { text: 'About 3 hours', startCol: 3, endCol: 6, assignees: ['PM'] },
-                { text: 'About 6 hours', startCol: 7, endCol: 13, assignees: ['AC', 'ML', 'MV', 'PM'] },
+                { text: 'About 3 hours', startCol: 3, endCol: 6, assignees: ['PM'], status: 'in_progress' },
+                { text: 'About 6 hours', startCol: 7, endCol: 13, assignees: ['AC', 'ML', 'MV', 'PM'], status: 'todo' },
             ],
         },
         {
             name: 'Usability Testing',
             blocks: [
-                { text: 'About 4 hours', startCol: 4, endCol: 8, assignees: ['AC', 'MV'] },
-                { text: 'About 3 hours', startCol: 10, endCol: 13, assignees: ['ML'] },
+                { text: 'About 4 hours', startCol: 4, endCol: 8, assignees: ['AC', 'MV'], status: 'todo' },
+                { text: 'About 3 hours', startCol: 10, endCol: 13, assignees: ['ML'], status: 'todo' },
             ],
         },
     ];
@@ -135,6 +145,22 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
         setSelectedDepartment('All');
         setSelectedStatus('All');
     };
+
+    const handleOpenMemberProfile = (member) => {
+        setSelectedMember(member);
+        setIsProfileModalOpen(true);
+    };
+
+    useEffect(() => {
+        if (!selectedMember) {
+            return;
+        }
+
+        const refreshedMember = enrichedMembers.find(member => member.id === selectedMember.id);
+        if (refreshedMember) {
+            setSelectedMember(refreshedMember);
+        }
+    }, [enrichedMembers, selectedMember?.id]);
 
     return (
         <TenantLayout studioName={studioName}>
@@ -333,6 +359,7 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
                                             status={member.status}
                                             badgeClass={member.badgeClass}
                                             department={member.department}
+                                            onSelect={handleOpenMemberProfile}
                                         />
                                     ))}
                                 </div>
@@ -342,6 +369,10 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                 {DEPARTMENTS.map((dept) => {
                                     const deptMembers = groupedMembers[dept] || [];
+                                    const currentPage = deptPages[dept] || 1;
+                                    const totalPages = Math.ceil(deptMembers.length / MEMBERS_PER_PAGE);
+                                    const paginatedMembers = deptMembers.slice((currentPage - 1) * MEMBERS_PER_PAGE, currentPage * MEMBERS_PER_PAGE);
+
                                     return (
                                         <div key={dept} className="bg-gray-100/50 dark:bg-slate-900/30 rounded-2xl p-4 border border-gray-200/50 dark:border-slate-800/50 flex flex-col min-h-[300px]">
                                             <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-200/60 dark:border-slate-800">
@@ -354,12 +385,12 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
                                             </div>
 
                                             <div className="space-y-4 flex-1">
-                                                {deptMembers.length === 0 ? (
+                                                {paginatedMembers.length === 0 ? (
                                                     <div className="flex flex-col items-center justify-center h-full text-center text-gray-400 py-10">
                                                         <span className="text-xs italic">No members</span>
                                                     </div>
                                                 ) : (
-                                                    deptMembers.map((member, idx) => (
+                                                    paginatedMembers.map((member, idx) => (
                                                         <TeamMemberCard
                                                             key={member.id}
                                                             member={member}
@@ -367,10 +398,35 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
                                                             status={member.status}
                                                             badgeClass={member.badgeClass}
                                                             department={member.department}
+                                                            onSelect={handleOpenMemberProfile}
                                                         />
                                                     ))
                                                 )}
                                             </div>
+
+                                            {totalPages > 1 && (
+                                                <div className="flex items-center justify-between border-t border-gray-150/40 dark:border-slate-800/80 pt-3 mt-4">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setDeptPages(prev => ({ ...prev, [dept]: Math.max(1, currentPage - 1) }))}
+                                                        disabled={currentPage === 1}
+                                                        className="px-2 py-1 rounded bg-gray-250 dark:bg-slate-800 text-[10px] font-bold text-gray-700 dark:text-slate-350 hover:bg-gray-300 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed select-none transition-colors"
+                                                    >
+                                                        Prev
+                                                    </button>
+                                                    <span className="text-[10px] text-gray-500 font-mono">
+                                                        {currentPage} / {totalPages}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setDeptPages(prev => ({ ...prev, [dept]: Math.min(totalPages, currentPage + 1) }))}
+                                                        disabled={currentPage === totalPages}
+                                                        className="px-2 py-1 rounded bg-gray-250 dark:bg-slate-800 text-[10px] font-bold text-gray-700 dark:text-slate-350 hover:bg-gray-300 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed select-none transition-colors"
+                                                    >
+                                                        Next
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })}
@@ -414,6 +470,16 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
                     </div>
                 )}
             </div>
+
+            <TeamMemberProfileModal
+                isOpen={isProfileModalOpen}
+                onClose={() => {
+                    setIsProfileModalOpen(false);
+                    setSelectedMember(null);
+                }}
+                member={selectedMember}
+                canManage={canManage}
+            />
         </TenantLayout>
     );
 }

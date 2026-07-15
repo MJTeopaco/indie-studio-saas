@@ -141,7 +141,7 @@ function NavItem({ icon: Icon, label, href = '#', active = false, badge = null, 
 
 export default function Sidebar({ user: propUser, studioName: propStudioName }) {
     const pageProps = usePage().props || {};
-    const { auth, activeWorkspace, workspaceProjects = [] } = pageProps;
+    const { auth, activeWorkspace, workspaceProjects = [], currentUserRole } = pageProps;
     const currentPath = usePage().url || '';
 
     const user = propUser || auth?.user || { name: 'Studio Member', role: 'Project Manager' };
@@ -500,7 +500,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                 {isCollapsed ? (
                     <div className="flex flex-col gap-3 items-center">
                         <div
-                            title={`${user?.name || 'User'} (${user?.role || 'Member'})`}
+                            title={`${user?.name || 'User'} (${currentUserRole || user?.role || 'Member'})`}
                             className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-sm"
                         >
                             {(user?.name || 'U').charAt(0).toUpperCase()}
@@ -525,8 +525,8 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                                 <p className="font-heading text-sm font-semibold text-gray-900 dark:text-slate-200 truncate">
                                     {user?.name || 'Studio Member'}
                                 </p>
-                                <p className="text-xs text-gray-500 dark:text-slate-500 truncate">
-                                    {user?.role || 'Project Manager'}
+                                <p className="text-xs text-gray-500 dark:text-slate-500 truncate uppercase">
+                                    {currentUserRole || user?.role || 'Member'}
                                 </p>
                             </div>
                         </div>

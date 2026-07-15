@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Head, usePage, Link } from '@inertiajs/react';
+import { Head, usePage, Link, router } from '@inertiajs/react';
 import TenantLayout from '@/Layouts/TenantLayout';
 import BoardView    from '@/Components/Tenant/Tasks/BoardView';
 import ListView     from '@/Components/Tenant/Tasks/ListView';
 import TimelineView from '@/Components/Tenant/Tasks/TimelineView';
 import DueView      from '@/Components/Tenant/Tasks/DueView';
+import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
 
 // ── Inline Icons ──────────────────────────────────────────────────────────────
 const PlusIcon = () => (
@@ -60,6 +61,49 @@ export default function TasksIndex({ studio, projects = [], tasks = {} }) {
     // Search query
     const [searchQuery, setSearchQuery] = useState('');
 
+    // Modal states for updating task status
+    const [selectedTask, setSelectedTask] = useState(null);
+    const [taskModalOpen, setTaskModalOpen] = useState(false);
+
+    // Local tasks map state for optimistic UI updates
+    const [localTasksMap, setLocalTasksMap] = useState(tasks);
+
+    useEffect(() => {
+        setLocalTasksMap(tasks);
+    }, [tasks]);
+
+    const handleTaskClick = (task) => {
+        setSelectedTask(task);
+        setTaskModalOpen(true);
+    };
+
+    const handleStatusChange = (task, newStatus) => {
+        // Optimistically update status locally
+        setLocalTasksMap(prev => {
+            const copy = { ...prev };
+            const projectList = copy[task.project_id] || [];
+            copy[task.project_id] = projectList.map(t => t.id === task.id ? { ...t, status: newStatus } : t);
+            return copy;
+        });
+
+        router.patch(
+            route('tenant.projects.tasks.update', {
+                tenant: activeWorkspace,
+                project: task.project_id,
+                task: task.id
+            }),
+            { status: newStatus },
+            {
+                preserveScroll: true,
+                onError: (errors) => {
+                    console.error('Failed to update status', errors);
+                    // Rollback on error
+                    setLocalTasksMap(tasks);
+                }
+            }
+        );
+    };
+
     // Initialize selected project ID on mount or projects prop change
     useEffect(() => {
         if (projects.length > 0 && selectedProjectId === null) {
@@ -70,7 +114,7 @@ export default function TasksIndex({ studio, projects = [], tasks = {} }) {
     const selectedProject = projects.find(p => p.id === selectedProjectId) || projects[0];
 
     // Filter tasks for the selected project
-    const rawProjectTasks = selectedProjectId ? (tasks[selectedProjectId] || []) : [];
+    const rawProjectTasks = selectedProjectId ? (localTasksMap[selectedProjectId] || []) : [];
     const projectTasks = rawProjectTasks.filter(task =>
         searchQuery
             ? task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -206,10 +250,10 @@ export default function TasksIndex({ studio, projects = [], tasks = {} }) {
                                 </div>
                             ) : (
                                 <>
-                                    {activeView === 'board'    && <BoardView    tasks={projectTasks} />}
-                                    {activeView === 'list'     && <ListView     tasks={projectTasks} />}
-                                    {activeView === 'timeline' && <TimelineView tasks={projectTasks} />}
-                                    {activeView === 'due'      && <DueView      tasks={projectTasks} />}
+                                    {activeView === 'board'    && <BoardView    tasks={projectTasks} onTaskClick={handleTaskClick} onStatusChange={handleStatusChange} />}
+                                    {activeView === 'list'     && <ListView     tasks={projectTasks} onTaskClick={handleTaskClick} />}
+                                    {activeView === 'timeline' && <TimelineView tasks={projectTasks} onTaskClick={handleTaskClick} />}
+                                    {activeView === 'due'      && <DueView      tasks={projectTasks} onTaskClick={handleTaskClick} />}
                                 </>
                             )}
                         </div>
@@ -220,6 +264,17 @@ export default function TasksIndex({ studio, projects = [], tasks = {} }) {
             {/* Close project dropdown on outside click */}
             {projectDropdownOpen && (
                 <div className="fixed inset-0 z-40" onClick={() => setProjectDropdownOpen(false)} />
+            )}
+
+            {/* Modal for updating and completing a task (accessible to both managers and members) */}
+            {taskModalOpen && selectedTask && (
+                <ManualTaskModal
+                    isOpen={taskModalOpen}
+                    onClose={() => { setTaskModalOpen(false); setSelectedTask(null); }}
+                    project={projects.find(p => p.id === selectedTask.project_id) || selectedProject}
+                    editingTask={selectedTask}
+                    tenantId={activeWorkspace}
+                />
             )}
         </TenantLayout>
     );

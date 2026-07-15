@@ -215,6 +215,23 @@ class MLEngineIntegrationController extends Controller
      */
     public function assignTask(Request $request, $task, $routeTask = null)
     {
+        $user = auth()->user();
+        $isManager = false;
+        if ($user && $user->role === \App\Models\User::ROLE_ADMIN) {
+            $isManager = true;
+        } else {
+            $member = \DB::connection(config('tenancy.database.central_connection', 'central'))->table('studio_members')
+                ->where('studio_id', tenant('id'))
+                ->where('user_id', $user->id)
+                ->first();
+            $role = $member ? $member->role : 'member';
+            $isManager = in_array($role, ['owner', 'leader', 'manager']);
+        }
+
+        if (!$isManager) {
+            abort(403, 'Unauthorized. Only studio managers can assign tasks.');
+        }
+
         $task = $routeTask ?? $task;
         $task = Task::findOrFail($task);
         $centralConn = config('tenancy.database.central_connection', 'mysql');

@@ -34,16 +34,17 @@ const PRIORITY_DOT = {
 const STATUS_MAP = {
     todo:        { label: 'To Do',       cls: 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300' },
     in_progress: { label: 'In Progress', cls: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' },
+    review:      { label: 'In Review',   cls: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' },
     in_review:   { label: 'In Review',   cls: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' },
     completed:   { label: 'Completed',   cls: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' },
 };
 
 // ── Task Row ──────────────────────────────────────────────────────────────────
-function TaskRow({ task, isOverdue }) {
+function TaskRow({ task, isOverdue, onClick }) {
     const diff = daysDiff(task.dueDate);
     const status = STATUS_MAP[task.status] || STATUS_MAP.todo;
     return (
-        <div className={`flex items-center gap-4 px-5 py-3.5 border-b border-gray-50 dark:border-slate-800/30 hover:bg-gray-50/60 dark:hover:bg-slate-800/20 transition-colors ${isOverdue ? 'border-l-2 border-l-rose-400' : ''}`}>
+        <div onClick={onClick} className={`flex items-center gap-4 px-5 py-3.5 border-b border-gray-50 dark:border-slate-800/30 hover:bg-gray-50/60 dark:hover:bg-slate-800/20 transition-colors cursor-pointer ${isOverdue ? 'border-l-2 border-l-rose-400' : ''}`}>
             {/* Priority dot */}
             <span className={`w-2 h-2 rounded-full shrink-0 ${PRIORITY_DOT[task.priority] || PRIORITY_DOT.MEDIUM}`} />
 
@@ -79,7 +80,7 @@ function TaskRow({ task, isOverdue }) {
 }
 
 // ── Section ───────────────────────────────────────────────────────────────────
-function DueSection({ title, tasks, accent, isOverdue = false }) {
+function DueSection({ title, tasks, accent, isOverdue = false, onTaskClick }) {
     if (!tasks.length) return null;
     return (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
@@ -92,14 +93,14 @@ function DueSection({ title, tasks, accent, isOverdue = false }) {
             </div>
             {/* Rows */}
             <div>
-                {tasks.map(task => <TaskRow key={task.id} task={task} isOverdue={isOverdue} />)}
+                {tasks.map(task => <TaskRow key={task.id} task={task} isOverdue={isOverdue} onClick={() => onTaskClick?.(task)} />)}
             </div>
         </div>
     );
 }
 
 // ── DueView ───────────────────────────────────────────────────────────────────
-export default function DueView({ tasks = [] }) {
+export default function DueView({ tasks = [], onTaskClick }) {
     const overdue   = tasks.filter(t => { const d = daysDiff(t.dueDate); return d !== null && d < 0 && t.status !== 'completed'; });
     const today     = tasks.filter(t => { const d = daysDiff(t.dueDate); return d !== null && d === 0 && t.status !== 'completed'; });
     const thisWeek  = tasks.filter(t => { const d = daysDiff(t.dueDate); return d !== null && d > 0 && d <= 7 && t.status !== 'completed'; });
@@ -132,31 +133,37 @@ export default function DueView({ tasks = [] }) {
                 tasks={overdue}
                 accent="bg-rose-50/60 dark:bg-rose-900/10 border-l-4 border-l-rose-500"
                 isOverdue
+                onTaskClick={onTaskClick}
             />
             <DueSection
                 title="🔥 Due Today"
                 tasks={today}
                 accent="bg-amber-50/60 dark:bg-amber-900/10 border-l-4 border-l-amber-500"
+                onTaskClick={onTaskClick}
             />
             <DueSection
                 title="📅 Due This Week"
                 tasks={thisWeek}
                 accent="bg-indigo-50/40 dark:bg-indigo-900/10 border-l-4 border-l-indigo-400"
+                onTaskClick={onTaskClick}
             />
             <DueSection
                 title="🗓 Upcoming"
                 tasks={upcoming}
                 accent="bg-gray-50/60 dark:bg-slate-800/20 border-l-4 border-l-gray-300 dark:border-l-slate-600"
+                onTaskClick={onTaskClick}
             />
             <DueSection
                 title="📋 No Due Date"
                 tasks={noDue}
                 accent="bg-gray-50/40 dark:bg-slate-800/10 border-l-4 border-l-gray-200 dark:border-l-slate-700"
+                onTaskClick={onTaskClick}
             />
             <DueSection
                 title="✅ Completed"
                 tasks={completed}
                 accent="bg-emerald-50/40 dark:bg-emerald-900/10 border-l-4 border-l-emerald-400"
+                onTaskClick={onTaskClick}
             />
         </div>
     );

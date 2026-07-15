@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Head } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import TenantLayout  from '@/Layouts/TenantLayout';
 import DayPanel      from '@/Components/Tenant/Schedule/DayPanel';
 import CalendarGrid  from '@/Components/Tenant/Schedule/CalendarGrid';
 import WeekGrid      from '@/Components/Tenant/Schedule/WeekGrid';
+import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const ChevronIcon = ({ dir }) => (
@@ -88,6 +89,11 @@ function addWeeks(date, n) {
     d.setDate(d.getDate() + n * 7);
     return d;
 }
+function addDays(date, n) {
+    const d = new Date(date);
+    d.setDate(d.getDate() + n);
+    return d;
+}
 
 // Helper: Derive calendar date from project start date and working hours
 function deriveCalendarDate(startDateStr, hoursOffset) {
@@ -104,7 +110,8 @@ function deriveCalendarDate(startDateStr, hoursOffset) {
 }
 
 // ── Index page ────────────────────────────────────────────────────────────────
-export default function ScheduleIndex({ tasks = [], events = [], studio }) {
+export default function ScheduleIndex({ tasks = [], events = [], studio, projects = [] }) {
+    const { activeWorkspace } = usePage().props;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -112,19 +119,30 @@ export default function ScheduleIndex({ tasks = [], events = [], studio }) {
     const [currentDate,  setCurrentDate]  = useState(new Date(today));
     const [selectedDate, setSelectedDate] = useState(new Date(today));
 
-    const safeTasks = Array.isArray(tasks) && tasks.length > 0 ? tasks : ALL_TASKS;
-    const safeEvents = Array.isArray(events) && events.length > 0 ? events : ALL_EVENTS;
+    // Modal states for updating task status
+    const [selectedTask, setSelectedTask] = useState(null);
+    const [taskModalOpen, setTaskModalOpen] = useState(false);
+
+    const handleTaskClick = (task) => {
+        setSelectedTask(task);
+        setTaskModalOpen(true);
+    };
+
+    const safeTasks = Array.isArray(tasks) ? tasks : [];
+    const safeEvents = Array.isArray(events) ? events : [];
 
     // Derived calendar position
     const calYear  = currentDate.getFullYear();
     const calMonth = currentDate.getMonth();
     const weekStart = getMondayOfWeek(currentDate);
 
-    // Group tasks by their date (hard_constraint_date > derived EF > dueDate)
+    // Group tasks by their assignment date first, then schedule/deadline dates.
     const tasksByDate = useMemo(() => {
         const map = {};
         safeTasks.forEach(t => {
-            const dateKey = t.hard_constraint_date 
+            const dateKey = t.assigned_at
+                ? t.assigned_at.slice(0, 10)
+                : t.hard_constraint_date
                 ? t.hard_constraint_date.split('T')[0]
                 : (t.ef !== null && t.ef !== undefined && (t.project?.start_date || studio?.start_date)
                     ? deriveCalendarDate(t.project?.start_date || studio?.start_date, t.ef)
@@ -166,11 +184,13 @@ export default function ScheduleIndex({ tasks = [], events = [], studio }) {
     // Navigation
     const goToPrev = () => {
         if (activeView === 'Month') setCurrentDate(d => addMonths(d, -1));
-        else setCurrentDate(d => addWeeks(d, -1));
+        else if (activeView === 'Week') setCurrentDate(d => addWeeks(d, -1));
+        else setCurrentDate(d => addDays(d, -1));
     };
     const goToNext = () => {
         if (activeView === 'Month') setCurrentDate(d => addMonths(d, 1));
-        else setCurrentDate(d => addWeeks(d, 1));
+        else if (activeView === 'Week') setCurrentDate(d => addWeeks(d, 1));
+        else setCurrentDate(d => addDays(d, 1));
     };
     const goToToday = () => {
         setCurrentDate(new Date(today));
@@ -180,7 +200,9 @@ export default function ScheduleIndex({ tasks = [], events = [], studio }) {
     // Header label
     const headerLabel = activeView === 'Month'
         ? new Date(calYear, calMonth, 1).toLocaleString('default', { month: 'long', year: 'numeric' })
-        : `${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(weekStart.getTime() + 6 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+        : activeView === 'Week'
+        ? `${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(weekStart.getTime() + 6 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+        : currentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
     return (
         <TenantLayout>
@@ -266,6 +288,7 @@ export default function ScheduleIndex({ tasks = [], events = [], studio }) {
                         events={selectedEvents}
                         allTaskDates={allTaskDates}
                         allEventDates={allEventDates}
+                        onTaskClick={handleTaskClick}
                     />
 
                     {/* RIGHT — Calendar view */}
@@ -291,16 +314,28 @@ export default function ScheduleIndex({ tasks = [], events = [], studio }) {
                         )}
                         {activeView === 'Day' && (
                             <WeekGrid
-                                weekStart={selectedDate}
+                                weekStart={currentDate}
                                 selectedDate={selectedDate}
                                 onSelectDate={handleSelectDate}
                                 tasksByDate={tasksByDate}
                                 eventsByDate={eventsByDate}
+                                isDayView={true}
                             />
                         )}
                     </div>
                 </div>
             </div>
+
+            {/* Modal for updating and completing a task (accessible to both managers and members) */}
+            {taskModalOpen && selectedTask && (
+                <ManualTaskModal
+                    isOpen={taskModalOpen}
+                    onClose={() => { setTaskModalOpen(false); setSelectedTask(null); }}
+                    project={projects.find(p => p.id === selectedTask.project_id) || { id: selectedTask.project_id, name: selectedTask.project_name || 'Project' }}
+                    editingTask={selectedTask}
+                    tenantId={activeWorkspace}
+                />
+            )}
         </TenantLayout>
     );
 }

@@ -49,6 +49,7 @@ class Task extends Model
             'estimated_hours' => 'float',
             'days_until_deadline' => 'integer',
             'hard_constraint_date' => 'date',
+            'schedule_computed_at' => 'datetime',
         ];
     }
 
