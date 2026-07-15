@@ -9,6 +9,7 @@ use App\Http\Controllers\TenantProjectController;
 use App\Http\Controllers\TenantTeamController;
 use App\Http\Controllers\TenantTaskController;
 use App\Http\Controllers\TenantOverviewController;
+use App\Http\Controllers\TenantDocsController;
 use Illuminate\Support\Facades\Route;
 use Stancl\Tenancy\Middleware\InitializeTenancyByPath;
 
@@ -72,13 +73,9 @@ Route::prefix('/studio/{tenant}')->middleware([
         ]);
     })->name('tenant.settings');
 
-    Route::get('/docs', function () {
-        return \Inertia\Inertia::render('Tenant/Placeholder', [
-            'title' => 'Developer Documentation',
-            'description' => 'Read StudioSprint developer handbook, internal platform architecture specs, and division onboarding playbooks.',
-            'status' => 'V1.0 Documentation Published'
-        ]);
-    })->name('tenant.docs');
+    Route::get('/docs', [TenantDocsController::class, 'index'])->name('tenant.docs');
+    Route::post('/docs/archive', [TenantDocsController::class, 'archive'])->name('tenant.docs.archive');
+    Route::delete('/docs/archive/{report}', [TenantDocsController::class, 'deleteReport'])->name('tenant.docs.archive.delete');
 
     // Project Task Bulk Save Route
     Route::post('/projects/{project}/tasks/bulk', [TenantProjectController::class, 'storeBulkTasks'])

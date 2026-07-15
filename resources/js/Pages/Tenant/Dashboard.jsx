@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import axios from 'axios';
 import TenantLayout from '@/Layouts/TenantLayout';
 import RightSidebar from '@/Components/Tenant/Projects/RightSidebar';
@@ -51,6 +51,7 @@ function suggestedProjectName(prompt) {
 }
 
 export default function TenantDashboard({ studio, projects = [], activeTasks = [], skills = [], positions = [], teamMembers = [] }) {
+    const { canManage } = usePage().props;
     const studioName = studio?.name || 'Pixel Play Studio';
 
     const [prompt, setPrompt] = useState('');
@@ -99,6 +100,10 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
             const controller = new AbortController();
             abortRef.current = controller;
             if (isNewProjectRequest(trimmedPrompt)) {
+                if (!canManage) {
+                    addAssistantMessage('Only studio managers are authorized to create projects and plans.');
+                    return;
+                }
                 setGeneration({ stage: 'plan', message: 'Creating an editable project plan…', pct: 45 });
                 const { data } = await axios.post(route('tenant.workspace.decompose', { tenant: studio.id }), {
                     description: planningPrompt,
@@ -132,6 +137,11 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
 
             if (!selectedProjectId) {
                 addAssistantMessage('To create a task plan, please select the project it belongs to using the menu below.');
+                return;
+            }
+
+            if (!canManage) {
+                addAssistantMessage('Only studio managers are authorized to plan and create tasks.');
                 return;
             }
 
@@ -203,9 +213,13 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                                         <h2 className="font-heading text-3xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100 sm:text-4xl lg:text-5xl">Welcome to {studioName}</h2>
                                         <p className="mx-auto max-w-xl text-sm text-gray-600 dark:text-gray-400 sm:text-base">Get started by creating a task or let the StudioSprint AI orchestrate your studio sprint.</p>
                                     </div>
-                                    <div className="mx-auto mt-10 grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
-                                        <QuickActionCard title="Create Task" description="Define task requirements and deadlines." icon={CheckSquare} badgeColor="brand" onClick={() => handleQuickAction('Create Task')} />
-                                        <QuickActionCard title="Run GNN Match" description="Recommend optimal developers based on GNN model." icon={Cpu} badgeColor="emerald" onClick={() => handleQuickAction('Run GNN Match')} />
+                                    <div className={`mx-auto mt-10 grid max-w-2xl grid-cols-1 gap-4 ${canManage ? 'sm:grid-cols-2' : 'sm:grid-cols-2'}`}>
+                                        {canManage && (
+                                            <>
+                                                <QuickActionCard title="Create Task" description="Define task requirements and deadlines." icon={CheckSquare} badgeColor="brand" onClick={() => handleQuickAction('Create Task')} />
+                                                <QuickActionCard title="Run GNN Match" description="Recommend optimal developers based on GNN model." icon={Cpu} badgeColor="emerald" onClick={() => handleQuickAction('Run GNN Match')} />
+                                            </>
+                                        )}
                                         <QuickActionCard title="View Timeline" description="Explore interactive roadmaps and sprint milestones." icon={Calendar} badgeColor="sky" onClick={() => handleQuickAction('View Timeline')} />
                                         <QuickActionCard title="Manage Team" description="Assign developers and configure permission roles." icon={Users} badgeColor="purple" onClick={() => handleQuickAction('Manage Team')} />
                                     </div>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { usePage } from '@inertiajs/react';
 import {
     MoreHorizontal,
     Sparkles,
@@ -144,6 +145,7 @@ function TaskSidebarCard({ task }) {
  * Modern, minimalist, scrollable feed of sprint tasks for StudioSprint Project Workspace.
  */
 export default function RightSidebar({ tasks = [], onDraftNewTask }) {
+    const { canManage } = usePage().props;
     const handleDraftNewTask = () => {
         if (onDraftNewTask) {
             onDraftNewTask();
@@ -172,7 +174,7 @@ export default function RightSidebar({ tasks = [], onDraftNewTask }) {
             {/* Scrollable List Container */}
             <div className="flex-1 overflow-y-auto px-6 pt-3 pb-6 space-y-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 {/* Pinned "Draft New Task" Card */}
-                <PinnedActionCard onDraftNewTask={handleDraftNewTask} />
+                {canManage && <PinnedActionCard onDraftNewTask={handleDraftNewTask} />}
 
                 {/* Task Cards or Empty State */}
                 {tasks.length > 0 ? (

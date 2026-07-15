@@ -14,6 +14,25 @@ use Inertia\Inertia;
 
 class TenantProjectController extends Controller
 {
+    private function authorizeManager()
+    {
+        $user = auth()->user();
+        if ($user && $user->role === \App\Models\User::ROLE_ADMIN) {
+            return;
+        }
+
+        $member = \DB::connection('pgsql')->table('studio_members')
+            ->where('studio_id', tenant('id'))
+            ->where('user_id', $user->id)
+            ->first();
+
+        $role = $member ? $member->role : 'member';
+
+        if (!in_array($role, ['owner', 'leader', 'manager'])) {
+            abort(403, 'Unauthorized action. Only studio managers can perform this task.');
+        }
+    }
+
     /**
      * Display the Studio Projects listing page.
      */
@@ -137,6 +156,7 @@ class TenantProjectController extends Controller
      */
     public function storeBulkTasks(Request $request, $project, $routeProject = null)
     {
+        $this->authorizeManager();
         $project = $routeProject ?? $project;
         $validated = $request->validate([
             'tasks' => 'required|array',
@@ -236,6 +256,7 @@ class TenantProjectController extends Controller
      */
     public function storeTask(Request $request, $project, $routeProject = null)
     {
+        $this->authorizeManager();
         $project = $routeProject ?? $project;
         $validated = $request->validate([
             'title' => 'required|string|max:255',
@@ -277,6 +298,20 @@ class TenantProjectController extends Controller
 
             $this->syncTaskDependencies($task, $validated['depends_on'] ?? []);
 
+            if (!empty($validated['assigned_user_id'])) {
+                DB::table('assignments')->insert([
+                    'task_id' => $task->id,
+                    'employee_user_id' => $validated['assigned_user_id'],
+                    'match_fit_score' => null,
+                    'assigned_by' => 'manual',
+                    'match_source' => 'manual',
+                    'status' => 'active',
+                    'assigned_at' => now(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
             return $task;
         });
 
@@ -306,30 +341,79 @@ class TenantProjectController extends Controller
 
         abort_unless($taskModel->project_id === $projectModel->id, 404);
 
-        $validated = $request->validate([
-            'title' => 'sometimes|required|string|max:255',
-            'description' => 'nullable|string',
-            'assigned_user_id' => 'nullable|integer',
-            'estimated_hours' => 'sometimes|required|numeric|min:0',
-            'hard_constraint_date' => 'nullable|date',
-            'priority' => 'sometimes|required|string|in:Low,Medium,High,Critical',
-            'status' => 'sometimes|required|string|in:todo,in_progress,review,completed',
-            'depends_on' => 'sometimes|array',
-            'depends_on.*' => 'integer',
-            'task_classification' => 'nullable|string|max:255',
-            'required_position' => 'nullable|string|max:255',
-            'minimum_experience_years' => 'nullable|numeric|min:0',
-            'task_difficulty' => 'nullable|string|in:Easy,Medium,Hard',
-            'target_macro_domains' => 'nullable|array',
-            'target_macro_domains.*' => 'integer',
-            'required_skills' => 'nullable|array',
-        ]);
+        $user = auth()->user();
+        $isManager = false;
+        if ($user && $user->role === \App\Models\User::ROLE_ADMIN) {
+            $isManager = true;
+        } else {
+            $member = \DB::connection('pgsql')->table('studio_members')
+                ->where('studio_id', tenant('id'))
+                ->where('user_id', $user->id)
+                ->first();
+            $role = $member ? $member->role : 'member';
+            $isManager = in_array($role, ['owner', 'leader', 'manager']);
+        }
 
-        DB::transaction(function () use ($taskModel, $validated): void {
+        if (!$isManager) {
+            // Check if they tried to update any field other than 'status'
+            $modifiedFields = array_keys($request->except(['status', '_method', '_token']));
+            if (!empty($modifiedFields)) {
+                abort(403, 'Unauthorized. Members can only update task status.');
+            }
+
+            // Ensure task is assigned to them
+            if ((int) $taskModel->assigned_user_id !== (int) $user->id) {
+                abort(403, 'Unauthorized. You can only update tasks assigned to you.');
+            }
+
+            $validated = $request->validate([
+                'status' => 'required|string|in:todo,in_progress,review,completed',
+            ]);
+        } else {
+            $validated = $request->validate([
+                'title' => 'sometimes|required|string|max:255',
+                'description' => 'nullable|string',
+                'assigned_user_id' => 'nullable|integer',
+                'estimated_hours' => 'sometimes|required|numeric|min:0',
+                'hard_constraint_date' => 'nullable|date',
+                'priority' => 'sometimes|required|string|in:Low,Medium,High,Critical',
+                'status' => 'sometimes|required|string|in:todo,in_progress,review,completed',
+                'depends_on' => 'sometimes|array',
+                'depends_on.*' => 'integer',
+                'task_classification' => 'nullable|string|max:255',
+                'required_position' => 'nullable|string|max:255',
+                'minimum_experience_years' => 'nullable|numeric|min:0',
+                'task_difficulty' => 'nullable|string|in:Easy,Medium,Hard',
+                'target_macro_domains' => 'nullable|array',
+                'target_macro_domains.*' => 'integer',
+                'required_skills' => 'nullable|array',
+            ]);
+        }
+
+        $oldAssignedId = $taskModel->assigned_user_id;
+
+        DB::transaction(function () use ($taskModel, $validated, $oldAssignedId): void {
             $taskModel->update(collect($validated)->except('depends_on')->all());
 
             if (array_key_exists('depends_on', $validated)) {
                 $this->syncTaskDependencies($taskModel, $validated['depends_on']);
+            }
+
+            if (array_key_exists('assigned_user_id', $validated) && (int) $validated['assigned_user_id'] !== (int) $oldAssignedId) {
+                DB::table('assignments')->where('task_id', $taskModel->id)->where('status', 'active')->update(['status' => 'cancelled']);
+                if ($validated['assigned_user_id']) {
+                    DB::table('assignments')->insert([
+                        'task_id' => $taskModel->id,
+                        'employee_user_id' => $validated['assigned_user_id'],
+                        'match_fit_score' => null,
+                        'assigned_by' => 'manual',
+                        'match_source' => 'manual',
+                        'status' => 'active',
+                        'assigned_at' => now(),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
             }
         });
 

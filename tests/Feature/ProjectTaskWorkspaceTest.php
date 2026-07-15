@@ -132,6 +132,27 @@ class ProjectTaskWorkspaceTest extends TestCase
             );
     }
 
+    public function test_overview_reports_task_status_counts_from_recorded_tasks(): void
+    {
+        $project = Project::factory()->create(['name' => 'Metrics Project', 'status' => 'planning']);
+        Task::factory()->create(['project_id' => $project->id, 'status' => 'todo']);
+        Task::factory()->create(['project_id' => $project->id, 'status' => 'in_progress']);
+        Task::factory()->create(['project_id' => $project->id, 'status' => 'review']);
+        Task::factory()->create(['project_id' => $project->id, 'status' => 'completed']);
+
+        $this->get(route('tenant.overview', ['tenant' => 'test']))
+            ->assertInertia(fn ($page) => $page
+                ->component('Tenant/Dashboard/Overview')
+                ->has('projects', 1)
+                ->where('projects.0.name', 'Metrics Project')
+                ->where('projects.0.tasks_count', 4)
+                ->where('projects.0.tasks_done', 1)
+                ->where('projects.0.tasks_under_review', 1)
+                ->where('projects.0.tasks_active', 2)
+                ->where('projects.0.computed_status', 'review')
+            );
+    }
+
     public function test_new_project_is_included_in_the_next_projects_response(): void
     {
         $this->post(route('tenant.projects.store', ['tenant' => 'test']), [

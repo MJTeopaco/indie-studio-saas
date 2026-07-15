@@ -37,6 +37,32 @@ class HandleInertiaRequests extends Middleware
             // Provides the active studio UUID to all React pages.
             // null on central pages; UUID string on /studio/{tenant}/... pages.
             'activeWorkspace' => tenant('id'),
+
+            // Share current workspace role and manage permission status
+            'currentUserRole' => function () use ($request) {
+                if (!tenant() || !$request->user()) {
+                    return null;
+                }
+                $member = \DB::connection('pgsql')->table('studio_members')
+                    ->where('studio_id', tenant('id'))
+                    ->where('user_id', $request->user()->id)
+                    ->first();
+                return $member ? $member->role : 'member';
+            },
+            'canManage' => function () use ($request) {
+                if (!tenant() || !$request->user()) {
+                    return false;
+                }
+                if ($request->user()->role === \App\Models\User::ROLE_ADMIN) {
+                    return true;
+                }
+                $member = \DB::connection('pgsql')->table('studio_members')
+                    ->where('studio_id', tenant('id'))
+                    ->where('user_id', $request->user()->id)
+                    ->first();
+                $role = $member ? $member->role : 'member';
+                return in_array($role, ['owner', 'leader', 'manager']);
+            },
             
             // Share the list of projects for the current workspace
             'workspaceProjects' => function () {

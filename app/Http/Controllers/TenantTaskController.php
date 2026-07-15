@@ -13,6 +13,19 @@ class TenantTaskController extends Controller
     public function index(Request $request)
     {
         $studio = Studio::find(tenant('id'));
+        $user = auth()->user();
+        
+        $isManager = false;
+        if ($user && $user->role === \App\Models\User::ROLE_ADMIN) {
+            $isManager = true;
+        } else {
+            $member = \DB::connection('pgsql')->table('studio_members')
+                ->where('studio_id', tenant('id'))
+                ->where('user_id', $user->id)
+                ->first();
+            $role = $member ? $member->role : 'member';
+            $isManager = in_array($role, ['owner', 'leader', 'manager']);
+        }
         
         $projects = Project::latest()->get()->map(fn (Project $project) => [
             'id' => $project->id,
@@ -22,9 +35,14 @@ class TenantTaskController extends Controller
 
         $tasks = [];
         foreach ($projects as $project) {
-            $tasks[$project['id']] = Task::with('assignee')
-                ->where('project_id', $project['id'])
-                ->get()
+            $query = Task::with('assignee')
+                ->where('project_id', $project['id']);
+
+            if (!$isManager) {
+                $query->where('assigned_user_id', $user->id);
+            }
+
+            $tasks[$project['id']] = $query->get()
                 ->map(fn (Task $task) => [
                     'id' => $task->id,
                     'project_id' => $task->project_id,
@@ -38,6 +56,7 @@ class TenantTaskController extends Controller
                     'days_until_deadline' => $task->days_until_deadline,
                     'status' => $task->status,
                     'assignee' => $task->assignee ? $task->assignee->name : null,
+                    'assigned_user_id' => $task->assigned_user_id,
                     'dueDate' => $task->days_until_deadline !== null ? now()->addDays($task->days_until_deadline)->toDateString() : null,
                     'startDate' => now()->toDateString(),
                 ])->all();

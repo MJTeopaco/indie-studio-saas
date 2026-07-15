@@ -140,11 +140,29 @@ export default function Overview({ projects: propProjects = [], stats: propStats
 
     // derive metrics from real projects
     const totalTasks   = projects.reduce((a, p) => a + (p.tasks_count ?? 0), 0);
-    const totalMembers = projects.reduce((a, p) => a + (p.members_count ?? 0), 0);
+    
+    // Count unique assignees dynamically across all projects for real-time overview members count
+    const totalMembers = useMemo(() => {
+        const names = new Set();
+        projects.forEach(p => {
+            (p.tasks || []).forEach(t => {
+                if (t.assignee && t.assignee.name) {
+                    names.add(t.assignee.name);
+                }
+            });
+        });
+        return names.size;
+    }, [projects]);
+
     const activeCount  = projects.filter(p => p.status === 'active').length;
-    const doneCount    = projects.filter(p => p.status === 'completed').length;
-    const reviewCount  = projects.filter(p => p.status === 'review').length;
-    const completionPct = projects.length > 0 ? Math.round((doneCount / projects.length) * 100) : 0;
+
+    // Real-time task status counts
+    const activeTasksCount  = projects.reduce((a, p) => a + (p.tasks_active ?? 0), 0);
+    const doneTasksCount    = projects.reduce((a, p) => a + (p.tasks_done ?? 0), 0);
+    const reviewTasksCount  = projects.reduce((a, p) => a + (p.tasks_under_review ?? 0), 0);
+
+    const taskCompletionPct = totalTasks > 0 ? Math.round((doneTasksCount / totalTasks) * 100) : 0;
+
 
     // Filter states
     const [filterOpen,     setFilterOpen]     = useState(false);
@@ -291,9 +309,9 @@ export default function Overview({ projects: propProjects = [], stats: propStats
                             {totalTasks > 0 ? (
                                 <div className="space-y-2.5">
                                     {[
-                                        { label: 'On Going',     count: activeCount,  color: 'bg-indigo-500', pct: projects.length > 0 ? Math.round((activeCount / projects.length) * 100) : 0 },
-                                        { label: 'Under Review', count: reviewCount,  color: 'bg-amber-500',  pct: projects.length > 0 ? Math.round((reviewCount / projects.length) * 100) : 0 },
-                                        { label: 'Finished',     count: doneCount,    color: 'bg-emerald-500', pct: completionPct },
+                                        { label: 'On Going',     count: activeTasksCount,  color: 'bg-indigo-500', pct: totalTasks > 0 ? Math.round((activeTasksCount / totalTasks) * 100) : 0 },
+                                        { label: 'Under Review', count: reviewTasksCount,  color: 'bg-amber-500',  pct: totalTasks > 0 ? Math.round((reviewTasksCount / totalTasks) * 100) : 0 },
+                                        { label: 'Finished',     count: doneTasksCount,    color: 'bg-emerald-500', pct: taskCompletionPct },
                                     ].map(item => (
                                         <div key={item.label} className="flex items-center gap-3">
                                             <span className="text-[11px] text-gray-500 dark:text-slate-400 w-24 shrink-0">{item.label}</span>
@@ -332,7 +350,7 @@ export default function Overview({ projects: propProjects = [], stats: propStats
                                 <div>
                                     <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest">Completion Rate</p>
                                     <p className="font-heading text-4xl font-extrabold text-gray-900 dark:text-slate-100 mt-1 leading-none">
-                                        {projects.length > 0 ? `${completionPct}%` : '—'}
+                                        {totalTasks > 0 ? `${taskCompletionPct}%` : '—'}
                                     </p>
                                 </div>
                                 <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center border border-emerald-100 dark:border-emerald-800/40">
@@ -342,7 +360,7 @@ export default function Overview({ projects: propProjects = [], stats: propStats
                             {projects.length > 0 ? (
                                 <div className="space-y-3">
                                     {[
-                                        { label: 'Projects done', pct: completionPct, color: 'bg-indigo-500' },
+                                        { label: 'Tasks completed', pct: taskCompletionPct, color: 'bg-indigo-500' },
                                         { label: 'Team members', pct: totalMembers > 0 ? Math.min(100, totalMembers * 10) : 0, color: 'bg-amber-500' },
                                     ].map(item => (
                                         <div key={item.label}>
@@ -443,11 +461,18 @@ export default function Overview({ projects: propProjects = [], stats: propStats
                                                         </td>
                                                         <td className="px-5 py-3 text-xs text-gray-550 dark:text-slate-400">{tasksTotal} tasks</td>
                                                         <td className="px-5 py-3">
-                                                            {project.members_count > 0 ? (
-                                                                <AvatarStack names={Array.from({ length: Math.min(project.members_count, 5) }, (_, i) => `M${i + 1}`)} max={3} />
-                                                            ) : (
-                                                                <span className="text-xs text-gray-400 dark:text-slate-500">—</span>
-                                                            )}
+                                                            {(() => {
+                                                                const assigneeNames = Array.from(new Set(
+                                                                    (project.tasks || [])
+                                                                        .map(t => t.assignee?.name)
+                                                                        .filter(Boolean)
+                                                                ));
+                                                                return assigneeNames.length > 0 ? (
+                                                                    <AvatarStack names={assigneeNames} max={3} />
+                                                                ) : (
+                                                                    <span className="text-xs text-gray-400 dark:text-slate-500">—</span>
+                                                                );
+                                                            })()}
                                                         </td>
                                                         <td className="px-5 py-3"><StatusBadge status={project.status} /></td>
                                                         <td className="px-5 py-3">

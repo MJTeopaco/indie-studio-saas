@@ -29,6 +29,7 @@ const ChevronIcon = ({ isOpen }) => (
 const STATUS_MAP = {
     todo:        { label: 'To Do',       dot: 'bg-gray-400',    text: 'text-gray-500 dark:text-slate-400' },
     in_progress: { label: 'In Progress', dot: 'bg-indigo-500',  text: 'text-indigo-600 dark:text-indigo-400' },
+    review:      { label: 'In Review',   dot: 'bg-amber-500',   text: 'text-amber-600 dark:text-amber-400' },
     in_review:   { label: 'In Review',   dot: 'bg-amber-500',   text: 'text-amber-600 dark:text-amber-400' },
     completed:   { label: 'Completed',   dot: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' },
 };
@@ -93,7 +94,7 @@ const COLUMNS = [
 ];
 
 // ── ListView ──────────────────────────────────────────────────────────────────
-export default function ListView({ tasks = [] }) {
+export default function ListView({ tasks = [], onTaskClick }) {
     const [sortKey, setSortKey] = useState('title');
     const [sortDir, setSortDir] = useState('asc');
     const [collapsed, setCollapsed] = useState({});
@@ -178,7 +179,8 @@ export default function ListView({ tasks = [] }) {
                                 {!collapsed[group] && groupTasks.map((task, i) => (
                                     <tr
                                         key={task.id}
-                                        className={`border-b border-gray-50 dark:border-slate-800/30 hover:bg-gray-50/60 dark:hover:bg-slate-800/20 transition-colors ${i % 2 === 0 ? '' : 'bg-gray-50/20 dark:bg-slate-800/10'}`}
+                                        onClick={() => onTaskClick?.(task)}
+                                        className={`border-b border-gray-50 dark:border-slate-800/30 hover:bg-gray-50/60 dark:hover:bg-slate-800/20 transition-colors cursor-pointer ${i % 2 === 0 ? '' : 'bg-gray-50/20 dark:bg-slate-800/10'}`}
                                     >
                                         <td className="px-4 py-3 pl-9">
                                             <span className="text-sm font-medium text-gray-800 dark:text-slate-200 line-clamp-1">{task.title}</span>

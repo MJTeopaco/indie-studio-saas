@@ -38,7 +38,7 @@ class HubController extends Controller
         $user = $request->user();
 
         // Find valid invitation
-        $invitation = StudioInvitation::valid()->where('token', $request->invitation_code)->first();
+        $invitation = StudioInvitation::valid()->where('token', strtoupper($request->invitation_code))->first();
 
         if (!$invitation) {
             return back()->withErrors([

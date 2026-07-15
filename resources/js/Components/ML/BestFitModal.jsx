@@ -93,6 +93,8 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
     const [error,         setError]         = useState(null);
     const [assigning,     setAssigning]     = useState(null);  // userId being assigned
     const [assignedTo,    setAssignedTo]    = useState(null);  // successfully assigned userId
+    const [currentPage,   setCurrentPage]   = useState(1);
+    const itemsPerPage = 3;
 
     useEffect(() => {
         if (isOpen && task) {
@@ -100,6 +102,7 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
             setExplanation(null);
             setError(null);
             setAssignedTo(null);
+            setCurrentPage(1);
             fetchBestFit();
         }
     }, [isOpen, task]);
@@ -189,7 +192,7 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
                 </div>
 
                 {/* ── Body ── */}
-                <div className="p-6">
+                <div className="p-6 overflow-y-auto max-h-[calc(100vh-180px)]">
                     {isLoading ? (
                         <GNNLoadingView />
                     ) : error ? (
@@ -217,63 +220,91 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
 
                             {/* Candidates list */}
                             {candidates.length > 0 ? (
-                                <div className="space-y-2">
-                                    {candidates.map((candidate, idx) => {
-                                        const isAssigning = assigning === candidate.user_id;
-                                        const wasAssigned = assignedTo === candidate.user_id;
-                                        return (
-                                            <div
-                                                key={idx}
-                                                className={`flex items-center gap-4 p-4 rounded-xl border transition-colors ${
-                                                    wasAssigned
-                                                        ? 'border-emerald-500/50 bg-emerald-50/50 dark:bg-emerald-900/10'
-                                                        : 'border-gray-200 dark:border-slate-700 hover:border-brand/40 bg-white dark:bg-slate-800/50'
-                                                }`}
-                                            >
-                                                {/* Rank badge */}
-                                                <div className={`w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center shrink-0 ${
-                                                    idx === 0 ? 'bg-amber-400/20 text-amber-600' : 'bg-gray-100 dark:bg-slate-700 text-gray-400'
-                                                }`}>
-                                                    {idx + 1}
-                                                </div>
-
-                                                {/* Avatar */}
-                                                <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-white shrink-0 ${
-                                                    wasAssigned ? 'bg-emerald-500' : 'bg-gradient-to-br from-brand to-brand-dark shadow-sm'
-                                                }`}>
-                                                    {wasAssigned ? <CheckCircle2 className="w-5 h-5" /> : getMemberInitial(candidate.user_id)}
-                                                </div>
-
-                                                {/* Info */}
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-bold text-gray-900 dark:text-slate-100 truncate">
-                                                        {getMemberName(candidate.user_id)}
-                                                    </p>
-                                                    <ScoreBar score={candidate.match_fit_score} />
-                                                </div>
-
-                                                {/* Assign button */}
-                                                <button
-                                                    onClick={() => handleAssign(candidate)}
-                                                    disabled={isAssigning || !!assignedTo}
-                                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shrink-0 ${
+                                <>
+                                    <div className="space-y-2">
+                                        {candidates.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((candidate, idx) => {
+                                            const originalIdx = (currentPage - 1) * itemsPerPage + idx;
+                                            const isAssigning = assigning === candidate.user_id;
+                                            const wasAssigned = assignedTo === candidate.user_id;
+                                            return (
+                                                <div
+                                                    key={originalIdx}
+                                                    className={`flex items-center gap-4 p-4 rounded-xl border transition-colors ${
                                                         wasAssigned
-                                                            ? 'bg-emerald-500 text-white cursor-default'
-                                                            : 'bg-gray-100 dark:bg-slate-700 hover:bg-brand hover:text-white dark:text-slate-200 dark:hover:bg-brand disabled:opacity-50 disabled:cursor-not-allowed'
+                                                            ? 'border-emerald-500/50 bg-emerald-50/50 dark:bg-emerald-900/10'
+                                                            : 'border-gray-200 dark:border-slate-700 hover:border-brand/40 bg-white dark:bg-slate-800/50'
                                                     }`}
                                                 >
-                                                    {isAssigning ? (
-                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                    ) : wasAssigned ? (
-                                                        <><CheckCircle2 className="w-3.5 h-3.5" /> Assigned</>
-                                                    ) : (
-                                                        <>Assign <ArrowRight className="w-3.5 h-3.5" /></>
-                                                    )}
-                                                </button>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                                                    {/* Rank badge */}
+                                                    <div className={`w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center shrink-0 ${
+                                                        originalIdx === 0 ? 'bg-amber-400/20 text-amber-600' : 'bg-gray-100 dark:bg-slate-700 text-gray-400'
+                                                    }`}>
+                                                        {originalIdx + 1}
+                                                    </div>
+
+                                                    {/* Avatar */}
+                                                    <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-white shrink-0 ${
+                                                        wasAssigned ? 'bg-emerald-500' : 'bg-gradient-to-br from-brand to-brand-dark shadow-sm'
+                                                    }`}>
+                                                        {wasAssigned ? <CheckCircle2 className="w-5 h-5" /> : getMemberInitial(candidate.user_id)}
+                                                    </div>
+
+                                                    {/* Info */}
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-bold text-gray-900 dark:text-slate-100 truncate">
+                                                            {getMemberName(candidate.user_id)}
+                                                        </p>
+                                                        <ScoreBar score={candidate.match_fit_score} />
+                                                    </div>
+
+                                                    {/* Assign button */}
+                                                    <button
+                                                        onClick={() => handleAssign(candidate)}
+                                                        disabled={isAssigning || !!assignedTo}
+                                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shrink-0 ${
+                                                            wasAssigned
+                                                                ? 'bg-emerald-500 text-white cursor-default'
+                                                                : 'bg-gray-100 dark:bg-slate-700 hover:bg-brand hover:text-white dark:text-slate-200 dark:hover:bg-brand disabled:opacity-50 disabled:cursor-not-allowed'
+                                                        }`}
+                                                    >
+                                                        {isAssigning ? (
+                                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                        ) : wasAssigned ? (
+                                                            <><CheckCircle2 className="w-3.5 h-3.5" /> Assigned</>
+                                                        ) : (
+                                                            <>Assign <ArrowRight className="w-3.5 h-3.5" /></>
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* Pagination Controls */}
+                                    {candidates.length > itemsPerPage && (
+                                        <div className="flex items-center justify-between border-t border-gray-100 dark:border-slate-800 pt-4 mt-4 shrink-0">
+                                            <button
+                                                type="button"
+                                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                disabled={currentPage === 1}
+                                                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700/60 disabled:opacity-40 disabled:cursor-not-allowed border border-gray-100 dark:border-slate-800 text-gray-700 dark:text-slate-300 transition-colors"
+                                            >
+                                                Previous
+                                            </button>
+                                            <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">
+                                                Page {currentPage} of {Math.ceil(candidates.length / itemsPerPage)}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setCurrentPage(p => Math.min(Math.ceil(candidates.length / itemsPerPage), p + 1))}
+                                                disabled={currentPage === Math.ceil(candidates.length / itemsPerPage)}
+                                                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700/60 disabled:opacity-40 disabled:cursor-not-allowed border border-gray-100 dark:border-slate-800 text-gray-700 dark:text-slate-300 transition-colors"
+                                            >
+                                                Next
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
                             ) : (
                                 <div className="flex flex-col items-center gap-3 py-10 text-center">
                                     <User className="w-10 h-10 text-gray-200 dark:text-slate-700" />

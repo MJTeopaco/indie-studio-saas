@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { router } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import axios from 'axios';
 import { Loader2, X, Trash2, Cpu, Check, Users, ArrowRight, Sparkles } from 'lucide-react';
 
@@ -74,6 +74,8 @@ function FitRing({ percent, size = 44 }) {
 }
 
 export default function ManualTaskModal({ isOpen, onClose, project, tenantId, teamMembers = [], skills = [], positions = [], editingTask = null }) {
+    const { canManage, auth } = usePage().props;
+    const currentUserId = auth?.user?.id;
     const safeSkills = Array.isArray(skills) ? skills : [];
     const safePositions = Array.isArray(positions) ? positions : [];
     const safeTeamMembers = Array.isArray(teamMembers) ? teamMembers : [];
@@ -189,13 +191,25 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, te
         setIsSaving(true);
         setErrors({});
 
+        if (!canManage && !editingTask) {
+            setErrors({ title: 'Only managers can create tasks.' });
+            setIsSaving(false);
+            return;
+        }
+
         const payload = {
-            ...form,
-            assigned_user_id: form.assigned_user_id || null,
-            estimated_hours: Number(form.estimated_hours),
-            hard_constraint_date: form.hard_constraint_date || null,
-            minimum_experience_years: Number(form.minimum_experience_years),
-            target_macro_domains: form.macro_domains,
+            ...(canManage
+                ? {
+                    ...form,
+                    assigned_user_id: form.assigned_user_id || null,
+                    estimated_hours: Number(form.estimated_hours),
+                    hard_constraint_date: form.hard_constraint_date || null,
+                    minimum_experience_years: Number(form.minimum_experience_years),
+                    target_macro_domains: form.macro_domains,
+                }
+                : {
+                    status: form.status,
+                }),
         };
 
         const requestPromise = editingTask
@@ -291,7 +305,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, te
                 </div>
 
                 {/* Sub-tabs (Form Step only) */}
-                {step === 'form' && (
+                {step === 'form' && canManage && (
                     <div className="flex border-b border-gray-100 dark:border-slate-800 px-6 bg-gray-50/50 dark:bg-slate-900/50 shrink-0">
                         {[
                             { id: 'general', label: 'General Info' },
@@ -322,43 +336,66 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, te
                         /* ── STEP 1: FORM WIZARD ── */
                         <div className="space-y-4">
                             
-                            {/* General Tab */}
-                            {activeTab === 'general' && (
-                                <div className="space-y-4">
-                                    <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Task title *
-                                        <input autoFocus value={form.title} onChange={event => updateField('title', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950" placeholder="e.g. Implement user authentication endpoints" />
-                                        {errors.title && <span className="mt-1 block text-xs text-rose-500">{errors.title}</span>}
-                                    </label>
-                                    
-                                    <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Description
-                                        <textarea value={form.description} onChange={event => updateField('description', event.target.value)} rows="3" className="mt-1.5 w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950" placeholder="Fully describe details and objective of the task..." />
-                                    </label>
+                             {/* General Tab */}
+                             {(activeTab === 'general' || !canManage) && (
+                                 <div className="space-y-4">
+                                     {canManage ? (
+                                         <>
+                                             <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Task title *
+                                                 <input autoFocus value={form.title} onChange={event => updateField('title', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950" placeholder="e.g. Implement user authentication endpoints" />
+                                                 {errors.title && <span className="mt-1 block text-xs text-rose-500">{errors.title}</span>}
+                                             </label>
+                                             
+                                             <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Description
+                                                 <textarea value={form.description} onChange={event => updateField('description', event.target.value)} rows="3" className="mt-1.5 w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950" placeholder="Fully describe details and objective of the task..." />
+                                             </label>
 
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Estimated hours *
-                                            <input type="number" min="0.5" step="0.5" value={form.estimated_hours} onChange={event => updateField('estimated_hours', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950" />
-                                        </label>
-                                        <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Priority *
-                                            <select value={form.priority} onChange={event => updateField('priority', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950">{['Low', 'Medium', 'High', 'Critical'].map(priority => <option key={priority}>{priority}</option>)}</select>
-                                        </label>
-                                    </div>
+                                             <div className="grid grid-cols-2 gap-4">
+                                                 <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Estimated hours *
+                                                     <input type="number" min="0.5" step="0.5" value={form.estimated_hours} onChange={event => updateField('estimated_hours', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950" />
+                                                 </label>
+                                                 <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Priority *
+                                                     <select value={form.priority} onChange={event => updateField('priority', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950">{['Low', 'Medium', 'High', 'Critical'].map(priority => <option key={priority}>{priority}</option>)}</select>
+                                                 </label>
+                                             </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Hard Constraint Date <span className="font-normal text-gray-400 dark:text-gray-500">(Fixed Deadline)</span>
-                                            <input type="date" value={form.hard_constraint_date} onChange={event => updateField('hard_constraint_date', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950" />
-                                        </label>
-                                        <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Status *
-                                            <select value={form.status} onChange={event => updateField('status', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950">{STATUSES.map(status => <option key={status.value} value={status.value}>{status.label}</option>)}</select>
-                                        </label>
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-1 gap-4">
-                                        <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Assignee (Quick Manual)
-                                            <select value={form.assigned_user_id} onChange={event => updateField('assigned_user_id', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950"><option value="">Unassigned</option>{safeTeamMembers.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}</select>
-                                        </label>
-                                    </div>
-                                </div>
-                            )}
+                                             <div className="grid grid-cols-2 gap-4">
+                                                 <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Hard Constraint Date <span className="font-normal text-gray-400 dark:text-gray-500">(Fixed Deadline)</span>
+                                                     <input type="date" value={form.hard_constraint_date} onChange={event => updateField('hard_constraint_date', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950" />
+                                                 </label>
+                                                 <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Status *
+                                                     <select value={form.status} onChange={event => updateField('status', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950">{STATUSES.map(status => <option key={status.value} value={status.value}>{status.label}</option>)}</select>
+                                                 </label>
+                                             </div>
+                                             
+                                             <div className="grid grid-cols-1 gap-4">
+                                                 <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Assignee (Quick Manual)
+                                                     <select value={form.assigned_user_id} onChange={event => updateField('assigned_user_id', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950"><option value="">Unassigned</option>{safeTeamMembers.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}</select>
+                                                 </label>
+                                             </div>
+                                         </>
+                                     ) : (
+                                         <>
+                                             <div className="mb-4 space-y-2 pb-4 border-b border-gray-100 dark:border-slate-800">
+                                                 <h3 className="text-base font-bold text-gray-900 dark:text-slate-100">{form.title}</h3>
+                                                 {form.description && (
+                                                     <p className="text-xs text-gray-500 dark:text-slate-400">{form.description}</p>
+                                                 )}
+                                             </div>
+                                             <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Status *
+                                                 <select 
+                                                     value={form.status} 
+                                                     onChange={event => updateField('status', event.target.value)} 
+                                                     disabled={Number(editingTask?.assigned_user_id) !== Number(currentUserId)}
+                                                     className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950 disabled:opacity-50"
+                                                 >
+                                                     {STATUSES.map(status => <option key={status.value} value={status.value}>{status.label}</option>)}
+                                                 </select>
+                                             </label>
+                                         </>
+                                     )}
+                                 </div>
+                             )}
 
                             {/* GNN Tab */}
                             {activeTab === 'gnn' && (
@@ -596,11 +633,11 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, te
                             <button 
                                 type="button"
                                 onClick={submitTask}
-                                disabled={isSaving || !form.title} 
+                                disabled={isSaving || !form.title || (!canManage && Number(editingTask?.assigned_user_id) !== Number(currentUserId))} 
                                 className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50 hover:bg-brand-dark transition-all shadow-md"
                             >
                                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                                <span>{editingTask ? 'Update Task Specifications' : 'Create Task'}</span>
+                                <span>{editingTask ? (canManage ? 'Update Task Specifications' : 'Update Task Status') : 'Create Task'}</span>
                             </button>
                         </>
                     ) : (

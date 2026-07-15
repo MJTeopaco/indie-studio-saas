@@ -30,6 +30,7 @@ const SHORT_DAY = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const STATUS_BG = {
     todo:        'bg-sky-100 border-sky-300 text-sky-800 dark:bg-sky-900/30 dark:border-sky-700/50 dark:text-sky-300',
     in_progress: 'bg-indigo-100 border-indigo-300 text-indigo-800 dark:bg-indigo-900/30 dark:border-indigo-700/50 dark:text-indigo-300',
+    review:      'bg-amber-100 border-amber-300 text-amber-800 dark:bg-amber-900/30 dark:border-amber-700/50 dark:text-amber-300',
     in_review:   'bg-amber-100 border-amber-300 text-amber-800 dark:bg-amber-900/30 dark:border-amber-700/50 dark:text-amber-300',
     completed:   'bg-emerald-100 border-emerald-300 text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-700/50 dark:text-emerald-300',
 };
@@ -49,14 +50,14 @@ const EVENT_BG = {
  *   tasksByDate  Record<'YYYY-MM-DD', task[]>
  *   eventsByDate Record<'YYYY-MM-DD', event[]>
  */
-export default function WeekGrid({ weekStart, selectedDate, onSelectDate, tasksByDate = {}, eventsByDate = {} }) {
+export default function WeekGrid({ weekStart, selectedDate, onSelectDate, tasksByDate = {}, eventsByDate = {}, isDayView = false }) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const HOUR_H = 56; // px per hour row
     const COL_LEFT_W = 48; // px for hour label column
 
-    const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+    const weekDays = isDayView ? [weekStart] : Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
     // Parse time string "HH:MM" → minutes from midnight
     const parseTime = (t) => {
@@ -72,7 +73,7 @@ export default function WeekGrid({ weekStart, selectedDate, onSelectDate, tasksB
 
     return (
         <div className="flex-1 overflow-auto">
-            <div style={{ minWidth: `${COL_LEFT_W + 7 * 120}px` }}>
+            <div style={{ minWidth: isDayView ? '100%' : `${COL_LEFT_W + 7 * 120}px` }}>
 
                 {/* Day headers */}
                 <div className="flex sticky top-0 z-20 bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800/60">
@@ -92,7 +93,7 @@ export default function WeekGrid({ weekStart, selectedDate, onSelectDate, tasksB
                                 `}
                             >
                                 <span className={`text-[9px] font-bold uppercase tracking-wider ${isTodayCol ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 dark:text-slate-500'}`}>
-                                    {SHORT_DAY[i]}
+                                    {d.toLocaleDateString('en-US', { weekday: 'short' })}
                                 </span>
                                 <span className={`flex items-center justify-center w-7 h-7 rounded-full text-sm font-bold mt-0.5
                                     ${isTodayCol ? 'bg-indigo-600 text-white' : ''}
