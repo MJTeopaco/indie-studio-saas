@@ -126,9 +126,10 @@ const SKILL_CATEGORIES = CANONICAL_SKILLS_LIST.reduce((acc, skill) => {
 
 // ─── Progress Stage Indicator ────────────────────────────────────────────────
 const STAGES = [
-    { key: 'intent',   icon: Brain,      label: 'Analysing Description' },
-    { key: 'llm',      icon: Zap,        label: 'AI Generating Tasks'   },
-    { key: 'validate', icon: ListChecks, label: 'Validating Output'     },
+    { key: 'intent',     icon: Brain,      label: 'Analysing Description' },
+    { key: 'llm',        icon: Zap,        label: 'AI Generating Tasks'   },
+    { key: 'validate',   icon: ListChecks, label: 'Validating Output'     },
+    { key: 'synthesize', icon: Sparkles,   label: 'Generating Overview'   },
 ];
 
 function StageIndicator({ stages, currentStage, pct }) {
@@ -415,6 +416,11 @@ function InlineAssignment({ taskIndex, teamMembers = [], fitState, onAssign, onR
                             </div>
                             <span className="text-[10px] font-bold text-emerald-500">{pct(topCandidate.match_fit_score)}% fit</span>
                         </div>
+                        {topCandidate.skill_overlap && topCandidate.skill_overlap.length > 0 && (
+                            <p className="text-[10px] text-gray-500 dark:text-slate-400 truncate mt-0.5">
+                                Matched skills: {topCandidate.skill_overlap.join(', ')}
+                            </p>
+                        )}
                     </div>
                     <button type="button"
                         onClick={() => onAssign([topCandidate.user_id])}
@@ -671,6 +677,8 @@ export default function SprintDecomposeModal({
     const [phase, setPhase]             = useState('input');   // input | loading | review | assign
     const [progress, setProgress]       = useState({ stage: null, message: '', pct: 0 });
     const [editableTasks, setEditableTasks] = useState(null);
+    const [sprintExplanation, setSprintExplanation] = useState(null);
+    const [isOverviewExpanded, setIsOverviewExpanded] = useState(true);
     const [isSaving, setIsSaving]       = useState(false);
     const [error, setError]             = useState(null);
     // Per-task fit suggestion state: { loading, candidates, error, assignedUserIds }
@@ -764,6 +772,7 @@ export default function SprintDecomposeModal({
     useEffect(() => {
         if (isOpen && initialDraftTasks) {
             setEditableTasks(initialDraftTasks);
+            setSprintExplanation(null);
             setPhase('review');
             setError(null);
             setTaskFits([]);
@@ -838,6 +847,8 @@ export default function SprintDecomposeModal({
                     } else if (event === 'done') {
                         setProgress(p => ({ ...p, pct: 100 }));
                         setEditableTasks(payload.tasks);
+                        setSprintExplanation(payload.explanation || null);
+                        setIsOverviewExpanded(true);
                         setPhase('review');
                         setTaskFits([]);
                     } else if (event === 'error') {
@@ -881,6 +892,7 @@ export default function SprintDecomposeModal({
                 router.reload({ only: ['project'] });
             }
             setEditableTasks(null);
+            setSprintExplanation(null);
             setTaskFits([]);
             setDescription('');
             setPhase('input');
@@ -1007,6 +1019,30 @@ export default function SprintDecomposeModal({
                         </div>
                     )}
 
+                    {/* AI SPRINT OVERVIEW (Visible on both Review and Assign phases) */}
+                    {(phase === 'review' || phase === 'assign') && editableTasks && sprintExplanation && (
+                        <div className="rounded-2xl border border-brand/30 bg-brand/5 dark:bg-brand/10 p-4 shadow-sm transition-all mb-4">
+                            <div 
+                                className="flex items-center justify-between cursor-pointer select-none"
+                                onClick={() => setIsOverviewExpanded(!isOverviewExpanded)}
+                            >
+                                <div className="flex items-center gap-2 text-brand dark:text-brand-light font-bold text-sm">
+                                    <Sparkles className="w-4 h-4" />
+                                    <span>AI Sprint Overview</span>
+                                </div>
+                                <button type="button" className="text-xs font-semibold text-brand/80 hover:text-brand dark:text-brand-light/80 flex items-center gap-1">
+                                    <span>{isOverviewExpanded ? 'Collapse' : 'Expand'}</span>
+                                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isOverviewExpanded ? 'rotate-180' : ''}`} />
+                                </button>
+                            </div>
+                            {isOverviewExpanded && (
+                                <div className="mt-3 pt-3 border-t border-brand/15 text-xs text-gray-700 dark:text-slate-300 leading-relaxed whitespace-pre-line font-normal">
+                                    {sprintExplanation}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* REVIEW PHASE */}
                     {phase === 'review' && editableTasks && (
                         <div className="space-y-4">
@@ -1064,7 +1100,7 @@ export default function SprintDecomposeModal({
                     <div className="px-6 py-4 border-t border-gray-100 dark:border-slate-800 bg-gray-50/70 dark:bg-slate-800/70 flex items-center justify-between gap-3 shrink-0">
                         <button
                             type="button"
-                            onClick={() => phase === 'assign' ? setPhase('review') : (setEditableTasks(null), setTaskFits([]), setPhase('input'))}
+                            onClick={() => phase === 'assign' ? setPhase('review') : (setEditableTasks(null), setSprintExplanation(null), setTaskFits([]), setPhase('input'))}
                             className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
                         >
                             {phase === 'assign' ? '← Back to task review' : '← Try Again'}

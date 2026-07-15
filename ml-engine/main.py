@@ -267,13 +267,15 @@ class DecomposeProjectRequest(BaseModel):
 def decompose_project(request: DecomposeProjectRequest):
     """
     Sprint Plan Generator: project description → list of structured tasks
-    with suggested dependencies. Returns empty list if LLM unavailable.
+    with suggested dependencies and synthesized executive explanation.
     """
     try:
         from orchestration.intent_parser import decompose_project_into_tasks
+        from orchestration.response_synthesizer import synthesize_sprint_explanation
 
         tasks = decompose_project_into_tasks(request.description)
-        return {"status": "success", "tasks": tasks, "count": len(tasks)}
+        explanation = synthesize_sprint_explanation(tasks, request.description)
+        return {"status": "success", "tasks": tasks, "count": len(tasks), "explanation": explanation}
     except Exception as exc:
         logger.exception("Project decomposition endpoint failed")
         raise HTTPException(status_code=500, detail=str(exc))
@@ -316,11 +318,19 @@ async def decompose_project_stream(request: DecomposeProjectRequest):
             tasks = await work
 
             # ---- Stage 3: validation ----
-            yield _sse("progress", {"stage": "validate", "message": f"Validating {len(tasks)} generated tasks...", "pct": 90})
+            yield _sse("progress", {"stage": "validate", "message": f"Validating {len(tasks)} generated tasks...", "pct": 88})
             await asyncio.sleep(0)
 
+            # ---- Stage 4: synthesis ----
+            yield _sse("progress", {"stage": "synthesize", "message": "Generating sprint overview...", "pct": 94})
+            await asyncio.sleep(0)
+
+            from orchestration.response_synthesizer import synthesize_sprint_explanation
+            explanation_work = loop.run_in_executor(None, synthesize_sprint_explanation, tasks, request.description)
+            explanation = await explanation_work
+
             # ---- Done ----
-            yield _sse("done", {"status": "success", "tasks": tasks, "count": len(tasks)})
+            yield _sse("done", {"status": "success", "tasks": tasks, "count": len(tasks), "explanation": explanation})
 
         except Exception as exc:
             logger.exception("SSE decompose stream failed")

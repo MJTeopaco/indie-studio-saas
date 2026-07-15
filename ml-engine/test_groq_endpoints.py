@@ -92,7 +92,7 @@ check(
     "/api/llm/decompose-project",
     {"description": "Build a multi-tenant SaaS project management tool with sprint planning, "
                     "task assignment, and a real-time dashboard. Target: 3-month delivery."},
-    required_keys=["status", "tasks", "count"],
+    required_keys=["status", "tasks", "count", "explanation"],
 )
 
 # ---------------------------------------------------------------------------

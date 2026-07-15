@@ -60,6 +60,15 @@ Given a user message from a project manager, classify their intent into exactly 
 Respond ONLY with valid JSON in this exact format:
 {"intent": "qa" | "create_task" | "decompose_sprint", "confidence": float}"""
 
+_SPRINT_EXPLAIN_SYSTEM = """You are a senior technical project manager summarizing an AI-generated sprint plan for a studio lead.
+You will receive JSON containing the original project goals/description and the list of generated tasks (including titles, classifications, estimated hours, and suggested dependency chains).
+
+Write a concise, professional overview (3-5 sentences) following these rules:
+1. Summarize how the sprint scope was broken down into logical phases or tasks and why the workflow order makes sense.
+2. Highlight key deliverables, required domains/classifications, or notable dependencies along the critical progression.
+3. Keep the tone executive, clear, and actionable.
+4. CRITICAL RULE: Use ONLY the provided data. Do not fabricate tasks, developer names, dates, or metrics not present in the JSON."""
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -153,6 +162,65 @@ def synthesize_assignment_explanation(
         return "\n".join(lines)
 
     return explanation
+
+
+def synthesize_sprint_explanation(
+    tasks: list[dict[str, Any]],
+    project_description: str,
+) -> str:
+    """
+    Generate a plain-language executive overview explaining the synthesized
+    sprint decomposition plan.
+    """
+    if not tasks:
+        return "No tasks generated."
+
+    compact_tasks = []
+    total_hours = 0.0
+    for i, t in enumerate(tasks):
+        hours = float(t.get("estimated_hours", 0))
+        total_hours += hours
+        compact_tasks.append(
+            {
+                "index": i,
+                "title": t.get("title", f"Task {i+1}"),
+                "classification": t.get("task_classification", "Feature"),
+                "hours": hours,
+                "depends_on": t.get("suggested_depends_on", []),
+            }
+        )
+
+    payload = json.dumps(
+        {
+            "project_goals": project_description,
+            "total_tasks": len(tasks),
+            "estimated_total_hours": total_hours,
+            "tasks": compact_tasks,
+        },
+        indent=2,
+    )
+
+    explanation = _call_llm(_SPRINT_EXPLAIN_SYSTEM, payload)
+    if explanation is None:
+        lines = [
+            f"**Sprint Overview:** Decomposed into {len(tasks)} tasks totaling ~{total_hours:.1f} estimated working hours."
+        ]
+        classifications = {}
+        for t in compact_tasks:
+            cls_name = t["classification"]
+            classifications[cls_name] = classifications.get(cls_name, 0) + 1
+
+        spread = ", ".join(f"{k} ({v})" for k, v in classifications.items())
+        if spread:
+            lines.append(f"**Domain Spread:** {spread}.")
+
+        roots = [t["title"] for t in compact_tasks if not t["depends_on"]]
+        if roots:
+            lines.append(f"**Initial Phase:** Starts with {', '.join(roots[:3])}.")
+        return "\n".join(lines)
+
+    return explanation
+
 
 
 def synthesize_risk_alert(risk_data: dict[str, Any]) -> str:
