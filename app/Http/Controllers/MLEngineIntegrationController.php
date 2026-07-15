@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\RecomputeProjectSchedule;
 use App\Models\Studio;
 use App\Models\Tenant\Project;
 use App\Models\Tenant\Task;
@@ -472,8 +473,79 @@ class MLEngineIntegrationController extends Controller
             return response()->json(['status' => 'success', 'reply' => "Based on {$remainingHours} remaining estimated hours and the current assigned-team capacity, {$projectModel->name} is projected to finish around {$predictedDate}.", 'data' => ['predicted_date' => $predictedDate]]);
         }
 
-        $result = $this->mlService->chatAboutProject($validated['message'], $context, $validated['history'] ?? []);
+        $result = $this->mlService->chatWithIntent($validated['message'], $context, $validated['history'] ?? []);
 
-        return response()->json(['status' => $result['status'], 'reply' => $result['reply'] ?? 'I could not answer that right now.']);
+        return response()->json([
+            'status' => $result['status'] ?? 'error',
+            'reply' => $result['reply'] ?? 'I could not answer that right now.',
+            'intent' => $result['intent'] ?? 'qa',
+            'action_payload' => $result['action_payload'] ?? null,
+        ]);
+    }
+
+    private function authorizeManager()
+    {
+        $user = auth()->user();
+        if ($user && $user->role === User::ROLE_ADMIN) {
+            return;
+        }
+
+        $member = DB::connection(config('tenancy.database.central_connection', 'central'))->table('studio_members')
+            ->where('studio_id', tenant('id'))
+            ->where('user_id', $user->id)
+            ->first();
+
+        $role = $member ? $member->role : 'member';
+
+        if (!in_array($role, ['owner', 'leader', 'manager'])) {
+            abort(403, 'Unauthorized action. Only studio managers can perform this task.');
+        }
+    }
+
+    /**
+     * Execute a confirmed agentic action from the AI Assistant chat.
+     */
+    public function executeProjectAction(Request $request, $project, $routeProject = null)
+    {
+        $this->authorizeManager();
+        $project = $routeProject ?? $project;
+        $validated = $request->validate([
+            'action' => 'required|string|in:create_task,decompose_sprint',
+            'payload' => 'required|array',
+        ]);
+
+        $projectModel = Project::findOrFail($project);
+
+        if ($validated['action'] === 'create_task') {
+            $payload = $validated['payload'];
+            $task = $projectModel->tasks()->create([
+                'title' => $payload['title'] ?? 'New Task',
+                'description' => $payload['objective'] ?? $payload['description'] ?? null,
+                'task_classification' => $payload['task_classification'] ?? 'Feature',
+                'task_difficulty' => $payload['task_difficulty'] ?? 'Medium',
+                'priority' => $payload['priority'] ?? 'Medium',
+                'estimated_hours' => isset($payload['estimated_hours']) ? (float) $payload['estimated_hours'] : 4.0,
+                'days_until_deadline' => isset($payload['days_until_deadline']) ? (int) $payload['days_until_deadline'] : null,
+                'hard_constraint_date' => $payload['hard_constraint_date'] ?? null,
+                'minimum_experience_years' => isset($payload['minimum_experience_years']) ? (float) $payload['minimum_experience_years'] : 0.0,
+                'target_macro_domains' => $payload['macro_domains'] ?? null,
+                'required_position' => $payload['required_position'] ?? null,
+                'required_skills' => $payload['required_skills'] ?? [],
+                'status' => 'todo',
+            ]);
+
+            RecomputeProjectSchedule::dispatchSync($projectModel->id);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Task created successfully and schedule recalculated.',
+                'task' => $task,
+            ]);
+        }
+
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Unsupported action type.',
+        ], 400);
     }
 }

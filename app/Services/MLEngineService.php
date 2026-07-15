@@ -229,6 +229,20 @@ class MLEngineService
     }
 
     /**
+     * @param  array<string, mixed>  $projectContext
+     * @param  array<int, array<string, string>>  $history
+     * @return array<string, mixed>
+     */
+    public function chatWithIntent(string $message, array $projectContext, array $history = []): array
+    {
+        return $this->postToLlm('/api/llm/chat-with-intent', [
+            'message' => $message,
+            'project_context' => $projectContext,
+            'conversation_history' => $history,
+        ], ['reply' => 'The project assistant is unavailable right now.', 'intent' => 'qa', 'action_payload' => null]);
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      * @param  array<string, mixed>  $fallback
      * @return array<string, mixed>

@@ -104,5 +104,6 @@ Our ML logic lives in the `ml-engine/` directory. It must be running alongside t
 2. **Run the FastAPI Server:**
    The engine runs on FastAPI. You can start it using Uvicorn:
    ```bash
-   uvicorn main:app --reload
+   cd ml-engine
+   ./venv/Scripts/uvicorn main:app --host 127.0.0.1 --port 8001 --reload
    ```

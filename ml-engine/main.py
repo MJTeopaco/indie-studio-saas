@@ -429,6 +429,58 @@ def chat(request: ChatRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@app.post("/api/llm/chat-with-intent", tags=["llm"])
+def chat_with_intent(request: ChatRequest):
+    """
+    Agentic AI Assistant endpoint:
+    Classifies intent (qa vs create_task vs decompose_sprint).
+    - If qa: returns reply grounded in project data (`action_payload: None`).
+    - If create_task: parses single task via semantic intent parser (`action_payload: task_dict`, `reply: confirmation text`).
+    - If decompose_sprint: returns prompt (`action_payload: {"prompt": request.message}`, `reply: confirmation text`).
+    """
+    try:
+        from orchestration.response_synthesizer import classify_chat_intent, chat_with_project_data
+        from orchestration.intent_parser import parse_task_from_text
+
+        classification = classify_chat_intent(request.message)
+        intent = classification.get("intent", "qa")
+        confidence = classification.get("confidence", 1.0)
+
+        if intent == "create_task":
+            task_result = parse_task_from_text(request.message)
+            return {
+                "status": "success",
+                "intent": "create_task",
+                "confidence": confidence,
+                "reply": "I've parsed your task specifications. Here's what I'll create — please review and confirm:",
+                "action_payload": task_result.model_dump(),
+            }
+        elif intent == "decompose_sprint":
+            return {
+                "status": "success",
+                "intent": "decompose_sprint",
+                "confidence": confidence,
+                "reply": "I've detected a request to plan and decompose multiple tasks for a sprint or feature. I can launch our AI Sprint Decomposer to generate draft task cards, assign team members via GNN, and compute the dynamic CPA timeline:",
+                "action_payload": {"prompt": request.message},
+            }
+        else:
+            reply = chat_with_project_data(
+                request.message,
+                request.project_context,
+                request.conversation_history,
+            )
+            return {
+                "status": "success",
+                "intent": "qa",
+                "confidence": confidence,
+                "reply": reply,
+                "action_payload": None,
+            }
+    except Exception as exc:
+        logger.exception("Chat with intent endpoint failed")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 # ===========================================================================
 # Legacy Phase 0 stub — kept for backward compatibility
 # ===========================================================================

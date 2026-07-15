@@ -51,6 +51,15 @@ Answer the user's question based ONLY on the data provided.
 If the data does not contain enough information to answer, say so.
 Do not fabricate task names, developer names, dates, or scores."""
 
+_INTENT_CLASSIFIER_SYSTEM = """You are an intent classifier for a software studio AI Assistant.
+Given a user message from a project manager, classify their intent into exactly ONE of these three categories:
+1. "create_task" — The user is specifying a SINGLE task they want to create/add (e.g., "Add a bug fix for infinite scroll...", "Create a task: Refactor database schema...", "Bug Fixing & Performance Optimization Task: Resolve an issue where...").
+2. "decompose_sprint" — The user is requesting to plan, break down, or generate MULTIPLE tasks for a sprint, epic, or major feature (e.g., "Plan a sprint for the new user authentication module", "Decompose the onboarding flow into tasks...", "Generate sprint tasks for telemetry dashboard").
+3. "qa" — The user is asking a question or requesting analysis about existing project data, status, deadlines, risks, or team members (e.g., "How many tasks are in review?", "Summarize the project", "Who is working on task #5?").
+
+Respond ONLY with valid JSON in this exact format:
+{"intent": "qa" | "create_task" | "decompose_sprint", "confidence": float}"""
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -246,3 +255,37 @@ def chat_with_project_data(
     except Exception as exc:
         logger.error("Chat LLM call failed: %s", exc)
         return "An error occurred while processing your request. Please try again."
+
+
+def classify_chat_intent(message: str) -> dict[str, Any]:
+    """
+    Classify a user chat message into one of three intents:
+    - 'create_task': single task specification
+    - 'decompose_sprint': multi-task sprint or epic request
+    - 'qa': general project question/analysis
+    """
+    raw = _call_llm(_INTENT_CLASSIFIER_SYSTEM, message)
+    if not raw:
+        return {"intent": "qa", "confidence": 1.0}
+
+    # Extract JSON if enclosed in markdown code fences
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        lines = cleaned.split("\n")
+        if lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        cleaned = "\n".join(lines).strip()
+
+    try:
+        data = json.loads(cleaned)
+        intent = str(data.get("intent", "qa")).lower()
+        if intent not in ("create_task", "decompose_sprint", "qa"):
+            intent = "qa"
+        confidence = float(data.get("confidence", 0.9))
+        return {"intent": intent, "confidence": confidence}
+    except Exception as exc:
+        logger.warning("Failed to parse intent classification JSON: %s. Raw: %s", exc, raw)
+        return {"intent": "qa", "confidence": 1.0}
+

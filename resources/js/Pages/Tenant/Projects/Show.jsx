@@ -884,7 +884,12 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                 tenantId={tenantId}
             />
 
-            <ProjectAiAssistant projectId={project.id} tenantId={tenantId} />
+            <ProjectAiAssistant
+                projectId={project.id}
+                tenantId={tenantId}
+                teamMembers={teamMembers}
+                canManage={canManage}
+            />
         </ProjectLayout>
     );
 }

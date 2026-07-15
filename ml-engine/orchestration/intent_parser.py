@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
@@ -192,13 +193,39 @@ Do not assign developer names, durations, or specific dates — only hours estim
 
 
 def _extract_json_from_response(text: str) -> str:
-    """Strip markdown fences if the LLM wraps its JSON in ```json ... ```."""
+    """Extract clean JSON object/array string from LLM response text."""
     text = text.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        # Remove first and last fence lines
-        inner = [l for l in lines if not l.startswith("```")]
-        text = "\n".join(inner).strip()
+    if "```" in text:
+        parts = text.split("```")
+        for part in parts[1::2]:
+            lines = part.strip().splitlines()
+            if lines and lines[0].strip().lower() in ("json", "js", "python"):
+                lines = lines[1:]
+            candidate = "\n".join(lines).strip()
+            if candidate.startswith("[") or candidate.startswith("{"):
+                text = candidate
+                break
+        else:
+            for part in parts[1::2]:
+                lines = part.strip().splitlines()
+                if lines and lines[0].strip().lower() in ("json", "js", "python"):
+                    lines = lines[1:]
+                text = "\n".join(lines).strip()
+                break
+
+    first_bracket = text.find("[")
+    first_brace = text.find("{")
+    if first_bracket != -1 and (first_brace == -1 or first_bracket < first_brace):
+        last_bracket = text.rfind("]")
+        if last_bracket != -1 and last_bracket > first_bracket:
+            text = text[first_bracket:last_bracket + 1]
+    elif first_brace != -1:
+        last_brace = text.rfind("}")
+        if last_brace != -1 and last_brace > first_brace:
+            text = text[first_brace:last_brace + 1]
+
+    # Clean trailing commas right before ] or }
+    text = re.sub(r',\s*([\]}])', r'\1', text)
     return text
 
 
@@ -252,6 +279,8 @@ def parse_task_from_text(raw_text: str) -> TaskParseResult:
         except (json.JSONDecodeError, Exception) as exc:
             last_error = exc
             logger.warning("Task parse attempt %d failed: %s", attempt, exc)
+            if attempt == 1:
+                messages.append(HumanMessage(content=f"Your previous output failed validation/parsing ({exc}). Respond STRICTLY with a single valid JSON object matching the schema only. No trailing commas or markdown notes."))
 
     raise ValueError(
         f"LLM failed to produce valid task JSON after 2 attempts. Last error: {last_error}"
@@ -310,6 +339,8 @@ def decompose_project_into_tasks(project_description: str) -> list[dict]:
         except Exception as exc:
             last_error = exc
             logger.warning("Sprint decompose attempt %d failed: %s", attempt, exc)
+            if attempt == 1:
+                messages.append(HumanMessage(content=f"Your previous output failed validation/parsing ({exc}). Respond STRICTLY with a single valid JSON array of tasks matching the schema. Ensure no trailing commas and no truncation."))
 
     logger.error("Sprint decomposition failed after 2 attempts: %s", last_error)
     return []

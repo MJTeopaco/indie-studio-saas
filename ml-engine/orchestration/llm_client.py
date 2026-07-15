@@ -97,6 +97,7 @@ def _make_groq_llm():
         api_key=GROQ_API_KEY,
         model=GROQ_MODEL,
         temperature=0.2,   # Low temperature for structured JSON extraction
+        max_tokens=4096,   # Enough tokens for multi-task sprint decompositions without truncation
     )
 
     # Build the retrying invoke function as a standalone callable.
