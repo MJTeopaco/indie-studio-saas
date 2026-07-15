@@ -303,10 +303,17 @@ async def decompose_project_stream(request: DecomposeProjectRequest):
             yield _sse("progress", {"stage": "llm", "message": "AI is generating tasks — this may take a minute...", "pct": 30})
             await asyncio.sleep(0)
 
-            loop = asyncio.get_event_loop()
-            tasks = await loop.run_in_executor(
-                None, decompose_project_into_tasks, request.description
-            )
+            loop = asyncio.get_running_loop()
+            work = loop.run_in_executor(None, decompose_project_into_tasks, request.description)
+            elapsed_seconds = 0.0
+            # The LLM does not expose token-level progress. Emit a smooth,
+            # bounded heartbeat while its background work is genuinely running.
+            while not work.done():
+                await asyncio.sleep(0.4)
+                elapsed_seconds += 0.4
+                pct = min(84, 30 + int(55 * (1 - 1 / (1 + elapsed_seconds / 12))))
+                yield _sse("progress", {"stage": "llm", "message": "AI is generating tasks — still working...", "pct": pct})
+            tasks = await work
 
             # ---- Stage 3: validation ----
             yield _sse("progress", {"stage": "validate", "message": f"Validating {len(tasks)} generated tasks...", "pct": 90})

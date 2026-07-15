@@ -3,13 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\RecomputeProjectSchedule;
+use App\Models\Position;
+use App\Models\Skill;
 use App\Models\Studio;
 use App\Models\Tenant\Project;
 use App\Models\Tenant\Task;
-use App\Models\Position;
-use App\Models\Skill;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class TenantProjectController extends Controller
@@ -56,6 +57,27 @@ class TenantProjectController extends Controller
         $projectModel = Project::with(['tasks.assignee', 'tasks.predecessors'])->findOrFail($project);
 
         $teamMembers = $studio ? $studio->users()->get()->map(fn ($u) => ['id' => $u->id, 'name' => $u->name]) : [];
+        $membersById = collect($teamMembers)->keyBy('id');
+
+        // Users live in the central database while assignments live in the
+        // tenant database, so this cannot be an Eloquent join relationship.
+        // Assemble the named assignee list in two safe, connection-local queries.
+        $assignmentIdsByTask = Schema::hasTable('assignments')
+            ? DB::table('assignments')
+                ->whereIn('task_id', $projectModel->tasks->pluck('id'))
+                ->where('status', 'active')
+                ->orderBy('assigned_at')
+                ->get(['task_id', 'employee_user_id'])
+                ->groupBy('task_id')
+            : collect();
+
+        $projectModel->tasks->each(function (Task $task) use ($assignmentIdsByTask, $membersById): void {
+            $task->setAttribute('assignees', collect($assignmentIdsByTask->get($task->id, []))
+                ->map(fn ($assignment) => $membersById->get($assignment->employee_user_id))
+                ->filter()
+                ->values()
+                ->all());
+        });
 
         $skills = Skill::orderBy('name')->get(['id', 'name', 'category'])->all();
         $positions = Position::orderBy('name')->get(['id', 'name'])->all();
@@ -155,6 +177,8 @@ class TenantProjectController extends Controller
             'tasks.*.minimum_experience_years' => 'nullable|numeric',
             'tasks.*.macro_domains' => 'nullable|array',
             'tasks.*.required_position' => 'nullable|string',
+            'tasks.*.assigned_user_ids' => 'nullable|array',
+            'tasks.*.assigned_user_ids.*' => 'integer',
         ]);
 
         $projectModel = Project::findOrFail($project);
@@ -214,6 +238,29 @@ class TenantProjectController extends Controller
 
                 if (! empty($realDependsOnIds)) {
                     $realTask->predecessors()->syncWithoutDetaching(array_unique($realDependsOnIds));
+                }
+
+                // Create assignments for any inline-assigned users from the sprint planning review
+                $assignedUserIds = $allTasksArray[$index]['assigned_user_ids'] ?? [];
+                if (! empty($assignedUserIds)) {
+                    $now = now();
+                    $primaryId = $assignedUserIds[0] ?? null;
+                    foreach ($assignedUserIds as $userId) {
+                        DB::table('assignments')->insert([
+                            'task_id' => $realTaskId,
+                            'employee_user_id' => $userId,
+                            'match_fit_score' => null,
+                            'assigned_by' => 'gnn',
+                            'match_source' => 'gnn',
+                            'status' => 'active',
+                            'assigned_at' => $now,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ]);
+                    }
+                    if ($primaryId) {
+                        $realTask->update(['assigned_user_id' => $primaryId]);
+                    }
                 }
             }
         }

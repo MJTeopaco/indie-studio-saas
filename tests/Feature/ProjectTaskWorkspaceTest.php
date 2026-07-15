@@ -78,7 +78,7 @@ class ProjectTaskWorkspaceTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('task_id', $task->id)
-            ->assertJsonPath('assignee.name', 'Avery Chen');
+            ->assertJsonPath('assignees.0.name', 'Avery Chen');
 
         $this->assertDatabaseHas('tasks', ['id' => $task->id, 'assigned_user_id' => $assignee->id]);
         $this->assertDatabaseHas('assignments', ['task_id' => $task->id, 'employee_user_id' => $assignee->id, 'status' => 'active']);

@@ -3,13 +3,14 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\MLEngineIntegrationController;
-use App\Http\Controllers\TenantScheduleController;
 use App\Http\Controllers\TenantDashboardController;
-use App\Http\Controllers\TenantProjectController;
-use App\Http\Controllers\TenantTeamController;
-use App\Http\Controllers\TenantTaskController;
 use App\Http\Controllers\TenantOverviewController;
+use App\Http\Controllers\TenantProjectController;
+use App\Http\Controllers\TenantScheduleController;
+use App\Http\Controllers\TenantTaskController;
+use App\Http\Controllers\TenantTeamController;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 use Stancl\Tenancy\Middleware\InitializeTenancyByPath;
 
 /*
@@ -42,10 +43,10 @@ Route::prefix('/studio/{tenant}')->middleware([
         ->name('tenant.schedule');
 
     Route::get('/automation', function () {
-        return \Inertia\Inertia::render('Tenant/Placeholder', [
+        return Inertia::render('Tenant/Placeholder', [
             'title' => 'Agentic Automation Hub',
             'description' => 'Orchestrate automated developer assignment, branch creation, code reviews, and deployment triggers with Vaultera Labs AI agents.',
-            'status' => 'Agent Core Offline'
+            'status' => 'Agent Core Offline',
         ]);
     })->name('tenant.automation');
 
@@ -65,18 +66,18 @@ Route::prefix('/studio/{tenant}')->middleware([
         ->name('tenant.projects.update');
 
     Route::get('/settings', function () {
-        return \Inertia\Inertia::render('Tenant/Placeholder', [
+        return Inertia::render('Tenant/Placeholder', [
             'title' => 'Studio Settings',
             'description' => 'Configure workspace details, developer roles, division integrations, and default GNN model thresholds.',
-            'status' => 'Active Configuration'
+            'status' => 'Active Configuration',
         ]);
     })->name('tenant.settings');
 
     Route::get('/docs', function () {
-        return \Inertia\Inertia::render('Tenant/Placeholder', [
+        return Inertia::render('Tenant/Placeholder', [
             'title' => 'Developer Documentation',
             'description' => 'Read StudioSprint developer handbook, internal platform architecture specs, and division onboarding playbooks.',
-            'status' => 'V1.0 Documentation Published'
+            'status' => 'V1.0 Documentation Published',
         ]);
     })->name('tenant.docs');
 
@@ -103,5 +104,8 @@ Route::prefix('/studio/{tenant}')->middleware([
         ->name('tenant.ml.best-fit');
     Route::post('/tasks/{task}/assign', [MLEngineIntegrationController::class, 'assignTask'])
         ->name('tenant.tasks.assign');
+    // Preview best-fit for draft (unsaved) tasks during sprint planning review
+    Route::post('/ml/preview-best-fit', [MLEngineIntegrationController::class, 'previewBestFit'])
+        ->name('tenant.ml.preview-best-fit');
 
 });

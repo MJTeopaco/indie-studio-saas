@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 from orchestration.taxonomy import (
@@ -149,8 +149,9 @@ JSON Schema:
 
 _SPRINT_DECOMPOSE_SYSTEM = """You are a senior engineering lead decomposing a project into tasks.
 Given a project description or task instruction:
-1. Evaluate if it is a simple, single task (e.g. "update logo", "fix button color"). If so, return a JSON array containing ONLY that single task.
-2. If it is a heavy project/sprint goal, decompose it into a list of concrete development tasks (maximum of 5 most important high-level tasks to save time).
+1. Return ONE task only when the request is a narrowly scoped atomic change (e.g. "update logo", "fix one button color").
+2. For a project, sprint, feature set, application, or implementation request, return as many concrete development tasks as the scope genuinely requires — no artificial minimum or maximum. A small focused feature may need 2-4 tasks; a full application or multi-feature sprint may need 8-15 or more. Scale the count to the work, not to a fixed target.
+3. If the request mentions multiple deliverables, every deliverable must be represented by at least one task.
 
 CRITICAL REQUIREMENT FOR DEPENDENCIES (Critical Path Analysis):
 You MUST establish logical, realistic inter-task dependencies using "suggested_depends_on".
@@ -297,6 +298,14 @@ def decompose_project_into_tasks(project_description: str) -> list[dict]:
                 d = parsed.model_dump()
                 d["suggested_depends_on"] = depends_on
                 validated.append(d)
+            # A project-level request should not silently collapse into a single
+            # card. Ask once more with an explicit correction when it does.
+            project_signals = ("project", "sprint", "app", "application", "website", "system", "platform", "feature", "build", "develop", "implement", "create", "plan")
+            is_complex_request = len(project_description.split()) >= 8 and any(signal in project_description.lower() for signal in project_signals)
+            if len(validated) == 1 and is_complex_request:
+                if attempt == 1:
+                    messages.append(HumanMessage(content="Your previous answer had only one task. This request covers multiple concerns; return as many tasks as genuinely needed, with dependency chains."))
+                    continue
             return validated
         except Exception as exc:
             last_error = exc

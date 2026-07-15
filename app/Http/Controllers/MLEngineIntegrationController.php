@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Studio;
 use App\Models\Tenant\Project;
 use App\Models\Tenant\Task;
-use App\Services\MLEngineService;
 use App\Models\User;
-use App\Models\Studio;
+use App\Services\MLEngineService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -135,10 +135,6 @@ class MLEngineIntegrationController extends Controller
         $employeeProfiles = [];
         if ($studio && $studio->users) {
             foreach ($studio->users as $user) {
-                if ($user->role === 'admin' && !$user->globalProfile) {
-                    continue;
-                }
-
                 $skills = [];
                 if ($user->globalProfile && $user->globalProfile->skills) {
                     foreach ($user->globalProfile->skills as $s) {
@@ -158,8 +154,8 @@ class MLEngineIntegrationController extends Controller
                 $employeeProfiles[] = [
                     'user_id' => $user->id,
                     'display_name' => $user->name,
-                    'position' => $user->globalProfile && $user->globalProfile->position 
-                        ? $user->globalProfile->position->name 
+                    'position' => $user->globalProfile && $user->globalProfile->position
+                        ? $user->globalProfile->position->name
                         : 'Developer',
                     'experience_years' => (float) ($user->globalProfile->experience_years ?? 0.0),
                     'skills' => $skills,
@@ -208,45 +204,186 @@ class MLEngineIntegrationController extends Controller
     }
 
     /**
-     * Assign a team member to a task.
-     * Creates an assignments record and updates the task's assignee_user_id.
+     * Assign one or more team members to a task.
+     *
+     * Accepts either:
+     *   - `employee_user_id`  (int)   — single assign (backward compat with BestFitModal)
+     *   - `employee_user_ids` (array) — multi-assign (sprint planning + new BestFitModal flow)
+     *
+     * Cancels any previous active assignments, then inserts one row per selected user.
+     * The task's `assigned_user_id` is set to the first/primary user.
      */
     public function assignTask(Request $request, $task, $routeTask = null)
     {
         $task = $routeTask ?? $task;
         $task = Task::findOrFail($task);
         $centralConn = config('tenancy.database.central_connection', 'mysql');
+
         $validated = $request->validate([
-            'employee_user_id' => "required|integer|exists:{$centralConn}.users,id",
+            'employee_user_id' => "nullable|integer|exists:{$centralConn}.users,id",
+            'employee_user_ids' => 'nullable|array',
+            'employee_user_ids.*' => "integer|exists:{$centralConn}.users,id",
             'match_fit_score' => 'nullable|numeric|min:0|max:1',
             'assigned_by' => 'nullable|string|in:gnn,cold_start_baseline,manual',
         ]);
 
-        $assignee = User::findOrFail($validated['employee_user_id']);
+        // Normalise to an array of user IDs
+        $userIds = [];
+        if (! empty($validated['employee_user_ids'])) {
+            $userIds = array_values(array_unique($validated['employee_user_ids']));
+        } elseif (! empty($validated['employee_user_id'])) {
+            $userIds = [$validated['employee_user_id']];
+        }
 
-        DB::transaction(function () use ($task, $validated): void {
-            DB::table('assignments')->where('task_id', $task->id)->where('status', 'active')->update(['status' => 'cancelled']);
+        $assignees = empty($userIds) ? collect() : User::findMany($userIds);
+        $assignedBy = $validated['assigned_by'] ?? 'gnn';
+        $score = $validated['match_fit_score'] ?? null;
 
-            DB::table('assignments')->insert([
-                'task_id' => $task->id,
-                'employee_user_id' => $validated['employee_user_id'],
-                'match_fit_score' => $validated['match_fit_score'] ?? null,
-                'assigned_by' => $validated['assigned_by'] ?? 'gnn',
-                'match_source' => $validated['assigned_by'] ?? 'gnn',
-                'status' => 'active',
-                'assigned_at' => now(),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
+        DB::transaction(function () use ($task, $userIds, $assignedBy, $score): void {
+            DB::table('assignments')
+                ->where('task_id', $task->id)
+                ->where('status', 'active')
+                ->update(['status' => 'cancelled']);
 
-            $task->update(['assigned_user_id' => $validated['employee_user_id']]);
+            $now = now();
+            foreach ($userIds as $userId) {
+                DB::table('assignments')->insert([
+                    'task_id' => $task->id,
+                    'employee_user_id' => $userId,
+                    'match_fit_score' => $score,
+                    'assigned_by' => $assignedBy,
+                    'match_source' => $assignedBy,
+                    'status' => 'active',
+                    'assigned_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
+
+            // Clearing every selection is an intentional "leave unassigned"
+            // action, not an invalid request.
+            $task->update(['assigned_user_id' => $userIds[0] ?? null]);
         });
 
         return response()->json([
             'status' => 'success',
             'task_id' => $task->id,
-            'assignee' => $assignee->only(['id', 'name']),
+            'assignees' => $assignees->map(fn (User $u): array => $u->only(['id', 'name']))->all(),
         ]);
+    }
+
+    /**
+     * Preview best-fit candidates for a draft (unsaved) task during sprint planning review.
+     *
+     * Unlike `bestFit()`, this endpoint does not require a saved task DB record.
+     * It accepts raw task fields + an optional skill list and calls the GNN directly.
+     */
+    public function previewBestFit(Request $request)
+    {
+        set_time_limit(0);
+
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'required_skills' => 'nullable|array',
+            'estimated_hours' => 'nullable|numeric',
+            'task_difficulty' => 'nullable|string',
+            'task_classification' => 'nullable|string',
+            'priority' => 'nullable|string',
+        ]);
+
+        $studio = Studio::with([
+            'users.globalProfile.position',
+            'users.globalProfile.skills',
+        ])->find(tenant('id'));
+
+        $employeeProfiles = [];
+        if ($studio && $studio->users) {
+            foreach ($studio->users as $user) {
+                if ($user->role === 'admin' && ! $user->globalProfile) {
+                    continue;
+                }
+
+                $skills = [];
+                if ($user->globalProfile && $user->globalProfile->skills) {
+                    foreach ($user->globalProfile->skills as $s) {
+                        $skills[] = [
+                            'name' => $s->name,
+                            'level' => (int) ($s->pivot->proficiency_level ?? 3),
+                        ];
+                    }
+                }
+
+                $macroDomains = [];
+                try {
+                    $macroDomains = $user->microDomains()->pluck('name')->all();
+                } catch (\Exception $e) {
+                }
+
+                $employeeProfiles[] = [
+                    'user_id' => $user->id,
+                    'display_name' => $user->name,
+                    'position' => $user->globalProfile && $user->globalProfile->position
+                        ? $user->globalProfile->position->name
+                        : 'Developer',
+                    'experience_years' => (float) ($user->globalProfile->experience_years ?? 0.0),
+                    'skills' => $skills,
+                    'macro_domains' => $macroDomains,
+                ];
+            }
+        }
+
+        // Build a synthetic task feature dict from the raw fields
+        $taskFeatures = [
+            'title' => $validated['title'],
+            'required_skills' => $validated['required_skills'] ?? [],
+            'estimated_hours' => (float) ($validated['estimated_hours'] ?? 4.0),
+            'task_difficulty' => $validated['task_difficulty'] ?? 'Medium',
+            'task_classification' => $validated['task_classification'] ?? 'Feature',
+            'priority' => $validated['priority'] ?? 'Medium',
+            // Placeholders for CPA fields not yet computed
+            'es' => 0, 'ef' => 0, 'ls' => 0, 'lf' => 0,
+            'total_float' => 0, 'is_critical' => false,
+            'days_until_deadline' => null,
+        ];
+
+        $payload = [
+            'task' => $taskFeatures,
+            'employee_profiles' => $employeeProfiles,
+        ];
+
+        $response = $this->mlService->getBestFit($payload);
+
+        if (($response['status'] ?? null) === 'success' && ! empty($response['results'])) {
+            // The GNN must only return members from this studio. Its training
+            // dataset IDs are not valid central-user IDs when no profiles are sent.
+            $teamMemberIds = collect($employeeProfiles)->pluck('user_id')->flip();
+            $response['results'] = collect($response['results'])
+                ->filter(fn (array $c): bool => $teamMemberIds->has($c['user_id']))
+                ->values()
+                ->all();
+        }
+
+        // Still give the manager named, selectable members if the ML service is
+        // offline or cannot rank a newly created studio profile. This prevents
+        // an empty recommendation screen while keeping the source transparent.
+        if (empty($response['results']) && ! empty($employeeProfiles)) {
+            $response = [
+                'status' => 'success',
+                'match_source' => 'manual_fallback',
+                'results' => collect($employeeProfiles)
+                    ->sortByDesc('experience_years')
+                    ->map(fn (array $profile): array => [
+                        'user_id' => $profile['user_id'],
+                        'display_name' => $profile['display_name'],
+                        'match_fit_score' => 0,
+                        'match_source' => 'manual_fallback',
+                    ])
+                    ->values()
+                    ->all(),
+            ];
+        }
+
+        return response()->json($response);
     }
 
     /**
@@ -307,7 +444,11 @@ class MLEngineIntegrationController extends Controller
         if ($mode === 'summary') {
             $result = $this->mlService->summarizeProject($stats);
 
-            return response()->json(['status' => $result['status'], 'reply' => $result['summary'] ?? 'Summary unavailable.', 'data' => $result]);
+            return response()->json([
+                'status' => $result['status'],
+                'reply' => $result['summary'] ?? 'Summary unavailable.',
+                'data' => array_merge($result, ['stats' => $stats]),
+            ]);
         }
 
         if ($mode === 'deadline') {
