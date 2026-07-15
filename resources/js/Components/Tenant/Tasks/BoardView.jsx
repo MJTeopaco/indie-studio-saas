@@ -50,9 +50,19 @@ function TagPill({ tag }) {
 }
 
 // ── Task Card (matches reference image) ───────────────────────────────────────
-function TaskCard({ task }) {
+function TaskCard({ task, onClick, onDragStart }) {
     return (
-        <div className="group rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 hover:border-indigo-400/60 dark:hover:border-indigo-500/50 p-4 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col gap-3">
+        <div
+            draggable={task.status !== 'completed'}
+            onDragStart={(event) => {
+                if (task.status === 'completed') return;
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', String(task.id));
+                onDragStart?.(task);
+            }}
+            onClick={onClick}
+            className="group rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 hover:border-indigo-400/60 dark:hover:border-indigo-500/50 p-4 shadow-sm hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing flex flex-col gap-3"
+        >
             {/* Client label */}
             <p className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">
                 Client: <span className="font-semibold text-gray-500 dark:text-slate-400">{task.client}</span>
@@ -93,14 +103,29 @@ function TaskCard({ task }) {
 const COLUMN_CONFIG = {
     todo:        { title: 'To Do',       badge: 'bg-gray-200 text-gray-600 dark:bg-slate-700 dark:text-slate-300',         dot: 'bg-gray-400' },
     in_progress: { title: 'In Progress', badge: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400', dot: 'bg-indigo-500' },
-    in_review:   { title: 'In Review',   badge: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',    dot: 'bg-amber-500' },
+    review:      { title: 'In Review',   badge: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',    dot: 'bg-amber-500' },
     completed:   { title: 'Completed',   badge: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400', dot: 'bg-emerald-500' },
 };
 
-function KanbanColumn({ colId, tasks, onAddTask }) {
+function KanbanColumn({ colId, tasks, onAddTask, onTaskClick, onDragStart, onDropTask, isDropTarget, onDragOverCol, onDragLeaveCol }) {
     const cfg = COLUMN_CONFIG[colId];
     return (
-        <div className="w-72 shrink-0 flex flex-col rounded-2xl bg-gray-50/80 dark:bg-slate-900/50 border border-gray-200/80 dark:border-slate-800/70 max-h-full overflow-hidden">
+        <div
+            onDragOver={(event) => {
+                event.preventDefault();
+                onDragOverCol?.(colId);
+            }}
+            onDragLeave={() => {
+                onDragLeaveCol?.(colId);
+            }}
+            onDrop={(event) => {
+                event.preventDefault();
+                onDropTask?.(colId);
+            }}
+            className={`w-72 shrink-0 flex flex-col rounded-2xl bg-gray-50/80 dark:bg-slate-900/50 border max-h-full overflow-hidden transition-all duration-200 ${
+                isDropTarget ? 'border-indigo-400 ring-2 ring-indigo-500/10 bg-indigo-500/[0.02] dark:bg-indigo-500/[0.04]' : 'border-gray-200/80 dark:border-slate-800/70'
+            }`}
+        >
             {/* Column header */}
             <div className="px-4 py-3.5 flex items-center justify-between shrink-0 border-b border-gray-200/60 dark:border-slate-800/60">
                 <div className="flex items-center gap-2">
@@ -124,7 +149,14 @@ function KanbanColumn({ colId, tasks, onAddTask }) {
 
             {/* Cards */}
             <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
-                {tasks.map(task => <TaskCard key={task.id} task={task} />)}
+                {tasks.map(task => (
+                    <TaskCard
+                        key={task.id}
+                        task={task}
+                        onClick={() => onTaskClick?.(task)}
+                        onDragStart={onDragStart}
+                    />
+                ))}
 
                 {tasks.length === 0 && (
                     <div className="py-10 text-center rounded-xl border-2 border-dashed border-gray-200 dark:border-slate-800">
@@ -145,15 +177,30 @@ function KanbanColumn({ colId, tasks, onAddTask }) {
 }
 
 // ── BoardView ─────────────────────────────────────────────────────────────────
-export default function BoardView({ tasks = [] }) {
+export default function BoardView({ tasks = [], onTaskClick, onStatusChange }) {
+    const [draggedTask, setDraggedTask] = useState(null);
+    const [hoveredColId, setHoveredColId] = useState(null);
+
     const handleAddTask = (colId) => {
         alert(`Add task to "${COLUMN_CONFIG[colId].title}" — modal coming soon!`);
+    };
+
+    const handleDropTask = (status) => {
+        if (!draggedTask || draggedTask.status === status) {
+            setDraggedTask(null);
+            setHoveredColId(null);
+            return;
+        }
+
+        onStatusChange?.(draggedTask, status);
+        setDraggedTask(null);
+        setHoveredColId(null);
     };
 
     const tasksByCol = {
         todo:        tasks.filter(t => t.status === 'todo'),
         in_progress: tasks.filter(t => t.status === 'in_progress'),
-        in_review:   tasks.filter(t => t.status === 'in_review'),
+        review:      tasks.filter(t => t.status === 'review' || t.status === 'in_review'),
         completed:   tasks.filter(t => t.status === 'completed'),
     };
 
@@ -166,6 +213,12 @@ export default function BoardView({ tasks = [] }) {
                         colId={colId}
                         tasks={tasksByCol[colId]}
                         onAddTask={handleAddTask}
+                        onTaskClick={onTaskClick}
+                        onDragStart={setDraggedTask}
+                        onDropTask={handleDropTask}
+                        onDragOverCol={setHoveredColId}
+                        onDragLeaveCol={() => setHoveredColId(null)}
+                        isDropTarget={hoveredColId === colId && draggedTask && draggedTask.status !== colId}
                     />
                 ))}
             </div>

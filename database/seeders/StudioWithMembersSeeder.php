@@ -62,6 +62,7 @@ class StudioWithMembersSeeder extends Seeder
         // Get all developer users who have a GlobalProfile (excluding the manager)
         $developers = User::whereHas('globalProfile')
             ->where('id', '!=', $manager->id)
+            ->where('email', '!=', 'developer@example.com')
             ->get();
 
         foreach ($developers as $developer) {

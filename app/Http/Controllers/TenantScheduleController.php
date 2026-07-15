@@ -6,6 +6,7 @@ use App\Models\Studio;
 use App\Models\Tenant\Project;
 use App\Models\Tenant\Task;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class TenantScheduleController extends Controller
@@ -14,9 +15,34 @@ class TenantScheduleController extends Controller
     {
         $studio = Studio::find(tenant('id'));
 
+        $user = auth()->user();
+        $isManager = false;
+        if ($user && $user->role === \App\Models\User::ROLE_ADMIN) {
+            $isManager = true;
+        } else {
+            $member = \DB::connection(config('tenancy.database.central_connection', 'central'))->table('studio_members')
+                ->where('studio_id', tenant('id'))
+                ->where('user_id', $user->id)
+                ->first();
+            $role = $member ? $member->role : 'member';
+            $isManager = in_array($role, ['owner', 'leader', 'manager']);
+        }
+
+        $latestAssignments = DB::table('assignments')
+            ->select('task_id', DB::raw('MAX(assigned_at) as assigned_at'))
+            ->groupBy('task_id');
+
         $query = Task::with(['assignee', 'predecessors', 'project'])
+            ->leftJoinSub($latestAssignments, 'latest_assignments', function ($join) {
+                $join->on('tasks.id', '=', 'latest_assignments.task_id');
+            })
+            ->select('tasks.*', 'latest_assignments.assigned_at as assignment_assigned_at')
             ->orderBy('es')
-            ->orderBy('id');
+            ->orderBy('tasks.id');
+
+        if (!$isManager) {
+            $query->where('assigned_user_id', $user->id);
+        }
 
         if ($request->filled('project_id') && $request->project_id !== 'all') {
             $query->where('project_id', $request->project_id);
@@ -34,7 +60,18 @@ class TenantScheduleController extends Controller
                 'hard_constraint_date' => $t->hard_constraint_date?->format('Y-m-d'),
                 'project_id' => $t->project_id,
                 'project_name' => $t->project?->name,
+                'project' => $t->project ? [
+                    'id' => $t->project->id,
+                    'name' => $t->project->name,
+                    'start_date' => $t->project->start_date?->format('Y-m-d'),
+                ] : null,
                 'assigned_user_id' => $t->assigned_user_id,
+                'assigned_at' => $t->assignment_assigned_at
+                    ? \Carbon\Carbon::parse($t->assignment_assigned_at)->toIso8601String()
+                    : ($t->created_at ? $t->created_at->toIso8601String() : null),
+                'dueDate' => $t->days_until_deadline !== null
+                    ? ($t->project?->start_date ? $t->project->start_date->addDays($t->days_until_deadline)->format('Y-m-d') : now()->addDays($t->days_until_deadline)->format('Y-m-d'))
+                    : null,
                 'assignee' => $t->assignee ? [
                     'id' => $t->assignee->id,
                     'name' => $t->assignee->name,

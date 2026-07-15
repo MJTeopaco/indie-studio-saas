@@ -79,7 +79,7 @@ function isSameDay(a, b) {
  *   allTaskDates   Set<str> — 'YYYY-MM-DD' strings with any task (for dot indicators)
  *   allEventDates  Set<str> — 'YYYY-MM-DD' strings with any event (for dot indicators)
  */
-export default function DayPanel({ selectedDate, onSelectDate, tasks = [], events = [], allTaskDates = new Set(), allEventDates = new Set() }) {
+export default function DayPanel({ selectedDate, onSelectDate, tasks = [], events = [], allTaskDates = new Set(), allEventDates = new Set(), onTaskClick }) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -199,28 +199,28 @@ export default function DayPanel({ selectedDate, onSelectDate, tasks = [], event
                 ) : (
                     <div className="space-y-1.5">
                         {tasks.map(task => {
-                            const isChecked = checked.has(task.id);
+                            const isCompleted = task.status === 'completed';
                             return (
                                 <button
                                     key={task.id}
-                                    onClick={() => toggleCheck(task.id)}
+                                    onClick={() => onTaskClick?.(task)}
                                     className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-all group
-                                        ${isChecked
+                                        ${isCompleted
                                             ? 'bg-gray-50 dark:bg-slate-800/40 border-gray-100 dark:border-slate-800/60 opacity-60'
                                             : 'bg-white dark:bg-slate-800/20 border-gray-100 dark:border-slate-800/60 hover:border-indigo-200 dark:hover:border-indigo-700/40 hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10'
                                         }`}
                                 >
                                     {/* Custom checkbox */}
                                     <span className={`w-4 h-4 rounded flex items-center justify-center shrink-0 border transition-colors
-                                        ${isChecked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 dark:border-slate-600 group-hover:border-indigo-400'}`}>
-                                        {isChecked && <CheckIcon />}
+                                        ${isCompleted ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 dark:border-slate-600 group-hover:border-indigo-400'}`}>
+                                        {isCompleted && <CheckIcon />}
                                     </span>
 
                                     {/* Priority dot */}
                                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${PRIORITY_DOT[task.priority] || 'bg-gray-400'}`} />
 
                                     {/* Title */}
-                                    <span className={`flex-1 text-xs font-medium leading-snug truncate ${isChecked ? 'line-through text-gray-400 dark:text-slate-500' : 'text-gray-800 dark:text-slate-200'}`}>
+                                    <span className={`flex-1 text-xs font-medium leading-snug truncate ${isCompleted ? 'line-through text-gray-400 dark:text-slate-500' : 'text-gray-800 dark:text-slate-200'}`}>
                                         {task.title}
                                     </span>
 
@@ -233,7 +233,7 @@ export default function DayPanel({ selectedDate, onSelectDate, tasks = [], event
 
                                     {/* Project badge */}
                                     <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 font-medium truncate max-w-[60px]">
-                                        {task.client || task.project?.name || 'Project'}
+                                        {task.client || task.project_name || 'Project'}
                                     </span>
                                 </button>
                             );

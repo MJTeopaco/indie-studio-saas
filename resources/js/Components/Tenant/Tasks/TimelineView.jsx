@@ -24,8 +24,30 @@ function AvatarStack({ names = [] }) {
     );
 }
 
+const priorityWeight = {
+    Critical: 0,
+    CRITICAL: 0,
+    High: 1,
+    HIGH: 1,
+    Medium: 2,
+    MEDIUM: 2,
+    Low: 3,
+    LOW: 3,
+};
+
+function sortByPriorityAndCriticality(tasks) {
+    return [...tasks].sort((a, b) => {
+        const aCritical = a.is_critical || Number(a.total_float) === 0;
+        const bCritical = b.is_critical || Number(b.total_float) === 0;
+        if (aCritical !== bCritical) return aCritical ? -1 : 1;
+        const priorityDiff = (priorityWeight[a.priority] ?? 2) - (priorityWeight[b.priority] ?? 2);
+        if (priorityDiff !== 0) return priorityDiff;
+        return Number(a.es ?? a.id ?? 0) - Number(b.es ?? b.id ?? 0);
+    });
+}
+
 // ── TimelineView ──────────────────────────────────────────────────────────────
-export default function TimelineView({ tasks = [] }) {
+export default function TimelineView({ tasks = [], onTaskClick }) {
     // Build a date range covering all tasks ± 2 days padding
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -64,6 +86,7 @@ export default function TimelineView({ tasks = [] }) {
     const STATUS_COLOR = {
         todo:        'bg-gray-300 dark:bg-slate-600',
         in_progress: 'bg-indigo-500',
+        review:      'bg-amber-500',
         in_review:   'bg-amber-500',
         completed:   'bg-emerald-500',
     };
@@ -76,10 +99,29 @@ export default function TimelineView({ tasks = [] }) {
         return acc;
     }, {});
 
+    // Sort tasks in each group by priority and criticality
+    Object.keys(grouped).forEach(key => {
+        grouped[key] = sortByPriorityAndCriticality(grouped[key]);
+    });
+
     const todayOffset = daysBetween(minDate, today);
 
     return (
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-auto p-6 space-y-4">
+            {/* Legend / Status Indicators */}
+            <div className="flex items-center justify-between bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-4 shadow-sm shrink-0">
+                <div>
+                    <h2 className="text-sm font-bold text-gray-900 dark:text-slate-100 font-heading">Tasks Timeline Gantt</h2>
+                    <p className="text-xs text-gray-500 font-sans">Tasks sorted by auto-priority (critical path first).</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-gray-600 dark:text-slate-400 font-sans">
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-500 inline-block" /> Completed</span>
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-indigo-500 inline-block" /> In Progress</span>
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-500 inline-block" /> In Review</span>
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-gray-300 dark:bg-slate-600 inline-block" /> To Do</span>
+                </div>
+            </div>
+
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                     <div style={{ minWidth: `${LEFT_W + totalDays * COL_W}px` }}>
@@ -140,7 +182,7 @@ export default function TimelineView({ tasks = [] }) {
                                     return (
                                         <div key={task.id} className="flex items-center border-b border-gray-50 dark:border-slate-800/30 hover:bg-gray-50/40 dark:hover:bg-slate-800/10 transition-colors" style={{ height: ROW_H }}>
                                             {/* Task label */}
-                                            <div style={{ width: LEFT_W }} className="shrink-0 px-4 flex flex-col justify-center border-r border-gray-200 dark:border-slate-700/60 h-full">
+                                            <div onClick={() => onTaskClick?.(task)} style={{ width: LEFT_W }} className="shrink-0 px-4 flex flex-col justify-center border-r border-gray-200 dark:border-slate-700/60 h-full cursor-pointer hover:bg-gray-100/40 dark:hover:bg-slate-800/30">
                                                 <span className="text-xs font-semibold text-gray-800 dark:text-slate-200 truncate">{task.title}</span>
                                                 {task.assignee && (
                                                     <span className="text-[10px] text-gray-400 dark:text-slate-500 truncate">{task.assignee}</span>
@@ -167,7 +209,8 @@ export default function TimelineView({ tasks = [] }) {
                                                 {/* Task bar */}
                                                 {barW > 0 && (
                                                     <div
-                                                        className={`absolute top-1/2 -translate-y-1/2 rounded-full flex items-center px-2 gap-1.5 shadow-sm ${STATUS_COLOR[task.status] || STATUS_COLOR.todo}`}
+                                                        onClick={() => onTaskClick?.(task)}
+                                                        className={`absolute top-1/2 -translate-y-1/2 rounded-full flex items-center px-2 gap-1.5 shadow-sm cursor-pointer hover:scale-[1.02] active:scale-[0.98] transition-transform ${STATUS_COLOR[task.status] || STATUS_COLOR.todo}`}
                                                         style={{ left: barStart * COL_W + 1, width: barW - 2, height: 24, minWidth: 24 }}
                                                         title={`${task.title} — ${task.startDate} → ${task.dueDate}`}
                                                     >
