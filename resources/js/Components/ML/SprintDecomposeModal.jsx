@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { router } from '@inertiajs/react';
 import {
     X, Sparkles, Loader2, Save, Trash2,
     CheckCircle2, Clock, Zap, Brain, ListChecks,
-    ChevronRight, AlertCircle, Plus, Layers
+    ChevronRight, AlertCircle, Plus, Layers, User, Users, ChevronDown
 } from 'lucide-react';
 
 // ─── Canonical Skills Dictionary ──────────────────────────────────────────────
@@ -152,10 +152,11 @@ function StageIndicator({ stages, currentStage, pct }) {
 
             <div className="w-full bg-gray-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
                 <div
-                    className="h-full bg-gradient-to-r from-brand to-brand-light rounded-full transition-all duration-700 ease-out"
+                    className="h-full bg-gradient-to-r from-brand via-brand-light to-brand rounded-full transition-[width] duration-500 ease-out"
                     style={{ width: `${pct}%` }}
                 />
             </div>
+            <p className="-mt-2 text-right text-[10px] font-semibold text-brand tabular-nums">{pct}%</p>
 
             <div className="flex flex-col gap-2 mt-1">
                 {stages.map((stage, idx) => {
@@ -339,8 +340,140 @@ function getPriorityColorClass(priority) {
     }
 }
 
+// ─── Inline Assignment Section ────────────────────────────────────────────────
+function InlineAssignment({ taskIndex, teamMembers = [], fitState, onAssign, onRemove, onClear }) {
+    const { loading, candidates, error, assignedUserIds } = fitState;
+    const [showAll, setShowAll] = useState(false);
+
+    const getMember = (userId) => teamMembers.find(m => Number(m.id) === Number(userId));
+    const getMemberName = (userId) => getMember(userId)?.name ?? null;
+    const getInitial  = (userId) => getMemberName(userId)?.charAt(0).toUpperCase() ?? '?';
+
+    const topCandidate = candidates[0] ?? null;
+    const pct = (score) => Math.round((score ?? 0) * 100);
+
+    return (
+        <div className="border-t border-gray-100 dark:border-slate-800/80 pt-3 space-y-2">
+            <div className="flex items-center justify-between">
+                <span className="block text-[11px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Users className="w-3 h-3" /> Assignment
+                </span>
+                {assignedUserIds.length > 0 && (
+                    <button type="button" onClick={onClear}
+                        className="text-[10px] text-gray-400 hover:text-rose-500 transition-colors">
+                        Leave unassigned
+                    </button>
+                )}
+            </div>
+
+            {/* Currently assigned pills */}
+            {assignedUserIds.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                    {assignedUserIds.filter(uid => getMember(uid)).map(uid => (
+                        <div key={uid} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-700 dark:text-emerald-300 text-[11px] font-semibold">
+                            <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[9px] font-bold flex items-center justify-center">{getInitial(uid)}</span>
+                            {getMemberName(uid)}
+                            <button type="button" onClick={() => onRemove(uid)}
+                                className="text-emerald-400 hover:text-rose-500 transition-colors">
+                                <X className="w-2.5 h-2.5" />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Loading state */}
+            {loading && (
+                <div className="flex items-center gap-2 py-1">
+                    <span className="flex gap-0.5">
+                        {[0, 1, 2].map(i => (
+                            <span key={i} className="w-1 h-1 rounded-full bg-brand animate-bounce"
+                                style={{ animationDelay: `${i * 150}ms` }} />
+                        ))}
+                    </span>
+                    <span className="text-[11px] text-gray-400 dark:text-slate-500">Finding best fit…</span>
+                </div>
+            )}
+
+            {/* Error */}
+            {!loading && error && (
+                <p className="text-[11px] text-amber-500">{error}</p>
+            )}
+
+            {/* Top suggestion chip (when not yet assigned) */}
+            {!loading && !error && topCandidate && getMember(topCandidate.user_id) && assignedUserIds.length === 0 && (
+                <div className="flex items-center gap-2 p-2 rounded-xl border border-brand/25 bg-brand/5 dark:bg-brand/10">
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-brand to-brand-dark text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                        {getInitial(topCandidate.user_id)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-gray-900 dark:text-slate-100 truncate">{getMemberName(topCandidate.user_id)}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                            <div className="flex-1 h-1 rounded-full bg-gray-100 dark:bg-slate-700 overflow-hidden">
+                                <div className="h-full rounded-full bg-emerald-500"
+                                    style={{ width: `${pct(topCandidate.match_fit_score)}%` }} />
+                            </div>
+                            <span className="text-[10px] font-bold text-emerald-500">{pct(topCandidate.match_fit_score)}% fit</span>
+                        </div>
+                    </div>
+                    <button type="button"
+                        onClick={() => onAssign([topCandidate.user_id])}
+                        className="px-2.5 py-1 rounded-lg bg-brand text-white text-[11px] font-bold hover:bg-brand-dark transition-colors shrink-0">
+                        Accept
+                    </button>
+                </div>
+            )}
+
+            {/* Dropdown to change / add from all candidates */}
+            {!loading && candidates.length > 0 && (
+                <div className="flex items-center gap-2">
+                    <select
+                        defaultValue=""
+                        onChange={e => {
+                            const id = Number(e.target.value);
+                            if (id && !assignedUserIds.includes(id)) {
+                                onAssign([...assignedUserIds, id]);
+                            }
+                            e.target.value = '';
+                        }}
+                        className="flex-1 text-[11px] rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-gray-700 dark:text-slate-300 outline-none focus:border-brand"
+                    >
+                        <option value="">{assignedUserIds.length === 0 ? '↕ Change suggestion…' : '+ Add another person…'}</option>
+                        {candidates.filter(c => getMember(c.user_id)).map(c => (
+                            <option key={c.user_id} value={c.user_id}
+                                disabled={assignedUserIds.includes(Number(c.user_id))}>
+                                {getMemberName(c.user_id)} ({pct(c.match_fit_score)}%)
+                            </option>
+                        ))}
+                    </select>
+                </div>
+            )}
+
+            {/* When no candidates and not loading, show manual picker from teamMembers */}
+            {!loading && candidates.length === 0 && teamMembers.length > 0 && (
+                <select
+                    defaultValue=""
+                    onChange={e => {
+                        const id = Number(e.target.value);
+                        if (id && !assignedUserIds.includes(id)) {
+                            onAssign([...assignedUserIds, id]);
+                        }
+                        e.target.value = '';
+                    }}
+                    className="w-full text-[11px] rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-gray-700 dark:text-slate-300 outline-none focus:border-brand"
+                >
+                    <option value="">Assign manually…</option>
+                    {teamMembers.map(m => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                </select>
+            )}
+        </div>
+    );
+}
+
 // ─── Editable Task Card Sub-Component ─────────────────────────────────────────
-function EditableTaskCard({ task, index, updateTask, removeTask }) {
+function EditableTaskCard({ task, index, updateTask, removeTask, teamMembers, fitState, onAssign, onRemoveMember, onClear }) {
     const handlePriorityChange = (e) => {
         updateTask(index, 'priority', e.target.value);
     };
@@ -490,6 +623,33 @@ function EditableTaskCard({ task, index, updateTask, removeTask }) {
                     onChange={handleSkillsChange}
                 />
             </div>
+
+            {/* Inline Assignment Section */}
+            {fitState && (
+                <InlineAssignment
+                    taskIndex={index}
+                    teamMembers={teamMembers}
+                    fitState={fitState}
+                    onAssign={onAssign}
+                    onRemove={onRemoveMember}
+                    onClear={onClear}
+                />
+            )}
+        </div>
+    );
+}
+
+function TaskAssignmentCard({ task, index, teamMembers, fitState, onAssign, onRemoveMember, onClear }) {
+    return (
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-3 flex items-start gap-3">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-extrabold text-indigo-600 dark:text-indigo-400">{index + 1}</span>
+                <div className="min-w-0">
+                    <h3 className="truncate text-sm font-bold text-gray-900 dark:text-slate-100">{task.title}</h3>
+                    <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-slate-400">{task.objective || task.description || 'No description provided.'}</p>
+                </div>
+            </div>
+            <InlineAssignment taskIndex={index} teamMembers={teamMembers} fitState={fitState} onAssign={onAssign} onRemove={onRemoveMember} onClear={onClear} />
         </div>
     );
 }
@@ -500,6 +660,7 @@ export default function SprintDecomposeModal({
     onClose,
     projectId,
     tenantId,
+    teamMembers = [],
     initialDescription = '',
     initialDraftTasks = null,
     embedded = false,
@@ -507,14 +668,92 @@ export default function SprintDecomposeModal({
     onSaveSuccess = null,
 }) {
     const [description, setDescription] = useState('');
-    const [phase, setPhase]             = useState('input');   // input | loading | review
+    const [phase, setPhase]             = useState('input');   // input | loading | review | assign
     const [progress, setProgress]       = useState({ stage: null, message: '', pct: 0 });
     const [editableTasks, setEditableTasks] = useState(null);
     const [isSaving, setIsSaving]       = useState(false);
     const [error, setError]             = useState(null);
+    // Per-task fit suggestion state: { loading, candidates, error, assignedUserIds }
+    const [taskFits, setTaskFits]       = useState([]);
 
     const abortRef = useRef(null);
     const hasAutoStartedRef = useRef(false);
+
+    // ── Fetch preview best-fit for all tasks in parallel ─────────────────────
+    const fetchAllFits = useCallback(async (tasks) => {
+        if (!tenantId) return;
+        // Initialize loading state for every task
+        setTaskFits(tasks.map(() => ({ loading: true, candidates: [], error: null, assignedUserIds: [] })));
+
+        const previewUrl = route('tenant.ml.preview-best-fit', { tenant: tenantId });
+
+        // Fire all requests in parallel — results show as they come in
+        tasks.forEach(async (task, idx) => {
+            try {
+                const res = await axios.post(previewUrl, {
+                    title:               task.title,
+                    required_skills:     task.required_skills ?? [],
+                    estimated_hours:     task.estimated_hours ?? 4,
+                    task_difficulty:     task.task_difficulty ?? 'Medium',
+                    task_classification: task.task_classification ?? 'Feature',
+                    priority:            task.priority ?? 'Medium',
+                }, { timeout: 300000 });
+
+                const eligibleIds = new Set(teamMembers.map(member => Number(member.id)));
+                const rankedCandidates = res.data.status === 'success'
+                    ? (res.data.results ?? []).filter(candidate => eligibleIds.has(Number(candidate.user_id)))
+                    : [];
+                const candidates = rankedCandidates.length > 0
+                    ? rankedCandidates
+                    : teamMembers.map(member => ({
+                        user_id: member.id,
+                        match_fit_score: 0,
+                        match_source: 'manual_fallback',
+                    }));
+                setTaskFits(prev => {
+                    const next = [...prev];
+                    next[idx] = { loading: false, candidates, error: null, assignedUserIds: [] };
+                    return next;
+                });
+            } catch {
+                setTaskFits(prev => {
+                    const next = [...prev];
+                    next[idx] = { loading: false, candidates: [], error: 'ML Engine unavailable', assignedUserIds: [] };
+                    return next;
+                });
+            }
+        });
+    }, [tenantId, teamMembers]);
+
+    const setTaskFitAssignment = (taskIndex, userIds) => {
+        setTaskFits(prev => {
+            const next = [...prev];
+            if (next[taskIndex]) {
+                next[taskIndex] = { ...next[taskIndex], assignedUserIds: userIds };
+            }
+            return next;
+        });
+    };
+
+    const removeTaskFitMember = (taskIndex, userId) => {
+        setTaskFits(prev => {
+            const next = [...prev];
+            if (next[taskIndex]) {
+                next[taskIndex] = { ...next[taskIndex], assignedUserIds: next[taskIndex].assignedUserIds.filter(id => id !== userId) };
+            }
+            return next;
+        });
+    };
+
+    const clearTaskFitAssignment = (taskIndex) => {
+        setTaskFits(prev => {
+            const next = [...prev];
+            if (next[taskIndex]) {
+                next[taskIndex] = { ...next[taskIndex], assignedUserIds: [] };
+            }
+            return next;
+        });
+    };
 
     useEffect(() => {
         if (isOpen && initialDescription) {
@@ -527,6 +766,7 @@ export default function SprintDecomposeModal({
             setEditableTasks(initialDraftTasks);
             setPhase('review');
             setError(null);
+            setTaskFits([]);
         }
     }, [isOpen, initialDraftTasks]);
 
@@ -599,6 +839,7 @@ export default function SprintDecomposeModal({
                         setProgress(p => ({ ...p, pct: 100 }));
                         setEditableTasks(payload.tasks);
                         setPhase('review');
+                        setTaskFits([]);
                     } else if (event === 'error') {
                         throw new Error(payload.message || 'Unknown error from ML Engine');
                     }
@@ -625,8 +866,13 @@ export default function SprintDecomposeModal({
         setIsSaving(true);
         setError(null);
         try {
+            // Merge inline assignment choices into each task payload
+            const tasksWithAssignments = editableTasks.map((task, idx) => ({
+                ...task,
+                assigned_user_ids: taskFits[idx]?.assignedUserIds ?? [],
+            }));
             const url = route('tenant.projects.tasks.bulk', { tenant: tenantId, project: projectId });
-            await axios.post(url, { tasks: editableTasks }, {
+            await axios.post(url, { tasks: tasksWithAssignments }, {
                 headers: { Accept: 'application/json' },
             });
             if (onSaveSuccess) {
@@ -635,6 +881,7 @@ export default function SprintDecomposeModal({
                 router.reload({ only: ['project'] });
             }
             setEditableTasks(null);
+            setTaskFits([]);
             setDescription('');
             setPhase('input');
             onClose();
@@ -656,6 +903,13 @@ export default function SprintDecomposeModal({
 
     const removeTask = (index) => {
         setEditableTasks(currentTasks => currentTasks.filter((_, i) => i !== index));
+        setTaskFits(currentFits => currentFits.filter((_, i) => i !== index));
+    };
+
+    const handleProceedToAssignments = () => {
+        if (!editableTasks?.length) return;
+        setPhase('assign');
+        fetchAllFits(editableTasks);
     };
 
     return (
@@ -674,8 +928,11 @@ export default function SprintDecomposeModal({
                             </h2>
                             {phase === 'review' && (
                                 <p className="text-xs text-emerald-500 font-semibold mt-0.5 flex items-center gap-1">
-                                    <span>✓ {editableTasks?.length || 0} editable task cards — tweak recommendations before saving</span>
+                                    <span>✓ {editableTasks?.length || 0} task cards ready to review</span>
                                 </p>
+                            )}
+                            {phase === 'assign' && (
+                                <p className="text-xs text-emerald-500 font-semibold mt-0.5">Step 2 of 2 — choose one or more members for each task</p>
                             )}
                         </div>
                     </div>
@@ -690,7 +947,7 @@ export default function SprintDecomposeModal({
                 </div>
 
                 {/* Body */}
-                <div className="flex-1 overflow-y-auto p-6">
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                     {/* INPUT PHASE */}
                     {phase === 'input' && (
                         <div className="space-y-5">
@@ -777,26 +1034,49 @@ export default function SprintDecomposeModal({
                             </div>
                         </div>
                     )}
+
+                    {phase === 'assign' && editableTasks && (
+                        <div className="space-y-4">
+                            <div>
+                                <p className="text-sm font-semibold text-gray-800 dark:text-slate-200">Assign the team</p>
+                                <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">Select the recommended member or add as many additional members as needed. Tasks are saved only after this step.</p>
+                            </div>
+                            <div className="space-y-4">
+                                {editableTasks.map((task, idx) => (
+                                    <TaskAssignmentCard
+                                        key={idx}
+                                        task={task}
+                                        index={idx}
+                                        teamMembers={teamMembers}
+                                        fitState={taskFits[idx] ?? { loading: true, candidates: [], error: null, assignedUserIds: [] }}
+                                        onAssign={(userIds) => setTaskFitAssignment(idx, userIds)}
+                                        onRemoveMember={(uid) => removeTaskFitMember(idx, uid)}
+                                        onClear={() => clearTaskFitAssignment(idx)}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
-                {/* Footer (review only) */}
-                {phase === 'review' && (
+                {/* Footer (review and assignment) */}
+                {(phase === 'review' || phase === 'assign') && (
                     <div className="px-6 py-4 border-t border-gray-100 dark:border-slate-800 bg-gray-50/70 dark:bg-slate-800/70 flex items-center justify-between gap-3 shrink-0">
                         <button
                             type="button"
-                            onClick={() => { setEditableTasks(null); setPhase('input'); }}
+                            onClick={() => phase === 'assign' ? setPhase('review') : (setEditableTasks(null), setTaskFits([]), setPhase('input'))}
                             className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
                         >
-                            ← Try Again
+                            {phase === 'assign' ? '← Back to task review' : '← Try Again'}
                         </button>
                         <button
                             type="button"
-                            onClick={handleSaveDraft}
+                            onClick={phase === 'assign' ? handleSaveDraft : handleProceedToAssignments}
                             disabled={isSaving || !editableTasks?.length}
                             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand text-white font-semibold shadow-md shadow-brand/20 disabled:opacity-50 hover:bg-brand-light transition-all"
                         >
-                            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                            Confirm &amp; Save {editableTasks?.length ? `(${editableTasks.length} tasks)` : ''}
+                            {phase === 'assign' && isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : phase === 'assign' ? <Save className="w-4 h-4" /> : <Users className="w-4 h-4" />}
+                            {phase === 'assign' ? `Confirm & Save${editableTasks?.length ? ` (${editableTasks.length} tasks)` : ''}` : 'Continue to member assignment'}
                         </button>
                     </div>
                 )}
@@ -804,4 +1084,3 @@ export default function SprintDecomposeModal({
         </div>
     );
 }
-

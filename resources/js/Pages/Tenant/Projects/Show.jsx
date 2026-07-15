@@ -29,25 +29,38 @@ function PriorityBadge({ priority }) {
 }
 
 function TaskAssignee({ task, onFindFit }) {
-    if (!task.assignee) {
+    // An explicit empty array means every active assignment was removed.
+    // Only use the legacy primary assignee when this payload omits the new field.
+    const assignees = Array.isArray(task.assignees)
+        ? task.assignees
+        : (task.assignee ? [task.assignee] : []);
+
+    if (!assignees.length) {
         return (
             <button
                 onClick={(e) => { e.stopPropagation(); onFindFit(task); }}
                 className="inline-flex items-center gap-1 rounded-lg border border-brand/20 bg-brand/10 px-2 py-1 text-[10px] font-semibold text-brand hover:bg-brand hover:text-white transition-colors"
             >
                 <Cpu className="h-3 w-3" />
-                Find Fit
+                Assign member
             </button>
         );
     }
     return (
-        <div className="flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand text-[10px] font-bold text-white">
-                {task.assignee.name.charAt(0)}
+        <div className="flex min-w-0 items-center gap-1.5" title={assignees.map(member => member.name).join(', ')}>
+            <div className="flex -space-x-1.5">
+                {assignees.slice(0, 3).map(member => (
+                    <span key={member.id} className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-brand text-[10px] font-bold text-white dark:border-slate-900">
+                        {member.name.charAt(0).toUpperCase()}
+                    </span>
+                ))}
+            </div>
+            <span className="max-w-36 truncate text-xs font-medium text-gray-700 dark:text-slate-300">
+                {assignees.map(member => member.name).join(', ')}
             </span>
-            <span className="max-w-28 truncate text-xs font-medium text-gray-700 dark:text-slate-300">
-                {task.assignee.name}
-            </span>
+            {assignees.length > 3 && (
+                <span className="text-[10px] font-bold text-gray-400">+{assignees.length - 3}</span>
+            )}
         </div>
     );
 }

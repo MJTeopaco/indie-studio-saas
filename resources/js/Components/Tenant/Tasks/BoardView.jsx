@@ -123,7 +123,7 @@ function KanbanColumn({ colId, tasks, onAddTask }) {
             </div>
 
             {/* Cards */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-3 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700">
+            <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
                 {tasks.map(task => <TaskCard key={task.id} task={task} />)}
 
                 {tasks.length === 0 && (
@@ -158,7 +158,7 @@ export default function BoardView({ tasks = [] }) {
     };
 
     return (
-        <div className="flex-1 overflow-x-auto overflow-y-hidden p-6">
+        <div className="flex-1 overflow-x-auto overflow-y-hidden custom-scrollbar p-6">
             <div className="flex gap-4 h-full min-w-max pb-2">
                 {Object.keys(COLUMN_CONFIG).map(colId => (
                     <KanbanColumn

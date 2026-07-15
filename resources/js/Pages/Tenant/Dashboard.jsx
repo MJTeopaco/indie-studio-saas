@@ -6,7 +6,7 @@ import RightSidebar from '@/Components/Tenant/Projects/RightSidebar';
 import SprintDecomposeModal from '@/Components/ML/SprintDecomposeModal';
 import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
 import CreateProjectModal from '@/Components/Tenant/Projects/CreateProjectModal';
-import { CheckSquare, Cpu, Calendar, Users, Paperclip, Mic, Send, Sparkles, Bot, Loader2, X } from 'lucide-react';
+import { CheckSquare, Cpu, Calendar, Users, Paperclip, Mic, Send, Sparkles, Bot, X } from 'lucide-react';
 
 function QuickActionCard({ title, description, icon: Icon, badgeColor, onClick }) {
     const colorMap = {
@@ -95,19 +95,73 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
         setMessages(current => [...current, { id: crypto.randomUUID(), role: 'user', content: trimmedPrompt }]);
         setPrompt('');
 
-        try {
-            const controller = new AbortController();
-            abortRef.current = controller;
-            if (isNewProjectRequest(trimmedPrompt)) {
-                setGeneration({ stage: 'plan', message: 'Creating an editable project plan…', pct: 45 });
-                const { data } = await axios.post(route('tenant.workspace.decompose', { tenant: studio.id }), {
-                    description: planningPrompt,
-                }, { signal: controller.signal });
-                if (data.status !== 'success' || !data.tasks?.length) {
-                    throw new Error('The AI did not return a project plan to review.');
+        const controller = new AbortController();
+        abortRef.current = controller;
+
+        /**
+         * Helper: call the SSE /decompose-project/stream endpoint and
+         * stream progress updates into the generation state.
+         * Resolves with the final tasks array.
+         */
+        const streamDecompose = async (description) => {
+            const ML_URL = 'http://127.0.0.1:8001/api/llm/decompose-project/stream';
+            setGeneration({ stage: 'plan', message: 'Analysing project description...', pct: 10 });
+
+            const response = await fetch(ML_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ description }),
+                signal: controller.signal,
+            });
+
+            if (!response.ok) throw new Error(`ML Engine returned HTTP ${response.status}`);
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let finalTasks = null;
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const chunks = buffer.split('\n\n');
+                buffer = chunks.pop() ?? '';
+
+                for (const chunk of chunks) {
+                    if (!chunk.trim()) continue;
+                    const lines = chunk.split('\n');
+                    let event = 'message';
+                    let data = '';
+                    for (const line of lines) {
+                        if (line.startsWith('event:')) event = line.slice(6).trim();
+                        if (line.startsWith('data:'))  data  = line.slice(5).trim();
+                    }
+                    if (!data) continue;
+                    const payload = JSON.parse(data);
+
+                    if (event === 'progress') {
+                        setGeneration({ stage: payload.stage, message: payload.message, pct: payload.pct });
+                    } else if (event === 'done') {
+                        setGeneration(g => ({ ...g, pct: 100 }));
+                        finalTasks = payload.tasks ?? [];
+                    } else if (event === 'error') {
+                        throw new Error(payload.message || 'Unknown error from ML Engine');
+                    }
                 }
+            }
+
+            if (!finalTasks) throw new Error('The AI did not return any tasks to review.');
+            return finalTasks;
+        };
+
+        try {
+            if (isNewProjectRequest(trimmedPrompt)) {
+                const rawTasks = await streamDecompose(planningPrompt);
+                if (!rawTasks.length) throw new Error('The AI did not return a project plan to review.');
                 setPendingProjectPlan({
-                    tasks: data.tasks.map(task => ({
+                    tasks: rawTasks.map(task => ({
                         ...task,
                         ...(daysUntilDeadline === null ? {} : { days_until_deadline: daysUntilDeadline }),
                     })),
@@ -115,12 +169,12 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                     name: suggestedProjectName(trimmedPrompt),
                 });
                 setIsProjectCreationOpen(true);
-                addAssistantMessage('I’ve prepared a draft plan. Add a project name in the next step, then you can review every task before saving it.');
+                addAssistantMessage('I\u2019ve prepared a draft plan. Add a project name in the next step, then you can review every task before saving it.');
                 return;
             }
 
             if (!isTaskPlanningRequest(trimmedPrompt)) {
-                setGeneration({ stage: 'chat', message: 'Preparing a response…', pct: 35 });
+                setGeneration({ stage: 'chat', message: 'Preparing a response\u2026', pct: 35 });
                 const history = messages.slice(-10).map(({ role, content }) => ({ role, content }));
                 const { data } = await axios.post(route('tenant.workspace.ai-assistant', { tenant: studio.id }), {
                     message: trimmedPrompt,
@@ -135,13 +189,8 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                 return;
             }
 
-            setGeneration({ stage: 'plan', message: 'Creating an editable task plan…', pct: 45 });
-            const { data } = await axios.post(route('tenant.ml.decompose', { tenant: studio.id, project: selectedProjectId }), {
-                description: planningPrompt,
-            }, { signal: controller.signal });
-            if (data.status !== 'success') throw new Error('The AI could not complete the plan.');
-
-            const tasks = (data.tasks || []).map(task => ({
+            const rawTasks = await streamDecompose(planningPrompt);
+            const tasks = rawTasks.map(task => ({
                 ...task,
                 ...(daysUntilDeadline === null ? {} : { days_until_deadline: daysUntilDeadline }),
             }));
@@ -150,9 +199,8 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
             addAssistantMessage(`Your draft plan is ready with ${tasks.length} tasks. Review and edit it before adding it to the project.`);
             setIsPlanOpen(true);
         } catch (error) {
-            if (error.code !== 'ERR_CANCELED') {
-                addAssistantMessage(error.response?.data?.message || error.message || 'I could not respond just now. Please try again.');
-            }
+            if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') return;
+            addAssistantMessage(error.response?.data?.message || error.message || 'I could not respond just now. Please try again.');
         } finally {
             abortRef.current = null;
             setGeneration(null);
@@ -223,10 +271,34 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                                 <div className="flex gap-3">
                                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand"><Bot className="h-4 w-4" /></div>
                                     <div className="w-full max-w-xl rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-100 dark:bg-slate-800 dark:ring-slate-700">
-                                        <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-slate-100"><Loader2 className="h-4 w-4 animate-spin text-brand" /> {generation.stage === 'chat' ? 'Preparing a response' : 'Creating your task plan'}</div>
+                                        <div className="flex items-center gap-3">
+                                            {/* Typing-indicator dots */}
+                                            <span className="flex gap-1">
+                                                {[0, 1, 2].map(i => (
+                                                    <span
+                                                        key={i}
+                                                        className="w-1.5 h-1.5 rounded-full bg-brand animate-bounce"
+                                                        style={{ animationDelay: `${i * 150}ms` }}
+                                                    />
+                                                ))}
+                                            </span>
+                                            <span className="text-sm font-semibold text-gray-900 dark:text-slate-100">
+                                                {generation.stage === 'chat' ? 'Preparing a response' : 'Creating your task plan'}
+                                            </span>
+                                        </div>
                                         <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">{generation.message || 'Working on your request...'}</p>
-                                        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-slate-700"><div className="h-full rounded-full bg-brand transition-all duration-500" style={{ width: `${generation.pct || 10}%` }} /></div>
-                                        <div className="mt-3 flex items-center justify-between text-[11px]"><span className="text-brand">{generation.stage === 'chat' ? 'Workspace conversation' : 'Drafting tasks'}</span><button type="button" onClick={cancelGeneration} className="inline-flex items-center gap-1 text-gray-400 hover:text-red-500"><X className="h-3 w-3" /> Cancel</button></div>
+                                        {/* Shimmer progress bar */}
+                                        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-slate-700 relative">
+                                            <div
+                                                className="h-full rounded-full bg-brand transition-all duration-700"
+                                                style={{ width: `${generation.pct || 10}%` }}
+                                            />
+                                            <div className="absolute inset-0 animate-shimmer rounded-full opacity-40" />
+                                        </div>
+                                        <div className="mt-3 flex items-center justify-between text-[11px]">
+                                            <span className="text-brand">{generation.stage === 'chat' ? 'Workspace conversation' : 'Drafting tasks'}</span>
+                                            <button type="button" onClick={cancelGeneration} className="inline-flex items-center gap-1 text-gray-400 hover:text-red-500"><X className="h-3 w-3" /> Cancel</button>
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -240,6 +312,7 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                             onClose={() => setIsPlanOpen(false)}
                             projectId={selectedProjectId}
                             tenantId={studio.id}
+                            teamMembers={teamMembers}
                             initialDraftTasks={draftTasks}
                             onSaveSuccess={() => router.visit(route('tenant.projects.show', { tenant: studio.id, project: selectedProjectId }))}
                         />

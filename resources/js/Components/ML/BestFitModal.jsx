@@ -91,15 +91,22 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
     const [candidates,    setCandidates]    = useState([]);
     const [explanation,   setExplanation]   = useState(null);
     const [error,         setError]         = useState(null);
-    const [assigning,     setAssigning]     = useState(null);  // userId being assigned
-    const [assignedTo,    setAssignedTo]    = useState(null);  // successfully assigned userId
+    const [assignedUserIds, setAssignedUserIds] = useState(new Set());
+    const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
         if (isOpen && task) {
+            setIsLoading(true);
             setCandidates([]);
             setExplanation(null);
             setError(null);
-            setAssignedTo(null);
+
+            // Preserve every existing assignment, not only the primary assignee.
+            const existingIds = new Set((task.assignees?.length ? task.assignees : [task.assignee])
+                .filter(Boolean)
+                .map(member => Number(member.id)));
+            setAssignedUserIds(existingIds);
+
             fetchBestFit();
         }
     }, [isOpen, task]);
@@ -131,16 +138,28 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
         }
     };
 
-    const handleAssign = async (candidate) => {
-        setAssigning(candidate.user_id);
+    const toggleAssign = (candidateId) => {
+        setAssignedUserIds(prev => {
+            const next = new Set(prev);
+            const id = Number(candidateId);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    };
+
+    const handleSaveAssignments = async () => {
+        setIsSaving(true);
         try {
             const url = route('tenant.tasks.assign', { tenant: tenantId, task: task.id });
             await axios.post(url, {
-                employee_user_id: candidate.user_id,
-                match_fit_score:  candidate.match_fit_score,
-                assigned_by:      candidate.source ?? 'gnn',
+                employee_user_ids: Array.from(assignedUserIds),
+                // Since this is a bulk assign, we default the source to GNN or Manual
+                assigned_by: 'manual',
             });
-            setAssignedTo(candidate.user_id);
             // Refresh the project data after a short delay so the Kanban card updates
             setTimeout(() => {
                 router.reload({ only: ['project'] });
@@ -148,9 +167,9 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
             }, 800);
         } catch (err) {
             console.error(err);
-            setError('Failed to save assignment. Please try again.');
+            setError('Failed to save assignments. Please try again.');
         } finally {
-            setAssigning(null);
+            setIsSaving(false);
         }
     };
 
@@ -189,7 +208,7 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
                 </div>
 
                 {/* ── Body ── */}
-                <div className="p-6">
+                <div className="p-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
                     {isLoading ? (
                         <GNNLoadingView />
                     ) : error ? (
@@ -219,16 +238,16 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
                             {candidates.length > 0 ? (
                                 <div className="space-y-2">
                                     {candidates.map((candidate, idx) => {
-                                        const isAssigning = assigning === candidate.user_id;
-                                        const wasAssigned = assignedTo === candidate.user_id;
+                                        const isSelected = assignedUserIds.has(Number(candidate.user_id));
                                         return (
                                             <div
                                                 key={idx}
-                                                className={`flex items-center gap-4 p-4 rounded-xl border transition-colors ${
-                                                    wasAssigned
+                                                className={`flex items-center gap-4 p-4 rounded-xl border transition-colors cursor-pointer ${
+                                                    isSelected
                                                         ? 'border-emerald-500/50 bg-emerald-50/50 dark:bg-emerald-900/10'
                                                         : 'border-gray-200 dark:border-slate-700 hover:border-brand/40 bg-white dark:bg-slate-800/50'
                                                 }`}
+                                                onClick={() => toggleAssign(candidate.user_id)}
                                             >
                                                 {/* Rank badge */}
                                                 <div className={`w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center shrink-0 ${
@@ -239,9 +258,9 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
 
                                                 {/* Avatar */}
                                                 <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-white shrink-0 ${
-                                                    wasAssigned ? 'bg-emerald-500' : 'bg-gradient-to-br from-brand to-brand-dark shadow-sm'
+                                                    isSelected ? 'bg-emerald-500' : 'bg-gradient-to-br from-brand to-brand-dark shadow-sm'
                                                 }`}>
-                                                    {wasAssigned ? <CheckCircle2 className="w-5 h-5" /> : getMemberInitial(candidate.user_id)}
+                                                    {isSelected ? <CheckCircle2 className="w-5 h-5" /> : getMemberInitial(candidate.user_id)}
                                                 </div>
 
                                                 {/* Info */}
@@ -252,24 +271,12 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
                                                     <ScoreBar score={candidate.match_fit_score} />
                                                 </div>
 
-                                                {/* Assign button */}
-                                                <button
-                                                    onClick={() => handleAssign(candidate)}
-                                                    disabled={isAssigning || !!assignedTo}
-                                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shrink-0 ${
-                                                        wasAssigned
-                                                            ? 'bg-emerald-500 text-white cursor-default'
-                                                            : 'bg-gray-100 dark:bg-slate-700 hover:bg-brand hover:text-white dark:text-slate-200 dark:hover:bg-brand disabled:opacity-50 disabled:cursor-not-allowed'
-                                                    }`}
-                                                >
-                                                    {isAssigning ? (
-                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                    ) : wasAssigned ? (
-                                                        <><CheckCircle2 className="w-3.5 h-3.5" /> Assigned</>
-                                                    ) : (
-                                                        <>Assign <ArrowRight className="w-3.5 h-3.5" /></>
-                                                    )}
-                                                </button>
+                                                {/* Checkbox proxy */}
+                                                <div className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition-colors ${
+                                                    isSelected ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-gray-300 dark:border-slate-600'
+                                                }`}>
+                                                    {isSelected && <CheckCircle2 className="w-3.5 h-3.5" />}
+                                                </div>
                                             </div>
                                         );
                                     })}
@@ -285,6 +292,23 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
                         </div>
                     )}
                 </div>
+
+                {/* Footer Save Button */}
+                {!isLoading && !error && candidates.length > 0 && (
+                    <div className="p-6 border-t border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-900 shrink-0 flex justify-end">
+                        <button
+                            onClick={handleSaveAssignments}
+                            disabled={isSaving}
+                            className="px-6 py-2.5 rounded-xl bg-brand text-white text-sm font-bold hover:bg-brand-dark transition-colors flex items-center gap-2 disabled:opacity-50"
+                        >
+                            {isSaving ? (
+                                <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
+                            ) : (
+                                <>Save assignments ({assignedUserIds.size})</>
+                            )}
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
