@@ -424,8 +424,22 @@ def chat(request: ChatRequest):
     """
     AI Project Assistant chatbot: natural-language Q&A grounded in real
     project data. Returns offline message if Ollama is not running.
+
+    Fast-path: simple factual questions (member count, overdue count, task
+    status counts, project count) are answered deterministically from the
+    pre-computed `stats` field in project_context — no LLM call required.
+    Complex or ambiguous questions fall through to the LLM.
     """
     try:
+        # ── Deterministic fast-path ─────────────────────────────────────
+        from orchestration.workspace_qa import answer_workspace_question
+
+        fast_answer = answer_workspace_question(request.message, request.project_context)
+        if fast_answer is not None:
+            logger.info("workspace_qa fast-path answered: %s", request.message[:80])
+            return {"status": "success", "reply": fast_answer}
+
+        # ── LLM path ────────────────────────────────────────────────────
         from orchestration.response_synthesizer import chat_with_project_data
 
         reply = chat_with_project_data(
