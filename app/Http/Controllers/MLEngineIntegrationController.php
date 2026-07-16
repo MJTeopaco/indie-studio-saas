@@ -71,39 +71,104 @@ class MLEngineIntegrationController extends Controller
         if (preg_match('/^(hi|hello|hey|helo|good (morning|afternoon|evening))[!,. ]*$/i', $message)) {
             return response()->json([
                 'status' => 'success',
-                'reply' => 'Hello! I’m StudioSprint AI. I can answer questions about your workspace, projects, and team. When you’re ready to plan work, describe the task and select a project.',
+                'reply' => 'Hello! I\'m StudioSprint AI. I can answer questions about your workspace, projects, and team. When you\'re ready to plan work, describe the task and select a project.',
             ]);
         }
 
+        // ── Studio members (including the studio owner) ────────────────────
+        $studio = Studio::with(['users'])->find(tenant('id'));
+
+        // Collect member IDs from studio_members pivot (owner is also listed here)
+        $memberUserIds = $studio?->users?->pluck('id')?->all() ?? [];
+
+        // Count active tasks per member for context richness
+        $activeTasksPerMember = Task::query()
+            ->whereIn('status', ['todo', 'in_progress', 'review'])
+            ->whereIn('assigned_user_id', $memberUserIds)
+            ->selectRaw('assigned_user_id, COUNT(*) as active_task_count')
+            ->groupBy('assigned_user_id')
+            ->pluck('active_task_count', 'assigned_user_id');
+
+        $members = $studio?->users?->map(function ($user) use ($activeTasksPerMember): array {
+            $pivotRole = $user->pivot?->role ?? 'member';
+            return [
+                'id'                => $user->id,
+                'name'              => $user->name,
+                'role'              => $pivotRole,
+                'is_owner'          => $user->role === \App\Models\User::ROLE_ADMIN,
+                'active_task_count' => (int) ($activeTasksPerMember[$user->id] ?? 0),
+            ];
+        })?->values()?->all() ?? [];
+
+        // ── Projects with task counts ──────────────────────────────────────
         $projects = Project::query()
             ->withCount('tasks')
             ->latest()
             ->get(['id', 'name', 'status'])
             ->map(fn (Project $project): array => [
-                'id' => $project->id,
-                'name' => $project->name,
-                'status' => $project->status,
+                'id'         => $project->id,
+                'name'       => $project->name,
+                'status'     => $project->status,
                 'task_count' => $project->tasks_count,
             ])
             ->all();
 
-        $activeTasks = Task::query()
-            ->whereIn('status', ['todo', 'in_progress', 'review'])
+        // ── All tasks with assignee eager-loaded (capped for LLM context) ─
+        $allTasks = Task::query()
+            ->with('assignee:id,name')
             ->latest()
-            ->take(15)
-            ->get(['id', 'title', 'status', 'priority', 'estimated_hours', 'project_id'])
+            ->take(40)
+            ->get(['id', 'title', 'status', 'priority', 'estimated_hours', 'project_id',
+                   'assigned_user_id', 'days_until_deadline'])
+            ->map(fn (Task $task): array => [
+                'id'                  => $task->id,
+                'title'               => $task->title,
+                'status'              => $task->status,
+                'priority'            => $task->priority,
+                'estimated_hours'     => $task->estimated_hours,
+                'project_id'          => $task->project_id,
+                'assigned_to'         => $task->assignee?->name,
+                'days_until_deadline' => $task->days_until_deadline,
+                'is_overdue'          => $task->days_until_deadline !== null && $task->days_until_deadline <= 0,
+            ])
             ->all();
 
-        $context = [
-            'studio' => Studio::find(tenant('id'))?->only(['id', 'name']),
-            'projects' => $projects,
-            'active_tasks' => $activeTasks,
+        // ── Workspace-level aggregate stats (computed over ALL tasks) ──────
+        $allTasksForStats = Task::query()
+            ->get(['id', 'status', 'days_until_deadline']);
+
+        $byStatus = $allTasksForStats
+            ->groupBy('status')
+            ->map(fn ($group) => $group->count())
+            ->all();
+
+        $overdueStatuses = ['todo', 'in_progress', 'review'];
+        $totalOverdue = $allTasksForStats
+            ->whereIn('status', $overdueStatuses)
+            ->filter(fn (Task $t): bool => $t->days_until_deadline !== null && $t->days_until_deadline <= 0)
+            ->count();
+
+        $stats = [
+            'total_members'  => count($members),
+            'total_projects' => count($projects),
+            'total_tasks'    => $allTasksForStats->count(),
+            'total_overdue'  => $totalOverdue,
+            'by_status'      => $byStatus,
         ];
+
+        $context = [
+            'studio'   => $studio?->only(['id', 'name']),
+            'members'  => $members,   // includes owner; use total_members for count
+            'projects' => $projects,
+            'tasks'    => $allTasks,  // capped at 40; for exact counts use stats
+            'stats'    => $stats,     // pre-computed workspace-level aggregates
+        ];
+
         $result = $this->mlService->chatAboutProject($message, $context, $validated['history'] ?? []);
 
         return response()->json([
             'status' => $result['status'] ?? 'error',
-            'reply' => $result['reply'] ?? 'I could not answer that right now. Please try again.',
+            'reply'  => $result['reply'] ?? 'I could not answer that right now. Please try again.',
         ]);
     }
 

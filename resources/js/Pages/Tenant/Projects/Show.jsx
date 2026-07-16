@@ -435,6 +435,44 @@ function ProjectDashboard({ project, tasks }) {
     );
 }
 
+function DependencyPills({ predecessors }) {
+    if (!predecessors?.length) {
+        return <span className="text-[11px] italic text-gray-400 dark:text-slate-500">—</span>;
+    }
+
+    const display = predecessors.slice(0, 3);
+    const overflow = predecessors.length - display.length;
+
+    const statusDot = (status) => {
+        const colors = {
+            completed: 'bg-emerald-500',
+            in_progress: 'bg-indigo-500',
+            review: 'bg-amber-500',
+            todo: 'bg-slate-400',
+        };
+        return colors[status] || 'bg-slate-400';
+    };
+
+    return (
+        <div className="flex flex-col gap-1">
+            {display.map(pred => (
+                <span
+                    key={pred.id}
+                    title={`#${pred.id} ${pred.title}`}
+                    className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 max-w-[140px] truncate"
+                >
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDot(pred.status)}`} />
+                    <span className="font-mono text-[9px] text-gray-400 shrink-0">#{pred.id}</span>
+                    <span className="truncate">{pred.title}</span>
+                </span>
+            ))}
+            {overflow > 0 && (
+                <span className="text-[10px] font-bold text-gray-400">+{overflow} more</span>
+            )}
+        </div>
+    );
+}
+
 function Spreadsheet({ groups, onFindFit, onEdit, projectStartDate }) {
     const { canManage, auth } = usePage().props;
     return (
@@ -447,9 +485,10 @@ function Spreadsheet({ groups, onFindFit, onEdit, projectStartDate }) {
                         <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-bold text-gray-500 dark:bg-slate-800">{group.tasks.length}</span>
                     </div>
 
-                    <div className="min-w-[950px]">
-                        <div className="grid grid-cols-[2fr_1.6fr_1.2fr_.8fr_1fr_.8fr_1fr_.6fr] gap-4 border-b border-gray-100 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:border-slate-800">
+                    <div className="min-w-[1100px]">
+                        <div className="grid grid-cols-[1.8fr_1.4fr_1.6fr_1.2fr_.8fr_1fr_.8fr_1fr_.6fr] gap-4 border-b border-gray-100 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:border-slate-800">
                             <span>Task</span>
+                            <span>Depends On</span>
                             <span>CPA Status</span>
                             <span>Assignee</span>
                             <span>Hours</span>
@@ -466,7 +505,7 @@ function Spreadsheet({ groups, onFindFit, onEdit, projectStartDate }) {
                                 <div
                                     key={task.id}
                                     onClick={() => isClickable && onEdit(task)}
-                                    className={`group grid grid-cols-[2fr_1.6fr_1.2fr_.8fr_1fr_.8fr_1fr_.6fr] items-center gap-4 border-b border-gray-100 px-4 py-3 last:border-0 hover:bg-gray-50/60 dark:border-slate-800 dark:hover:bg-slate-800/40 transition-colors ${isClickable ? 'cursor-pointer' : 'cursor-default'}`}
+                                    className={`group grid grid-cols-[1.8fr_1.4fr_1.6fr_1.2fr_.8fr_1fr_.8fr_1fr_.6fr] items-center gap-4 border-b border-gray-100 px-4 py-3 last:border-0 hover:bg-gray-50/60 dark:border-slate-800 dark:hover:bg-slate-800/40 transition-colors ${isClickable ? 'cursor-pointer' : 'cursor-default'}`}
                                 >
                                     <div className="min-w-0">
                                         <div className="flex items-center gap-1.5">
@@ -474,6 +513,10 @@ function Spreadsheet({ groups, onFindFit, onEdit, projectStartDate }) {
                                             <span className="text-sm font-semibold text-gray-900 dark:text-slate-100 truncate group-hover:text-brand">{task.title}</span>
                                         </div>
                                         <span className="block text-[11px] text-gray-500 dark:text-slate-400 truncate">{task.description || '—'}</span>
+                                    </div>
+
+                                    <div onClick={(e) => e.stopPropagation()}>
+                                        <DependencyPills predecessors={task.predecessors} />
                                     </div>
 
                                     <div>
