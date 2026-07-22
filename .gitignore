@@ -35,6 +35,22 @@ Thumbs.db
 
 database/tenanttest*
 .agents/
+/.augment/
+/.claude/
+/.codebuddy/
+/.codewhale/
+/.continue/
+/.factory/
+/.gemini/
+/.github/
+/.kilocode/
+/.kiro/
+/.opencode/
+/.qoder/
+/.roo/
+/.trae/
+/.warp/
+/.windsurf/
 AGENTS.md
 boost.json
 ml-engine/venv/
