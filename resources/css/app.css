@@ -1,3 +1,109 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Montserrat:wght@400;500;600&display=swap');
+
+html {
+  scroll-behavior: smooth;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --color-surface-bg: #F8FAFC;        /* light background (slate-50) */
+  --color-surface-elevated: #FFFFFF;  /* light elevated (white) */
+  --color-surface-border: #E2E8F0;    /* light border (slate-200) */
+  --color-text-primary: #0F172A;      /* dark text (slate-900) */
+  --color-text-muted: #64748B;        /* muted text (slate-500) */
+}
+
+.dark {
+  --color-surface-bg: #0F172A;        /* dark background (slate-950) */
+  --color-surface-elevated: #1E293B;  /* dark elevated (slate-800) */
+  --color-surface-border: #334155;    /* dark border (slate-700) */
+  --color-text-primary: #F1F5F9;      /* light text (slate-100) */
+  --color-text-muted: #94A3B8;        /* muted text (slate-400) */
+}
+
+@layer base {
+  body {
+    @apply bg-surface text-text-primary antialiased selection:bg-brand selection:text-white;
+  }
+}
+
+/* Premium Keyframe Animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.05; transform: scale(1); }
+  50% { opacity: 0.12; transform: scale(1.06); }
+}
+
+@keyframes slideUpHero {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Animation Utilities */
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+  animation: float 6s ease-in-out infinite;
+  animation-delay: 3s;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 12s ease-in-out infinite;
+}
+
+.animate-hero-fade {
+  animation: slideUpHero 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Shimmer loading skeleton */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 50%, transparent 100%);
+  background-size: 800px 100%;
+  animation: shimmer 1.6s infinite linear;
+}
+
+/* ── System-wide custom scrollbar ─────────────────────────────────────────── */
+/* Applies to any element with .custom-scrollbar. Works in light + dark mode. */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #CBD5E1 transparent; /* slate-300 thumb on transparent track */
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #CBD5E1;
+  border-radius: 999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #94A3B8;
+}
+
+/* Dark mode scrollbar */
+.dark .custom-scrollbar {
+  scrollbar-color: #334155 transparent; /* slate-700 thumb */
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #334155;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #475569;
+}

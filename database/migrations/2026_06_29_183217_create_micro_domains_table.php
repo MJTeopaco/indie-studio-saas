@@ -1,0 +1,32 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('micro_domains', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('macro_domain_id')->constrained('macro_domains')->onDelete('cascade');
+            $table->string('name', 150);
+            $table->timestamps();
+            $table->softDeletes();
+            
+            $table->unique(['macro_domain_id', 'name']);
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('micro_domains');
+    }
+};

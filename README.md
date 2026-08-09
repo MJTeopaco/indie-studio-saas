@@ -1,58 +1,109 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# StudioSprint
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A robust SaaS platform designed for indie studios. StudioSprint integrates powerful management tools with predictive machine learning algorithms to optimize project timelines, resource allocation, and critical path execution.
 
-## About Laravel
+## 🚀 Tech Stack
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- **Backend:** Laravel (PHP 8.3+)
+- **Frontend:** React 18 with InertiaJS & Tailwind CSS 3
+- **Database:** PostgreSQL (with `stancl/tenancy` for multi-tenancy)
+- **Machine Learning Engine:** Python (FastAPI, Scikit-Learn, Pandas, DEAP)
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## 🏗 Architecture & Tenancy (Global Hub -> Path-Based Routing)
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+When a new developer looks at the code, it's essential to understand the "big picture" of how users and workspaces are managed in our architecture.
 
-## Learning Laravel
+### 1. The Global User Hub
+The application does not have a single entry point for all users. Instead, it utilizes a **Global User Hub**. 
+- **Authentication:** All users authenticate against a central database (the "landlord" database).
+- **Workspace Resolution:** Once logged in, the hub determines which specific studios (workspaces) the user belongs to and what their role is in each. 
+- **Central Dashboard:** The hub acts as a launching pad. Users select the studio they want to work on and are then routed into that specific tenant's context.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+### 2. Path-Based Tenancy (Workspace Routing)
+Once a user selects a studio from the Hub, they are redirected into the tenant context. We use **Path-Based Tenancy** (powered by `stancl/tenancy`).
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+- **How it Works:** Instead of creating physical subdomains (like `studio1.domain.com`), the tenant ID (or slug) is injected directly into the URL path. 
+- **Example URL:** You will be working with URLs like `/studios/{studio-slug}/dashboard`.
+- **The Magic:** When a request hits a URL matching `/studios/{tenant}`, the `InitializeTenancyByPath` middleware intercepts it. It extracts the `{tenant}` parameter, switches the active database connection to that specific studio's database, sets up the tenant context, and then removes the `{tenant}` parameter from the route so our controllers don't have to manually manage it.
+- **Developer Rule:** State and tenant context live entirely within this path prefix. You must ensure any tenant-specific routes are wrapped in the `tenant` middleware group so the context switch happens automatically.
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+## ⚙️ Local Setup & Installation
 
-## Agentic Development
+To run this platform locally, you will need to install a few foundational technologies. Please ensure you have downloaded and installed the following prerequisites before proceeding:
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+### Prerequisites (What to Download)
+- **PHP (8.3+)**: Required to run the Laravel backend. [Download PHP](https://windows.php.net/download/)
+- **Composer**: The dependency manager for PHP. [Download Composer](https://getcomposer.org/download/)
+- **Node.js (LTS)**: Required for compiling the React/InertiaJS frontend assets. [Download Node.js](https://nodejs.org/)
+- **PostgreSQL**: Our primary database engine. You will need the Postgres server running locally. [Download PostgreSQL](https://www.postgresql.org/download/)
+- **Python (3.10+)**: Required to run the Machine Learning Engine (FastAPI). [Download Python](https://www.python.org/downloads/)
+
+### Installation Steps
+
+1. **Clone the repository:**
+   ```bash
+   git clone <repo-url>
+   cd indie-studio-saas
+   ```
+
+2. **Environment Variables:**
+   Copy the example environment file. **Never assume default keys are enough!**
+   ```bash
+   cp .env.example .env
+   ```
+
+   **Custom Environment Variables Reference:**
+   | Variable | Description |
+   |----------|-------------|
+   | `DB_CONNECTION` | Database driver (defaults to `pgsql`). |
+   | `DB_DATABASE` | Your local central database name (e.g., `indie_studio_db`). |
+   | `AWS_*` | Used for S3 file storage (uploads/assets). |
+   | `VITE_APP_NAME` | Frontend display name. |
+
+3. **Install Dependencies:**
+   Install both PHP packages and JavaScript node modules:
+   ```bash
+   composer install
+   npm install
+   ```
+
+4. **Database Configuration:**
+   - Make sure your local **PostgreSQL** server is running.
+   - Ensure your PHP installation has the `pdo_pgsql` extension enabled (and `mysqli` if your setup requires connecting to legacy tables).
+   - Create a central database in Postgres (e.g., `indie_studio_db`) to match your `.env` file.
+
+5. **Generate App Key:**
+   ```bash
+   php artisan key:generate
+   ```
+
+## 💾 Database, Migrations & ML Seeding
+
+Because our application relies heavily on structured data for its algorithms, a standard database wipe-and-reload is not enough. The ML models expect exact categorical data structures.
+
+**Seeding the ML Data:**
+When running migrations locally, you must ensure the exact categorical data (like skill proficiency matrices, predefined roles, and historical project data) is seeded. This ensures your local environment mirrors the dataset structure required by the predictive models.
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+php artisan migrate:fresh --seed
 ```
+*Note: Our seeders are specifically configured to generate the matrices the Random Forest models need.*
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+## 🧠 Machine Learning Engine Setup
 
-## Contributing
+Our ML logic lives in the `ml-engine/` directory. It must be running alongside the main Laravel application for predictive features to work.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+1. **Setup Python Environment:**
+   ```bash
+   cd ml-engine
+   python -m venv venv
+   source venv/bin/activate  # Or `venv\Scripts\activate` on Windows
+   pip install -r requirements.txt
+   ```
 
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+2. **Run the FastAPI Server:**
+   The engine runs on FastAPI. You can start it using Uvicorn:
+   ```bash
+   cd ml-engine
+   ./venv/Scripts/uvicorn main:app --host 127.0.0.1 --port 8001 --reload
+   ```
