@@ -169,7 +169,7 @@ IMPORTANT: Select required_skills 'name' strictly from canonical engineering ski
 Select task_classification strictly from these 22 categories:
 Product Requirements & Analysis, Sprint & Roadmap Planning, Market Viability Research, Data Pre-processing & Pipeline Engineering, Model Training & Fine-Tuning, LLM Prompt Engineering & RAG Integration, Algorithm Evaluation & Benchmarking, System Architecture Design, Feature Implementation, Algorithm Optimization & Refactoring, Bug Resolution & Hotfixing, Third-Party API Setup, Client-Based Environment Provisioning, Container Orchestration & Deployment, DevSecOps & Security Auditing, Hardware-in-the-Loop Testing, Hardware Sensor Integration, Game Engine Logic & Asset Integration, UI/UX Prototyping & Wireframing, System Mechanics Planning, Unit & Integration Testing, Peer Code Review.
 
-Respond ONLY with a valid JSON array. Each element must match:
+Respond ONLY with a valid JSON object containing a single key "tasks" which is an array. Each element in the "tasks" array must match:
 {
   "title": string,
   "objective": string,
@@ -316,7 +316,13 @@ def decompose_project_into_tasks(project_description: str) -> list[dict]:
         try:
             response = llm.invoke(messages)
             raw_json = _extract_json_from_response(response.content)
-            tasks = json.loads(raw_json)
+            parsed_data = json.loads(raw_json)
+            
+            if isinstance(parsed_data, dict) and "tasks" in parsed_data:
+                tasks = parsed_data["tasks"]
+            else:
+                tasks = parsed_data
+                
             if not isinstance(tasks, list):
                 raise ValueError("LLM returned non-list JSON")
             # Validate each task

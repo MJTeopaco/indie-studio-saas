@@ -153,28 +153,10 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
         };
 
         try {
-            if (isNewProjectRequest(trimmedPrompt)) {
-                if (!canManage) {
-                    addAssistantMessage('Only studio managers are authorized to create projects and plans.');
-                    return;
-                }
-                const rawTasks = await streamDecompose(planningPrompt);
-                if (!rawTasks.length) throw new Error('The AI did not return a project plan to review.');
-                setPendingProjectPlan({
-                    tasks: rawTasks.map(task => ({
-                        ...task,
-                        ...(daysUntilDeadline === null ? {} : { days_until_deadline: daysUntilDeadline }),
-                    })),
-                    description: trimmedPrompt,
-                    name: suggestedProjectName(trimmedPrompt),
-                });
-                setIsProjectCreationOpen(true);
-                addAssistantMessage('I\u2019ve prepared a draft plan. Add a project name in the next step, then you can review every task before saving it.');
-                return;
-            }
+            const isPlanning = isTaskPlanningRequest(trimmedPrompt);
 
-            if (!isTaskPlanningRequest(trimmedPrompt)) {
-                setGeneration({ stage: 'chat', message: 'Preparing a response\u2026', pct: 35 });
+            if (!isPlanning && !isNewProjectRequest(trimmedPrompt)) {
+                setGeneration({ stage: 'chat', message: 'Preparing a response…', pct: 35 });
                 const history = messages.slice(-10).map(({ role, content }) => ({ role, content }));
                 const { data } = await axios.post(route('tenant.workspace.ai-assistant', { tenant: studio.id }), {
                     message: trimmedPrompt,
@@ -184,25 +166,37 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                 return;
             }
 
-            if (!selectedProjectId) {
-                addAssistantMessage('To create a task plan, please select the project it belongs to using the menu below.');
-                return;
-            }
-
             if (!canManage) {
-                addAssistantMessage('Only studio managers are authorized to plan and create tasks.');
+                addAssistantMessage('Only studio managers are authorized to plan and create tasks or projects.');
                 return;
             }
 
             const rawTasks = await streamDecompose(planningPrompt);
-            const tasks = rawTasks.map(task => ({
-                ...task,
-                ...(daysUntilDeadline === null ? {} : { days_until_deadline: daysUntilDeadline }),
-            }));
-            if (!tasks.length) throw new Error('The AI did not return any tasks to review.');
-            setDraftTasks(tasks);
-            addAssistantMessage(`Your draft plan is ready with ${tasks.length} tasks. Review and edit it before adding it to the project.`);
-            setIsPlanOpen(true);
+            if (!rawTasks.length) throw new Error('The AI did not return a project plan to review.');
+
+            if (selectedProjectId === '') {
+                // New Project path
+                setPendingProjectPlan({
+                    tasks: rawTasks.map(task => ({
+                        ...task,
+                        ...(daysUntilDeadline === null ? {} : { days_until_deadline: daysUntilDeadline }),
+                    })),
+                    description: trimmedPrompt,
+                    name: suggestedProjectName(trimmedPrompt),
+                });
+                setIsProjectCreationOpen(true);
+                addAssistantMessage('I’ve prepared a draft plan. Add a project name in the next step, then you can review every task before saving it.');
+                return;
+            } else {
+                // Existing Project path
+                const tasks = rawTasks.map(task => ({
+                    ...task,
+                    ...(daysUntilDeadline === null ? {} : { days_until_deadline: daysUntilDeadline }),
+                }));
+                setDraftTasks(tasks);
+                addAssistantMessage(`Your draft plan is ready with ${tasks.length} tasks. Review and edit it before adding it to the project.`);
+                setIsPlanOpen(true);
+            }
         } catch (error) {
             if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') return;
             addAssistantMessage(error.response?.data?.message || error.message || 'I could not respond just now. Please try again.');
@@ -425,7 +419,7 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                                         className="max-w-[180px] bg-transparent text-[10px] font-semibold text-gray-500 outline-none dark:text-slate-400"
                                         aria-label="Project for AI tasks"
                                     >
-                                        <option value="">Select project</option>
+                                        <option value="">New Project</option>
                                         {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
                                     </select>
                                     <div className="text-[10px] font-mono text-gray-400 dark:text-slate-600 select-none">

@@ -2,6 +2,8 @@
 
 namespace Database\Seeders;
 
+use App\Models\Tenant\Project;
+use App\Services\MLEngineService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -161,9 +163,32 @@ class TenantSeeder extends Seeder
         // -------------------------------------------------------------------
         // 4. Insert assignments — one per task, with synthetic match_fit_scores.
         //    Mix of manual, gnn, and cold_start_baseline sources.
-        //    Employee IDs 101–108 are synthetic cross-tenant user IDs.
+        //    Employee IDs use actual members from the central database if available.
         // -------------------------------------------------------------------
-        $employeePool = self::EMPLOYEE_IDS;
+        $actualMembers = DB::connection(config('tenancy.database.central_connection', 'central'))
+            ->table('studio_members')
+            ->where('studio_id', tenant('id'))
+            ->where('role', 'member')
+            ->pluck('user_id')
+            ->toArray();
+
+        $employeePool = ! empty($actualMembers) ? $actualMembers : self::EMPLOYEE_IDS;
+
+        // Also attach them as project members so the project shows active members
+        $projectMembers = [];
+        foreach ($employeePool as $empId) {
+            $projectMembers[] = [
+                'project_id' => $project,
+                'user_id' => $empId,
+                'project_role' => 'developer',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+        if (! empty($projectMembers)) {
+            DB::table('project_members')->insert($projectMembers);
+        }
+
         $assignmentRows = [];
         $sources = ['manual', 'gnn', 'cold_start_baseline'];
 
@@ -191,9 +216,9 @@ class TenantSeeder extends Seeder
         $this->command->info('TenantSeeder: seeded 1 project, '.count($taskNumberToId).' tasks, '.count($dependencyRows).' dependencies, '.count($assignmentRows).' assignments.');
 
         try {
-            $projectModel = \App\Models\Tenant\Project::find($project);
+            $projectModel = Project::find($project);
             if ($projectModel) {
-                app(\App\Services\MLEngineService::class)->recomputeProjectSchedule($projectModel);
+                app(MLEngineService::class)->recomputeProjectSchedule($projectModel);
                 $this->command->info('TenantSeeder: CPA schedule recomputed successfully.');
             }
         } catch (\Exception $e) {
