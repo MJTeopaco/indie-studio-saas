@@ -115,11 +115,16 @@ class TenantSeeder extends Seeder
         // -------------------------------------------------------------------
         // 1a. Create Epics
         // -------------------------------------------------------------------
+        $tenantId = tenant('id') ?? 'default';
+        $phases = DB::table('epic_phases')->where('tenant_id', $tenantId)->get()->keyBy('label');
+        $priorities = DB::table('epic_priorities')->where('tenant_id', $tenantId)->get()->keyBy('label');
+
         $epic1 = DB::table('epics')->insertGetId([
             'project_id' => $project,
             'name' => 'Backend & Infrastructure Foundation',
             'description' => 'Core backend logic, DB schema, and infrastructure.',
-            'status' => 'open',
+            'phase_id' => $phases->get('Dev WIP')->id ?? null,
+            'priority_id' => $priorities->get('Critical')->id ?? null,
             'color' => '#3b82f6',
             'created_at' => now(),
             'updated_at' => now(),
@@ -129,7 +134,8 @@ class TenantSeeder extends Seeder
             'project_id' => $project,
             'name' => 'Frontend & UI Implementation',
             'description' => 'User interfaces, accessibility, and client integrations.',
-            'status' => 'open',
+            'phase_id' => $phases->get('Design WIP')->id ?? null,
+            'priority_id' => $priorities->get('Must Have')->id ?? null,
             'color' => '#a855f7',
             'created_at' => now(),
             'updated_at' => now(),
@@ -139,7 +145,8 @@ class TenantSeeder extends Seeder
             'project_id' => $project,
             'name' => 'Quality & Security Assurance',
             'description' => 'Testing, security audits, and production deployments.',
-            'status' => 'open',
+            'phase_id' => $phases->get('Backlog')->id ?? null,
+            'priority_id' => $priorities->get('Must Have')->id ?? null,
             'color' => '#22c55e',
             'created_at' => now(),
             'updated_at' => now(),

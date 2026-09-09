@@ -17,8 +17,9 @@ class Epic extends Model
         'project_id',
         'name',
         'description',
-        'status',
         'color',
+        'phase_id',
+        'priority_id',
         'order',
     ];
 
@@ -55,5 +56,21 @@ class Epic extends Model
     public function tasks(): HasMany
     {
         return $this->hasMany(Task::class, 'epic_id');
+    }
+
+    /**
+     * Get the phase of this epic.
+     */
+    public function phase(): BelongsTo
+    {
+        return $this->belongsTo(EpicPhase::class, 'phase_id');
+    }
+
+    /**
+     * Get the priority of this epic.
+     */
+    public function priority(): BelongsTo
+    {
+        return $this->belongsTo(EpicPriority::class, 'priority_id');
     }
 }

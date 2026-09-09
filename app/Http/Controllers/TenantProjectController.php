@@ -6,6 +6,9 @@ use App\Jobs\RecomputeProjectSchedule;
 use App\Models\Position;
 use App\Models\Skill;
 use App\Models\Studio;
+use App\Models\Tenant\Epic;
+use App\Models\Tenant\EpicPhase;
+use App\Models\Tenant\EpicPriority;
 use App\Models\Tenant\Project;
 use App\Models\Tenant\Sprint;
 use App\Models\Tenant\Task;
@@ -74,7 +77,17 @@ class TenantProjectController extends Controller
         $project = $routeProject ?? $project;
         $studio = Studio::find(tenant('id'));
 
-        $projectModel = Project::with(['tasks.assignee', 'tasks.predecessors'])->findOrFail($project);
+        $projectModel = Project::with([
+            'tasks.assignee', 
+            'tasks.predecessors',
+            'epics' => function ($query) {
+                $query->withCount('tasks')
+                      ->withSum('tasks', 'estimated_hours')
+                      ->with(['phase', 'priority', 'tasks' => function ($q) {
+                          $q->select('id', 'epic_id', 'title', 'status');
+                      }]);
+            }
+        ])->findOrFail($project);
 
         $teamMembers = $studio ? $studio->users()->get()->map(fn ($u) => ['id' => $u->id, 'name' => $u->name]) : [];
         $membersById = collect($teamMembers)->keyBy('id');
@@ -117,6 +130,9 @@ class TenantProjectController extends Controller
                 'target_end_date' => $projectModel->target_end_date?->format('Y-m-d'),
                 'tasks' => $projectModel->tasks,
             ],
+            'epics' => $projectModel->epics,
+            'epicPhases' => EpicPhase::where('tenant_id', tenant('id') ?? 'default')->orderBy('sort_order')->get(),
+            'epicPriorities' => EpicPriority::where('tenant_id', tenant('id') ?? 'default')->orderBy('sort_order')->get(),
             'skills' => $skills,
             'positions' => $positions,
         ]);
@@ -556,5 +572,62 @@ class TenantProjectController extends Controller
         }
 
         return redirect()->back()->with('success', 'Sprint created successfully.');
+    }
+
+    /**
+     * Update an epic's phase and priority.
+     */
+    public function updateEpic(Request $request, $project, $epic, $routeEpic = null)
+    {
+        $this->authorizeManager();
+        if ($routeEpic !== null) {
+            $project = $epic;
+            $epic = $routeEpic;
+        }
+
+        $projectModel = Project::findOrFail($project);
+        
+        // Ownership check: Ensure project belongs to current tenant
+        if ($projectModel->tenant_id && $projectModel->tenant_id !== tenant('id')) {
+            abort(403, 'Unauthorized. Project does not belong to the current tenant.');
+        }
+
+        $epicModel = Epic::findOrFail($epic);
+        
+        if ($epicModel->project_id !== $projectModel->id) {
+            abort(404, 'Epic not found in this project.');
+        }
+
+        $validated = $request->validate([
+            'phase_id' => 'nullable|integer',
+            'priority_id' => 'nullable|integer',
+        ]);
+
+        $tenantId = tenant('id') ?? 'default';
+
+        if (isset($validated['phase_id'])) {
+            $phase = EpicPhase::where('tenant_id', $tenantId)->find($validated['phase_id']);
+            if (!$phase) {
+                abort(422, 'Invalid phase selected.');
+            }
+        }
+
+        if (isset($validated['priority_id'])) {
+            $priority = EpicPriority::where('tenant_id', $tenantId)->find($validated['priority_id']);
+            if (!$priority) {
+                abort(422, 'Invalid priority selected.');
+            }
+        }
+
+        $epicModel->update($validated);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'status' => 'success',
+                'epic' => $epicModel->load('phase', 'priority'),
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Epic updated successfully.');
     }
 }
