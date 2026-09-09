@@ -122,8 +122,18 @@ export default function Docs({ studio, projects = [], members = [], reports = []
                 margin:       [0.4, 0.4, 0.4, 0.4],
                 filename:     `${report.name.toLowerCase().replace(/[^a-z0-9]/gi, '_')}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, logging: false },
-                jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+                html2canvas:  { 
+                    scale: 2, 
+                    useCORS: true, 
+                    logging: false, 
+                    windowWidth: 794,
+                    scrollX: 0,
+                    scrollY: 0,
+                    x: 0,
+                    y: 0
+                },
+                jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' },
+                pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
             };
             window.html2pdf().set(opt).from(element).save();
         };
@@ -456,8 +466,8 @@ export default function Docs({ studio, projects = [], members = [], reports = []
             </div>
 
             {activePrintReport && (
-                <div className="fixed inset-0 bg-slate-900/60 z-[9999] overflow-y-auto flex items-center justify-center p-6 backdrop-blur-sm print:p-0 print:bg-white print:static print:inset-auto print:z-auto">
-                    <div className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-slate-800 overflow-hidden flex flex-col justify-between print:shadow-none print:border-none print:rounded-none">
+                <div className="fixed inset-0 bg-slate-900/60 z-[9999] flex items-center justify-center p-4 md:p-6 backdrop-blur-sm print:p-0 print:bg-white print:static print:inset-auto print:z-auto">
+                    <div className="w-full max-w-4xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-slate-800 overflow-hidden flex flex-col justify-between print:max-h-none print:overflow-visible print:shadow-none print:border-none print:rounded-none">
                         
                         {/* Actions bar - hidden on print */}
                         <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-b border-gray-150/80 dark:bg-slate-800 dark:border-slate-800 print:hidden">
@@ -486,8 +496,11 @@ export default function Docs({ studio, projects = [], members = [], reports = []
                             </div>
                         </div>
 
-                        {/* Printable Sheet */}
-                        <div id="print-area" className="p-8 md:p-12 space-y-8 bg-white text-slate-900 font-sans print:p-0">
+                        {/* Scrollable container for preview modal */}
+                        <div className="overflow-y-auto flex-1 print:overflow-visible">
+                            
+                            {/* Printable Sheet */}
+                            <div id="print-area" className="w-full max-w-[794px] mx-auto p-8 md:p-12 space-y-8 bg-white text-slate-900 font-sans print:p-0 box-border">
                             {/* CSS styles to hide rest of page on print */}
                             <style>{`
                                 @media print {
@@ -509,6 +522,10 @@ export default function Docs({ studio, projects = [], members = [], reports = []
                                         width: 100%;
                                         display: flex !important;
                                         flex-direction: column !important;
+                                    }
+                                    tr, section, .space-y-3, .border-t {
+                                        page-break-inside: avoid !important;
+                                        break-inside: avoid !important;
                                     }
                                 }
                             `}</style>
@@ -593,32 +610,36 @@ export default function Docs({ studio, projects = [], members = [], reports = []
                                 <div className="space-y-3">
                                     <h3 className="text-xs font-black uppercase text-[#007CFF] tracking-wider font-heading">Task Breakdown & Assignment</h3>
                                     <div className="overflow-hidden border border-slate-200 rounded-xl">
-                                        <table className="w-full text-left text-xs border-collapse">
+                                        <table className="w-full text-left text-xs border-collapse table-fixed">
                                             <thead>
                                                 <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                                    <th className="px-4 py-2">ID</th>
-                                                    <th className="px-4 py-2">Title</th>
-                                                    <th className="px-4 py-2">Status</th>
-                                                    <th className="px-4 py-2">Priority</th>
-                                                    <th className="px-4 py-2">Hours</th>
-                                                    <th className="px-4 py-2">Assignee</th>
-                                                    <th className="px-4 py-2 text-right">Critical</th>
+                                                    <th className="px-4 py-2 w-[8%]">ID</th>
+                                                    <th className="px-4 py-2 w-[38%]">Title</th>
+                                                    <th className="px-4 py-2 w-[14%]">Status</th>
+                                                    <th className="px-4 py-2 w-[12%]">Priority</th>
+                                                    <th className="px-4 py-2 w-[8%]">Hours</th>
+                                                    <th className="px-4 py-2 w-[12%]">Assignee</th>
+                                                    <th className="px-4 py-2 w-[8%] text-right">Critical</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
                                                 {activePrintReport.metrics.tasks_list.map(t => (
                                                     <tr key={t.id} className="hover:bg-slate-50/50">
-                                                        <td className="px-4 py-2 font-mono text-[10px]">#{t.id}</td>
-                                                        <td className="px-4 py-2 font-semibold text-slate-800 truncate max-w-[200px]" title={t.title}>{t.title}</td>
+                                                        <td className="px-4 py-2 font-mono text-[10px] truncate">#{t.id}</td>
                                                         <td className="px-4 py-2">
+                                                            <div className="font-semibold text-slate-800 truncate" title={t.title}>
+                                                                {t.title}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-2 truncate">
                                                             <span className="capitalize">{t.status.replace(/_/g, ' ')}</span>
                                                         </td>
-                                                        <td className="px-4 py-2">
+                                                        <td className="px-4 py-2 truncate">
                                                             <span className="uppercase text-[9px] font-bold">{t.priority || 'MEDIUM'}</span>
                                                         </td>
-                                                        <td className="px-4 py-2 font-mono">{t.estimated_hours || 0}h</td>
-                                                        <td className="px-4 py-2 text-slate-600">{t.assignee}</td>
-                                                        <td className="px-4 py-2 text-right">
+                                                        <td className="px-4 py-2 font-mono truncate">{t.estimated_hours || 0}h</td>
+                                                        <td className="px-4 py-2 text-slate-600 truncate">{t.assignee}</td>
+                                                        <td className="px-4 py-2 text-right truncate">
                                                             {t.is_critical ? (
                                                                 <span className="text-rose-600 font-extrabold">YES</span>
                                                             ) : (
@@ -637,34 +658,63 @@ export default function Docs({ studio, projects = [], members = [], reports = []
                                 </div>
                             )}
 
-                            {/* System Activity & Audit Trail Logs */}
+                            {/* Project Activity & Audit Timeline */}
                             {activePrintReport.metrics?.logs && activePrintReport.metrics.logs.length > 0 && (
                                 <div className="space-y-3">
-                                    <h3 className="text-xs font-black uppercase text-[#007CFF] tracking-wider font-heading">System Event &amp; Audit Trail Logs</h3>
-                                    <div className="bg-slate-950 text-slate-200 rounded-2xl p-4 font-mono text-[9px] leading-relaxed border border-slate-800 shadow-inner">
-                                        <div className="flex items-center gap-1.5 border-b border-slate-850 pb-2 mb-3 text-slate-400 select-none">
-                                            <span className="w-2 h-2 rounded-full bg-rose-500/80" />
-                                            <span className="w-2 h-2 rounded-full bg-amber-500/80" />
-                                            <span className="w-2 h-2 rounded-full bg-emerald-500/80" />
-                                            <span className="ml-2 font-bold uppercase tracking-wider text-[8px]">vaultera-audit-daemon.log</span>
-                                        </div>
-                                        <div className="max-h-60 overflow-y-auto space-y-1.5 pr-2 custom-scrollbar">
-                                            {activePrintReport.metrics.logs.map((log, lIdx) => (
-                                                <div key={lIdx} className="flex items-start gap-3">
-                                                    <span className="text-slate-500 shrink-0 select-none">[{log.timestamp}]</span>
-                                                    <span className={`px-1 rounded text-[8px] font-bold uppercase tracking-wide shrink-0 ${
-                                                        log.type === 'success' ? 'bg-emerald-950 text-emerald-400' :
-                                                        log.type === 'warning' ? 'bg-amber-950 text-amber-450' : 'bg-blue-950 text-blue-400'
-                                                    }`}>
-                                                        {log.type}
-                                                    </span>
-                                                    <span className="text-slate-350">{log.message}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+                                    <h3 className="text-xs font-black uppercase text-[#007CFF] tracking-wider font-heading">Project Activity &amp; Audit Timeline</h3>
+                                    <div className="overflow-hidden border border-slate-200 rounded-xl bg-white">
+                                        <table className="w-full text-left text-xs border-collapse">
+                                            <thead>
+                                                <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                    <th className="px-4 py-2.5 w-1/4">Timestamp</th>
+                                                    <th className="px-4 py-2.5 w-1/5">Type</th>
+                                                    <th className="px-4 py-2.5">Activity Description</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 font-sans">
+                                                {activePrintReport.metrics.logs.map((log, lIdx) => {
+                                                    const formattedDate = new Date(log.timestamp.replace(/-/g, '/')).toLocaleString('en-US', {
+                                                        month: 'short',
+                                                        day: 'numeric',
+                                                        year: 'numeric',
+                                                        hour: 'numeric',
+                                                        minute: 'numeric',
+                                                        hour12: true
+                                                     });
+                                                     
+                                                     const badgeStyles = {
+                                                         success: 'bg-emerald-50 text-emerald-700 border-emerald-200/60 dark:bg-emerald-950/20 dark:text-emerald-450 dark:border-emerald-800/40',
+                                                         warning: 'bg-amber-50 text-amber-700 border-amber-200/60 dark:bg-amber-950/20 dark:text-amber-450 dark:border-amber-800/40',
+                                                         info: 'bg-blue-50 text-blue-700 border-blue-200/60 dark:bg-blue-950/20 dark:text-blue-450 dark:border-blue-800/40'
+                                                     };
+                                                     
+                                                     const typeLabels = {
+                                                         success: 'Completed',
+                                                         warning: 'Under Review',
+                                                         info: 'Setup'
+                                                     };
+                                                     
+                                                     return (
+                                                         <tr key={lIdx} className="hover:bg-slate-50/50">
+                                                             <td className="px-4 py-2.5 text-slate-500 font-mono text-[10px]">
+                                                                 {formattedDate !== 'Invalid Date' ? formattedDate : log.timestamp}
+                                                             </td>
+                                                             <td className="px-4 py-2.5">
+                                                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[9px] font-bold uppercase tracking-wide ${badgeStyles[log.type] || badgeStyles.info}`}>
+                                                                     {typeLabels[log.type] || log.type}
+                                                                 </span>
+                                                             </td>
+                                                             <td className="px-4 py-2.5 text-slate-700 font-medium">
+                                                                 {log.message}
+                                                             </td>
+                                                         </tr>
+                                                     );
+                                                 })}
+                                             </tbody>
+                                         </table>
+                                     </div>
+                                 </div>
+                             )}
 
                             {/* Signatures & Footer block */}
                             <div className="border-t border-slate-200 pt-8 mt-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6 text-[10px] text-slate-400 font-sans">
@@ -686,6 +736,7 @@ export default function Docs({ studio, projects = [], members = [], reports = []
                                 </div>
                             </div>
                         </div>
+                    </div>
 
                     </div>
                 </div>
