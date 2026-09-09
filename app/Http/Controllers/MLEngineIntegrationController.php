@@ -615,19 +615,37 @@ class MLEngineIntegrationController extends Controller
 
         if ($validated['action'] === 'create_task') {
             $payload = $validated['payload'];
+            $hours = isset($payload['estimated_hours']) ? (float) $payload['estimated_hours'] : 4.0;
+            $points = 1;
+            if ($hours <= 4) {
+                $points = 1;
+            } elseif ($hours <= 8) {
+                $points = 2;
+            } elseif ($hours <= 16) {
+                $points = 3;
+            } elseif ($hours <= 32) {
+                $points = 5;
+            } elseif ($hours <= 64) {
+                $points = 8;
+            } else {
+                $points = 13;
+            }
+
             $task = $projectModel->tasks()->create([
                 'title' => $payload['title'] ?? 'New Task',
                 'description' => $payload['objective'] ?? $payload['description'] ?? null,
                 'task_classification' => $payload['task_classification'] ?? 'Feature',
                 'task_difficulty' => $payload['task_difficulty'] ?? 'Medium',
                 'priority' => $payload['priority'] ?? 'Medium',
-                'estimated_hours' => isset($payload['estimated_hours']) ? (float) $payload['estimated_hours'] : 4.0,
+                'estimated_hours' => $hours,
                 'days_until_deadline' => isset($payload['days_until_deadline']) ? (int) $payload['days_until_deadline'] : null,
                 'hard_constraint_date' => $payload['hard_constraint_date'] ?? null,
                 'minimum_experience_years' => isset($payload['minimum_experience_years']) ? (float) $payload['minimum_experience_years'] : 0.0,
                 'target_macro_domains' => $payload['macro_domains'] ?? null,
                 'required_position' => $payload['required_position'] ?? null,
                 'required_skills' => $payload['required_skills'] ?? [],
+                'story_points_ai_suggested' => $hours > 0 ? $points : null,
+                'expected_estimators' => !empty($payload['assigned_user_id']) ? [$payload['assigned_user_id']] : null,
                 'status' => 'todo',
             ]);
 

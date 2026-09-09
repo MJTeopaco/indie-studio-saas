@@ -47,7 +47,7 @@ HEADER = [
     'skill_Hugging Face APIs', 'skill_Stripe API', 'skill_Twilio API', 'skill_OAuth / Auth0',
     # Operational (5)
     'availability_status', 'days_until_free', 'concurrent_tasks_count',
-    'daily_update_compliance_rate', 'historical_task_velocity',
+    'daily_update_compliance_rate', 'individual_task_throughput',
 ]
 
 # Skills indices: 5 to 100 (96 skills), operational: 101 to 105

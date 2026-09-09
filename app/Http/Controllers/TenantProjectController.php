@@ -207,19 +207,37 @@ class TenantProjectController extends Controller
         $allTasksArray = array_values($validated['tasks']);
 
         foreach ($allTasksArray as $index => $taskData) {
+            $hours = isset($taskData['estimated_hours']) ? (float) $taskData['estimated_hours'] : 0.0;
+            $points = 1;
+            if ($hours <= 4) {
+                $points = 1;
+            } elseif ($hours <= 8) {
+                $points = 2;
+            } elseif ($hours <= 16) {
+                $points = 3;
+            } elseif ($hours <= 32) {
+                $points = 5;
+            } elseif ($hours <= 64) {
+                $points = 8;
+            } else {
+                $points = 13;
+            }
+
             $task = $projectModel->tasks()->create([
                 'title' => $taskData['title'],
                 'description' => $taskData['objective'] ?? $taskData['description'] ?? null,
                 'task_classification' => $taskData['task_classification'] ?? 'Feature',
                 'task_difficulty' => $taskData['task_difficulty'] ?? 'Medium',
                 'priority' => $taskData['priority'] ?? 'Medium',
-                'estimated_hours' => isset($taskData['estimated_hours']) ? (float) $taskData['estimated_hours'] : 0.0,
+                'estimated_hours' => $hours,
                 'days_until_deadline' => $taskData['days_until_deadline'] ?? null,
                 'hard_constraint_date' => $taskData['hard_constraint_date'] ?? null,
                 'minimum_experience_years' => isset($taskData['minimum_experience_years']) ? (float) $taskData['minimum_experience_years'] : 0.0,
                 'target_macro_domains' => $taskData['macro_domains'] ?? null,
                 'required_position' => $taskData['required_position'] ?? null,
                 'required_skills' => $taskData['required_skills'] ?? [],
+                'story_points_ai_suggested' => $hours > 0 ? $points : null,
+                'expected_estimators' => !empty($taskData['assigned_user_ids']) ? $taskData['assigned_user_ids'] : null,
                 'status' => 'todo',
             ]);
 

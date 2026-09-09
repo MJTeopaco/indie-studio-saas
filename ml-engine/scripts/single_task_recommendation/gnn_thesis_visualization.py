@@ -26,7 +26,7 @@ Key Features for Explainability (XAI):
        the Task Requirements are highlighted in BOLD GREEN (✓ Skill), while
        additional skills are shown in dim cyan.
      - Operational Capacity: Shows availability_status, concurrent_tasks_count,
-       and historical_task_velocity to visually justify why the GNN balances
+       and individual_task_throughput to visually justify why the GNN balances
        skills with workload and velocity.
 
 Usage / Integration:

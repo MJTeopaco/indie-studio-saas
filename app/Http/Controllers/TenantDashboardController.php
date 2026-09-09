@@ -81,6 +81,28 @@ class TenantDashboardController extends Controller
         $positions = Position::orderBy('name')->get(['id', 'name'])->all();
         $teamMembers = $studio ? $studio->users()->get()->map(fn ($u) => ['id' => $u->id, 'name' => $u->name]) : [];
 
+        $pendingEstimatesCount = 0;
+        try {
+            $user = auth()->user();
+            if ($user) {
+                $pendingEstimatesCount = \App\Models\Tenant\Task::where('story_points_locked', false)
+                    ->where('needs_estimate_review', false)
+                    ->get()
+                    ->filter(function ($task) use ($user) {
+                        if (empty($task->expected_estimators)) {
+                            return $task->assigned_user_id === $user->id;
+                        }
+                        return in_array($user->id, $task->expected_estimators);
+                    })
+                    ->filter(function ($task) use ($user) {
+                        return !\App\Models\Tenant\TaskEstimateSubmission::where('task_id', $task->id)
+                            ->where('developer_id', $user->id)
+                            ->exists();
+                    })
+                    ->count();
+            }
+        } catch (\Exception $e) {}
+
         return Inertia::render('Tenant/Dashboard', [
             'studio' => [
                 'id'   => $studio ? $studio->id : tenant('id'),
@@ -91,6 +113,7 @@ class TenantDashboardController extends Controller
             'skills' => $skills,
             'positions' => $positions,
             'teamMembers' => $teamMembers,
+            'pendingEstimatesCount' => $pendingEstimatesCount,
         ]);
     }
 }

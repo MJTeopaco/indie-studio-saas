@@ -38,6 +38,15 @@ class Task extends Model
         'total_float',
         'is_critical',
         'schedule_computed_at',
+        'story_points',
+        'story_points_locked',
+        'story_points_ai_suggested',
+        'needs_estimate_review',
+        'estimate_review_note',
+        'expected_estimators',
+        'duration_optimistic',
+        'duration_likely',
+        'duration_pessimistic',
     ];
 
     protected function casts(): array
@@ -50,6 +59,14 @@ class Task extends Model
             'days_until_deadline' => 'integer',
             'hard_constraint_date' => 'date',
             'schedule_computed_at' => 'datetime',
+            'story_points' => 'integer',
+            'story_points_locked' => 'boolean',
+            'story_points_ai_suggested' => 'integer',
+            'needs_estimate_review' => 'boolean',
+            'expected_estimators' => 'array',
+            'duration_optimistic' => 'float',
+            'duration_likely' => 'float',
+            'duration_pessimistic' => 'float',
         ];
     }
 
@@ -75,6 +92,22 @@ class Task extends Model
     public function predecessors(): BelongsToMany
     {
         return $this->belongsToMany(Task::class, 'task_dependencies', 'task_id', 'depends_on_task_id');
+    }
+
+    /**
+     * Get the estimate submissions for this task.
+     */
+    public function estimateSubmissions()
+    {
+        return $this->hasMany(TaskEstimateSubmission::class);
+    }
+
+    /**
+     * Check if the task has a derived duration (locked story points + computed duration).
+     */
+    public function hasDerivedDuration(): bool
+    {
+        return $this->story_points_locked && $this->duration_likely !== null;
     }
 
     /**
