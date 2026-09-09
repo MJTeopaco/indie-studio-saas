@@ -109,9 +109,12 @@ Route::prefix('/studio/{tenant}')->middleware([
         ->name('tenant.ml.preview-best-fit');
 
     // Estimation & Velocity Routes
-    Route::get('/estimates/pending', [EstimationController::class, 'pendingQueue'])->name('tenant.estimates.pending');
-    Route::post('/tasks/{task}/estimates', [EstimationController::class, 'submitEstimate'])->name('tenant.estimates.submit');
-    Route::get('/estimates/needs-review', [EstimationController::class, 'reviewQueue'])->name('tenant.estimates.review');
-    Route::post('/tasks/{task}/estimates/resolve', [EstimationController::class, 'resolveEstimate'])->name('tenant.estimates.resolve');
+    Route::get('/estimates/pending', [\App\Http\Controllers\EstimationController::class, 'pendingQueue'])->name('tenant.estimates.pending');
+    Route::post('/tasks/{task}/estimates', [\App\Http\Controllers\EstimationController::class, 'submitEstimate'])->name('tenant.estimates.submit');
+    Route::get('/estimates/needs-review', [\App\Http\Controllers\EstimationController::class, 'reviewQueue'])->name('tenant.estimates.review');
+    Route::post('/tasks/{task}/estimates/resolve', [\App\Http\Controllers\EstimationController::class, 'resolveEstimate'])->name('tenant.estimates.resolve');
+
+    // Phase 6 Burndown Dashboard
+    Route::get('/burndown', [\App\Http\Controllers\BurndownController::class, 'index'])->name('tenant.burndown');
 
 });

@@ -218,6 +218,12 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
             active: currentPath.includes('/estimates'),
             badge: pendingEstimatesCount > 0 ? String(pendingEstimatesCount) : null,
         },
+        {
+            label: 'Burndown',
+            icon: PremiumDashboardIcon,
+            href: `${baseHref}/burndown`,
+            active: currentPath.includes('/burndown'),
+        },
     ];
 
     const automationLinks = [

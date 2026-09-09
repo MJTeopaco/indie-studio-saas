@@ -103,6 +103,11 @@ class TenantDashboardController extends Controller
             }
         } catch (\Exception $e) {}
 
+        $teamVelocities = [];
+        try {
+            $teamVelocities = \App\Models\Tenant\TeamVelocity::latest('computed_at')->take(5)->get()->toArray();
+        } catch (\Exception $e) {}
+
         return Inertia::render('Tenant/Dashboard', [
             'studio' => [
                 'id'   => $studio ? $studio->id : tenant('id'),
@@ -114,6 +119,7 @@ class TenantDashboardController extends Controller
             'positions' => $positions,
             'teamMembers' => $teamMembers,
             'pendingEstimatesCount' => $pendingEstimatesCount,
+            'teamVelocities' => $teamVelocities,
         ]);
     }
 }
