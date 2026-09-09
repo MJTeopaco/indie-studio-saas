@@ -13,7 +13,7 @@ class TeamVelocity extends Model
     
     protected $fillable = [
         'team_id',
-        'sprint_label',
+        'sprint_id',
         'points_committed',
         'points_completed',
         'computed_at',
@@ -24,5 +24,14 @@ class TeamVelocity extends Model
         'points_committed' => 'integer',
         'points_completed' => 'integer',
         'team_id' => 'integer',
+        'sprint_id' => 'integer',
     ];
+
+    /**
+     * Get the sprint this velocity record belongs to.
+     */
+    public function sprint()
+    {
+        return $this->belongsTo(Sprint::class, 'sprint_id');
+    }
 }

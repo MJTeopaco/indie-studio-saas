@@ -16,6 +16,8 @@ class Task extends Model
 
     protected $fillable = [
         'project_id',
+        'epic_id',
+        'sprint_id',
         'title',
         'description',
         'task_classification',
@@ -76,6 +78,22 @@ class Task extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class, 'project_id');
+    }
+
+    /**
+     * Get the epic this task belongs to.
+     */
+    public function epic(): BelongsTo
+    {
+        return $this->belongsTo(Epic::class, 'epic_id');
+    }
+
+    /**
+     * Get the sprint this task is assigned to.
+     */
+    public function sprint(): BelongsTo
+    {
+        return $this->belongsTo(Sprint::class, 'sprint_id');
     }
 
     /**

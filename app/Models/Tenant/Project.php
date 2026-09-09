@@ -57,6 +57,22 @@ class Project extends Model
     }
 
     /**
+     * Get the epics belonging to this project.
+     */
+    public function epics(): HasMany
+    {
+        return $this->hasMany(Epic::class, 'project_id');
+    }
+
+    /**
+     * Get the sprints belonging to this project.
+     */
+    public function sprints(): HasMany
+    {
+        return $this->hasMany(Sprint::class, 'project_id');
+    }
+
+    /**
      * Determine if a given central user ID is assigned as a member of this project.
      */
     public function hasMember(int $userId): bool

@@ -7,6 +7,7 @@ use App\Models\Position;
 use App\Models\Skill;
 use App\Models\Studio;
 use App\Models\Tenant\Project;
+use App\Models\Tenant\Sprint;
 use App\Models\Tenant\Task;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -507,5 +508,53 @@ class TenantProjectController extends Controller
             ->all();
 
         $task->predecessors()->sync($validIds);
+    }
+
+    /**
+     * Store a manually created sprint.
+     */
+    public function storeSprint(Request $request, $project, $routeProject = null)
+    {
+        $this->authorizeManager();
+        $project = $routeProject ?? $project;
+        $projectModel = Project::findOrFail($project);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'goal' => 'nullable|string',
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after:start_date',
+            'status' => 'required|string|in:planned,active,completed',
+        ]);
+
+        // Validate unique name within project
+        $exists = Sprint::where('project_id', $projectModel->id)
+            ->where('name', $validated['name'])
+            ->exists();
+            
+        if ($exists) {
+            return response()->json([
+                'message' => 'The given data was invalid.',
+                'errors' => ['name' => ['A sprint with this name already exists in this project.']]
+            ], 422);
+        }
+
+        if ($validated['status'] === 'active') {
+            // Only one active sprint allowed at a time, complete others
+            Sprint::where('project_id', $projectModel->id)
+                ->where('status', 'active')
+                ->update(['status' => 'completed']);
+        }
+
+        $sprint = $projectModel->sprints()->create($validated);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'status' => 'success',
+                'sprint' => $sprint,
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Sprint created successfully.');
     }
 }
