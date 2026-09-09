@@ -6,6 +6,7 @@ import RightSidebar from '@/Components/Tenant/Projects/RightSidebar';
 import SprintDecomposeModal from '@/Components/ML/SprintDecomposeModal';
 import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
 import CreateProjectModal from '@/Components/Tenant/Projects/CreateProjectModal';
+import { useChatSessions } from '@/hooks/useChatSessions';
 import { CheckSquare, Cpu, Calendar, Users, Paperclip, Mic, Send, Sparkles, Bot, X } from 'lucide-react';
 
 function QuickActionCard({ title, description, icon: Icon, badgeColor, onClick }) {
@@ -66,9 +67,28 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
     const abortRef = useRef(null);
     const chatEndRef = useRef(null);
 
+    const {
+        sessions,
+        activeSessionId,
+        isLoading: isSessionsLoading,
+        startNewSession,
+        selectSession,
+        persistCurrentSession,
+        deleteSession
+    } = useChatSessions(studio.id);
+
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }, [messages, generation]);
+
+    // Auto-persist on message changes
+    useEffect(() => {
+        persistCurrentSession(messages);
+    }, [messages, persistCurrentSession]);
+
+    const handleNewChat = () => startNewSession(messages, !!generation, setMessages);
+    const handleSelectChat = (id) => selectSession(id, setMessages);
+    const handleDeleteChat = (id) => deleteSession(id, messages, setMessages);
 
 
 
@@ -431,10 +451,14 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                     </div>
                 </div>
 
-                {/* Right Sidebar Component: Active Sprint Tasks Feed */}
+                {/* Right Sidebar Component: AI Workspace Chat History */}
                 <RightSidebar
-                    tasks={activeTasks}
-                    onDraftNewTask={() => setIsTaskModalOpen(true)}
+                    sessions={sessions}
+                    activeSessionId={activeSessionId}
+                    isLoading={!!generation}
+                    onNewChat={handleNewChat}
+                    onSelectChat={handleSelectChat}
+                    onDeleteChat={handleDeleteChat}
                 />
             </div>
         </TenantLayout>

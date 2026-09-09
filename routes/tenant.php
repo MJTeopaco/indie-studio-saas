@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\AiChatSessionController;
 use App\Http\Controllers\MLEngineIntegrationController;
 use App\Http\Controllers\TenantDashboardController;
 use App\Http\Controllers\TenantOverviewController;
@@ -116,5 +117,17 @@ Route::prefix('/studio/{tenant}')->middleware([
 
     // Phase 6 Burndown Dashboard
     Route::get('/burndown', [\App\Http\Controllers\BurndownController::class, 'index'])->name('tenant.burndown');
+
+    // AI Chat Session History
+    Route::get('/chats', [AiChatSessionController::class, 'index'])
+        ->name('tenant.chats.index');
+    Route::post('/chats', [AiChatSessionController::class, 'store'])
+        ->name('tenant.chats.store');
+    Route::get('/chats/{chatSession}', [AiChatSessionController::class, 'show'])
+        ->name('tenant.chats.show');
+    Route::patch('/chats/{chatSession}', [AiChatSessionController::class, 'update'])
+        ->name('tenant.chats.update');
+    Route::delete('/chats/{chatSession}', [AiChatSessionController::class, 'destroy'])
+        ->name('tenant.chats.destroy');
 
 });

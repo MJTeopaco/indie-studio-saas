@@ -25,6 +25,27 @@ class StudioWithMembersSeeder extends Seeder
             ]
         );
 
+        $positionId = \App\Models\Position::firstOrCreate(['name' => 'Technical Product Manager'])->id;
+
+        $managerProfile = \App\Models\GlobalProfile::updateOrCreate(
+            ['user_id' => $manager->id],
+            [
+                'position_id' => $positionId,
+                'experience_years' => 8.0,
+                'open_to_invitations' => false,
+                'timezone' => 'America/New_York',
+                'max_hours_per_week' => 40,
+            ]
+        );
+
+        // Assign some basic skills to the manager profile
+        $skills = \App\Models\Skill::whereIn('name', ['Project Management', 'Strategic Leadership', 'Agile / Scrum Sprint Planning'])->pluck('id');
+        $syncSkills = [];
+        foreach ($skills as $skillId) {
+            $syncSkills[$skillId] = ['proficiency_level' => 5];
+        }
+        $managerProfile->skills()->sync($syncSkills);
+
         // 2. Create or find the Studio
         $studio = Studio::find('indiecraft-studios') ?? Studio::where('name', 'IndieCraft Studios')->first();
         if (! $studio) {
@@ -103,6 +124,27 @@ class StudioWithMembersSeeder extends Seeder
                         'micro_domain_id' => $microDomainId,
                     ]);
                 }
+            }
+        }
+
+        // 6. Seed initial projects and assign members
+        $projects = \App\Models\Tenant\Project::factory(3)->create();
+        
+        foreach ($projects as $project) {
+            \App\Models\Tenant\ProjectMember::create([
+                'project_id' => $project->id,
+                'user_id' => $manager->id,
+                'project_role' => 'Project Manager',
+            ]);
+            
+            // Randomly assign 3 developers to each project
+            $projectDevs = $developers->random(min(3, $developers->count()));
+            foreach ($projectDevs as $dev) {
+                \App\Models\Tenant\ProjectMember::create([
+                    'project_id' => $project->id,
+                    'user_id' => $dev->id,
+                    'project_role' => 'Developer',
+                ]);
             }
         }
 
