@@ -8,6 +8,7 @@ export function useChatSessions(studioId) {
 
     const activeSessionIdRef = useRef(null);
     const timeoutRef = useRef(null);
+    const isCreatingRef = useRef(false);  // Bug 2 fix: mutex to prevent concurrent createSession calls
 
     // Keep ref in sync
     useEffect(() => {
@@ -34,11 +35,19 @@ export function useChatSessions(studioId) {
 
         try {
             if (activeSessionIdRef.current === null) {
+                // Bug 2 fix: guard against concurrent create calls from the debounce firing twice
+                if (isCreatingRef.current) return;
+                isCreatingRef.current = true;
+
                 // CREATE
                 const { data } = await chatStore.createSession(studioId, { title, messages });
                 setActiveSessionId(data.id);
                 activeSessionIdRef.current = data.id; // update ref synchronously for subsequent debounced calls
-                setSessions(prev => [data, ...prev]);
+                setSessions(prev => {
+                    // Bug 2 fix: deduplicate — if this session already exists in list, don't prepend again
+                    if (prev.some(s => s.id === data.id)) return prev;
+                    return [data, ...prev];
+                });
             } else {
                 // UPDATE
                 await chatStore.updateSession(studioId, activeSessionIdRef.current, { title, messages });
@@ -52,6 +61,8 @@ export function useChatSessions(studioId) {
             }
         } catch (error) {
             console.error("Failed to persist session:", error);
+        } finally {
+            isCreatingRef.current = false;
         }
     };
 
@@ -95,12 +106,20 @@ export function useChatSessions(studioId) {
     };
 
     const selectSession = async (sessionId, setMessagesCallback) => {
+        // Bug 3 fix: cancel any pending auto-persist debounce before switching sessions
+        // so a queued write doesn't overwrite the freshly-loaded session content
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+        }
+
         try {
             const { data } = await chatStore.getSession(studioId, sessionId);
+            setActiveSessionId(data.id);
+            activeSessionIdRef.current = data.id; // Bug 3 fix: sync ref immediately so any subsequent persist targets the correct session
             if (setMessagesCallback) {
                 setMessagesCallback(data.messages || []);
             }
-            setActiveSessionId(data.id);
         } catch (error) {
             console.error("Failed to load session details:", error);
         }

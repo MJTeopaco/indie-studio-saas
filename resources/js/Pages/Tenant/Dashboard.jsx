@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import axios from 'axios';
+import ReactMarkdown from 'react-markdown';
 import TenantLayout from '@/Layouts/TenantLayout';
 import RightSidebar from '@/Components/Tenant/Projects/RightSidebar';
 import SprintDecomposeModal from '@/Components/ML/SprintDecomposeModal';
@@ -66,6 +67,7 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
     const [pendingProjectPlan, setPendingProjectPlan] = useState(null);
     const abortRef = useRef(null);
     const chatEndRef = useRef(null);
+    const isRestoringRef = useRef(false); // Bug 3 fix: suppresses auto-persist while loading a past session
 
     const {
         sessions,
@@ -82,12 +84,23 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
     }, [messages, generation]);
 
     // Auto-persist on message changes
+    // Bug 3 fix: skip persist entirely when messages were set by selectSession (not by the user)
     useEffect(() => {
+        if (isRestoringRef.current) return;
         persistCurrentSession(messages);
     }, [messages, persistCurrentSession]);
 
     const handleNewChat = () => startNewSession(messages, !!generation, setMessages);
-    const handleSelectChat = (id) => selectSession(id, setMessages);
+    const handleSelectChat = (id) => {
+        // Bug 3 fix: signal to the auto-persist effect that the upcoming setMessages
+        // call is a restore, not new user content — so it won't try to persist it
+        isRestoringRef.current = true;
+        selectSession(id, (loadedMessages) => {
+            setMessages(loadedMessages);
+            // Give React one tick to re-render before re-enabling persist
+            setTimeout(() => { isRestoringRef.current = false; }, 50);
+        });
+    };
     const handleDeleteChat = (id) => deleteSession(id, messages, setMessages);
 
 
@@ -285,8 +298,28 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
 
                             {messages.map(message => (
                                 <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                    {message.role === 'assistant' && <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand"><Bot className="h-4 w-4" /></div>}
-                                    <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${message.role === 'user' ? 'bg-brand text-white' : 'bg-white text-gray-700 shadow-sm ring-1 ring-gray-100 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700'}`}>{message.content}</div>
+                                    {message.role === 'assistant' && (
+                                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand">
+                                            <Bot className="h-4 w-4" />
+                                        </div>
+                                    )}
+                                    {message.role === 'user' ? (
+                                        /* User bubble: plain text, preserve line breaks */
+                                        <div className="max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-brand text-white">
+                                            {message.content}
+                                        </div>
+                                    ) : (
+                                        /* Assistant bubble: Bug 1 fix — render LLM Markdown with prose typography */
+                                        <div className="max-w-[80%] rounded-2xl px-4 py-3 bg-white shadow-sm ring-1 ring-gray-100 dark:bg-slate-800 dark:ring-slate-700">
+                                            <div className="prose prose-sm dark:prose-invert max-w-none
+                                                            prose-p:my-1 prose-headings:my-2 prose-headings:font-semibold
+                                                            prose-ul:my-1 prose-ol:my-1 prose-li:my-0
+                                                            prose-pre:my-2 prose-code:text-brand dark:prose-code:text-brand-light
+                                                            prose-a:text-brand dark:prose-a:text-brand-light">
+                                                <ReactMarkdown>{message.content}</ReactMarkdown>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
 
