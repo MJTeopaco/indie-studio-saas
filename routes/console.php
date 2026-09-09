@@ -8,4 +8,5 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Illuminate\Support\Facades\Schedule::command('estimates:lock-expired')->daily();
+Illuminate\Support\Facades\Schedule::command('estimates:compute-velocity')->daily();
 

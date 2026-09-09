@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Tenant\Task;
 use App\Models\Tenant\TaskEstimateSubmission;
 use App\Models\User;
+use App\Services\EstimationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -144,6 +145,8 @@ class EstimationController extends Controller
                 'story_points_locked' => true,
                 'needs_estimate_review' => false,
             ]);
+            
+            app(EstimationService::class)->deriveDurationForTask($task);
         }
     }
 
@@ -201,6 +204,8 @@ class EstimationController extends Controller
             'needs_estimate_review' => false,
             'estimate_review_note' => $validated['estimate_review_note'],
         ]);
+
+        app(EstimationService::class)->deriveDurationForTask($task);
 
         return response()->json(['status' => 'success']);
     }
