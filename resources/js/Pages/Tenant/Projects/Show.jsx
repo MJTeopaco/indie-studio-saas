@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Head, usePage } from '@inertiajs/react';
 import ProjectLayout from '@/Layouts/ProjectLayout';
-import { BarChart3, CalendarDays, Clock, Columns3, Cpu, Plus, Search, TableProperties, AlertTriangle, Flame, CheckCircle2, Edit2, Flag } from 'lucide-react';
+import { BarChart3, CalendarDays, Clock, Columns3, Cpu, Plus, Search, TableProperties, AlertTriangle, Flame, CheckCircle2, Edit2, Flag, IterationCcw, IterationCw, ListTodo, Layers } from 'lucide-react';
 import axios from 'axios';
 import BestFitModal from '@/Components/ML/BestFitModal';
 import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
@@ -140,15 +140,13 @@ function KanbanCard({ task, onFindFit, onEdit, projectStartDate, onDragStart }) 
                 onDragStart?.(task);
             }}
             onClick={() => isClickable && onEdit(task)}
-            className={`group rounded-xl border bg-white p-4 shadow-sm transition-all dark:bg-slate-900 ${
-                canMove ? 'cursor-grab active:cursor-grabbing hover:shadow-md' : isClickable ? 'cursor-pointer hover:shadow-md' : 'cursor-default'
-            } ${
-                isDelayed
+            className={`group rounded-xl border bg-white p-4 shadow-sm transition-all dark:bg-slate-900 ${canMove ? 'cursor-grab active:cursor-grabbing hover:shadow-md' : isClickable ? 'cursor-pointer hover:shadow-md' : 'cursor-default'
+                } ${isDelayed
                     ? 'border-rose-400/80 bg-rose-50/20 dark:border-rose-500/50 dark:bg-rose-950/20'
                     : task.is_critical
-                    ? 'border-amber-400/80 dark:border-amber-500/50'
-                    : 'border-gray-200 dark:border-slate-800'
-            }`}
+                        ? 'border-amber-400/80 dark:border-amber-500/50'
+                        : 'border-gray-200 dark:border-slate-800'
+                }`}
         >
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -647,17 +645,15 @@ function Timeline({ tasks, project, onEdit }) {
                                 <div
                                     key={task.id}
                                     onClick={() => isClickable && onEdit(task)}
-                                    className={`grid grid-cols-[240px_1fr_180px] items-center gap-4 p-3 rounded-xl border transition-all ${
-                                        isClickable
-                                            ? 'cursor-pointer hover:border-gray-200 hover:bg-gray-50/50 dark:hover:border-slate-800 dark:hover:bg-slate-800/30'
-                                            : 'cursor-default'
-                                    } ${
-                                        isDelayed
+                                    className={`grid grid-cols-[240px_1fr_180px] items-center gap-4 p-3 rounded-xl border transition-all ${isClickable
+                                        ? 'cursor-pointer hover:border-gray-200 hover:bg-gray-50/50 dark:hover:border-slate-800 dark:hover:bg-slate-800/30'
+                                        : 'cursor-default'
+                                        } ${isDelayed
                                             ? 'border-rose-300 bg-rose-50/40 dark:border-rose-800/60 dark:bg-rose-950/20'
                                             : isCrit
-                                            ? 'border-amber-200 bg-amber-50/20 dark:border-amber-900/40 dark:bg-amber-950/10'
-                                            : 'border-transparent'
-                                    }`}
+                                                ? 'border-amber-200 bg-amber-50/20 dark:border-amber-900/40 dark:bg-amber-950/10'
+                                                : 'border-transparent'
+                                        }`}
                                 >
                                     <div className="min-w-0 pr-2">
                                         <div className="flex items-center gap-1.5">
@@ -673,9 +669,8 @@ function Timeline({ tasks, project, onEdit }) {
                                     <div className="relative h-8 rounded-lg bg-slate-100 dark:bg-slate-800/80 overflow-hidden px-1 flex items-center">
                                         <div
                                             title={`ES ${task.es} - EF ${task.ef} (${task.estimated_hours}h)`}
-                                            className={`absolute top-1.5 h-5 rounded-md shadow-sm flex items-center justify-between px-2 text-[10px] font-bold text-white transition-all ${
-                                                isCompleted ? 'bg-emerald-500' : isDelayed ? 'bg-rose-600 animate-pulse' : isCrit ? 'bg-amber-500' : task.status === 'in_progress' ? 'bg-indigo-500' : 'bg-brand'
-                                            }`}
+                                            className={`absolute top-1.5 h-5 rounded-md shadow-sm flex items-center justify-between px-2 text-[10px] font-bold text-white transition-all ${isCompleted ? 'bg-emerald-500' : isDelayed ? 'bg-rose-600 animate-pulse' : isCrit ? 'bg-amber-500' : task.status === 'in_progress' ? 'bg-indigo-500' : 'bg-brand'
+                                                }`}
                                             style={{
                                                 left: `${(Number(task.es) / maxFinish) * 100}%`,
                                                 width: `${Math.max(6, ((Number(task.ef) - Number(task.es)) / maxFinish) * 100)}%`
@@ -687,15 +682,14 @@ function Timeline({ tasks, project, onEdit }) {
 
                                     {/* Status Badge & Actions */}
                                     <div className="flex items-center justify-end gap-2">
-                                        <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${
-                                            isCompleted
-                                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                                                : task.status === 'in_progress'
+                                        <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${isCompleted
+                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                                            : task.status === 'in_progress'
                                                 ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300'
                                                 : task.status === 'review'
-                                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
-                                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
-                                        }`}>{statusLabel}</span>
+                                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                                                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                                            }`}>{statusLabel}</span>
                                         <CpaStatusBadge totalFloat={task.total_float} isCritical={task.is_critical} showSlack={true} />
                                     </div>
                                 </div>
@@ -741,10 +735,12 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
     }));
 
     const tabs = [
-        { id: 'dashboard',   label: 'Dashboard', icon: BarChart3 },
-        { id: 'spreadsheet', label: 'Spreadsheet', icon: TableProperties },
-        { id: 'timeline',    label: 'CPA Gantt Timeline', icon: CalendarDays },
-        { id: 'board',       label: 'Board', icon: Columns3 }
+        { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+        { id: 'spreadsheet', label: 'Active Sprint Spreadsheet', icon: ListTodo },
+        { id: 'sprint', label: 'Sprint Planning', icon: TableProperties },
+        { id: 'epic', label: 'Epic Breakdown', icon: Layers },
+        { id: 'timeline', label: 'CPA Gantt Timeline', icon: CalendarDays },
+        { id: 'board', label: 'Kanban Board', icon: Columns3 }
     ];
 
     const tenantId = studio?.id || pageProps.activeWorkspace || 'default';
@@ -798,11 +794,10 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveView(tab.id)}
-                                    className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
-                                        activeView === tab.id
-                                            ? 'bg-white text-brand shadow-sm dark:bg-slate-700 dark:text-brand-light'
-                                            : 'text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200'
-                                    }`}
+                                    className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${activeView === tab.id
+                                        ? 'bg-white text-brand shadow-sm dark:bg-slate-700 dark:text-brand-light'
+                                        : 'text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200'
+                                        }`}
                                 >
                                     <Icon className="h-4 w-4" />
                                     {tab.label}
@@ -875,11 +870,10 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                                         event.preventDefault();
                                         handleDropTask(group.id);
                                     }}
-                                    className={`flex w-80 flex-col rounded-2xl border transition-all duration-200 ${
-                                        hoveredColId === group.id && draggedTask && draggedTask.status !== group.id
-                                            ? 'border-brand ring-2 ring-brand/10 bg-brand/5'
-                                            : 'border-gray-250 dark:border-slate-800 bg-gray-100/70 dark:bg-slate-900/50'
-                                    }`}
+                                    className={`flex w-80 flex-col rounded-2xl border transition-all duration-200 ${hoveredColId === group.id && draggedTask && draggedTask.status !== group.id
+                                        ? 'border-brand ring-2 ring-brand/10 bg-brand/5'
+                                        : 'border-gray-250 dark:border-slate-800 bg-gray-100/70 dark:bg-slate-900/50'
+                                        }`}
                                 >
                                     <header className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-slate-800">
                                         <h2 className="text-xs font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">{group.title}</h2>
