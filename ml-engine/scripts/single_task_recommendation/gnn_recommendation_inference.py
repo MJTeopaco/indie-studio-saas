@@ -310,7 +310,7 @@ class DeveloperDataLoader:
 
         # 6. Extract normalized/raw numerical operational stats
         exp_arr = df["experience_years"].values.astype(np.float32)[:, None] / 20.0  # Normalize to ~[0,1]
-        velocity_arr = df["historical_task_velocity"].values.astype(np.float32)[:, None]
+        velocity_arr = df["individual_task_throughput"].values.astype(np.float32)[:, None]
         compliance_arr = df["daily_update_compliance_rate"].values.astype(np.float32)[:, None]
         workload_arr = (df["concurrent_tasks_count"].values.astype(np.float32)[:, None]) / 5.0
 

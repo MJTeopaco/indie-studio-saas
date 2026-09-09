@@ -125,6 +125,9 @@ class MLEngineService
             return [
                 'id' => $task->id,
                 'estimated_hours' => (float) $task->estimated_hours,
+                'duration_optimistic' => $task->duration_optimistic ? (float) $task->duration_optimistic : null,
+                'duration_likely' => $task->duration_likely ? (float) $task->duration_likely : null,
+                'duration_pessimistic' => $task->duration_pessimistic ? (float) $task->duration_pessimistic : null,
                 'depends_on' => $dependencies->get($task->id, collect())->pluck('depends_on_task_id')->all(),
                 'hard_constraint_hours' => $hardConstraintHours,
             ];

@@ -33,7 +33,7 @@ HEADER = [
     'skill_LangChain','skill_LlamaIndex','skill_Hugging Face','skill_Keras',
     # Agile & Ops (5)
     'availability_status','days_until_free','concurrent_tasks_count',
-    'daily_update_compliance_rate','historical_task_velocity',
+    'daily_update_compliance_rate','individual_task_throughput',
 ]
 
 # Each row: all 86 values. macro_domains is a quoted string like "[1, 0, 0, 0, 0, 0, 1]"

@@ -112,6 +112,16 @@ class CPAEngine:
         # Index tasks
         task_by_id: dict[Any, dict[str, Any]] = {t["id"]: t for t in tasks}
 
+        # Precompute three-point PERT duration and variance
+        for t_id, t in task_by_id.items():
+            base_est = float(t.get("estimated_hours") or 0)
+            o = float(t.get("duration_optimistic") or base_est)
+            l = float(t.get("duration_likely") or base_est)
+            p = float(t.get("duration_pessimistic") or base_est)
+            
+            t["_expected_duration"] = (o + 4*l + p) / 6.0
+            t["_variance"] = ((p - o) / 6.0) ** 2
+
         # Build adjacency: predecessors and successors
         predecessors: dict[Any, list[Any]] = defaultdict(list)
         successors: dict[Any, list[Any]] = defaultdict(list)
@@ -127,7 +137,7 @@ class CPAEngine:
         es: dict[Any, float] = {}
         ef: dict[Any, float] = {}
         for task_id in topo_order:
-            duration = float(task_by_id[task_id].get("estimated_hours", 0))
+            duration = task_by_id[task_id]["_expected_duration"]
             if predecessors[task_id]:
                 es[task_id] = max(ef[pred] for pred in predecessors[task_id])
             else:
@@ -145,7 +155,7 @@ class CPAEngine:
         ls_graph: dict[Any, float] = {}
         lf_graph: dict[Any, float] = {}
         for task_id in reversed(topo_order):
-            duration = float(task_by_id[task_id].get("estimated_hours", 0))
+            duration = task_by_id[task_id]["_expected_duration"]
             if successors[task_id]:
                 lf_candidate = min(ls_graph[succ] for succ in successors[task_id])
             else:
@@ -163,7 +173,7 @@ class CPAEngine:
         ls: dict[Any, float] = {}
         lf: dict[Any, float] = {}
         for task_id in reversed(topo_order):
-            duration = float(task_by_id[task_id].get("estimated_hours", 0))
+            duration = task_by_id[task_id]["_expected_duration"]
             if successors[task_id]:
                 lf_candidate = min(ls[succ] for succ in successors[task_id])
             else:
@@ -188,6 +198,10 @@ class CPAEngine:
                 critical_path_ids.append(task_id)
 
         critical_path_set = set(critical_path_ids)
+        
+        # Calculate project variance (sum of critical path variances)
+        project_variance = sum(task_by_id[tid]["_variance"] for tid in critical_path_ids)
+
         # Build per-task schedule output
         schedule: dict[Any, dict[str, Any]] = {}
         for task_id in topo_order:
@@ -198,7 +212,8 @@ class CPAEngine:
                 "ls":           round(ls[task_id], 4),
                 "lf":           round(lf[task_id], 4),
                 "total_float":  round(total_float[task_id], 4),
-                "is_critical":  (task_id in critical_path_set) or (total_float[task_id] <= 0.0),
+                "is_critical":  task_id in critical_path_set,
+                "variance":     round(task_by_id[task_id]["_variance"], 4),
             }
 
         is_delayed = (deadline_hours is not None and computed_project_finish > float(deadline_hours)) or any(tf < 0.0 for tf in total_float.values())
@@ -213,6 +228,7 @@ class CPAEngine:
         return {
             "project_finish": round(computed_project_finish, 4),
             "project_finish_workdays": round(computed_project_finish / self.WORK_HOURS_PER_DAY, 4),
+            "project_variance": round(project_variance, 4),
             "deadline_hours": round(float(deadline_hours), 4) if deadline_hours is not None else None,
             "is_delayed": is_delayed,
             "delay_hours": delay_hours,

@@ -9,6 +9,7 @@ use App\Http\Controllers\TenantDocsController;
 use App\Http\Controllers\TenantProjectController;
 use App\Http\Controllers\TenantScheduleController;
 use App\Http\Controllers\TenantTaskController;
+use App\Http\Controllers\EstimationController;
 use App\Http\Controllers\TenantTeamController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -106,5 +107,14 @@ Route::prefix('/studio/{tenant}')->middleware([
     // Preview best-fit for draft (unsaved) tasks during sprint planning review
     Route::post('/ml/preview-best-fit', [MLEngineIntegrationController::class, 'previewBestFit'])
         ->name('tenant.ml.preview-best-fit');
+
+    // Estimation & Velocity Routes
+    Route::get('/estimates/pending', [\App\Http\Controllers\EstimationController::class, 'pendingQueue'])->name('tenant.estimates.pending');
+    Route::post('/tasks/{task}/estimates', [\App\Http\Controllers\EstimationController::class, 'submitEstimate'])->name('tenant.estimates.submit');
+    Route::get('/estimates/needs-review', [\App\Http\Controllers\EstimationController::class, 'reviewQueue'])->name('tenant.estimates.review');
+    Route::post('/tasks/{task}/estimates/resolve', [\App\Http\Controllers\EstimationController::class, 'resolveEstimate'])->name('tenant.estimates.resolve');
+
+    // Phase 6 Burndown Dashboard
+    Route::get('/burndown', [\App\Http\Controllers\BurndownController::class, 'index'])->name('tenant.burndown');
 
 });

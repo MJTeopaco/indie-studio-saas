@@ -160,6 +160,9 @@ def best_fit(request: GNNBestFitRequest):
 class TaskScheduleInput(BaseModel):
     id: Any = Field(description="Task identifier (int or string)")
     estimated_hours: float = Field(ge=0, description="Task duration in hours")
+    duration_optimistic: Optional[float] = Field(default=None, description="PERT optimistic duration")
+    duration_likely: Optional[float] = Field(default=None, description="PERT likely duration")
+    duration_pessimistic: Optional[float] = Field(default=None, description="PERT pessimistic duration")
     depends_on: List[Any] = Field(
         default_factory=list, description="List of predecessor task IDs"
     )

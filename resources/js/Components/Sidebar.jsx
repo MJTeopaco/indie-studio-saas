@@ -92,6 +92,12 @@ const PremiumDocsIcon = ({ className }) => (
     </svg>
 );
 
+const PremiumEstimatesIcon = ({ className }) => (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+);
+
 /**
  * Reusable NavItem sub-component handling both expanded (w-64) and collapsed (w-16) states.
  */
@@ -141,7 +147,7 @@ function NavItem({ icon: Icon, label, href = '#', active = false, badge = null, 
 
 export default function Sidebar({ user: propUser, studioName: propStudioName }) {
     const pageProps = usePage().props || {};
-    const { auth, activeWorkspace, workspaceProjects = [], currentUserRole } = pageProps;
+    const { auth, activeWorkspace, workspaceProjects = [], currentUserRole, pendingEstimatesCount } = pageProps;
     const currentPath = usePage().url || '';
 
     const user = propUser || auth?.user || { name: 'Studio Member', role: 'Project Manager' };
@@ -204,6 +210,19 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
             href: `${baseHref}/team`,
             active: currentPath.includes('/team'),
             badge: 'GNN',
+        },
+        {
+            label: 'Estimates',
+            icon: PremiumEstimatesIcon,
+            href: `${baseHref}/estimates/pending`,
+            active: currentPath.includes('/estimates'),
+            badge: pendingEstimatesCount > 0 ? String(pendingEstimatesCount) : null,
+        },
+        {
+            label: 'Burndown',
+            icon: PremiumDashboardIcon,
+            href: `${baseHref}/burndown`,
+            active: currentPath.includes('/burndown'),
         },
     ];
 

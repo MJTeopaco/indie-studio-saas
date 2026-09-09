@@ -6,3 +6,7 @@ use Illuminate\Support\Facades\Artisan;
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+Illuminate\Support\Facades\Schedule::command('estimates:lock-expired')->daily();
+Illuminate\Support\Facades\Schedule::command('estimates:compute-velocity')->daily();
+
