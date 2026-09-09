@@ -60,6 +60,7 @@ class MLEngineIntegrationController extends Controller
      */
     public function workspaceAssistant(Request $request)
     {
+        set_time_limit(0);
         $validated = $request->validate([
             'message' => 'required|string|max:3000',
             'history' => 'nullable|array|max:10',
@@ -91,11 +92,12 @@ class MLEngineIntegrationController extends Controller
 
         $members = $studio?->users?->map(function ($user) use ($activeTasksPerMember): array {
             $pivotRole = $user->pivot?->role ?? 'member';
+
             return [
-                'id'                => $user->id,
-                'name'              => $user->name,
-                'role'              => $pivotRole,
-                'is_owner'          => $user->role === \App\Models\User::ROLE_ADMIN,
+                'id' => $user->id,
+                'name' => $user->name,
+                'role' => $pivotRole,
+                'is_owner' => $user->role === User::ROLE_ADMIN,
                 'active_task_count' => (int) ($activeTasksPerMember[$user->id] ?? 0),
             ];
         })?->values()?->all() ?? [];
@@ -106,9 +108,9 @@ class MLEngineIntegrationController extends Controller
             ->latest()
             ->get(['id', 'name', 'status'])
             ->map(fn (Project $project): array => [
-                'id'         => $project->id,
-                'name'       => $project->name,
-                'status'     => $project->status,
+                'id' => $project->id,
+                'name' => $project->name,
+                'status' => $project->status,
                 'task_count' => $project->tasks_count,
             ])
             ->all();
@@ -119,17 +121,17 @@ class MLEngineIntegrationController extends Controller
             ->latest()
             ->take(40)
             ->get(['id', 'title', 'status', 'priority', 'estimated_hours', 'project_id',
-                   'assigned_user_id', 'days_until_deadline'])
+                'assigned_user_id', 'days_until_deadline'])
             ->map(fn (Task $task): array => [
-                'id'                  => $task->id,
-                'title'               => $task->title,
-                'status'              => $task->status,
-                'priority'            => $task->priority,
-                'estimated_hours'     => $task->estimated_hours,
-                'project_id'          => $task->project_id,
-                'assigned_to'         => $task->assignee?->name,
+                'id' => $task->id,
+                'title' => $task->title,
+                'status' => $task->status,
+                'priority' => $task->priority,
+                'estimated_hours' => $task->estimated_hours,
+                'project_id' => $task->project_id,
+                'assigned_to' => $task->assignee?->name,
                 'days_until_deadline' => $task->days_until_deadline,
-                'is_overdue'          => $task->days_until_deadline !== null && $task->days_until_deadline <= 0,
+                'is_overdue' => $task->days_until_deadline !== null && $task->days_until_deadline <= 0,
             ])
             ->all();
 
@@ -149,26 +151,26 @@ class MLEngineIntegrationController extends Controller
             ->count();
 
         $stats = [
-            'total_members'  => count($members),
+            'total_members' => count($members),
             'total_projects' => count($projects),
-            'total_tasks'    => $allTasksForStats->count(),
-            'total_overdue'  => $totalOverdue,
-            'by_status'      => $byStatus,
+            'total_tasks' => $allTasksForStats->count(),
+            'total_overdue' => $totalOverdue,
+            'by_status' => $byStatus,
         ];
 
         $context = [
-            'studio'   => $studio?->only(['id', 'name']),
-            'members'  => $members,   // includes owner; use total_members for count
+            'studio' => $studio?->only(['id', 'name']),
+            'members' => $members,   // includes owner; use total_members for count
             'projects' => $projects,
-            'tasks'    => $allTasks,  // capped at 40; for exact counts use stats
-            'stats'    => $stats,     // pre-computed workspace-level aggregates
+            'tasks' => $allTasks,  // capped at 40; for exact counts use stats
+            'stats' => $stats,     // pre-computed workspace-level aggregates
         ];
 
         $result = $this->mlService->chatAboutProject($message, $context, $validated['history'] ?? []);
 
         return response()->json([
             'status' => $result['status'] ?? 'error',
-            'reply'  => $result['reply'] ?? 'I could not answer that right now. Please try again.',
+            'reply' => $result['reply'] ?? 'I could not answer that right now. Please try again.',
         ]);
     }
 
@@ -283,7 +285,7 @@ class MLEngineIntegrationController extends Controller
     {
         $user = auth()->user();
         $isManager = false;
-        if ($user && $user->role === \App\Models\User::ROLE_ADMIN) {
+        if ($user && $user->role === User::ROLE_ADMIN) {
             $isManager = true;
         } else {
             $member = \DB::connection(config('tenancy.database.central_connection', 'central'))->table('studio_members')
@@ -294,7 +296,7 @@ class MLEngineIntegrationController extends Controller
             $isManager = in_array($role, ['owner', 'leader', 'manager']);
         }
 
-        if (!$isManager) {
+        if (! $isManager) {
             abort(403, 'Unauthorized. Only studio managers can assign tasks.');
         }
 
@@ -474,6 +476,7 @@ class MLEngineIntegrationController extends Controller
      */
     public function projectAssistant(Request $request, $project, $routeProject = null)
     {
+        set_time_limit(0);
         $project = $routeProject ?? $project;
         $validated = $request->validate([
             'message' => 'required|string|max:3000',
@@ -511,7 +514,36 @@ class MLEngineIntegrationController extends Controller
             'estimated_completion_date' => $predictedDate,
             'velocity_tasks_per_day' => round($capacityPerDay / max(1, $active->avg('estimated_hours') ?: 1), 1),
         ];
-        $context = ['project' => $projectModel->only(['id', 'name', 'status', 'target_end_date']), 'tasks' => $taskData, 'stats' => $stats];
+
+        // ── Studio members (including the studio owner) ────────────────────
+        $studio = Studio::with(['users'])->find(tenant('id'));
+        $memberUserIds = $studio?->users?->pluck('id')?->all() ?? [];
+        $activeTasksPerMember = Task::query()
+            ->whereIn('status', ['todo', 'in_progress', 'review'])
+            ->whereIn('assigned_user_id', $memberUserIds)
+            ->selectRaw('assigned_user_id, COUNT(*) as active_task_count')
+            ->groupBy('assigned_user_id')
+            ->pluck('active_task_count', 'assigned_user_id');
+
+        $members = $studio?->users?->map(function ($user) use ($activeTasksPerMember): array {
+            $pivotRole = $user->pivot?->role ?? 'member';
+
+            return [
+                'id' => $user->id,
+                'name' => $user->name,
+                'role' => $pivotRole,
+                'is_owner' => $user->role === User::ROLE_ADMIN,
+                'active_task_count' => (int) ($activeTasksPerMember[$user->id] ?? 0),
+            ];
+        })?->values()?->all() ?? [];
+
+        $context = [
+            'project' => $projectModel->only(['id', 'name', 'status', 'target_end_date']),
+            'tasks' => $taskData,
+            'stats' => $stats,
+            'studio' => $studio?->only(['id', 'name']),
+            'members' => $members,
+        ];
         $mode = $validated['mode'] ?? 'chat';
 
         if ($mode === 'risk') {
@@ -562,7 +594,7 @@ class MLEngineIntegrationController extends Controller
 
         $role = $member ? $member->role : 'member';
 
-        if (!in_array($role, ['owner', 'leader', 'manager'])) {
+        if (! in_array($role, ['owner', 'leader', 'manager'])) {
             abort(403, 'Unauthorized action. Only studio managers can perform this task.');
         }
     }
