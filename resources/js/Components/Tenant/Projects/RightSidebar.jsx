@@ -1,166 +1,91 @@
-import React from 'react';
-import { usePage } from '@inertiajs/react';
+import React, { useState } from 'react';
 import {
     MoreHorizontal,
     Sparkles,
-    AlertCircle,
-    Flame,
     Bot,
-    UserPlus,
+    Plus,
+    MessageSquare,
+    X,
+    Loader2
 } from 'lucide-react';
 
-/**
- * PinnedActionCard Subcomponent
- * Pinned "Draft New Task" card with dashed border, faint translucent background, and AI sparkles.
- */
-function PinnedActionCard({ onDraftNewTask }) {
+function ChatHistoryItem({ session, isActive, onSelect, onDelete }) {
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const handleDelete = async (e) => {
+        e.stopPropagation();
+        setIsDeleting(true);
+        await onDelete(session.id);
+        setIsDeleting(false); // only reached if delete fails or confirm is cancelled
+    };
+
+    // Format relative time roughly
+    const formatTime = (dateString) => {
+        if (!dateString) return '';
+        const d = new Date(dateString);
+        const diffHours = (new Date() - d) / (1000 * 60 * 60);
+        
+        if (diffHours < 24) return 'Today';
+        if (diffHours < 48) return 'Yesterday';
+        return d.toLocaleDateString();
+    };
+
     return (
         <div
-            onClick={onDraftNewTask}
-            className="group cursor-pointer rounded-2xl border-2 border-dashed border-gray-300 dark:border-slate-700 bg-gray-50/80 dark:bg-slate-800/30 hover:bg-gray-100/80 hover:dark:bg-slate-800/50 p-3.5 transition-all duration-200 active:scale-[0.99]"
+            onClick={() => onSelect(session.id)}
+            className={`group relative flex items-center justify-between rounded-xl px-3 py-2.5 cursor-pointer transition-all duration-200 ${
+                isActive 
+                    ? 'bg-brand/10 dark:bg-brand/20' 
+                    : 'hover:bg-gray-100 dark:hover:bg-slate-800/60'
+            }`}
         >
-            <div className="flex items-center justify-center gap-2">
-                <Sparkles className="w-4 h-4 text-brand dark:text-brand-light group-hover:scale-110 transition-transform" />
-                <span className="font-heading text-sm font-semibold text-gray-700 dark:text-slate-300 group-hover:text-gray-900 dark:group-hover:text-slate-100 transition-colors">
-                    Draft New Task
-                </span>
-            </div>
-        </div>
-    );
-}
+            {/* Active Indicator Border */}
+            {isActive && (
+                <div className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-brand" />
+            )}
 
-/**
- * TaskSidebarCard Subcomponent
- * Sleek task card with ultra-soft corners, priority pill badge, Critical Path indicator,
- * and Graph Neural Network (GNN) match scoring.
- */
-function TaskSidebarCard({ task }) {
-    const normalizePriority = (priorityStr) => {
-        const p = (priorityStr || '').toUpperCase();
-        if (p === 'CRITICAL') return 'CRITICAL';
-        if (p === 'HIGH') return 'HIGH';
-        if (p === 'MEDIUM') return 'MEDIUM';
-        return 'LOW';
-    };
-
-    const priorityKey = normalizePriority(task.priority);
-
-    const priorityBadgeStyles = {
-        LOW: 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50',
-        MEDIUM: 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50',
-        HIGH: 'bg-orange-50 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-800/50',
-        CRITICAL: 'bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50',
-    };
-
-    const priorityBadgeClass = priorityBadgeStyles[priorityKey] || priorityBadgeStyles.LOW;
-
-    // Resolve initials
-    const getInitials = (name) => {
-        if (!name) return '?';
-        const parts = name.trim().split(/\s+/);
-        if (parts.length >= 2) {
-            return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-        }
-        return name.substring(0, 2).toUpperCase();
-    };
-
-    const assigneeName = typeof task.assignee === 'object' ? task.assignee?.name : task.assignee;
-    const assigneeInitials =
-        typeof task.assignee === 'object' && task.assignee?.initials
-            ? task.assignee.initials
-            : getInitials(assigneeName);
-
-    const classificationText = task.classification || task.domain || 'Engineering';
-    const estimatedHoursText = task.estimatedHours || task.hours || '8h';
-
-    return (
-        <div className="rounded-2xl bg-white dark:bg-slate-800/60 p-4 ring-1 ring-gray-200/80 dark:ring-white/5 hover:dark:bg-slate-800/80 hover:ring-gray-300 dark:hover:ring-white/10 hover:shadow-md transition-all duration-200">
-            {/* Title */}
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-slate-100 truncate" title={task.title}>
-                {task.title}
-            </h4>
-
-            {/* Metadata Flex Row */}
-            <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400 truncate">
-                <span className="truncate">{classificationText}</span>
-                <span className="flex-shrink-0 text-gray-400 dark:text-slate-600">•</span>
-                <span className="flex-shrink-0">{estimatedHoursText}</span>
-            </div>
-
-            {/* Footer Flex Row */}
-            <div className="mt-3 flex items-center justify-between gap-2">
-                {/* Left: Priority Badge & Critical Path Indicator */}
-                <div className="flex items-center gap-1.5">
-                    <span
-                        className={`rounded-full text-[10px] px-2 py-0.5 font-bold tracking-wide uppercase ${priorityBadgeClass}`}
-                    >
-                        {priorityKey}
+            <div className="flex items-center gap-3 min-w-0 flex-1 pl-1">
+                <MessageSquare className={`w-4 h-4 shrink-0 ${isActive ? 'text-brand' : 'text-gray-400 dark:text-slate-500 group-hover:text-gray-600 dark:group-hover:text-slate-300'}`} />
+                <div className="flex flex-col min-w-0 flex-1">
+                    <span className={`text-sm truncate ${isActive ? 'font-semibold text-brand dark:text-brand-light' : 'font-medium text-gray-700 dark:text-slate-300 group-hover:text-gray-900 dark:group-hover:text-slate-100'}`}>
+                        {session.title || 'New Chat'}
                     </span>
-
-                    {task.isCriticalPath && (
-                        <div
-                            className="inline-flex items-center gap-0.5 text-red-500 dark:text-red-400"
-                            title="On Critical Path (CPA Schedule)"
-                        >
-                            <Flame className="w-3.5 h-3.5 animate-pulse" />
-                        </div>
-                    )}
-                </div>
-
-                {/* Right: Assignee & GNN Match Score */}
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {assigneeName ? (
-                        <div className="flex items-center gap-1.5">
-                            <div className="w-5 h-5 rounded-full bg-brand-10 dark:bg-brand-20 text-brand dark:text-brand-light border border-brand-30 flex items-center justify-center text-[10px] font-bold">
-                                {assigneeInitials}
-                            </div>
-                            {task.gnnMatchScore && (
-                                <span
-                                    className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400"
-                                    title="Graph Neural Network (GNN) Developer Fit Score"
-                                >
-                                    {typeof task.gnnMatchScore === 'number'
-                                        ? `${task.gnnMatchScore}% Fit`
-                                        : task.gnnMatchScore}
-                                </span>
-                            )}
-                        </div>
-                    ) : (
-                        <span
-                            className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500 dark:text-slate-400"
-                            title="Unassigned — Needs AI routing"
-                        >
-                            <Bot className="w-3.5 h-3.5 text-brand dark:text-brand-light" />
-                            <span>Unassigned</span>
-                        </span>
-                    )}
+                    <span className="text-[10px] text-gray-500 dark:text-slate-500 truncate mt-0.5">
+                        {formatTime(session.updated_at)}
+                    </span>
                 </div>
             </div>
+
+            <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className={`p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 ${isActive ? 'opacity-100' : ''}`}
+            >
+                {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" /> : <X className="w-3.5 h-3.5" />}
+            </button>
         </div>
     );
 }
 
-/**
- * RightSidebar Main Component
- * Modern, minimalist, scrollable feed of sprint tasks for StudioSprint Project Workspace.
- */
-export default function RightSidebar({ tasks = [], onDraftNewTask }) {
-    const { canManage } = usePage().props;
-    const handleDraftNewTask = () => {
-        if (onDraftNewTask) {
-            onDraftNewTask();
-        } else {
-            alert('StudioSprint AI: Opening Agentic Task Drafter...');
-        }
-    };
-
+export default function RightSidebar({
+    sessions = [],
+    activeSessionId,
+    isLoading,
+    onNewChat,
+    onSelectChat,
+    onDeleteChat
+}) {
     return (
         <aside className="w-80 lg:w-96 border-l border-gray-200 dark:border-slate-800 bg-gray-50/60 dark:bg-slate-900/50 hidden lg:flex flex-col flex-shrink-0 h-full">
             {/* Sidebar Header */}
-            <div className="p-6 pb-2 flex items-center justify-between">
-                <h3 className="font-heading text-sm sm:text-base font-bold text-gray-900 dark:text-slate-200">
-                    Active Sprint Tasks
-                </h3>
+            <div className="p-6 pb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-brand dark:text-brand-light" />
+                    <h3 className="font-heading text-sm sm:text-base font-bold text-gray-900 dark:text-slate-200">
+                        AI Workspace
+                    </h3>
+                </div>
 
                 <button
                     type="button"
@@ -171,22 +96,51 @@ export default function RightSidebar({ tasks = [], onDraftNewTask }) {
                 </button>
             </div>
 
-            {/* Scrollable List Container */}
-            <div className="flex-1 overflow-y-auto px-6 pt-3 pb-6 space-y-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                {/* Pinned "Draft New Task" Card */}
-                {canManage && <PinnedActionCard onDraftNewTask={handleDraftNewTask} />}
+            {/* New Chat Button Container */}
+            <div className="px-6 pb-4">
+                <button
+                    type="button"
+                    onClick={onNewChat}
+                    disabled={isLoading}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-brand text-white font-semibold text-sm shadow-sm hover:bg-brand-dark transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed group"
+                >
+                    {isLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                        <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" />
+                    )}
+                    <span>New Chat</span>
+                </button>
+            </div>
 
-                {/* Task Cards or Empty State */}
-                {tasks.length > 0 ? (
-                    tasks.map((task) => (
-                        <TaskSidebarCard key={task.id} task={task} />
+            {/* Section Divider */}
+            <div className="px-6 pb-2">
+                <div className="flex items-center gap-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-slate-500">Chats</span>
+                    <div className="h-px flex-1 bg-gray-200 dark:bg-slate-800"></div>
+                </div>
+            </div>
+
+            {/* Scrollable List Container */}
+            <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                {sessions.length > 0 ? (
+                    sessions.map((session) => (
+                        <ChatHistoryItem 
+                            key={session.id} 
+                            session={session} 
+                            isActive={activeSessionId === session.id}
+                            onSelect={onSelectChat}
+                            onDelete={onDeleteChat}
+                        />
                     ))
                 ) : (
-                    <div className="flex flex-col items-center justify-center py-12 text-center text-gray-400 dark:text-slate-500">
-                        <Bot className="w-10 h-10 mb-2 text-gray-300 dark:text-slate-700" />
-                        <p className="text-xs font-semibold">No active tasks</p>
-                        <p className="text-[10px] text-gray-500 max-w-[200px] mt-1 mx-auto">
-                            Ask the AI to schedule a sprint or draft a new task to get started.
+                    <div className="flex flex-col items-center justify-center py-12 text-center text-gray-400 dark:text-slate-500 px-4">
+                        <div className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 flex items-center justify-center mb-4 shadow-sm">
+                            <Bot className="w-6 h-6 text-brand/60" />
+                        </div>
+                        <p className="text-sm font-semibold text-gray-600 dark:text-slate-300 mb-1">No chats yet</p>
+                        <p className="text-[11px] text-gray-500 dark:text-slate-500 leading-relaxed max-w-[200px] mx-auto">
+                            Start a new conversation to see your history appear here.
                         </p>
                     </div>
                 )}
