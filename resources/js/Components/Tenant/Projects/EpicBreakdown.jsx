@@ -328,8 +328,12 @@ function EpicTable({ epics, phases, priorities, onUpdateEpic, projectId, tenantI
                         </div>
                         
                         <div className="text-center">
-                            <button className="rounded p-1 text-gray-300 cursor-not-allowed dark:text-slate-600" title="Update function coming soon">
-                                <Edit2 className="h-4 w-4" />
+                            <button 
+                                className="flex items-center justify-center gap-1.5 w-full rounded px-2 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-80 cursor-not-allowed shadow-sm bg-blue-500"
+                                title="Update function coming soon"
+                            >
+                                <Edit2 className="h-3.5 w-3.5" />
+                                Update
                             </button>
                         </div>
                     </div>
