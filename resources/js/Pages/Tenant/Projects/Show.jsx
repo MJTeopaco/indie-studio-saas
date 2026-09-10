@@ -8,6 +8,7 @@ import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
 import ProjectAiAssistant from '@/Components/Tenant/Projects/ProjectAiAssistant';
 import CpaStatusBadge from '@/Components/Tenant/CpaStatusBadge';
 import EpicBreakdown from '@/Components/Tenant/Projects/EpicBreakdown';
+import SprintBreakdown from '@/Components/Tenant/Projects/SprintBreakdown';
 
 const statuses = [
     { id: 'todo', title: 'To Do', className: 'bg-slate-500/15 text-slate-500' },
@@ -707,7 +708,7 @@ function Timeline({ tasks, project, onEdit }) {
     );
 }
 
-export default function Show({ project, studio, teamMembers, auth, skills = [], positions = [], epics = [], epicPhases = [], epicPriorities = [] }) {
+export default function Show({ project, studio, teamMembers, auth, skills = [], positions = [], epics = [], epicPhases = [], epicPriorities = [], sprints = [], backlogTasks = [] }) {
     const pageProps = usePage().props;
     const { canManage } = pageProps;
     const [activeView, setActiveView] = useState('dashboard');
@@ -850,6 +851,19 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                             tasks={visibleTasks}
                             project={project}
                             onEdit={handleEditTask}
+                        />
+                    )}
+
+                    {activeView === 'sprint' && (
+                        <SprintBreakdown
+                            sprints={sprints}
+                            backlogTasks={backlogTasks}
+                            epics={epics}
+                            project={project}
+                            tenantId={tenantId}
+                            canManage={canManage}
+                            onNewTask={handleNewTask}
+                            onFindFit={setBestFitTask}
                         />
                     )}
 

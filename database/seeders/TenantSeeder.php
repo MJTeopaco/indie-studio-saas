@@ -51,29 +51,29 @@ class TenantSeeder extends Seeder
         // T3 — no predecessors
         3 => ['title' => 'CI/CD Pipeline Setup',                      'hours' => 6,  'position' => 'DevOps Engineer',        'difficulty' => 'Medium', 'priority' => 'Medium',   'classification' => 'DevOps',   'epic' => 3, 'sprint' => 1],
         // T4 — depends on T1
-        4 => ['title' => 'Core API Endpoint Scaffolding',             'hours' => 4,  'position' => 'Backend Developer',      'difficulty' => 'Easy',   'priority' => 'High',     'classification' => 'Feature',  'epic' => 1, 'sprint' => 2],
+        4 => ['title' => 'Core API Endpoint Scaffolding',             'hours' => 4,  'position' => 'Backend Developer',      'difficulty' => 'Easy',   'priority' => 'Medium',   'classification' => 'Feature',  'epic' => 1, 'sprint' => 2],
         // T5 — depends on T1
-        5 => ['title' => 'Authentication & Authorization Module',     'hours' => 16, 'position' => 'Backend Developer',      'difficulty' => 'Hard',   'priority' => 'Critical', 'classification' => 'Feature',  'epic' => 2, 'sprint' => 2],
+        5 => ['title' => 'Authentication & Authorization Module',     'hours' => 16, 'position' => 'Backend Developer',      'difficulty' => 'Hard',   'priority' => 'Critical', 'classification' => 'Security', 'epic' => 2, 'sprint' => 2],
         // T6 — depends on T2
-        6 => ['title' => 'ORM Models & Repository Layer',             'hours' => 8,  'position' => 'Backend Developer',      'difficulty' => 'Medium', 'priority' => 'High',     'classification' => 'Feature',  'epic' => 1, 'sprint' => 2],
+        6 => ['title' => 'ORM Models & Repository Layer',             'hours' => 8,  'position' => 'Backend Developer',      'difficulty' => 'Medium', 'priority' => 'Low',      'classification' => 'Feature',  'epic' => 1, 'sprint' => 2],
         // T7 — depends on T4
-        7 => ['title' => 'Frontend Component Library Setup',          'hours' => 12, 'position' => 'Frontend Developer',     'difficulty' => 'Medium', 'priority' => 'Medium',   'classification' => 'Feature',  'epic' => 2, 'sprint' => 2],
+        7 => ['title' => 'Frontend Component Library Setup',          'hours' => 12, 'position' => 'Frontend Developer',     'difficulty' => 'Medium', 'priority' => 'High',     'classification' => 'Feature',  'epic' => 2, 'sprint' => 2],
         // T8 — depends on T5
-        8 => ['title' => 'User Dashboard UI Implementation',          'hours' => 8,  'position' => 'Frontend Developer',     'difficulty' => 'Medium', 'priority' => 'High',     'classification' => 'Feature',  'epic' => 2, 'sprint' => 2],
+        8 => ['title' => 'User Dashboard UI Implementation',          'hours' => 8,  'position' => 'Frontend Developer',     'difficulty' => 'Medium', 'priority' => 'Critical', 'classification' => 'Feature',  'epic' => 2, 'sprint' => 2],
         // T9 — depends on T6
-        9 => ['title' => 'Business Logic & Service Layer',            'hours' => 4,  'position' => 'Backend Developer',      'difficulty' => 'Easy',   'priority' => 'High',     'classification' => 'Feature',  'epic' => 1, 'sprint' => 3],
+        9 => ['title' => 'Business Logic & Service Layer',            'hours' => 4,  'position' => 'Backend Developer',      'difficulty' => 'Easy',   'priority' => 'Medium',   'classification' => 'Feature',  'epic' => 1, 'sprint' => 3],
         // T10 — depends on T7
-        10 => ['title' => 'UI Accessibility & Responsive Design Pass', 'hours' => 8,  'position' => 'Frontend Developer',     'difficulty' => 'Medium', 'priority' => 'Medium',   'classification' => 'Feature',  'epic' => 2, 'sprint' => 3],
+        10 => ['title' => 'UI Accessibility & Responsive Design Pass', 'hours' => 8,  'position' => 'Frontend Developer',     'difficulty' => 'Medium', 'priority' => 'Low',      'classification' => 'Bug',      'epic' => 2, 'sprint' => 3],
         // T11 — depends on T8
         11 => ['title' => 'API Integration & Data Binding (Frontend)', 'hours' => 6,  'position' => 'Full Stack Developer',   'difficulty' => 'Medium', 'priority' => 'High',     'classification' => 'Feature',  'epic' => 2, 'sprint' => 3],
         // T12 — depends on T9
         12 => ['title' => 'Payment Gateway Integration',               'hours' => 20, 'position' => 'Backend Developer',      'difficulty' => 'Hard',   'priority' => 'Critical', 'classification' => 'Feature',  'epic' => 1, 'sprint' => 3],
         // T13 — depends on T10, T11
-        13 => ['title' => 'End-to-End & Regression Test Suite',       'hours' => 4,  'position' => 'QA Automation Engineer', 'difficulty' => 'Medium', 'priority' => 'High',     'classification' => 'Testing',  'epic' => 3, 'sprint' => 3],
+        13 => ['title' => 'End-to-End & Regression Test Suite',       'hours' => 4,  'position' => 'QA Automation Engineer', 'difficulty' => 'Medium', 'priority' => 'Medium',   'classification' => 'Testing',  'epic' => 3, 'sprint' => 3],
         // T14 — depends on T12
-        14 => ['title' => 'Security Audit & Penetration Test',         'hours' => 8,  'position' => 'DevSecOps',              'difficulty' => 'Hard',   'priority' => 'Critical', 'classification' => 'Research', 'epic' => 3, 'sprint' => 3],
+        14 => ['title' => 'Security Audit & Penetration Test',         'hours' => 8,  'position' => 'DevSecOps',              'difficulty' => 'Hard',   'priority' => 'Critical', 'classification' => 'Security', 'epic' => 3, 'sprint' => 3],
         // T15 — depends on T13, T14, T3
-        15 => ['title' => 'Production Deployment & Documentation',     'hours' => 4,  'position' => 'DevOps Engineer',        'difficulty' => 'Easy',   'priority' => 'High',     'classification' => 'DevOps',   'epic' => 3, 'sprint' => 3],
+        15 => ['title' => 'Production Deployment & Documentation',     'hours' => 4,  'position' => 'DevOps Engineer',        'difficulty' => 'Easy',   'priority' => 'Low',      'classification' => 'DevOps',   'epic' => 3, 'sprint' => 3],
     ];
 
     /**
@@ -223,11 +223,14 @@ class TenantSeeder extends Seeder
                 'estimated_hours' => $template['hours'],
                 'story_points' => $points,
                 'story_points_locked' => $isSprint1,
+                'actual_story_points' => $isSprint1 ? $points : null,
                 'days_until_deadline' => (int) round($template['hours'] * 1.5),
                 'target_macro_domains' => json_encode($macroDomains),
                 'required_skills' => json_encode($requiredSkills),
                 'assigned_user_id' => null,
                 'status' => $status,
+                'sprint_status' => $isSprint1 ? 'done' : 'ready_to_start',
+                'sprint_priority' => strtolower($template['priority']),
                 'created_at' => now()->subDays(14),
                 'updated_at' => $isSprint1 ? now()->subDays(2) : now(), // Inside sprint 1
             ]);
