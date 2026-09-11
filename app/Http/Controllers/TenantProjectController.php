@@ -746,6 +746,66 @@ class TenantProjectController extends Controller
     }
 
     /**
+     * Return sprint performance summary for the closure modal.
+     * Called when the user clicks "Complete Sprint" (or when "Start Sprint"
+     * would displace a currently-active sprint) — before any action is taken.
+     */
+    public function getSprintSummary(Request $request, $project, $sprint)
+    {
+        $this->authorizeManager();
+
+        $projectModel = Project::findOrFail($project);
+        $sprintModel  = Sprint::with('tasks')->findOrFail($sprint);
+
+        abort_unless($sprintModel->project_id === $projectModel->id, 404);
+
+        $tasks      = $sprintModel->tasks;
+        $done       = $tasks->where('sprint_status', 'done');
+        $incomplete = $tasks->where('sprint_status', '!=', 'done');
+
+        // Other planned/active sprints that can receive the incomplete tasks
+        $availableSprints = Sprint::where('project_id', $projectModel->id)
+            ->whereKeyNot($sprintModel->id)
+            ->whereIn('status', ['planned', 'active'])
+            ->orderBy('created_at')
+            ->get(['id', 'name', 'start_date', 'end_date', 'status']);
+
+        return response()->json([
+            'sprint'  => [
+                'id'   => $sprintModel->id,
+                'name' => $sprintModel->name,
+            ],
+            'summary' => [
+                'total_tasks'         => $tasks->count(),
+                'done_count'          => $done->count(),
+                'incomplete_count'    => $incomplete->count(),
+                'estimated_sp_total'  => $tasks->sum('story_points'),
+                'actual_sp_burned'    => $done->sum('actual_story_points'),
+                'completion_rate_pct' => $tasks->count()
+                    ? round(($done->count() / $tasks->count()) * 100)
+                    : 0,
+            ],
+            'available_sprints' => $availableSprints,
+        ]);
+    }
+
+    /**
+     * Atomically activate a sprint, sweeping any concurrently-active
+     * siblings first. Single code path — never call ->update(['status' => 'active'])
+     * on a sprint directly outside of this method.
+     */
+    private function activateSprint(Sprint $sprint, Project $project): void
+    {
+        Sprint::where('project_id', $project->id)
+            ->where('status', 'active')
+            ->whereKeyNot($sprint->id)
+            ->lockForUpdate()
+            ->update(['status' => 'completed']);
+
+        $sprint->update(['status' => 'active']);
+    }
+
+    /**
      * Update a sprint's status.
      */
     public function updateSprintStatus(Request $request, $project, $sprint, $routeSprint = null)
@@ -768,20 +828,55 @@ class TenantProjectController extends Controller
         }
 
         $validated = $request->validate([
-            'status' => 'required|string|in:planned,active,completed',
+            'status'                  => 'required|string|in:planned,active,completed',
+            'incomplete_task_action'  => 'nullable|string|in:keep,move_to_sprint,move_to_backlog',
+            'move_to_sprint_id'       => 'nullable|integer|exists:sprints,id',
+            'activate_next_sprint_id' => 'nullable|integer|exists:sprints,id',
         ]);
 
         $newStatus = $validated['status'];
 
-        DB::transaction(function () use ($projectModel, $sprintModel, $newStatus) {
+        DB::transaction(function () use ($projectModel, $sprintModel, $newStatus, $validated) {
             if ($newStatus === 'active') {
-                Sprint::where('project_id', $projectModel->id)
-                    ->where('status', 'active')
-                    ->whereKeyNot($sprintModel->id)
-                    ->lockForUpdate()
-                    ->update(['status' => 'completed']);
+                $this->activateSprint($sprintModel, $projectModel);
+                return;
             }
+        
             $sprintModel->update(['status' => $newStatus]);
+        
+            if ($newStatus === 'completed') {
+                $action = $validated['incomplete_task_action'] ?? 'keep';
+        
+                if ($action === 'move_to_sprint' && !empty($validated['move_to_sprint_id'])) {
+                    $targetSprint = Sprint::where('project_id', $projectModel->id)
+                        ->whereIn('status', ['planned', 'active'])
+                        ->whereKeyNot($sprintModel->id)
+                        ->findOrFail($validated['move_to_sprint_id']);
+        
+                    Task::where('sprint_id', $sprintModel->id)
+                        ->where('sprint_status', '!=', 'done')
+                        ->update([
+                            'sprint_id'     => $targetSprint->id,
+                            'sprint_status' => 'ready_to_start',
+                        ]);
+        
+                } elseif ($action === 'move_to_backlog') {
+                    Task::where('sprint_id', $sprintModel->id)
+                        ->where('sprint_status', '!=', 'done')
+                        ->update([
+                            'sprint_id'     => null,
+                            'sprint_status' => 'ready_to_start',
+                        ]);
+                }
+        
+                if (!empty($validated['activate_next_sprint_id'])) {
+                    $nextSprint = Sprint::where('project_id', $projectModel->id)
+                        ->where('status', 'planned')
+                        ->findOrFail($validated['activate_next_sprint_id']);
+        
+                    $this->activateSprint($nextSprint, $projectModel);
+                }
+            }
         });
 
         if ($request->wantsJson() || $request->ajax()) {

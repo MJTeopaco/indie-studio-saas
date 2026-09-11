@@ -170,6 +170,137 @@ function EpicLinkModal({ isOpen, onClose, epics, currentEpicId, onSelect }) {
     );
 }
 
+function SprintClosureModal({ isOpen, onClose, summaryData, formState, setFormState, onConfirm, isSubmitting, pendingStartSprintId }) {
+    if (!isOpen || !summaryData) return null;
+
+    const { summary, available_sprints } = summaryData;
+    const isDisplacement = pendingStartSprintId !== null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm" onClick={onClose}>
+            <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900 border border-gray-100 dark:border-slate-800" onClick={e => e.stopPropagation()}>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100 mb-4">
+                    {isDisplacement 
+                        ? `Starting '${summaryData.available_sprints.find(s => s.id === pendingStartSprintId)?.name || 'Next Sprint'}' will first complete '${summaryData.sprint.name}' — resolve its ${summary.incomplete_count} incomplete tasks below.` 
+                        : `Complete Sprint: ${summaryData.sprint.name}`}
+                </h2>
+                
+                <div className="mb-6 grid grid-cols-3 gap-4 text-center">
+                    <div className="rounded-xl bg-gray-50 p-3 dark:bg-slate-800">
+                        <div className="text-2xl font-black text-brand">{summary.done_count}/{summary.total_tasks}</div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Tasks Done</div>
+                    </div>
+                    <div className="rounded-xl bg-gray-50 p-3 dark:bg-slate-800">
+                        <div className="text-2xl font-black text-emerald-500">{summary.completion_rate_pct}%</div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Completion</div>
+                    </div>
+                    <div className="rounded-xl bg-gray-50 p-3 dark:bg-slate-800">
+                        <div className="text-2xl font-black text-indigo-500">{summary.actual_sp_burned}</div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500">SP Burned</div>
+                    </div>
+                </div>
+
+                {summary.incomplete_count > 0 && (
+                    <div className="mb-6 space-y-3 rounded-xl border border-orange-200 bg-orange-50/50 p-4 dark:border-orange-900/30 dark:bg-orange-900/10">
+                        <h3 className="text-sm font-bold text-orange-800 dark:text-orange-400">
+                            {summary.incomplete_count} Incomplete Tasks
+                        </h3>
+                        
+                        <div className="space-y-2">
+                            <label className="flex items-center gap-2">
+                                <input 
+                                    type="radio" 
+                                    name="incomplete_action" 
+                                    value="move_to_backlog"
+                                    checked={formState.incompleteAction === 'move_to_backlog'}
+                                    onChange={(e) => setFormState(s => ({ ...s, incompleteAction: e.target.value }))}
+                                    className="text-brand focus:ring-brand"
+                                />
+                                <span className="text-sm font-medium text-gray-700 dark:text-slate-300">Move to Backlog</span>
+                            </label>
+
+                            <label className="flex items-center gap-2">
+                                <input 
+                                    type="radio" 
+                                    name="incomplete_action" 
+                                    value="move_to_sprint"
+                                    checked={formState.incompleteAction === 'move_to_sprint'}
+                                    onChange={(e) => setFormState(s => ({ ...s, incompleteAction: e.target.value }))}
+                                    className="text-brand focus:ring-brand"
+                                />
+                                <span className="text-sm font-medium text-gray-700 dark:text-slate-300">Move to Sprint...</span>
+                            </label>
+                            
+                            {formState.incompleteAction === 'move_to_sprint' && (
+                                <select 
+                                    value={formState.moveToSprintId || ''}
+                                    onChange={(e) => setFormState(s => ({ ...s, moveToSprintId: e.target.value }))}
+                                    className="ml-6 w-[calc(100%-1.5rem)] rounded-lg border border-gray-200 p-2 text-sm dark:border-slate-700 dark:bg-slate-800 focus:border-brand outline-none"
+                                >
+                                    <option value="" disabled>Select target sprint</option>
+                                    {available_sprints.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                    ))}
+                                </select>
+                            )}
+                            
+                            <label className="flex items-center gap-2">
+                                <input 
+                                    type="radio" 
+                                    name="incomplete_action" 
+                                    value="keep"
+                                    checked={formState.incompleteAction === 'keep'}
+                                    onChange={(e) => setFormState(s => ({ ...s, incompleteAction: e.target.value }))}
+                                    className="text-brand focus:ring-brand"
+                                />
+                                <span className="text-sm font-medium text-gray-700 dark:text-slate-300">Keep in this sprint (will not be marked done)</span>
+                            </label>
+                        </div>
+                    </div>
+                )}
+
+                <div className="mb-6 space-y-3">
+                    <h3 className="text-sm font-bold text-gray-900 dark:text-slate-100">Next Sprint</h3>
+                    {isDisplacement ? (
+                        <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-slate-300 bg-gray-50 dark:bg-slate-800/50 p-3 rounded-lg border border-gray-200 dark:border-slate-700">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                            {summaryData.available_sprints.find(s => s.id === pendingStartSprintId)?.name || 'Selected sprint'} will start automatically
+                        </div>
+                    ) : (
+                        <select 
+                            value={formState.activateNextSprintId || ''}
+                            onChange={(e) => setFormState(s => ({ ...s, activateNextSprintId: e.target.value }))}
+                            className="w-full rounded-lg border border-gray-200 p-2 text-sm dark:border-slate-700 dark:bg-slate-800 focus:border-brand outline-none"
+                        >
+                            <option value="">None (Don't auto-activate)</option>
+                            {available_sprints.filter(s => s.status === 'planned').map(s => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                        </select>
+                    )}
+                </div>
+
+                <div className="flex justify-end gap-3 mt-8">
+                    <button 
+                        onClick={onClose}
+                        disabled={isSubmitting}
+                        className="rounded-lg px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-slate-800"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        onClick={onConfirm}
+                        disabled={isSubmitting || (formState.incompleteAction === 'move_to_sprint' && !formState.moveToSprintId)}
+                        className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                        {isSubmitting ? 'Processing...' : 'Complete Sprint'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // Minimal implementation of X since it was not imported
 const X = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -546,6 +677,21 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
     const { auth } = usePage().props;
     const currentUserId = auth?.user?.id;
 
+    const [closureModal, setClosureModal] = useState({
+        isOpen: false,
+        summaryData: null,
+        targetSprintId: null,
+        pendingStartSprintId: null,
+    });
+
+    const [closureForm, setClosureForm] = useState({
+        incompleteAction: 'move_to_backlog',
+        moveToSprintId: null,
+        activateNextSprintId: null, // editable only when pendingStartSprintId is null
+    });
+    
+    const [isSubmittingClosure, setIsSubmittingClosure] = useState(false);
+
     // Optimistic background task update
     const handleUpdateTaskInline = async (taskId, updates) => {
         // Optimistic update
@@ -573,7 +719,91 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
         }
     };
 
-    // Optimistic background sprint status update
+    const handleRequestSprintAction = async (sprintId, actionType) => {
+        if (actionType === 'active') {
+            const activeSprint = sprints.find(s => s.status === 'active');
+            if (activeSprint && activeSprint.id !== sprintId) {
+                // Displacement mode
+                try {
+                    const res = await axios.get(route('tenant.projects.sprints.summary', { tenant: tenantId, project: project.id, sprint: activeSprint.id }));
+                    setClosureModal({
+                        isOpen: true,
+                        summaryData: res.data,
+                        targetSprintId: activeSprint.id,
+                        pendingStartSprintId: sprintId,
+                    });
+                    setClosureForm({
+                        incompleteAction: 'move_to_backlog',
+                        moveToSprintId: null,
+                        activateNextSprintId: null,
+                    });
+                } catch (e) {
+                    console.error('Failed to fetch sprint summary', e);
+                    alert('Could not prepare sprint closure.');
+                }
+            } else {
+                // No active sprint, just start immediately
+                if (confirm('Start this sprint?')) {
+                    handleUpdateSprintStatus(sprintId, 'active');
+                }
+            }
+        } else if (actionType === 'completed') {
+            // Normal complete flow
+            try {
+                const res = await axios.get(route('tenant.projects.sprints.summary', { tenant: tenantId, project: project.id, sprint: sprintId }));
+                setClosureModal({
+                    isOpen: true,
+                    summaryData: res.data,
+                    targetSprintId: sprintId,
+                    pendingStartSprintId: null,
+                });
+                setClosureForm({
+                    incompleteAction: 'move_to_backlog',
+                    moveToSprintId: null,
+                    activateNextSprintId: null,
+                });
+            } catch (e) {
+                console.error('Failed to fetch sprint summary', e);
+                alert('Could not prepare sprint closure.');
+            }
+        }
+    };
+
+    const handleConfirmSprintAction = async () => {
+        if (!closureModal.targetSprintId) return;
+        setIsSubmittingClosure(true);
+
+        const payload = {
+            status: 'completed',
+            incomplete_task_action: closureForm.incompleteAction,
+            move_to_sprint_id: closureForm.incompleteAction === 'move_to_sprint' ? closureForm.moveToSprintId : null,
+            activate_next_sprint_id: closureModal.pendingStartSprintId ?? closureForm.activateNextSprintId,
+        };
+
+        try {
+            await axios.patch(route('tenant.projects.sprints.update', { tenant: tenantId, project: project.id, sprint: closureModal.targetSprintId }), payload);
+            
+            setClosureModal(m => ({ ...m, isOpen: false }));
+            setIsSubmittingClosure(false);
+            
+            const needsReload = closureForm.incompleteAction !== 'keep' || !!payload.activate_next_sprint_id;
+            
+            if (needsReload) {
+                router.reload();
+            } else {
+                setSprints(current => current.map(s => {
+                    if (s.id === closureModal.targetSprintId) return { ...s, status: 'completed' };
+                    return s;
+                }));
+            }
+        } catch (e) {
+            console.error('Failed to close sprint', e);
+            alert(e.response?.data?.message || 'Failed to complete sprint.');
+            setIsSubmittingClosure(false);
+        }
+    };
+
+    // Original optimistic update for immediate actions
     const handleUpdateSprintStatus = async (sprintId, newStatus) => {
         setSprints(current => current.map(s => {
             if (s.id === sprintId) return { ...s, status: newStatus };
@@ -625,7 +855,7 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
                         tasks={sprint.tasks || []}
                         epics={epics}
                         onUpdateTask={handleUpdateTaskInline}
-                        onUpdateSprintStatus={handleUpdateSprintStatus}
+                        onUpdateSprintStatus={handleRequestSprintAction}
                         onFindFit={onFindFit}
                         canManage={canManage}
                         projectId={project.id}
@@ -645,6 +875,17 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
                     currentUserId={currentUserId}
                 />
             </div>
+
+            <SprintClosureModal 
+                isOpen={closureModal.isOpen}
+                onClose={() => setClosureModal(m => ({ ...m, isOpen: false }))}
+                summaryData={closureModal.summaryData}
+                formState={closureForm}
+                setFormState={setClosureForm}
+                onConfirm={handleConfirmSprintAction}
+                isSubmitting={isSubmittingClosure}
+                pendingStartSprintId={closureModal.pendingStartSprintId}
+            />
         </div>
     );
 }
