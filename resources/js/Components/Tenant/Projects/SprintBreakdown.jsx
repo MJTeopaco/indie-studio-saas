@@ -562,7 +562,7 @@ function SprintTable({ tasks, epics, onUpdateTask, onFindFit, canManage, project
     );
 }
 
-function SprintGroup({ sprint, tasks, epics, defaultOpen = true, onUpdateTask, onUpdateSprintStatus, onFindFit, canManage, projectId, tenantId, currentUserId }) {
+function SprintGroup({ sprint, tasks, epics, defaultOpen = true, onUpdateTask, onUpdateSprintStatus, onEditSprint, onFindFit, canManage, projectId, tenantId, currentUserId }) {
     const [isOpen, setIsOpen] = useState(defaultOpen);
 
     const isCompleted = sprint.status === 'completed';
@@ -591,7 +591,11 @@ function SprintGroup({ sprint, tasks, epics, defaultOpen = true, onUpdateTask, o
                 </span>
 
                 <div className="ml-auto flex items-center gap-4" onClick={e => e.stopPropagation()}>
-                    <button className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-700 dark:text-slate-400 hover:dark:text-slate-200" title="Change dates (Manager only)">
+                    <button
+                        onClick={() => canManage && !isCompleted && onEditSprint(sprint)}
+                        className={`flex items-center gap-1.5 text-xs font-semibold transition-colors ${canManage && !isCompleted ? 'text-gray-500 hover:text-brand dark:text-slate-400 dark:hover:text-brand-light cursor-pointer' : 'text-gray-400 dark:text-slate-600 cursor-default'}`}
+                        title={canManage && !isCompleted ? 'Edit sprint details' : isCompleted ? 'Completed sprints cannot be edited' : 'Managers only'}
+                    >
                         <CalendarDays className="w-3.5 h-3.5" />
                         {sprint.start_date && sprint.end_date ? (
                             <span>{new Date(sprint.start_date).toLocaleDateString('en-US', {month:'short', day:'numeric'})} - {new Date(sprint.end_date).toLocaleDateString('en-US', {month:'short', day:'numeric'})}</span>
@@ -671,6 +675,289 @@ function BacklogGroup({ tasks, epics, defaultOpen = true, onUpdateTask, onFindFi
     );
 }
 
+function EditSprintModal({ isOpen, onClose, sprint, onSubmit, isSubmitting, validationErrors }) {
+    if (!isOpen || !sprint) return null;
+
+    const toInputDate = (val) => {
+        if (!val) return '';
+        if (typeof val === 'string' && val.includes('T')) return val.split('T')[0];
+        if (typeof val === 'string') return val;
+        return new Date(val).toISOString().split('T')[0];
+    };
+
+    const [formState, setFormState] = useState({
+        name: sprint.name || '',
+        goal: sprint.goal || '',
+        start_date: toInputDate(sprint.start_date),
+        end_date: toInputDate(sprint.end_date),
+    });
+
+    // Sync form when sprint prop changes (e.g. switching which sprint to edit)
+    useEffect(() => {
+        setFormState({
+            name: sprint.name || '',
+            goal: sprint.goal || '',
+            start_date: toInputDate(sprint.start_date),
+            end_date: toInputDate(sprint.end_date),
+        });
+    }, [sprint.id]);
+
+    const setDuration = (weeks) => {
+        if (!formState.start_date) return;
+        const d = new Date(formState.start_date);
+        d.setDate(d.getDate() + (weeks * 7));
+        setFormState(s => ({ ...s, end_date: d.toISOString().split('T')[0] }));
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onSubmit(sprint.id, formState);
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm" onClick={onClose}>
+            <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900 border border-gray-100 dark:border-slate-800" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4 dark:border-slate-800">
+                    <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Edit Sprint</h2>
+                    <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"><X className="h-5 w-5" /></button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="mb-1 block text-sm font-bold text-gray-700 dark:text-slate-300">Sprint name</label>
+                        <input
+                            type="text"
+                            required
+                            value={formState.name}
+                            onChange={e => setFormState(s => ({ ...s, name: e.target.value }))}
+                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                        />
+                        {validationErrors?.name && <p className="mt-1 text-xs text-red-500">{validationErrors.name[0]}</p>}
+                    </div>
+
+                    <div>
+                        <label className="mb-1 block text-sm font-bold text-gray-700 dark:text-slate-300">Sprint dates</label>
+                        <div className="flex gap-3">
+                            <div className="flex-1">
+                                <input
+                                    type="date"
+                                    required
+                                    value={formState.start_date}
+                                    onChange={e => setFormState(s => ({ ...s, start_date: e.target.value }))}
+                                    className="w-full rounded-lg border border-gray-200 p-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                                />
+                            </div>
+                            <div className="flex items-center justify-center text-gray-400">-</div>
+                            <div className="flex-1">
+                                <input
+                                    type="date"
+                                    required
+                                    value={formState.end_date}
+                                    onChange={e => setFormState(s => ({ ...s, end_date: e.target.value }))}
+                                    min={formState.start_date}
+                                    className="w-full rounded-lg border border-gray-200 p-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                                />
+                            </div>
+                        </div>
+                        {validationErrors?.start_date && <p className="mt-1 text-xs text-red-500">{validationErrors.start_date[0]}</p>}
+                        {validationErrors?.end_date && <p className="mt-1 text-xs text-red-500">{validationErrors.end_date[0]}</p>}
+
+                        <div className="mt-2 flex gap-2">
+                            {[1, 2, 3, 4].map(w => (
+                                <button
+                                    key={w}
+                                    type="button"
+                                    onClick={() => setDuration(w)}
+                                    className="rounded-full bg-brand/10 px-3 py-1 text-[10px] font-bold text-brand hover:bg-brand/20 dark:bg-brand/20 dark:text-brand-light"
+                                >
+                                    {w} Week{w > 1 ? 's' : ''}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="mb-1 block text-sm font-bold text-gray-700 dark:text-slate-300">Sprint goal</label>
+                        <textarea
+                            rows="2"
+                            placeholder="Enter sprint goals"
+                            value={formState.goal}
+                            onChange={e => setFormState(s => ({ ...s, goal: e.target.value }))}
+                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                        ></textarea>
+                        {validationErrors?.goal && <p className="mt-1 text-xs text-red-500">{validationErrors.goal[0]}</p>}
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 mt-6 dark:border-slate-800">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            disabled={isSubmitting}
+                            className="rounded-lg px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-slate-800"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={isSubmitting}
+                            className="rounded-lg bg-brand px-5 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-dark disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {isSubmitting ? 'Saving...' : 'Save Changes'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+function CreateSprintModal({ isOpen, onClose, sprintCount, activeSprintName, onSubmit, isSubmitting, validationErrors }) {
+    if (!isOpen) return null;
+
+    const [formState, setFormState] = useState({
+        name: `Sprint ${sprintCount + 1}`,
+        goal: '',
+        start_date: new Date().toISOString().split('T')[0],
+        end_date: (() => {
+            const d = new Date();
+            d.setDate(d.getDate() + 14); // 2 weeks default
+            return d.toISOString().split('T')[0];
+        })(),
+        status: 'planned'
+    });
+
+    const setDuration = (weeks) => {
+        if (!formState.start_date) return;
+        const d = new Date(formState.start_date);
+        d.setDate(d.getDate() + (weeks * 7));
+        setFormState(s => ({ ...s, end_date: d.toISOString().split('T')[0] }));
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onSubmit(formState);
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm" onClick={onClose}>
+            <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900 border border-gray-100 dark:border-slate-800" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4 dark:border-slate-800">
+                    <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Create new sprint</h2>
+                    <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"><X className="h-5 w-5" /></button>
+                </div>
+                
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <div className="flex items-center justify-between">
+                            <label className="mb-1 block text-sm font-bold text-gray-700 dark:text-slate-300">Sprint name</label>
+                            {activeSprintName && <span className="text-[10px] text-gray-500 font-medium">Last sprint created: <span className="text-emerald-500">•</span> {activeSprintName}</span>}
+                        </div>
+                        <input 
+                            type="text" 
+                            required
+                            value={formState.name}
+                            onChange={e => setFormState(s => ({ ...s, name: e.target.value }))}
+                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                        />
+                        {validationErrors?.name && <p className="mt-1 text-xs text-red-500">{validationErrors.name[0]}</p>}
+                    </div>
+
+                    <div>
+                        <label className="mb-1 block text-sm font-bold text-gray-700 dark:text-slate-300">Sprint dates</label>
+                        <div className="flex gap-3">
+                            <div className="flex-1">
+                                <input 
+                                    type="date" 
+                                    required
+                                    value={formState.start_date}
+                                    onChange={e => {
+                                        setFormState(s => ({ ...s, start_date: e.target.value }));
+                                    }}
+                                    className="w-full rounded-lg border border-gray-200 p-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                                />
+                            </div>
+                            <div className="flex items-center justify-center text-gray-400">-</div>
+                            <div className="flex-1">
+                                <input 
+                                    type="date" 
+                                    required
+                                    value={formState.end_date}
+                                    onChange={e => setFormState(s => ({ ...s, end_date: e.target.value }))}
+                                    min={formState.start_date}
+                                    className="w-full rounded-lg border border-gray-200 p-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                                />
+                            </div>
+                        </div>
+                        {validationErrors?.start_date && <p className="mt-1 text-xs text-red-500">{validationErrors.start_date[0]}</p>}
+                        {validationErrors?.end_date && <p className="mt-1 text-xs text-red-500">{validationErrors.end_date[0]}</p>}
+
+                        <div className="mt-2 flex gap-2">
+                            {[1, 2, 3, 4].map(w => (
+                                <button
+                                    key={w}
+                                    type="button"
+                                    onClick={() => setDuration(w)}
+                                    className="rounded-full bg-brand/10 px-3 py-1 text-[10px] font-bold text-brand hover:bg-brand/20 dark:bg-brand/20 dark:text-brand-light"
+                                >
+                                    {w} Week{w > 1 ? 's' : ''}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="mb-1 block text-sm font-bold text-gray-700 dark:text-slate-300">Sprint goal</label>
+                        <textarea 
+                            rows="2"
+                            placeholder="Enter sprint goals"
+                            value={formState.goal}
+                            onChange={e => setFormState(s => ({ ...s, goal: e.target.value }))}
+                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                        ></textarea>
+                        {validationErrors?.goal && <p className="mt-1 text-xs text-red-500">{validationErrors.goal[0]}</p>}
+                    </div>
+
+                    <div>
+                        <label className="mb-1 block text-sm font-bold text-gray-700 dark:text-slate-300">Status</label>
+                        <select 
+                            value={formState.status}
+                            onChange={e => setFormState(s => ({ ...s, status: e.target.value }))}
+                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                        >
+                            <option value="planned">Planned (Start later)</option>
+                            <option value="active">Active (Start immediately)</option>
+                        </select>
+                        {formState.status === 'active' && activeSprintName && (
+                            <div className="mt-2 text-xs font-medium text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 p-2 rounded-lg">
+                                Starting this sprint will automatically complete the currently active sprint ({activeSprintName}).
+                            </div>
+                        )}
+                        {validationErrors?.status && <p className="mt-1 text-xs text-red-500">{validationErrors.status[0]}</p>}
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 mt-6 dark:border-slate-800">
+                        <button 
+                            type="button"
+                            onClick={onClose}
+                            disabled={isSubmitting}
+                            className="rounded-lg px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-slate-800"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            type="submit"
+                            disabled={isSubmitting}
+                            className="rounded-lg bg-brand px-5 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-dark disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {isSubmitting ? 'Creating...' : 'Create Sprint'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
 export default function SprintBreakdown({ sprints: initialSprints, backlogTasks: initialBacklog, epics, project, tenantId, canManage, onNewTask, onFindFit }) {
     const [sprints, setSprints] = useState(initialSprints || []);
     const [backlogTasks, setBacklogTasks] = useState(initialBacklog || []);
@@ -692,7 +979,69 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
     
     const [isSubmittingClosure, setIsSubmittingClosure] = useState(false);
 
-    // Optimistic background task update
+    const [isCreateSprintModalOpen, setIsCreateSprintModalOpen] = useState(false);
+    const [isCreatingSprint, setIsCreatingSprint] = useState(false);
+    const [createSprintValidationErrors, setCreateSprintValidationErrors] = useState(null);
+
+    const handleCreateSprint = async (formState) => {
+        setIsCreatingSprint(true);
+        setCreateSprintValidationErrors(null);
+        try {
+            const res = await axios.post(route('tenant.projects.sprints.store', { tenant: tenantId, project: project.id }), formState);
+            const newSprint = { ...res.data.sprint, tasks: [] };
+            
+            setSprints(current => {
+                let updated = [...current];
+                if (formState.status === 'active') {
+                    updated = updated.map(s => s.status === 'active' ? { ...s, status: 'completed' } : s);
+                }
+                return [newSprint, ...updated];
+            });
+
+            setIsCreateSprintModalOpen(false);
+        } catch (e) {
+            console.error('Failed to create sprint', e);
+            if (e.response?.status === 422) {
+                setCreateSprintValidationErrors(e.response.data.errors);
+            } else {
+                alert(e.response?.data?.message || 'Failed to create sprint.');
+            }
+        } finally {
+            setIsCreatingSprint(false);
+        }
+    };
+
+    const [editingSprintData, setEditingSprintData] = useState(null);
+    const [isEditingSprintSubmitting, setIsEditingSprintSubmitting] = useState(false);
+    const [editSprintValidationErrors, setEditSprintValidationErrors] = useState(null);
+
+    const handleEditSprint = async (sprintId, updates) => {
+        setIsEditingSprintSubmitting(true);
+        setEditSprintValidationErrors(null);
+        try {
+            const res = await axios.patch(
+                route('tenant.projects.sprints.update-details', { tenant: tenantId, project: project.id, sprint: sprintId }),
+                updates
+            );
+            const updated = res.data.sprint;
+            setSprints(current => current.map(s =>
+                s.id === sprintId
+                    ? { ...s, name: updated.name, goal: updated.goal, start_date: updated.start_date, end_date: updated.end_date }
+                    : s
+            ));
+            setEditingSprintData(null);
+        } catch (e) {
+            console.error('Failed to update sprint', e);
+            if (e.response?.status === 422) {
+                setEditSprintValidationErrors(e.response.data.errors);
+            } else {
+                alert(e.response?.data?.message || 'Failed to update sprint.');
+            }
+        } finally {
+            setIsEditingSprintSubmitting(false);
+        }
+    };
+
     const handleUpdateTaskInline = async (taskId, updates) => {
         // Optimistic update
         const applyUpdates = (tasks) => tasks.map(t => {
@@ -832,8 +1181,9 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
                         New Task
                     </button>
                     <button 
-                        disabled
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 shadow-sm opacity-50 cursor-not-allowed dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                        onClick={() => canManage && setIsCreateSprintModalOpen(true)}
+                        disabled={!canManage}
+                        className={`inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold shadow-sm transition-colors ${canManage ? 'bg-white text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700' : 'bg-gray-50 text-gray-400 opacity-60 cursor-not-allowed dark:bg-slate-800/50 dark:text-slate-500'}`}
                     >
                         Create Sprint
                     </button>
@@ -856,6 +1206,7 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
                         epics={epics}
                         onUpdateTask={handleUpdateTaskInline}
                         onUpdateSprintStatus={handleRequestSprintAction}
+                        onEditSprint={(s) => { setEditSprintValidationErrors(null); setEditingSprintData(s); }}
                         onFindFit={onFindFit}
                         canManage={canManage}
                         projectId={project.id}
@@ -885,6 +1236,24 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
                 onConfirm={handleConfirmSprintAction}
                 isSubmitting={isSubmittingClosure}
                 pendingStartSprintId={closureModal.pendingStartSprintId}
+            />
+
+            <CreateSprintModal
+                isOpen={isCreateSprintModalOpen}
+                onClose={() => setIsCreateSprintModalOpen(false)}
+                sprintCount={sprints.length}
+                activeSprintName={sprints.find(s => s.status === 'active' || s.status === 'completed')?.name}
+                onSubmit={handleCreateSprint}
+                isSubmitting={isCreatingSprint}
+                validationErrors={createSprintValidationErrors}
+            />
+            <EditSprintModal
+                isOpen={editingSprintData !== null}
+                onClose={() => setEditingSprintData(null)}
+                sprint={editingSprintData}
+                onSubmit={handleEditSprint}
+                isSubmitting={isEditingSprintSubmitting}
+                validationErrors={editSprintValidationErrors}
             />
         </div>
     );

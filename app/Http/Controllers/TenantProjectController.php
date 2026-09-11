@@ -806,8 +806,64 @@ class TenantProjectController extends Controller
     }
 
     /**
+     * Update a sprint's details (name, goal, dates).
+     * Intentionally separate from updateSprintStatus to keep concerns clean.
+     */
+    public function updateSprint(Request $request, $project, $sprint, $routeSprint = null)
+    {
+        $this->authorizeManager();
+
+        if ($routeSprint !== null) {
+            $project = $sprint;
+            $sprint  = $routeSprint;
+        }
+
+        $projectModel = Project::findOrFail($project);
+        if ($projectModel->tenant_id && $projectModel->tenant_id !== tenant('id')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $sprintModel = Sprint::findOrFail($sprint);
+        if ($sprintModel->project_id !== $projectModel->id) {
+            abort(404, 'Sprint not found in this project.');
+        }
+
+        $validated = $request->validate([
+            'name'       => 'required|string|max:255',
+            'goal'       => 'nullable|string',
+            'start_date' => 'required|date',
+            'end_date'   => 'required|date|after:start_date',
+        ]);
+
+        // Validate unique name within project, excluding the current sprint
+        $exists = Sprint::where('project_id', $projectModel->id)
+            ->where('name', $validated['name'])
+            ->where('id', '!=', $sprintModel->id)
+            ->exists();
+
+        if ($exists) {
+            return response()->json([
+                'message' => 'The given data was invalid.',
+                'errors'  => ['name' => ['A sprint with this name already exists in this project.']],
+            ], 422);
+        }
+
+        $sprintModel->update($validated);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'status' => 'success',
+                'sprint' => $sprintModel,
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Sprint updated successfully.');
+    }
+
+    /**
      * Update a sprint's status.
      */
+
     public function updateSprintStatus(Request $request, $project, $sprint, $routeSprint = null)
     {
         $this->authorizeManager();

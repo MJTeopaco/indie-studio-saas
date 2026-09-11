@@ -102,6 +102,8 @@ Route::prefix('/studio/{tenant}')->middleware([
         ->name('tenant.projects.sprints.summary');
     Route::patch('/projects/{project}/sprints/{sprint}', [TenantProjectController::class, 'updateSprintStatus'])
         ->name('tenant.projects.sprints.update');
+    Route::patch('/projects/{project}/sprints/{sprint}/details', [TenantProjectController::class, 'updateSprint'])
+        ->name('tenant.projects.sprints.update-details');
     Route::patch('/projects/{project}/tasks/{task}/inline', [TenantProjectController::class, 'updateTaskInline'])
         ->name('tenant.projects.tasks.inline-update');
 
