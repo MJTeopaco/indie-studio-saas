@@ -84,7 +84,7 @@ function FitRing({ percent, size = 44 }) {
     );
 }
 
-export default function ManualTaskModal({ isOpen, onClose, project, tenantId, teamMembers = [], skills = [], positions = [], editingTask = null }) {
+export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sprints = [], teamMembers = [], skills = [], positions = [], editingTask = null }) {
     const { canManage, auth } = usePage().props;
     const currentUserId = auth?.user?.id;
     const safeSkills = Array.isArray(skills) ? skills : [];
@@ -95,6 +95,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, te
         title: '',
         description: '',
         assigned_user_id: '',
+        sprint_id: null,
         estimated_hours: 8,
         hard_constraint_date: '',
         priority: 'Medium',
@@ -131,6 +132,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, te
                     title: editingTask.title || '',
                     description: editingTask.description || '',
                     assigned_user_id: editingTask.assigned_user_id || '',
+                    sprint_id: editingTask.sprint_id || null,
                     estimated_hours: editingTask.estimated_hours || 8,
                     hard_constraint_date: editingTask.hard_constraint_date ? editingTask.hard_constraint_date.split('T')[0] : '',
                     priority: editingTask.priority || 'Medium',
@@ -213,6 +215,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, te
                 ? {
                     ...form,
                     assigned_user_id: form.assigned_user_id || null,
+                    sprint_id: form.sprint_id,
                     estimated_hours: Number(form.estimated_hours),
                     hard_constraint_date: form.hard_constraint_date || null,
                     minimum_experience_years: Number(form.minimum_experience_years),
@@ -379,7 +382,13 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, te
                                                  </label>
                                              </div>
                                              
-                                             <div className="grid grid-cols-1 gap-4">
+                                             <div className="grid grid-cols-2 gap-4">
+                                                 <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Sprint
+                                                     <select value={form.sprint_id || ''} onChange={event => updateField('sprint_id', event.target.value ? Number(event.target.value) : null)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950">
+                                                         <option value="">Backlog (No Sprint)</option>
+                                                         {sprints.map(sprint => <option key={sprint.id} value={sprint.id}>{sprint.name}</option>)}
+                                                     </select>
+                                                 </label>
                                                  <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Assignee (Quick Manual)
                                                      <select value={form.assigned_user_id} onChange={event => updateField('assigned_user_id', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950"><option value="">Unassigned</option>{safeTeamMembers.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}</select>
                                                  </label>

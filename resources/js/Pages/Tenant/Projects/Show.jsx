@@ -912,6 +912,7 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                 onClose={() => setIsManualTaskOpen(false)}
                 project={project}
                 tenantId={tenantId}
+                sprints={(sprints || []).filter(s => s.status !== 'completed')}
                 teamMembers={teamMembers}
                 skills={skills}
                 positions={positions}
