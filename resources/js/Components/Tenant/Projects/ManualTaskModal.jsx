@@ -10,6 +10,17 @@ const STATUSES = [
     { value: 'completed', label: 'Done' },
 ];
 
+const TASK_CLASSIFICATIONS = [
+    'Engineering',
+    'Feature',
+    'Bug Fix',
+    'Research',
+    'DevOps',
+    'Testing',
+    'Documentation',
+    'Design',
+];
+
 const POSITIONS = [
     "Technical Product Manager",
     "Business Analyst",
@@ -402,7 +413,11 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, te
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-2 gap-4">
                                         <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Task Classification
-                                            <input value={form.task_classification} onChange={event => updateField('task_classification', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950" placeholder="e.g. Backend Development" />
+                                            <select value={form.task_classification} onChange={event => updateField('task_classification', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950">
+                                                {TASK_CLASSIFICATIONS.map(classification => (
+                                                    <option key={classification} value={classification}>{classification}</option>
+                                                ))}
+                                            </select>
                                         </label>
                                         
                                         <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Required Position
