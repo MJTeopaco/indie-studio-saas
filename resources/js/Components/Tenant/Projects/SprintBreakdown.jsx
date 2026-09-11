@@ -369,7 +369,7 @@ function SprintTable({ tasks, epics, onUpdateTask, onFindFit, canManage, project
                 <span>Type</span>
                 <span>Estimate SP</span>
                 <span>Actual SP</span>
-                <span>GitHub Link</span>
+                <span>Due Date</span>
                 <span>Task ID</span>
                 <span>Epic</span>
             </div>
@@ -488,29 +488,28 @@ function SprintTable({ tasks, epics, onUpdateTask, onFindFit, canManage, project
                             )}
                         </div>
 
-                        {/* GitHub Link */}
+                        {/* Task Due Date */}
                         <div className="relative flex justify-center items-center group">
-                            {task.github_link ? (
-                                <a href={task.github_link} target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-brand transition-colors p-1" onClick={e => e.stopPropagation()}>
-                                    <ExternalLink className="w-4 h-4" />
-                                </a>
+                            {task.hard_constraint_date ? (
+                                <span className="text-xs font-semibold text-gray-700 dark:text-slate-300">
+                                    {new Date(task.hard_constraint_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </span>
                             ) : (
                                 <span className="text-gray-300 dark:text-slate-700">-</span>
                             )}
                             {isEditable && (
                                 <button 
-                                    onClick={(e) => { e.stopPropagation(); setOpenPopover({ taskId: task.id, field: 'github' }); }}
+                                    onClick={(e) => { e.stopPropagation(); setOpenPopover({ taskId: task.id, field: 'due_date' }); }}
                                     className="absolute right-0 opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-gray-700 transition-all bg-white dark:bg-slate-900 rounded-full shadow-sm"
                                 >
                                     <Edit2 className="w-3 h-3" />
                                 </button>
                             )}
-                            {openPopover.taskId === task.id && openPopover.field === 'github' && (
+                            {openPopover.taskId === task.id && openPopover.field === 'due_date' && (
                                 <InlineTextEditor 
-                                    type="url"
-                                    placeholder="https://github.com/..."
-                                    initialValue={task.github_link} 
-                                    onSave={(val) => onUpdateTask(task.id, { github_link: val })} 
+                                    type="date"
+                                    initialValue={task.hard_constraint_date ? task.hard_constraint_date.split('T')[0] : ''} 
+                                    onSave={(val) => onUpdateTask(task.id, { hard_constraint_date: val })} 
                                     onClose={() => setOpenPopover({ taskId: null, field: null })} 
                                 />
                             )}
