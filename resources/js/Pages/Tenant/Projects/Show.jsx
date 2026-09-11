@@ -8,6 +8,7 @@ import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
 import ProjectAiAssistant from '@/Components/Tenant/Projects/ProjectAiAssistant';
 import CpaStatusBadge from '@/Components/Tenant/CpaStatusBadge';
 import EpicBreakdown from '@/Components/Tenant/Projects/EpicBreakdown';
+import SprintBreakdown from '@/Components/Tenant/Projects/SprintBreakdown';
 
 const statuses = [
     { id: 'todo', title: 'To Do', className: 'bg-slate-500/15 text-slate-500' },
@@ -707,7 +708,7 @@ function Timeline({ tasks, project, onEdit }) {
     );
 }
 
-export default function Show({ project, studio, teamMembers, auth, skills = [], positions = [], epics = [], epicPhases = [], epicPriorities = [] }) {
+export default function Show({ project, studio, teamMembers, auth, skills = [], positions = [], epics = [], epicPhases = [], epicPriorities = [], sprints = [], backlogTasks = [] }) {
     const pageProps = usePage().props;
     const { canManage } = pageProps;
     const [activeView, setActiveView] = useState('dashboard');
@@ -807,27 +808,7 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                         })}
                     </div>
 
-                    <div className="flex flex-1 items-center justify-end gap-3">
-                        <div className="relative w-full max-w-sm">
-                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                            <input
-                                value={searchQuery}
-                                onChange={event => setSearchQuery(event.target.value)}
-                                placeholder="Search tasks or assignees..."
-                                className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-xs outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800 text-gray-900 dark:text-gray-100"
-                            />
-                        </div>
 
-                        {canManage && (
-                            <button
-                                onClick={handleNewTask}
-                                className="inline-flex items-center gap-2 rounded-xl bg-brand hover:bg-brand-light px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-brand/20 transition-all"
-                            >
-                                <Plus className="h-4 w-4" />
-                                New Task
-                            </button>
-                        )}
-                    </div>
                 </div>
 
                 {/* View Views */}
@@ -838,7 +819,7 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
 
                     {activeView === 'spreadsheet' && (
                         <Spreadsheet
-                            groups={groups}
+                            groups={groups.map(g => (['todo', 'completed'].includes(g.id) ? { ...g, tasks: [] } : g))}
                             onFindFit={setBestFitTask}
                             onEdit={handleEditTask}
                             projectStartDate={project?.start_date}
@@ -850,6 +831,19 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                             tasks={visibleTasks}
                             project={project}
                             onEdit={handleEditTask}
+                        />
+                    )}
+
+                    {activeView === 'sprint' && (
+                        <SprintBreakdown
+                            sprints={sprints}
+                            backlogTasks={backlogTasks}
+                            epics={epics}
+                            project={project}
+                            tenantId={tenantId}
+                            canManage={canManage}
+                            onNewTask={handleNewTask}
+                            onFindFit={setBestFitTask}
                         />
                     )}
 
@@ -918,6 +912,7 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                 onClose={() => setIsManualTaskOpen(false)}
                 project={project}
                 tenantId={tenantId}
+                sprints={(sprints || []).filter(s => s.status !== 'completed')}
                 teamMembers={teamMembers}
                 skills={skills}
                 positions={positions}

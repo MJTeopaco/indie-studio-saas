@@ -131,6 +131,30 @@ class TenantProjectController extends Controller
                 'tasks' => $projectModel->tasks,
             ],
             'epics' => $projectModel->epics,
+            'sprints' => function () use ($projectModel, &$assignmentIdsByTask, &$membersById) {
+                return $projectModel->sprints()
+                    ->orderBy('created_at')
+                    ->with(['tasks' => function ($q) {
+                        $q->select([
+                            'id', 'sprint_id', 'project_id', 'epic_id',
+                            'title', 'status', 'sprint_status', 'sprint_priority',
+                            'task_classification', 'story_points', 'actual_story_points',
+                            'github_link', 'assigned_user_id', 'priority',
+                        ])->with('epic:id,name,color');
+                    }])->get()->map(function ($sprint) use ($projectModel, &$assignmentIdsByTask, &$membersById) {
+                        $sprint->tasks->each(function ($task) use (&$assignmentIdsByTask, &$membersById) {
+                            $task->setAttribute('assignees', collect($assignmentIdsByTask->get($task->id, []))
+                                ->map(fn ($assignment) => $membersById->get($assignment->employee_user_id))
+                                ->filter()
+                                ->values()
+                                ->all());
+                        });
+                        return $sprint;
+                    });
+            },
+            'backlogTasks' => function () use ($projectModel) {
+                return $projectModel->tasks->whereNull('sprint_id')->values();
+            },
             'epicPhases' => EpicPhase::where('tenant_id', tenant('id') ?? 'default')->orderBy('sort_order')->get(),
             'epicPriorities' => EpicPriority::where('tenant_id', tenant('id') ?? 'default')->orderBy('sort_order')->get(),
             'skills' => $skills,
@@ -629,5 +653,239 @@ class TenantProjectController extends Controller
         }
 
         return redirect()->back()->with('success', 'Epic updated successfully.');
+    }
+
+    /**
+     * Check if the current user can edit a task inline.
+     */
+    private function canEditTaskInline(Task $task, \App\Models\User $user): bool
+    {
+        $member = DB::connection(config('tenancy.database.central_connection', 'central'))->table('studio_members')
+            ->where('studio_id', tenant('id'))
+            ->where('user_id', $user->id)
+            ->first();
+
+        $role = $member ? $member->role : 'member';
+        if (in_array($role, ['owner', 'leader', 'manager']) || $user->role === \App\Models\User::ROLE_ADMIN) {
+            return true;
+        }
+
+        return DB::table('assignments')
+            ->where('task_id', $task->id)
+            ->where('employee_user_id', $user->id)
+            ->where('status', 'active')
+            ->exists();
+    }
+
+    /**
+     * Update a task inline from the sprint board.
+     */
+    public function updateTaskInline(Request $request, $project, $task, $routeTask = null)
+    {
+        if ($routeTask !== null) {
+            $project = $task;
+            $task = $routeTask;
+        }
+
+        $projectModel = Project::findOrFail($project);
+        if ($projectModel->tenant_id && $projectModel->tenant_id !== tenant('id')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $taskModel = Task::findOrFail($task);
+        if ($taskModel->project_id !== $projectModel->id) {
+            abort(404, 'Task not found in this project.');
+        }
+
+        $user = auth()->user();
+        $isManager = false;
+        
+        $member = DB::connection(config('tenancy.database.central_connection', 'central'))->table('studio_members')
+            ->where('studio_id', tenant('id'))
+            ->where('user_id', $user->id)
+            ->first();
+
+        $role = $member ? $member->role : 'member';
+        if (in_array($role, ['owner', 'leader', 'manager']) || $user->role === \App\Models\User::ROLE_ADMIN) {
+            $isManager = true;
+        }
+
+        if (!$this->canEditTaskInline($taskModel, $user)) {
+            return response()->json([
+                'message' => 'Unauthorized. You must be the assigned member or a manager to edit this task.',
+            ], 403);
+        }
+
+        if ($request->has('actual_story_points') && $taskModel->sprint_status !== 'done' && $request->input('sprint_status') !== 'done') {
+            return response()->json([
+                'message' => 'Actual SP can only be set when the task status is Done.',
+                'errors' => ['actual_story_points' => ['Task must be Done before setting Actual SP.']]
+            ], 422);
+        }
+
+        $rules = [
+            'sprint_status' => 'nullable|string|in:ready_to_start,in_progress,waiting_for_review,pending_deploy,done,stuck',
+            'sprint_priority' => 'nullable|string|in:critical,high,medium,low',
+            'task_classification' => 'nullable|string|max:100',
+            'actual_story_points' => 'nullable|integer|min:0|max:100',
+            'github_link' => 'nullable|url|max:500',
+        ];
+
+        if ($isManager) {
+            $rules['story_points'] = 'nullable|integer|min:0|max:100';
+            $rules['epic_id'] = 'nullable|exists:epics,id';
+        }
+
+        $validated = $request->validate($rules);
+        $taskModel->update($validated);
+
+        return response()->json([
+            'status' => 'success',
+            'task' => $taskModel,
+        ]);
+    }
+
+    /**
+     * Return sprint performance summary for the closure modal.
+     * Called when the user clicks "Complete Sprint" (or when "Start Sprint"
+     * would displace a currently-active sprint) — before any action is taken.
+     */
+    public function getSprintSummary(Request $request, $project, $sprint)
+    {
+        $this->authorizeManager();
+
+        $projectModel = Project::findOrFail($project);
+        $sprintModel  = Sprint::with('tasks')->findOrFail($sprint);
+
+        abort_unless($sprintModel->project_id === $projectModel->id, 404);
+
+        $tasks      = $sprintModel->tasks;
+        $done       = $tasks->where('sprint_status', 'done');
+        $incomplete = $tasks->where('sprint_status', '!=', 'done');
+
+        // Other planned/active sprints that can receive the incomplete tasks
+        $availableSprints = Sprint::where('project_id', $projectModel->id)
+            ->whereKeyNot($sprintModel->id)
+            ->whereIn('status', ['planned', 'active'])
+            ->orderBy('created_at')
+            ->get(['id', 'name', 'start_date', 'end_date', 'status']);
+
+        return response()->json([
+            'sprint'  => [
+                'id'   => $sprintModel->id,
+                'name' => $sprintModel->name,
+            ],
+            'summary' => [
+                'total_tasks'         => $tasks->count(),
+                'done_count'          => $done->count(),
+                'incomplete_count'    => $incomplete->count(),
+                'estimated_sp_total'  => $tasks->sum('story_points'),
+                'actual_sp_burned'    => $done->sum('actual_story_points'),
+                'completion_rate_pct' => $tasks->count()
+                    ? round(($done->count() / $tasks->count()) * 100)
+                    : 0,
+            ],
+            'available_sprints' => $availableSprints,
+        ]);
+    }
+
+    /**
+     * Atomically activate a sprint, sweeping any concurrently-active
+     * siblings first. Single code path — never call ->update(['status' => 'active'])
+     * on a sprint directly outside of this method.
+     */
+    private function activateSprint(Sprint $sprint, Project $project): void
+    {
+        Sprint::where('project_id', $project->id)
+            ->where('status', 'active')
+            ->whereKeyNot($sprint->id)
+            ->lockForUpdate()
+            ->update(['status' => 'completed']);
+
+        $sprint->update(['status' => 'active']);
+    }
+
+    /**
+     * Update a sprint's status.
+     */
+    public function updateSprintStatus(Request $request, $project, $sprint, $routeSprint = null)
+    {
+        $this->authorizeManager();
+        
+        if ($routeSprint !== null) {
+            $project = $sprint;
+            $sprint = $routeSprint;
+        }
+
+        $projectModel = Project::findOrFail($project);
+        if ($projectModel->tenant_id && $projectModel->tenant_id !== tenant('id')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $sprintModel = Sprint::findOrFail($sprint);
+        if ($sprintModel->project_id !== $projectModel->id) {
+            abort(404, 'Sprint not found in this project.');
+        }
+
+        $validated = $request->validate([
+            'status'                  => 'required|string|in:planned,active,completed',
+            'incomplete_task_action'  => 'nullable|string|in:keep,move_to_sprint,move_to_backlog',
+            'move_to_sprint_id'       => 'nullable|integer|exists:sprints,id',
+            'activate_next_sprint_id' => 'nullable|integer|exists:sprints,id',
+        ]);
+
+        $newStatus = $validated['status'];
+
+        DB::transaction(function () use ($projectModel, $sprintModel, $newStatus, $validated) {
+            if ($newStatus === 'active') {
+                $this->activateSprint($sprintModel, $projectModel);
+                return;
+            }
+        
+            $sprintModel->update(['status' => $newStatus]);
+        
+            if ($newStatus === 'completed') {
+                $action = $validated['incomplete_task_action'] ?? 'keep';
+        
+                if ($action === 'move_to_sprint' && !empty($validated['move_to_sprint_id'])) {
+                    $targetSprint = Sprint::where('project_id', $projectModel->id)
+                        ->whereIn('status', ['planned', 'active'])
+                        ->whereKeyNot($sprintModel->id)
+                        ->findOrFail($validated['move_to_sprint_id']);
+        
+                    Task::where('sprint_id', $sprintModel->id)
+                        ->where('sprint_status', '!=', 'done')
+                        ->update([
+                            'sprint_id'     => $targetSprint->id,
+                            'sprint_status' => 'ready_to_start',
+                        ]);
+        
+                } elseif ($action === 'move_to_backlog') {
+                    Task::where('sprint_id', $sprintModel->id)
+                        ->where('sprint_status', '!=', 'done')
+                        ->update([
+                            'sprint_id'     => null,
+                            'sprint_status' => 'ready_to_start',
+                        ]);
+                }
+        
+                if (!empty($validated['activate_next_sprint_id'])) {
+                    $nextSprint = Sprint::where('project_id', $projectModel->id)
+                        ->where('status', 'planned')
+                        ->findOrFail($validated['activate_next_sprint_id']);
+        
+                    $this->activateSprint($nextSprint, $projectModel);
+                }
+            }
+        });
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'status' => 'success',
+                'sprint' => $sprintModel,
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Sprint updated successfully.');
     }
 }

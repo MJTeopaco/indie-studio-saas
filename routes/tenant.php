@@ -98,6 +98,12 @@ Route::prefix('/studio/{tenant}')->middleware([
     // Sprints
     Route::post('/projects/{project}/sprints', [TenantProjectController::class, 'storeSprint'])
         ->name('tenant.projects.sprints.store');
+    Route::get('/projects/{project}/sprints/{sprint}/summary', [TenantProjectController::class, 'getSprintSummary'])
+        ->name('tenant.projects.sprints.summary');
+    Route::patch('/projects/{project}/sprints/{sprint}', [TenantProjectController::class, 'updateSprintStatus'])
+        ->name('tenant.projects.sprints.update');
+    Route::patch('/projects/{project}/tasks/{task}/inline', [TenantProjectController::class, 'updateTaskInline'])
+        ->name('tenant.projects.tasks.inline-update');
 
     // ML Engine Integration Routes
     Route::post('/projects/{project}/ml/sprint-decompose', [MLEngineIntegrationController::class, 'decomposeSprint'])

@@ -84,9 +84,19 @@ Because our application relies heavily on structured data for its algorithms, a 
 **Seeding the ML Data:**
 When running migrations locally, you must ensure the exact categorical data (like skill proficiency matrices, predefined roles, and historical project data) is seeded. This ensures your local environment mirrors the dataset structure required by the predictive models.
 
+To remigrate and reseed the entire database, including the tenants databases, run the following commands:
 ```bash
 php artisan migrate:fresh --seed
+php artisan tenants:migrate-fresh
 ```
+
+To reseed the tenant databases with test data, you can use the `TenantSeeder`:
+
+* TenantSeeder
+* ============================================================================
+* Seeds one demo project with 15 tasks into the current tenant database.
+* Run via: `php artisan tenants:run "db:seed" --option="class=TenantSeeder"`
+
 *Note: Our seeders are specifically configured to generate the matrices the Random Forest models need.*
 
 ## 🧠 Machine Learning Engine Setup
