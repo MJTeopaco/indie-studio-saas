@@ -45,35 +45,35 @@ class TenantSeeder extends Seeder
      */
     private const TASK_TEMPLATES = [
         // T1 — no predecessors
-        1 => ['title' => 'Project Kickoff & Architecture Design',     'hours' => 8,  'position' => 'Solutions Architect',    'difficulty' => 'Hard',   'priority' => 'Critical', 'classification' => 'Research'],
+        1 => ['title' => 'Project Kickoff & Architecture Design',     'hours' => 8,  'position' => 'Solutions Architect',    'difficulty' => 'Hard',   'priority' => 'Critical', 'classification' => 'Research', 'epic' => 1, 'sprint' => 1],
         // T2 — no predecessors
-        2 => ['title' => 'Database Schema Design & Migrations',       'hours' => 12, 'position' => 'Backend Developer',      'difficulty' => 'Medium', 'priority' => 'High',     'classification' => 'Feature'],
+        2 => ['title' => 'Database Schema Design & Migrations',       'hours' => 12, 'position' => 'Backend Developer',      'difficulty' => 'Medium', 'priority' => 'High',     'classification' => 'Feature',  'epic' => 1, 'sprint' => 1],
         // T3 — no predecessors
-        3 => ['title' => 'CI/CD Pipeline Setup',                      'hours' => 6,  'position' => 'DevOps Engineer',        'difficulty' => 'Medium', 'priority' => 'Medium',   'classification' => 'DevOps'],
+        3 => ['title' => 'CI/CD Pipeline Setup',                      'hours' => 6,  'position' => 'DevOps Engineer',        'difficulty' => 'Medium', 'priority' => 'Medium',   'classification' => 'DevOps',   'epic' => 3, 'sprint' => 1],
         // T4 — depends on T1
-        4 => ['title' => 'Core API Endpoint Scaffolding',             'hours' => 4,  'position' => 'Backend Developer',      'difficulty' => 'Easy',   'priority' => 'High',     'classification' => 'Feature'],
+        4 => ['title' => 'Core API Endpoint Scaffolding',             'hours' => 4,  'position' => 'Backend Developer',      'difficulty' => 'Easy',   'priority' => 'Medium',   'classification' => 'Feature',  'epic' => 1, 'sprint' => 2],
         // T5 — depends on T1
-        5 => ['title' => 'Authentication & Authorization Module',     'hours' => 16, 'position' => 'Backend Developer',      'difficulty' => 'Hard',   'priority' => 'Critical', 'classification' => 'Feature'],
+        5 => ['title' => 'Authentication & Authorization Module',     'hours' => 16, 'position' => 'Backend Developer',      'difficulty' => 'Hard',   'priority' => 'Critical', 'classification' => 'Security', 'epic' => 2, 'sprint' => 2],
         // T6 — depends on T2
-        6 => ['title' => 'ORM Models & Repository Layer',             'hours' => 8,  'position' => 'Backend Developer',      'difficulty' => 'Medium', 'priority' => 'High',     'classification' => 'Feature'],
+        6 => ['title' => 'ORM Models & Repository Layer',             'hours' => 8,  'position' => 'Backend Developer',      'difficulty' => 'Medium', 'priority' => 'Low',      'classification' => 'Feature',  'epic' => 1, 'sprint' => 2],
         // T7 — depends on T4
-        7 => ['title' => 'Frontend Component Library Setup',          'hours' => 12, 'position' => 'Frontend Developer',     'difficulty' => 'Medium', 'priority' => 'Medium',   'classification' => 'Feature'],
+        7 => ['title' => 'Frontend Component Library Setup',          'hours' => 12, 'position' => 'Frontend Developer',     'difficulty' => 'Medium', 'priority' => 'High',     'classification' => 'Feature',  'epic' => 2, 'sprint' => 2],
         // T8 — depends on T5
-        8 => ['title' => 'User Dashboard UI Implementation',          'hours' => 8,  'position' => 'Frontend Developer',     'difficulty' => 'Medium', 'priority' => 'High',     'classification' => 'Feature'],
+        8 => ['title' => 'User Dashboard UI Implementation',          'hours' => 8,  'position' => 'Frontend Developer',     'difficulty' => 'Medium', 'priority' => 'Critical', 'classification' => 'Feature',  'epic' => 2, 'sprint' => 2],
         // T9 — depends on T6
-        9 => ['title' => 'Business Logic & Service Layer',            'hours' => 4,  'position' => 'Backend Developer',      'difficulty' => 'Easy',   'priority' => 'High',     'classification' => 'Feature'],
+        9 => ['title' => 'Business Logic & Service Layer',            'hours' => 4,  'position' => 'Backend Developer',      'difficulty' => 'Easy',   'priority' => 'Medium',   'classification' => 'Feature',  'epic' => 1, 'sprint' => 3],
         // T10 — depends on T7
-        10 => ['title' => 'UI Accessibility & Responsive Design Pass', 'hours' => 8,  'position' => 'Frontend Developer',     'difficulty' => 'Medium', 'priority' => 'Medium',   'classification' => 'Feature'],
+        10 => ['title' => 'UI Accessibility & Responsive Design Pass', 'hours' => 8,  'position' => 'Frontend Developer',     'difficulty' => 'Medium', 'priority' => 'Low',      'classification' => 'Bug',      'epic' => 2, 'sprint' => 3],
         // T11 — depends on T8
-        11 => ['title' => 'API Integration & Data Binding (Frontend)', 'hours' => 6,  'position' => 'Full Stack Developer',   'difficulty' => 'Medium', 'priority' => 'High',     'classification' => 'Feature'],
+        11 => ['title' => 'API Integration & Data Binding (Frontend)', 'hours' => 6,  'position' => 'Full Stack Developer',   'difficulty' => 'Medium', 'priority' => 'High',     'classification' => 'Feature',  'epic' => 2, 'sprint' => 3],
         // T12 — depends on T9
-        12 => ['title' => 'Payment Gateway Integration',               'hours' => 20, 'position' => 'Backend Developer',      'difficulty' => 'Hard',   'priority' => 'Critical', 'classification' => 'Feature'],
+        12 => ['title' => 'Payment Gateway Integration',               'hours' => 20, 'position' => 'Backend Developer',      'difficulty' => 'Hard',   'priority' => 'Critical', 'classification' => 'Feature',  'epic' => 1, 'sprint' => 3],
         // T13 — depends on T10, T11
-        13 => ['title' => 'End-to-End & Regression Test Suite',       'hours' => 4,  'position' => 'QA Automation Engineer', 'difficulty' => 'Medium', 'priority' => 'High',     'classification' => 'Testing'],
+        13 => ['title' => 'End-to-End & Regression Test Suite',       'hours' => 4,  'position' => 'QA Automation Engineer', 'difficulty' => 'Medium', 'priority' => 'Medium',   'classification' => 'Testing',  'epic' => 3, 'sprint' => 3],
         // T14 — depends on T12
-        14 => ['title' => 'Security Audit & Penetration Test',         'hours' => 8,  'position' => 'DevSecOps',              'difficulty' => 'Hard',   'priority' => 'Critical', 'classification' => 'Research'],
+        14 => ['title' => 'Security Audit & Penetration Test',         'hours' => 8,  'position' => 'DevSecOps',              'difficulty' => 'Hard',   'priority' => 'Critical', 'classification' => 'Security', 'epic' => 3, 'sprint' => 3],
         // T15 — depends on T13, T14, T3
-        15 => ['title' => 'Production Deployment & Documentation',     'hours' => 4,  'position' => 'DevOps Engineer',        'difficulty' => 'Easy',   'priority' => 'High',     'classification' => 'DevOps'],
+        15 => ['title' => 'Production Deployment & Documentation',     'hours' => 4,  'position' => 'DevOps Engineer',        'difficulty' => 'Easy',   'priority' => 'Low',      'classification' => 'DevOps',   'epic' => 3, 'sprint' => 3],
     ];
 
     /**
@@ -105,11 +105,123 @@ class TenantSeeder extends Seeder
             'name' => 'StudioSprint Demo Project',
             'description' => 'A synthetic demo project seeded for GNN training and CPA testing. Contains 15 tasks with a realistic dependency DAG.',
             'status' => 'active',
-            'start_date' => now()->subDays(7)->toDateString(),
-            'target_end_date' => now()->addDays(60)->toDateString(),
+            'start_date' => now()->subDays(14)->toDateString(),
+            'target_end_date' => now()->addDays(46)->toDateString(),
+            'sprint_length_days' => 14,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
+        // -------------------------------------------------------------------
+        // 1a. Create Epic Groups (Horizons)
+        // -------------------------------------------------------------------
+        $tenantId = tenant('id') ?? 'default';
+        
+        $groupBacklogId = DB::table('epic_groups')->insertGetId([
+            'project_id' => $project,
+            'name' => 'Epics Backlog',
+            'goal' => 'Unplanned or future epics.',
+            'display_order' => 0,
+            'is_default' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $groupQ1Id = DB::table('epic_groups')->insertGetId([
+            'project_id' => $project,
+            'name' => 'Q1 2026',
+            'goal' => 'Launch core MVP features.',
+            'display_order' => 1,
+            'is_default' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // -------------------------------------------------------------------
+        // 1b. Create Epics
+        // -------------------------------------------------------------------
+        $phases = DB::table('epic_phases')->where('tenant_id', $tenantId)->get()->keyBy('label');
+        $priorities = DB::table('epic_priorities')->where('tenant_id', $tenantId)->get()->keyBy('label');
+
+        $epic1 = DB::table('epics')->insertGetId([
+            'project_id' => $project,
+            'epic_group_id' => $groupQ1Id,
+            'name' => 'Backend & Infrastructure Foundation',
+            'description' => 'Core backend logic, DB schema, and infrastructure.',
+            'phase_id' => $phases->get('Dev WIP')->id ?? null,
+            'priority_id' => $priorities->get('Critical')->id ?? null,
+            'start_date' => now()->subDays(7)->toDateString(),
+            'end_date' => now()->addDays(20)->toDateString(),
+            'color' => '#3b82f6',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $epic2 = DB::table('epics')->insertGetId([
+            'project_id' => $project,
+            'epic_group_id' => $groupQ1Id,
+            'name' => 'Frontend & UI Implementation',
+            'description' => 'User interfaces, accessibility, and client integrations.',
+            'phase_id' => $phases->get('Design WIP')->id ?? null,
+            'priority_id' => $priorities->get('Must Have')->id ?? null,
+            'start_date' => now()->toDateString(),
+            'end_date' => now()->addDays(30)->toDateString(),
+            'color' => '#a855f7',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $epic3 = DB::table('epics')->insertGetId([
+            'project_id' => $project,
+            'epic_group_id' => $groupBacklogId,
+            'name' => 'Quality & Security Assurance',
+            'description' => 'Testing, security audits, and production deployments.',
+            'phase_id' => $phases->get('Backlog')->id ?? null,
+            'priority_id' => $priorities->get('Must Have')->id ?? null,
+            'color' => '#22c55e',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $epics = [1 => $epic1, 2 => $epic2, 3 => $epic3];
+
+        // -------------------------------------------------------------------
+        // 1c. Create Sprints
+        // -------------------------------------------------------------------
+        $sprint1 = DB::table('sprints')->insertGetId([
+            'project_id' => $project,
+            'name' => 'Sprint 1',
+            'goal' => 'Set up foundation and CI/CD pipeline.',
+            'start_date' => now()->subDays(14)->toDateString(),
+            'end_date' => now()->toDateString(),
+            'status' => 'completed',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $sprint2 = DB::table('sprints')->insertGetId([
+            'project_id' => $project,
+            'name' => 'Sprint 2',
+            'goal' => 'Implement core auth and initial UI components.',
+            'start_date' => now()->toDateString(),
+            'end_date' => now()->addDays(14)->toDateString(),
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $sprint3 = DB::table('sprints')->insertGetId([
+            'project_id' => $project,
+            'name' => 'Sprint 3',
+            'goal' => 'Finalize UI, integrate payments, and perform QA.',
+            'start_date' => now()->addDays(14)->toDateString(),
+            'end_date' => now()->addDays(28)->toDateString(),
+            'status' => 'planned',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $sprints = [1 => $sprint1, 2 => $sprint2, 3 => $sprint3];
 
         // -------------------------------------------------------------------
         // 2. Insert all tasks and track their real DB IDs
@@ -117,12 +229,21 @@ class TenantSeeder extends Seeder
         /** @var array<int, int> $taskNumberToId  template number → DB id */
         $taskNumberToId = [];
 
+        $sprint1Points = 0;
         foreach (self::TASK_TEMPLATES as $taskNumber => $template) {
             $macroDomains = $this->buildMacroDomainVector($template['position']);
             $requiredSkills = $this->buildSkillsForPosition($template['position']);
 
+            $isSprint1 = $template['sprint'] === 1;
+            $status = $isSprint1 ? 'completed' : $this->statusForPriority($template['priority']);
+            
+            // Generate fibonacci closest to hours
+            $points = $this->closestFibonacci($template['hours']);
+
             $id = DB::table('tasks')->insertGetId([
                 'project_id' => $project,
+                'epic_id' => $epics[$template['epic']],
+                'sprint_id' => $sprints[$template['sprint']],
                 'title' => $template['title'],
                 'description' => 'Seeded task #'.$taskNumber.' — '.$template['title'].'. This task is part of the CPA validation dataset.',
                 'task_classification' => $template['classification'],
@@ -131,14 +252,23 @@ class TenantSeeder extends Seeder
                 'task_difficulty' => $template['difficulty'],
                 'priority' => $template['priority'],
                 'estimated_hours' => $template['hours'],
+                'story_points' => $points,
+                'story_points_locked' => $isSprint1,
+                'actual_story_points' => $isSprint1 ? $points : null,
                 'days_until_deadline' => (int) round($template['hours'] * 1.5),
                 'target_macro_domains' => json_encode($macroDomains),
                 'required_skills' => json_encode($requiredSkills),
                 'assigned_user_id' => null,
-                'status' => $this->statusForPriority($template['priority']),
-                'created_at' => now(),
-                'updated_at' => now(),
+                'status' => $status,
+                'sprint_status' => $isSprint1 ? 'done' : 'ready_to_start',
+                'sprint_priority' => strtolower($template['priority']),
+                'created_at' => now()->subDays(14),
+                'updated_at' => $isSprint1 ? now()->subDays(2) : now(), // Inside sprint 1
             ]);
+
+            if ($isSprint1) {
+                $sprint1Points += $points;
+            }
 
             $taskNumberToId[$taskNumber] = $id;
         }
@@ -213,6 +343,19 @@ class TenantSeeder extends Seeder
 
         DB::table('assignments')->insert($assignmentRows);
 
+        // -------------------------------------------------------------------
+        // 5. Seed Team Velocity for Sprint 1 (Burndown Chart)
+        // -------------------------------------------------------------------
+        DB::table('team_velocity')->insert([
+            'team_id' => $project,
+            'sprint_id' => $sprint1,
+            'points_committed' => $sprint1Points,
+            'points_completed' => $sprint1Points,
+            'computed_at' => now()->subDays(2), // Same as task updated_at
+            'created_at' => now()->subDays(2),
+            'updated_at' => now()->subDays(2),
+        ]);
+
         $this->command->info('TenantSeeder: seeded 1 project, '.count($taskNumberToId).' tasks, '.count($dependencyRows).' dependencies, '.count($assignmentRows).' assignments.');
 
         try {
@@ -229,6 +372,21 @@ class TenantSeeder extends Seeder
     // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
+
+    private function closestFibonacci(int $number): int
+    {
+        $fib = [1, 2, 3, 5, 8, 13, 21, 34];
+        $closest = 1;
+        $minDiff = abs($number - 1);
+        foreach ($fib as $f) {
+            $diff = abs($number - $f);
+            if ($diff < $minDiff) {
+                $minDiff = $diff;
+                $closest = $f;
+            }
+        }
+        return $closest;
+    }
 
     /**
      * Build an 8-element multi-hot domain vector based on position family.

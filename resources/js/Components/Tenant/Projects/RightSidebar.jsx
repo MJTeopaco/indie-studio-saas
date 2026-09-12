@@ -144,6 +144,13 @@ export default function RightSidebar({
                         </p>
                     </div>
                 )}
+
+                {/* Truncation notice: shown when the list is at the server-imposed 50-session cap */}
+                {sessions.length >= 50 && (
+                    <p className="text-center text-[10px] text-gray-400 dark:text-slate-600 pt-3 pb-1 select-none">
+                        Showing 50 most recent chats
+                    </p>
+                )}
             </div>
         </aside>
     );

@@ -11,6 +11,7 @@ use App\Http\Controllers\TenantProjectController;
 use App\Http\Controllers\TenantScheduleController;
 use App\Http\Controllers\TenantTaskController;
 use App\Http\Controllers\EstimationController;
+use App\Http\Controllers\EpicAttributeController;
 use App\Http\Controllers\TenantTeamController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -68,6 +69,18 @@ Route::prefix('/studio/{tenant}')->middleware([
     Route::patch('/projects/{project}', [TenantProjectController::class, 'update'])
         ->name('tenant.projects.update');
 
+    Route::post('/projects/{project}/epic-groups', [\App\Http\Controllers\TenantEpicGroupController::class, 'store'])
+        ->name('tenant.projects.epic-groups.store');
+
+    Route::post('/projects/{project}/epics', [TenantProjectController::class, 'storeEpic'])
+        ->name('tenant.projects.epics.store');
+
+    Route::patch('/projects/{project}/epics/{epic}', [TenantProjectController::class, 'updateEpic'])
+        ->name('tenant.projects.epics.update');
+
+    Route::post('/projects/{project}/epic-attributes', [EpicAttributeController::class, 'store'])
+        ->name('tenant.projects.epic-attributes.store');
+
     Route::get('/settings', function () {
         return Inertia::render('Tenant/Placeholder', [
             'title' => 'Studio Settings',
@@ -87,6 +100,18 @@ Route::prefix('/studio/{tenant}')->middleware([
         ->name('tenant.projects.tasks.store');
     Route::patch('/projects/{project}/tasks/{task}', [TenantProjectController::class, 'updateTask'])
         ->name('tenant.projects.tasks.update');
+
+    // Sprints
+    Route::post('/projects/{project}/sprints', [TenantProjectController::class, 'storeSprint'])
+        ->name('tenant.projects.sprints.store');
+    Route::get('/projects/{project}/sprints/{sprint}/summary', [TenantProjectController::class, 'getSprintSummary'])
+        ->name('tenant.projects.sprints.summary');
+    Route::patch('/projects/{project}/sprints/{sprint}', [TenantProjectController::class, 'updateSprintStatus'])
+        ->name('tenant.projects.sprints.update');
+    Route::patch('/projects/{project}/sprints/{sprint}/details', [TenantProjectController::class, 'updateSprint'])
+        ->name('tenant.projects.sprints.update-details');
+    Route::patch('/projects/{project}/tasks/{task}/inline', [TenantProjectController::class, 'updateTaskInline'])
+        ->name('tenant.projects.tasks.inline-update');
 
     // ML Engine Integration Routes
     Route::post('/projects/{project}/ml/sprint-decompose', [MLEngineIntegrationController::class, 'decomposeSprint'])

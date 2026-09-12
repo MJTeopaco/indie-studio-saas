@@ -46,7 +46,7 @@ class AiChatSessionController extends Controller
     /**
      * Display the specified chat session.
      */
-    public function show($tenant, $chatSessionId): JsonResponse
+    public function show($chatSessionId): JsonResponse
     {
         $chatSession = AiChatSession::findOrFail($chatSessionId);
         abort_unless(auth()->id() == $chatSession->user_id, 403, 'Unauthorized access to chat session.');
@@ -57,7 +57,7 @@ class AiChatSessionController extends Controller
     /**
      * Update the specified chat session.
      */
-    public function update(Request $request, $tenant, $chatSessionId): JsonResponse
+    public function update(Request $request, $chatSessionId): JsonResponse
     {
         $chatSession = AiChatSession::findOrFail($chatSessionId);
         abort_unless(auth()->id() == $chatSession->user_id, 403, 'Unauthorized access to chat session.');
@@ -83,7 +83,7 @@ class AiChatSessionController extends Controller
     /**
      * Remove the specified chat session from storage.
      */
-    public function destroy($tenant, $chatSessionId): Response
+    public function destroy($chatSessionId): Response
     {
         $chatSession = AiChatSession::findOrFail($chatSessionId);
         abort_unless(auth()->id() == $chatSession->user_id, 403, 'Unauthorized access to chat session.');

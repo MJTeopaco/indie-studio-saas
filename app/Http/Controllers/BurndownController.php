@@ -15,11 +15,12 @@ class BurndownController extends Controller
         $projects = Project::whereIn('status', ['active', 'planning'])->get();
         
         $burndownData = $projects->map(function ($project) {
-            $velocities = TeamVelocity::where('team_id', $project->id)
+            $velocities = TeamVelocity::with('sprint')
+                ->where('team_id', $project->id)
                 ->orderBy('computed_at', 'asc')
                 ->get()
                 ->map(fn($v) => [
-                    'sprint' => $v->sprint_label,
+                    'sprint' => $v->sprint ? $v->sprint->name : 'Unknown Sprint',
                     'velocity' => $v->points_completed,
                 ]);
 

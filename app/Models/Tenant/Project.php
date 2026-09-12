@@ -14,6 +14,21 @@ class Project extends Model
 
     protected $table = 'projects';
 
+    /**
+     * Boot the model.
+     */
+    protected static function booted(): void
+    {
+        static::created(function ($project) {
+            $project->epicGroups()->create([
+                'name' => 'Epics Backlog',
+                'goal' => 'Uncommitted epics pending roadmap assignment',
+                'is_default' => true,
+                'display_order' => 999999, // Rendered last, but is_default forces it to end anyway
+            ]);
+        });
+    }
+
     protected $fillable = [
         'name',
         'description',
@@ -57,10 +72,34 @@ class Project extends Model
     }
 
     /**
+     * Get the epics belonging to this project.
+     */
+    public function epics(): HasMany
+    {
+        return $this->hasMany(Epic::class, 'project_id');
+    }
+
+    /**
+     * Get the sprints belonging to this project.
+     */
+    public function sprints(): HasMany
+    {
+        return $this->hasMany(Sprint::class, 'project_id');
+    }
+
+    /**
      * Determine if a given central user ID is assigned as a member of this project.
      */
     public function hasMember(int $userId): bool
     {
         return $this->projectMembers()->where('user_id', $userId)->exists();
+    }
+
+    /**
+     * Get the epic groups belonging to this project.
+     */
+    public function epicGroups(): HasMany
+    {
+        return $this->hasMany(EpicGroup::class, 'project_id');
     }
 }
