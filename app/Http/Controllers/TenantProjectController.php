@@ -696,7 +696,7 @@ class TenantProjectController extends Controller
 
         $epicModel->update($validated);
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if (!$request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
             return response()->json([
                 'status' => 'success',
                 'epic' => $epicModel->load('phase', 'priority'),

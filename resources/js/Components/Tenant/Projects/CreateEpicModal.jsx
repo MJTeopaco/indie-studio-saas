@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 
-export default function CreateEpicModal({ isOpen, onClose, onSubmit, isSubmitting, validationErrors, epicGroups, phases, priorities }) {
+export default function CreateEpicModal({ isOpen, onClose, onSubmit, isSubmitting, validationErrors, epicGroups, phases, priorities, epic = null }) {
     if (!isOpen) return null;
 
     const defaultGroup = epicGroups?.find(g => g.is_default);
@@ -15,6 +15,30 @@ export default function CreateEpicModal({ isOpen, onClose, onSubmit, isSubmittin
         end_date: '',
     });
 
+    useEffect(() => {
+        if (isOpen) {
+            if (epic) {
+                setFormState({
+                    name: epic.name || '',
+                    epic_group_id: epic.epic_group_id || defaultGroup?.id || epicGroups?.[0]?.id || '',
+                    phase_id: epic.phase_id || phases?.[0]?.id || '',
+                    priority_id: epic.priority_id || priorities?.[0]?.id || '',
+                    start_date: epic.start_date ? String(epic.start_date).split('T')[0] : '',
+                    end_date: epic.end_date ? String(epic.end_date).split('T')[0] : '',
+                });
+            } else {
+                setFormState({
+                    name: '',
+                    epic_group_id: defaultGroup ? defaultGroup.id : (epicGroups?.[0]?.id || ''),
+                    phase_id: phases?.[0]?.id || '',
+                    priority_id: priorities?.[0]?.id || '',
+                    start_date: '',
+                    end_date: '',
+                });
+            }
+        }
+    }, [epic, isOpen, defaultGroup, epicGroups, phases, priorities]);
+
     const handleSubmit = (e) => {
         e.preventDefault();
         onSubmit(formState);
@@ -24,7 +48,7 @@ export default function CreateEpicModal({ isOpen, onClose, onSubmit, isSubmittin
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm" onClick={onClose}>
             <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900 border border-gray-100 dark:border-slate-800" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4 dark:border-slate-800">
-                    <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Create new epic</h2>
+                    <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">{epic ? 'Update Epic' : 'Create new epic'}</h2>
                     <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
                         <X className="h-5 w-5" />
                     </button>
@@ -129,7 +153,7 @@ export default function CreateEpicModal({ isOpen, onClose, onSubmit, isSubmittin
                             disabled={isSubmitting}
                             className="rounded-lg bg-brand px-5 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-dark disabled:opacity-50 flex items-center gap-2"
                         >
-                            {isSubmitting ? 'Creating...' : 'Create Epic'}
+                            {isSubmitting ? (epic ? 'Updating...' : 'Creating...') : (epic ? 'Update Epic' : 'Create Epic')}
                         </button>
                     </div>
                 </form>

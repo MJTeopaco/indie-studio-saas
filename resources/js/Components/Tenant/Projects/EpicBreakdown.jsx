@@ -191,7 +191,7 @@ function ProductRequirementsModal({ isOpen, onClose }) {
     );
 }
 
-function EpicRow({ epic, phases, priorities, onUpdateEpic, projectId, tenantId, projectStartDate, setOpenPrdModal }) {
+function EpicRow({ epic, phases, priorities, onUpdateEpic, onEditEpic, projectId, tenantId, projectStartDate, setOpenPrdModal }) {
     const [openEditor, setOpenEditor] = useState(null);
     const phaseRef = useRef(null);
     const priorityRef = useRef(null);
@@ -333,8 +333,8 @@ function EpicRow({ epic, phases, priorities, onUpdateEpic, projectId, tenantId, 
             
             <div className="text-center">
                 <button 
-                    className="flex items-center justify-center gap-1.5 w-full rounded px-2 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-80 cursor-not-allowed shadow-sm bg-blue-500"
-                    title="Update function coming soon"
+                    onClick={(e) => { e.stopPropagation(); onEditEpic(epic); }}
+                    className="flex items-center justify-center gap-1.5 w-full rounded px-2 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-80 shadow-sm bg-blue-500"
                 >
                     <Edit2 className="h-3.5 w-3.5" />
                     Update
@@ -344,7 +344,7 @@ function EpicRow({ epic, phases, priorities, onUpdateEpic, projectId, tenantId, 
     );
 }
 
-function EpicTable({ epics, phases, priorities, onUpdateEpic, projectId, tenantId, projectStartDate }) {
+function EpicTable({ epics, phases, priorities, onUpdateEpic, onEditEpic, projectId, tenantId, projectStartDate }) {
     
     const [openPrdModal, setOpenPrdModal] = useState(false);
 
@@ -370,6 +370,7 @@ function EpicTable({ epics, phases, priorities, onUpdateEpic, projectId, tenantI
                     phases={phases} 
                     priorities={priorities} 
                     onUpdateEpic={onUpdateEpic} 
+                    onEditEpic={onEditEpic}
                     projectId={projectId} 
                     tenantId={tenantId} 
                     projectStartDate={projectStartDate} 
@@ -386,7 +387,7 @@ function EpicTable({ epics, phases, priorities, onUpdateEpic, projectId, tenantI
     );
 }
 
-function EpicGroup({ title, epics, defaultOpen = true, phases, priorities, onUpdateEpic, projectId, tenantId, projectStartDate, colorAccent }) {
+function EpicGroup({ title, epics, defaultOpen = true, phases, priorities, onUpdateEpic, onEditEpic, projectId, tenantId, projectStartDate, colorAccent }) {
     const [isOpen, setIsOpen] = useState(defaultOpen);
 
     return (
@@ -413,6 +414,7 @@ function EpicGroup({ title, epics, defaultOpen = true, phases, priorities, onUpd
                             phases={phases} 
                             priorities={priorities} 
                             onUpdateEpic={onUpdateEpic} 
+                            onEditEpic={onEditEpic}
                             projectId={projectId} 
                             tenantId={tenantId} 
                             projectStartDate={projectStartDate}
@@ -429,11 +431,24 @@ export default function EpicBreakdown({ epics: initialEpics, epicGroups: initial
     const [phases, setPhases] = useState(initialPhases || []);
     const [priorities, setPriorities] = useState(initialPriorities || []);
     
+    useEffect(() => {
+        if (initialEpics) setEpics(initialEpics);
+    }, [initialEpics]);
+
+    useEffect(() => {
+        if (initialPhases) setPhases(initialPhases);
+    }, [initialPhases]);
+
+    useEffect(() => {
+        if (initialPriorities) setPriorities(initialPriorities);
+    }, [initialPriorities]);
+
     // Support epicGroups from Inertia props
     const epicGroups = initialGroups || [];
 
     const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
     const [isEpicModalOpen, setIsEpicModalOpen] = useState(false);
+    const [epicToEdit, setEpicToEdit] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [validationErrors, setValidationErrors] = useState(null);
 
@@ -469,19 +484,34 @@ export default function EpicBreakdown({ epics: initialEpics, epicGroups: initial
         });
     };
 
-    const handleCreateEpic = (data) => {
+    const handleSubmitEpic = (data) => {
         setIsSubmitting(true);
         setValidationErrors(null);
-        router.post(`/studio/${tenantId}/projects/${project.id}/epics`, data, {
-            onSuccess: () => {
-                setIsEpicModalOpen(false);
-                setIsSubmitting(false);
-            },
-            onError: (errors) => {
-                setValidationErrors(errors);
-                setIsSubmitting(false);
-            },
-        });
+        
+        if (epicToEdit) {
+            router.patch(`/studio/${tenantId}/projects/${project.id}/epics/${epicToEdit.id}`, data, {
+                onSuccess: () => {
+                    setIsEpicModalOpen(false);
+                    setIsSubmitting(false);
+                    setEpicToEdit(null);
+                },
+                onError: (errors) => {
+                    setValidationErrors(errors);
+                    setIsSubmitting(false);
+                },
+            });
+        } else {
+            router.post(`/studio/${tenantId}/projects/${project.id}/epics`, data, {
+                onSuccess: () => {
+                    setIsEpicModalOpen(false);
+                    setIsSubmitting(false);
+                },
+                onError: (errors) => {
+                    setValidationErrors(errors);
+                    setIsSubmitting(false);
+                },
+            });
+        }
     };
 
     // If epicGroups prop wasn't provided (e.g. legacy), fallback to default layout
@@ -506,6 +536,7 @@ export default function EpicBreakdown({ epics: initialEpics, epicGroups: initial
                     phases={phases} 
                     priorities={priorities} 
                     onUpdateEpic={onUpdateEpic} 
+                    onEditEpic={(epic) => { setEpicToEdit(epic); setIsEpicModalOpen(true); }}
                     projectId={project.id} 
                     tenantId={tenantId}
                     projectStartDate={project.start_date}
@@ -518,6 +549,7 @@ export default function EpicBreakdown({ epics: initialEpics, epicGroups: initial
                     phases={phases} 
                     priorities={priorities} 
                     onUpdateEpic={onUpdateEpic} 
+                    onEditEpic={(epic) => { setEpicToEdit(epic); setIsEpicModalOpen(true); }}
                     projectId={project.id} 
                     tenantId={tenantId}
                     projectStartDate={project.start_date}
@@ -539,7 +571,7 @@ export default function EpicBreakdown({ epics: initialEpics, epicGroups: initial
                         Add New Group
                     </button>
                     <button 
-                        onClick={() => setIsEpicModalOpen(true)}
+                        onClick={() => { setEpicToEdit(null); setIsEpicModalOpen(true); }}
                         className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-dark"
                     >
                         New Epic
@@ -561,6 +593,7 @@ export default function EpicBreakdown({ epics: initialEpics, epicGroups: initial
                         phases={phases} 
                         priorities={priorities} 
                         onUpdateEpic={onUpdateEpic} 
+                        onEditEpic={(epic) => { setEpicToEdit(epic); setIsEpicModalOpen(true); }}
                         projectId={project.id} 
                         tenantId={tenantId}
                         projectStartDate={project.start_date}
@@ -579,13 +612,14 @@ export default function EpicBreakdown({ epics: initialEpics, epicGroups: initial
 
             <CreateEpicModal
                 isOpen={isEpicModalOpen}
-                onClose={() => setIsEpicModalOpen(false)}
-                onSubmit={handleCreateEpic}
+                onClose={() => { setIsEpicModalOpen(false); setEpicToEdit(null); }}
+                onSubmit={handleSubmitEpic}
                 isSubmitting={isSubmitting}
                 validationErrors={validationErrors}
                 epicGroups={epicGroups}
                 phases={phases}
                 priorities={priorities}
+                epic={epicToEdit}
             />
         </div>
     );
