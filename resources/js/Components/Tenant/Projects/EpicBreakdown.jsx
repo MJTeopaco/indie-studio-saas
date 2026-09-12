@@ -230,14 +230,15 @@ function EpicTable({ epics, phases, priorities, onUpdateEpic, projectId, tenantI
 
     return (
         <div className="min-w-[1000px] border-t border-gray-100 dark:border-slate-800">
-            <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_auto_1fr_1fr_auto_auto] gap-4 border-b border-gray-100 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:border-slate-800">
+            <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_auto_1fr_1fr_1.5fr_auto_auto] gap-4 border-b border-gray-100 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:border-slate-800">
                 <span>Epic Name</span>
                 <span>Planned Timeline</span>
                 <span>Phase</span>
                 <span>Priority</span>
                 <span>PRD</span>
                 <span>Tasks</span>
-                <span>Effort</span>
+                <span>Estimated Effort</span>
+                <span>Tasks Progress</span>
                 <span>Epic ID</span>
                 <span>Update</span>
             </div>
@@ -257,8 +258,23 @@ function EpicTable({ epics, phases, priorities, onUpdateEpic, projectId, tenantI
                 const endStr = maxEf !== null && projectStartDate ? deriveCalendarDate(projectStartDate, maxEf) : '—';
                 const timelineStr = (startStr !== '—' || endStr !== '—') ? `${startStr} – ${endStr}` : '—';
 
+                const totalTasks = epic.tasks ? epic.tasks.length : 0;
+                let doneCount = 0;
+                let wipCount = 0;
+                let todoCount = 0;
+                if (totalTasks > 0) {
+                    epic.tasks.forEach(task => {
+                        if (task.status === 'completed') doneCount++;
+                        else if (task.status === 'in_progress' || task.status === 'review') wipCount++;
+                        else todoCount++;
+                    });
+                }
+                const donePct = totalTasks > 0 ? (doneCount / totalTasks) * 100 : 0;
+                const wipPct = totalTasks > 0 ? (wipCount / totalTasks) * 100 : 0;
+                const todoPct = totalTasks > 0 ? (todoCount / totalTasks) * 100 : 0;
+
                 return (
-                    <div key={epic.id} className="grid grid-cols-[1.5fr_1fr_1fr_1fr_auto_1fr_1fr_auto_auto] items-center gap-4 border-b border-gray-100 px-4 py-3 last:border-0 hover:bg-gray-50/50 dark:border-slate-800 dark:hover:bg-slate-800/30">
+                    <div key={epic.id} className="grid grid-cols-[1.5fr_1fr_1fr_1fr_auto_1fr_1fr_1.5fr_auto_auto] items-center gap-4 border-b border-gray-100 px-4 py-3 last:border-0 hover:bg-gray-50/50 dark:border-slate-800 dark:hover:bg-slate-800/30">
                         <div className="flex items-center gap-2 min-w-0">
                             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: epic.color || '#9ca3af' }} />
                             <span className="truncate text-sm font-semibold text-gray-900 dark:text-slate-100">{epic.name}</span>
@@ -318,7 +334,30 @@ function EpicTable({ epics, phases, priorities, onUpdateEpic, projectId, tenantI
                         </div>
                         
                         <div className="font-mono text-xs text-gray-600 dark:text-slate-300">
-                            {epic.tasks_sum_estimated_hours ? `${epic.tasks_sum_estimated_hours}h` : '—'}
+                            {epic.tasks_sum_story_points != null
+                                ? <span className="inline-flex items-center gap-1 font-bold">
+                                      {epic.tasks_sum_story_points} <span className="text-[10px] text-gray-400 font-normal">SP</span>
+                                  </span>
+                                : <span className="text-gray-400 italic text-[11px]">—</span>}
+                        </div>
+                        
+                        <div className="flex items-center w-full group relative" title={`${doneCount} Done, ${wipCount} Dev WIP, ${todoCount} Ready`}>
+                            {totalTasks > 0 ? (
+                                <div className="flex h-3.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-slate-800">
+                                    {donePct > 0 && <div style={{ width: `${donePct}%` }} className="bg-emerald-500 hover:opacity-80 transition-opacity" />}
+                                    {wipPct > 0 && <div style={{ width: `${wipPct}%` }} className="bg-indigo-500 hover:opacity-80 transition-opacity" />}
+                                    {todoPct > 0 && <div style={{ width: `${todoPct}%` }} className="bg-slate-400 hover:opacity-80 transition-opacity" />}
+                                </div>
+                            ) : (
+                                <div className="flex h-3.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-slate-800/50" />
+                            )}
+                            {totalTasks > 0 && (
+                                <div className="absolute bottom-full left-1/2 z-10 mb-2 hidden -translate-x-1/2 flex-col rounded-lg bg-gray-900 px-3 py-2 text-xs text-white shadow-xl group-hover:flex whitespace-nowrap dark:bg-slate-800 border border-gray-700">
+                                    <div className="flex items-center gap-2 mb-1"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> {doneCount} Done ({Math.round(donePct)}%)</div>
+                                    <div className="flex items-center gap-2 mb-1"><span className="w-2 h-2 rounded-full bg-indigo-500"></span> {wipCount} Dev WIP ({Math.round(wipPct)}%)</div>
+                                    <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-slate-400"></span> {todoCount} Ready ({Math.round(todoPct)}%)</div>
+                                </div>
+                            )}
                         </div>
                         
                         <div>

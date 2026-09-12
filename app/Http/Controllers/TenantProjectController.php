@@ -83,8 +83,9 @@ class TenantProjectController extends Controller
             'epics' => function ($query) {
                 $query->withCount('tasks')
                       ->withSum('tasks', 'estimated_hours')
+                      ->withSum('tasks', 'story_points')
                       ->with(['phase', 'priority', 'tasks' => function ($q) {
-                          $q->select('id', 'epic_id', 'title', 'status');
+                          $q->select('id', 'epic_id', 'title', 'status', 'sprint_status');
                       }]);
             }
         ])->findOrFail($project);
