@@ -39,11 +39,11 @@ const SPRINT_PRIORITIES = [
 ];
 
 const statuses = [
-    { id: 'todo', title: 'To Do', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300', headerBgClass: 'bg-blue-50 dark:bg-blue-900/20' },
-    { id: 'in_progress', title: 'In Progress', className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300', headerBgClass: 'bg-orange-50 dark:bg-orange-900/20' },
-    { id: 'review', title: 'In Review', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300', headerBgClass: 'bg-amber-50 dark:bg-amber-900/20' },
-    { id: 'completed', title: 'Done', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300', headerBgClass: 'bg-emerald-50 dark:bg-emerald-900/20' },
-    { id: 'stuck', title: 'Stuck', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300', headerBgClass: 'bg-red-50 dark:bg-red-900/20' },
+    { id: 'todo', title: 'To Do', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300', headerBgClass: 'bg-blue-50 dark:bg-blue-900/20', dotClass: 'bg-blue-500' },
+    { id: 'in_progress', title: 'In Progress', className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300', headerBgClass: 'bg-orange-50 dark:bg-orange-900/20', dotClass: 'bg-orange-500' },
+    { id: 'review', title: 'In Review', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300', headerBgClass: 'bg-amber-50 dark:bg-amber-900/20', dotClass: 'bg-amber-500' },
+    { id: 'completed', title: 'Done', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300', headerBgClass: 'bg-emerald-50 dark:bg-emerald-900/20', dotClass: 'bg-emerald-500' },
+    { id: 'stuck', title: 'Stuck', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300', headerBgClass: 'bg-red-50 dark:bg-red-900/20', dotClass: 'bg-red-500' },
 ];
 
 const priorityWeight = {
@@ -397,16 +397,10 @@ function ProjectDashboard({ project, tasks }) {
                         {/* Status Legend List */}
                         <div className="space-y-3">
                             {statusRows.map(row => {
-                                const dotColors = {
-                                    completed: 'bg-emerald-500',
-                                    review: 'bg-amber-500',
-                                    in_progress: 'bg-brand',
-                                    todo: 'bg-slate-400'
-                                };
                                 return (
                                     <div key={row.id} className="flex items-center justify-between border-b border-gray-50 pb-2 last:border-0 dark:border-slate-800/40">
                                         <div className="flex items-center gap-2.5">
-                                            <span className={`h-2.5 w-2.5 rounded-full ${dotColors[row.id]}`} />
+                                            <span className={`h-2.5 w-2.5 rounded-full ${row.dotClass || 'bg-slate-400'}`} />
                                             <span className="text-xs font-semibold text-gray-700 dark:text-slate-350">{row.title}</span>
                                         </div>
                                         <div className="text-right">
@@ -507,10 +501,10 @@ function MyTasksList({ groups, onFindFit, onEditStatus, projectStartDate }) {
         <div className="space-y-6 overflow-auto p-6">
             {groups.map(group => (
                 <section key={group.id} className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-                    <div className="flex items-center gap-2 border-b border-gray-100 bg-gray-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/50">
-                        <span className={`h-2 w-2 rounded-full ${group.id === 'completed' ? 'bg-emerald-500' : group.id === 'review' ? 'bg-amber-500' : group.id === 'in_progress' ? 'bg-brand' : 'bg-slate-400'}`} />
+                    <div className={`flex items-center gap-2 border-b border-gray-100 px-4 py-3 dark:border-slate-800 ${group.headerBgClass || 'bg-gray-50 dark:bg-slate-900/50'}`}>
+                        <span className={`h-2 w-2 rounded-full ${group.dotClass || 'bg-slate-400'}`} />
                         <h2 className="text-xs font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-300">{group.title}</h2>
-                        <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-bold text-gray-500 dark:bg-slate-800">{group.tasks.length}</span>
+                        <span className="rounded-full bg-white/50 px-2 py-0.5 text-[10px] font-bold text-gray-600 dark:bg-slate-800">{group.tasks.length}</span>
                     </div>
 
                     <div className="min-w-[1100px]">
