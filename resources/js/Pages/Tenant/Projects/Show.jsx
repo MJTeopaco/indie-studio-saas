@@ -9,6 +9,8 @@ import ProjectAiAssistant from '@/Components/Tenant/Projects/ProjectAiAssistant'
 import CpaStatusBadge from '@/Components/Tenant/CpaStatusBadge';
 import EpicBreakdown from '@/Components/Tenant/Projects/EpicBreakdown';
 import SprintBreakdown from '@/Components/Tenant/Projects/SprintBreakdown';
+import UpdateTaskStatusModal from '@/Components/Tenant/Projects/UpdateTaskStatusModal';
+import ManageAssignmentModal from '@/Components/Tenant/Projects/ManageAssignmentModal';
 
 function getContrastColor(hexColor) {
     if (!hexColor) return '#111827';
@@ -499,7 +501,7 @@ function DependencyPills({ predecessors }) {
     );
 }
 
-function Spreadsheet({ groups, onFindFit, onEdit, projectStartDate }) {
+function MyTasksList({ groups, onFindFit, onEditStatus, projectStartDate }) {
     const { canManage, auth } = usePage().props;
     return (
         <div className="space-y-6 overflow-auto p-6">
@@ -530,7 +532,7 @@ function Spreadsheet({ groups, onFindFit, onEdit, projectStartDate }) {
                             return (
                                 <div
                                     key={task.id}
-                                    onClick={() => isClickable && onEdit(task)}
+                                    onClick={() => isClickable && onEditStatus(task)}
                                     className={`group grid grid-cols-[2fr_1.5fr_1.2fr_1.2fr_1fr_1.2fr_.8fr] items-center gap-4 border-b border-gray-100 px-4 py-3 last:border-0 hover:bg-gray-50/60 dark:border-slate-800 dark:hover:bg-slate-800/40 transition-colors ${isClickable ? 'cursor-pointer' : 'cursor-default'}`}
                                 >
                                     <div className="min-w-0">
@@ -577,9 +579,9 @@ function Spreadsheet({ groups, onFindFit, onEdit, projectStartDate }) {
                                     <div className="text-right">
                                         {isClickable && (
                                             <button
-                                                onClick={(e) => { e.stopPropagation(); onEdit(task); }}
+                                                onClick={(e) => { e.stopPropagation(); onEditStatus(task); }}
                                                 className="p-1.5 rounded-lg text-gray-400 hover:text-brand hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
-                                                title="Edit Task Specs & CPA Anchor"
+                                                title="Edit Task Status"
                                             >
                                                 <Edit2 className="w-3.5 h-3.5" />
                                             </button>
@@ -749,6 +751,12 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
     const [taskRows, setTaskRows] = useState(project?.tasks || []);
     const [draggedTask, setDraggedTask] = useState(null);
     const [hoveredColId, setHoveredColId] = useState(null);
+    
+    // Assignment modal state
+    const [assignmentTask, setAssignmentTask] = useState(null);
+    const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false);
+    const [statusEditingTask, setStatusEditingTask] = useState(null);
+    const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
 
     const currentAuth = auth || pageProps.auth || { user: { name: 'Studio Member', role: 'manager' } };
     const allTasks = taskRows;
@@ -766,9 +774,24 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
         tasks: sortByPriorityAndCriticality(visibleTasks.filter(task => task.status === status.id))
     }));
 
+    const myTasksGroups = statuses.map(status => {
+        return {
+            ...status,
+            tasks: sortByPriorityAndCriticality(visibleTasks.filter(task => {
+                if (!isUserAssignedToTask(task, currentAuth.user)) return false;
+                const sprintStatus = task.sprint_status || 'ready_to_start';
+                if (status.id === 'todo') return sprintStatus === 'ready_to_start';
+                if (status.id === 'completed') return sprintStatus === 'done';
+                if (status.id === 'review') return sprintStatus === 'waiting_for_review';
+                if (status.id === 'in_progress') return ['in_progress', 'pending_deploy', 'stuck'].includes(sprintStatus);
+                return false;
+            }))
+        };
+    });
+
     const tabs = [
         { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-        { id: 'spreadsheet', label: 'Active Sprint Spreadsheet', icon: ListTodo },
+        { id: 'spreadsheet', label: 'My Tasks', icon: ListTodo },
         { id: 'sprint', label: 'Sprint Planning', icon: TableProperties },
         { id: 'epic', label: 'Epic Breakdown', icon: Layers },
         { id: 'timeline', label: 'CPA Gantt Timeline', icon: CalendarDays },
@@ -783,12 +806,45 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
         setIsManualTaskOpen(true);
     };
 
+    const handleFindFit = (task) => {
+        setAssignmentTask(task);
+        setIsAssignmentModalOpen(true);
+    };
+
+    const handleTriggerAiBestFit = (task) => {
+        setBestFitTask(task);
+    };
+
+    const handleAssignmentSuccess = (taskId, newAssignees) => {
+        setTaskRows(rows => rows.map(task => 
+            task.id === taskId 
+                ? { ...task, assignees: newAssignees, assignee: newAssignees[0] || null, assigned_user_id: newAssignees[0]?.id || null }
+                : task
+        ));
+    };
+
     const handleEditTask = (task) => {
         if (!canManage && !isUserAssignedToTask(task, pageProps.auth?.user)) {
             return;
         }
         setEditingTask(task);
         setIsManualTaskOpen(true);
+    };
+
+    const handleEditStatus = (task) => {
+        if (!canManage && !isUserAssignedToTask(task, pageProps.auth?.user)) {
+            return;
+        }
+        setStatusEditingTask(task);
+        setIsStatusModalOpen(true);
+    };
+
+    const handleStatusSuccess = (taskId, newSprintStatus, newKanbanStatus) => {
+        setTaskRows(rows => rows.map(task => 
+            task.id === taskId 
+                ? { ...task, sprint_status: newSprintStatus, status: newKanbanStatus }
+                : task
+        ));
     };
 
     const handleDropTask = async (targetStatus) => {
@@ -848,10 +904,10 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                     )}
 
                     {activeView === 'spreadsheet' && (
-                        <Spreadsheet
-                            groups={groups.map(g => (['todo', 'completed'].includes(g.id) ? { ...g, tasks: [] } : g))}
-                            onFindFit={setBestFitTask}
-                            onEdit={handleEditTask}
+                        <MyTasksList
+                            groups={myTasksGroups}
+                            onFindFit={handleFindFit}
+                            onEditStatus={handleEditStatus}
                             projectStartDate={project?.start_date}
                         />
                     )}
@@ -873,7 +929,7 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                             tenantId={tenantId}
                             canManage={canManage}
                             onNewTask={handleNewTask}
-                            onFindFit={setBestFitTask}
+                            onFindFit={handleFindFit}
                         />
                     )}
 
@@ -920,7 +976,7 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                                             <KanbanCard
                                                 key={task.id}
                                                 task={task}
-                                                onFindFit={setBestFitTask}
+                                                onFindFit={handleFindFit}
                                                 onEdit={handleEditTask}
                                                 projectStartDate={project?.start_date}
                                                 onDragStart={setDraggedTask}
@@ -963,6 +1019,24 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                 tenantId={tenantId}
                 teamMembers={teamMembers}
                 canManage={canManage}
+            />
+            <UpdateTaskStatusModal
+                isOpen={isStatusModalOpen}
+                onClose={() => setIsStatusModalOpen(false)}
+                task={statusEditingTask}
+                project={project}
+                tenantId={tenantId}
+                onSuccess={handleStatusSuccess}
+            />
+            <ManageAssignmentModal
+                isOpen={isAssignmentModalOpen}
+                onClose={() => setIsAssignmentModalOpen(false)}
+                task={assignmentTask}
+                teamMembers={teamMembers}
+                onTriggerAi={handleTriggerAiBestFit}
+                project={project}
+                tenantId={tenantId}
+                onSuccess={handleAssignmentSuccess}
             />
         </ProjectLayout>
     );
