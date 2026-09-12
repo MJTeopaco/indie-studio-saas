@@ -426,9 +426,10 @@ function TaskRow({ task, epics, onUpdateTask, onFindFit, canManage, currentUserI
                     <button 
                         ref={dateRef}
                         onClick={(e) => { e.stopPropagation(); setOpenPopover('due_date'); }}
-                        className="absolute right-0 opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-gray-700 transition-all bg-white dark:bg-slate-900 rounded-full shadow-sm"
+                        className="absolute right-0 -translate-y-1/2 top-1/2 opacity-0 group-hover:opacity-100 p-1.5 text-brand bg-brand-10 hover:bg-brand-20 dark:bg-brand-900/40 dark:hover:bg-brand-800/60 dark:text-brand-light rounded-full shadow-sm transition-all border border-brand-20 dark:border-brand-800/50"
+                        title="Set Due Date"
                     >
-                        <Edit2 className="w-3 h-3" />
+                        <Edit2 className="w-3.5 h-3.5" />
                     </button>
                 )}
                 {openPopover === 'due_date' && (
