@@ -1124,17 +1124,11 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
     };
 
     return (
-        <div className="flex flex-col h-full bg-white dark:bg-slate-950">
+        <div className="flex flex-col h-full bg-slate-50/50 dark:bg-slate-950">
             {/* Top Toolbar */}
-            <div className="flex items-center justify-between border-b border-gray-100 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900 shrink-0">
+            <div className="flex items-center justify-between px-6 pt-6 pb-2 shrink-0">
+                <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">Sprint Planning</h1>
                 <div className="flex items-center gap-3">
-                    <button 
-                        onClick={onNewTask}
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-brand-dark"
-                    >
-                        <Plus className="h-4 w-4" />
-                        New Task
-                    </button>
                     <button 
                         onClick={() => canManage && setIsCreateSprintModalOpen(true)}
                         disabled={!canManage}
@@ -1142,17 +1136,18 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
                     >
                         Create Sprint
                     </button>
-                </div>
-                <div className="flex items-center gap-4">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                        <input type="text" placeholder="Search tasks..." className="w-64 rounded-xl border border-gray-200 bg-gray-50 py-2 pl-9 pr-4 text-sm outline-none focus:border-brand focus:bg-white dark:border-slate-700 dark:bg-slate-800/50 dark:focus:bg-slate-800" />
-                    </div>
+                    <button 
+                        onClick={onNewTask}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-brand-dark"
+                    >
+                        <Plus className="h-4 w-4" />
+                        New Task
+                    </button>
                 </div>
             </div>
 
             {/* Scrollable Area */}
-            <div className="flex-1 overflow-auto p-6 bg-slate-50/50 dark:bg-slate-950">
+            <div className="flex-1 overflow-auto px-6 pb-6 pt-2">
                 {sprints.map(sprint => (
                     <SprintGroup 
                         key={sprint.id}

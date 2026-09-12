@@ -113,18 +113,45 @@ class TenantSeeder extends Seeder
         ]);
 
         // -------------------------------------------------------------------
-        // 1a. Create Epics
+        // 1a. Create Epic Groups (Horizons)
         // -------------------------------------------------------------------
         $tenantId = tenant('id') ?? 'default';
+        
+        $groupBacklogId = DB::table('epic_groups')->insertGetId([
+            'project_id' => $project,
+            'name' => 'Epics Backlog',
+            'goal' => 'Unplanned or future epics.',
+            'display_order' => 0,
+            'is_default' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $groupQ1Id = DB::table('epic_groups')->insertGetId([
+            'project_id' => $project,
+            'name' => 'Q1 2026',
+            'goal' => 'Launch core MVP features.',
+            'display_order' => 1,
+            'is_default' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // -------------------------------------------------------------------
+        // 1b. Create Epics
+        // -------------------------------------------------------------------
         $phases = DB::table('epic_phases')->where('tenant_id', $tenantId)->get()->keyBy('label');
         $priorities = DB::table('epic_priorities')->where('tenant_id', $tenantId)->get()->keyBy('label');
 
         $epic1 = DB::table('epics')->insertGetId([
             'project_id' => $project,
+            'epic_group_id' => $groupQ1Id,
             'name' => 'Backend & Infrastructure Foundation',
             'description' => 'Core backend logic, DB schema, and infrastructure.',
             'phase_id' => $phases->get('Dev WIP')->id ?? null,
             'priority_id' => $priorities->get('Critical')->id ?? null,
+            'start_date' => now()->subDays(7)->toDateString(),
+            'end_date' => now()->addDays(20)->toDateString(),
             'color' => '#3b82f6',
             'created_at' => now(),
             'updated_at' => now(),
@@ -132,10 +159,13 @@ class TenantSeeder extends Seeder
 
         $epic2 = DB::table('epics')->insertGetId([
             'project_id' => $project,
+            'epic_group_id' => $groupQ1Id,
             'name' => 'Frontend & UI Implementation',
             'description' => 'User interfaces, accessibility, and client integrations.',
             'phase_id' => $phases->get('Design WIP')->id ?? null,
             'priority_id' => $priorities->get('Must Have')->id ?? null,
+            'start_date' => now()->toDateString(),
+            'end_date' => now()->addDays(30)->toDateString(),
             'color' => '#a855f7',
             'created_at' => now(),
             'updated_at' => now(),
@@ -143,6 +173,7 @@ class TenantSeeder extends Seeder
 
         $epic3 = DB::table('epics')->insertGetId([
             'project_id' => $project,
+            'epic_group_id' => $groupBacklogId,
             'name' => 'Quality & Security Assurance',
             'description' => 'Testing, security audits, and production deployments.',
             'phase_id' => $phases->get('Backlog')->id ?? null,
@@ -155,7 +186,7 @@ class TenantSeeder extends Seeder
         $epics = [1 => $epic1, 2 => $epic2, 3 => $epic3];
 
         // -------------------------------------------------------------------
-        // 1b. Create Sprints
+        // 1c. Create Sprints
         // -------------------------------------------------------------------
         $sprint1 = DB::table('sprints')->insertGetId([
             'project_id' => $project,
