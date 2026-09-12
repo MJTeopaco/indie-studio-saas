@@ -39,10 +39,11 @@ const SPRINT_PRIORITIES = [
 ];
 
 const statuses = [
-    { id: 'todo', title: 'To Do', className: 'bg-slate-500/15 text-slate-500' },
-    { id: 'in_progress', title: 'In Progress', className: 'bg-brand/15 text-brand' },
-    { id: 'review', title: 'In Review', className: 'bg-amber-500/15 text-amber-500' },
-    { id: 'completed', title: 'Done', className: 'bg-emerald-500/15 text-emerald-500' },
+    { id: 'todo', title: 'To Do', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300', headerBgClass: 'bg-blue-50 dark:bg-blue-900/20' },
+    { id: 'in_progress', title: 'In Progress', className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300', headerBgClass: 'bg-orange-50 dark:bg-orange-900/20' },
+    { id: 'review', title: 'In Review', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300', headerBgClass: 'bg-amber-50 dark:bg-amber-900/20' },
+    { id: 'completed', title: 'Done', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300', headerBgClass: 'bg-emerald-50 dark:bg-emerald-900/20' },
+    { id: 'stuck', title: 'Stuck', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300', headerBgClass: 'bg-red-50 dark:bg-red-900/20' },
 ];
 
 const priorityWeight = {
@@ -783,7 +784,8 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                 if (status.id === 'todo') return sprintStatus === 'ready_to_start';
                 if (status.id === 'completed') return sprintStatus === 'done';
                 if (status.id === 'review') return sprintStatus === 'waiting_for_review';
-                if (status.id === 'in_progress') return ['in_progress', 'pending_deploy', 'stuck'].includes(sprintStatus);
+                if (status.id === 'in_progress') return ['in_progress', 'pending_deploy'].includes(sprintStatus);
+                if (status.id === 'stuck') return sprintStatus === 'stuck';
                 return false;
             }))
         };
@@ -855,13 +857,18 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
         }
 
         const previousRows = taskRows;
-        setTaskRows(rows => rows.map(task => task.id === draggedTask.id ? { ...task, status: targetStatus } : task));
+        setTaskRows(rows => rows.map(task => 
+            task.id === draggedTask.id 
+                ? { ...task, status: targetStatus, sprint_status: targetStatus === 'stuck' ? 'stuck' : task.sprint_status } 
+                : task
+        ));
         setDraggedTask(null);
         setHoveredColId(null);
 
         try {
             await axios.patch(route('tenant.projects.tasks.update', { tenant: tenantId, project: project.id, task: draggedTask.id }), {
                 status: targetStatus,
+                ...(targetStatus === 'stuck' ? { sprint_status: 'stuck' } : {})
             });
         } catch (error) {
             setTaskRows(previousRows);
@@ -967,7 +974,7 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                                         : 'border-gray-250 dark:border-slate-800 bg-gray-100/70 dark:bg-slate-900/50'
                                         }`}
                                 >
-                                    <header className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-slate-800">
+                                    <header className={`flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-slate-800 rounded-t-2xl ${group.headerBgClass}`}>
                                         <h2 className="text-xs font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">{group.title}</h2>
                                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${group.className}`}>{group.tasks.length}</span>
                                     </header>

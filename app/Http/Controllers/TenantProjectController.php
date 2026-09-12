@@ -477,7 +477,8 @@ class TenantProjectController extends Controller
             }
 
             $validated = $request->validate([
-                'status' => 'required|string|in:todo,in_progress,review,completed',
+                'status' => 'required|string|in:todo,in_progress,review,completed,stuck',
+                'sprint_status' => 'sometimes|nullable|string|max:50',
             ]);
         } else {
             $validated = $request->validate([
@@ -489,7 +490,8 @@ class TenantProjectController extends Controller
                 'estimated_hours' => 'sometimes|required|numeric|min:0',
                 'hard_constraint_date' => 'nullable|date',
                 'priority' => 'sometimes|required|string|in:Low,Medium,High,Critical',
-                'status' => 'sometimes|required|string|in:todo,in_progress,review,completed',
+                'status' => 'sometimes|required|string|in:todo,in_progress,review,completed,stuck',
+                'sprint_status' => 'sometimes|nullable|string|max:50',
                 'depends_on' => 'sometimes|array',
                 'depends_on.*' => 'integer',
                 'task_classification' => 'nullable|string|max:255',
