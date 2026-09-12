@@ -477,17 +477,21 @@ class TenantProjectController extends Controller
             }
 
             $validated = $request->validate([
-                'status' => 'required|string|in:todo,in_progress,review,completed',
+                'status' => 'required|string|in:todo,in_progress,review,completed,stuck',
+                'sprint_status' => 'sometimes|nullable|string|max:50',
             ]);
         } else {
             $validated = $request->validate([
                 'title' => 'sometimes|required|string|max:255',
                 'description' => 'nullable|string',
                 'assigned_user_id' => 'nullable|integer',
+                'assignees' => 'sometimes|array',
+                'assignees.*' => 'integer',
                 'estimated_hours' => 'sometimes|required|numeric|min:0',
                 'hard_constraint_date' => 'nullable|date',
                 'priority' => 'sometimes|required|string|in:Low,Medium,High,Critical',
-                'status' => 'sometimes|required|string|in:todo,in_progress,review,completed',
+                'status' => 'sometimes|required|string|in:todo,in_progress,review,completed,stuck',
+                'sprint_status' => 'sometimes|nullable|string|max:50',
                 'depends_on' => 'sometimes|array',
                 'depends_on.*' => 'integer',
                 'task_classification' => 'nullable|string|max:255',
@@ -509,7 +513,28 @@ class TenantProjectController extends Controller
                 $this->syncTaskDependencies($taskModel, $validated['depends_on']);
             }
 
-            if (array_key_exists('assigned_user_id', $validated) && (int) $validated['assigned_user_id'] !== (int) $oldAssignedId) {
+            if (array_key_exists('assignees', $validated)) {
+                DB::table('assignments')->where('task_id', $taskModel->id)->where('status', 'active')->update(['status' => 'cancelled']);
+                
+                foreach ($validated['assignees'] as $employeeId) {
+                    DB::table('assignments')->insert([
+                        'task_id' => $taskModel->id,
+                        'employee_user_id' => $employeeId,
+                        'match_fit_score' => null,
+                        'assigned_by' => 'manual',
+                        'match_source' => 'manual',
+                        'status' => 'active',
+                        'assigned_at' => now(),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+                
+                // Keep the first ID for legacy compatibility if we want, or set null if empty
+                $taskModel->assigned_user_id = count($validated['assignees']) > 0 ? $validated['assignees'][0] : null;
+                $taskModel->save();
+                
+            } elseif (array_key_exists('assigned_user_id', $validated) && (int) $validated['assigned_user_id'] !== (int) $oldAssignedId) {
                 DB::table('assignments')->where('task_id', $taskModel->id)->where('status', 'active')->update(['status' => 'cancelled']);
                 if ($validated['assigned_user_id']) {
                     DB::table('assignments')->insert([
