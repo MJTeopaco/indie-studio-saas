@@ -21,12 +21,17 @@ class Epic extends Model
         'phase_id',
         'priority_id',
         'order',
+        'epic_group_id',
+        'start_date',
+        'end_date',
     ];
 
     protected function casts(): array
     {
         return [
             'order' => 'integer',
+            'start_date' => 'date',
+            'end_date' => 'date',
         ];
     }
 
@@ -72,5 +77,13 @@ class Epic extends Model
     public function priority(): BelongsTo
     {
         return $this->belongsTo(EpicPriority::class, 'priority_id');
+    }
+
+    /**
+     * Get the epic group of this epic.
+     */
+    public function group(): BelongsTo
+    {
+        return $this->belongsTo(EpicGroup::class, 'epic_group_id');
     }
 }

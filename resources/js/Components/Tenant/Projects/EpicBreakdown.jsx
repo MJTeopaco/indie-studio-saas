@@ -3,7 +3,9 @@ import { ChevronDown, ChevronRight, FileText, Edit2 } from 'lucide-react';
 import PortaledPopover from '@/Components/UI/PortaledPopover';
 import PortaledTooltip from '@/Components/UI/PortaledTooltip';
 import axios from 'axios';
-
+import CreateEpicGroupModal from './CreateEpicGroupModal';
+import CreateEpicModal from './CreateEpicModal';
+import { router } from '@inertiajs/react';
 function getContrastColor(hexColor) {
     if (!hexColor) return '#111827';
     const hex = hexColor.replace('#', '');
@@ -422,10 +424,18 @@ function EpicGroup({ title, epics, defaultOpen = true, phases, priorities, onUpd
     );
 }
 
-export default function EpicBreakdown({ epics: initialEpics, epicPhases: initialPhases, epicPriorities: initialPriorities, project, tenantId }) {
+export default function EpicBreakdown({ epics: initialEpics, epicGroups: initialGroups, epicPhases: initialPhases, epicPriorities: initialPriorities, project, tenantId }) {
     const [epics, setEpics] = useState(initialEpics || []);
     const [phases, setPhases] = useState(initialPhases || []);
     const [priorities, setPriorities] = useState(initialPriorities || []);
+    
+    // Support epicGroups from Inertia props
+    const epicGroups = initialGroups || [];
+
+    const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+    const [isEpicModalOpen, setIsEpicModalOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [validationErrors, setValidationErrors] = useState(null);
 
     const onUpdateEpic = (epicId, updates, newAttribute = null) => {
         setEpics(current => current.map(e => e.id === epicId ? { ...e, ...updates } : e));
@@ -444,42 +454,138 @@ export default function EpicBreakdown({ epics: initialEpics, epicPhases: initial
         }
     };
 
-    const backlogEpics = [];
-    const activeEpics = [];
+    const handleCreateGroup = (data) => {
+        setIsSubmitting(true);
+        setValidationErrors(null);
+        router.post(`/studio/${tenantId}/projects/${project.id}/epic-groups`, data, {
+            onSuccess: () => {
+                setIsGroupModalOpen(false);
+                setIsSubmitting(false);
+            },
+            onError: (errors) => {
+                setValidationErrors(errors);
+                setIsSubmitting(false);
+            },
+        });
+    };
 
-    epics.forEach(epic => {
-        const phase = phases.find(p => p.id === epic.phase_id);
-        if (phase && phase.label === 'Backlog') {
-            backlogEpics.push(epic);
-        } else {
-            activeEpics.push(epic);
-        }
-    });
+    const handleCreateEpic = (data) => {
+        setIsSubmitting(true);
+        setValidationErrors(null);
+        router.post(`/studio/${tenantId}/projects/${project.id}/epics`, data, {
+            onSuccess: () => {
+                setIsEpicModalOpen(false);
+                setIsSubmitting(false);
+            },
+            onError: (errors) => {
+                setValidationErrors(errors);
+                setIsSubmitting(false);
+            },
+        });
+    };
+
+    // If epicGroups prop wasn't provided (e.g. legacy), fallback to default layout
+    if (epicGroups.length === 0) {
+        const backlogEpics = [];
+        const activeEpics = [];
+
+        epics.forEach(epic => {
+            const phase = phases.find(p => p.id === epic.phase_id);
+            if (phase && phase.label === 'Backlog') {
+                backlogEpics.push(epic);
+            } else {
+                activeEpics.push(epic);
+            }
+        });
+
+        return (
+            <div className="overflow-auto p-6">
+                <EpicGroup 
+                    title="Epics" 
+                    epics={activeEpics} 
+                    phases={phases} 
+                    priorities={priorities} 
+                    onUpdateEpic={onUpdateEpic} 
+                    projectId={project.id} 
+                    tenantId={tenantId}
+                    projectStartDate={project.start_date}
+                    colorAccent="#3b82f6"
+                />
+                
+                <EpicGroup 
+                    title="Epics Backlog" 
+                    epics={backlogEpics} 
+                    phases={phases} 
+                    priorities={priorities} 
+                    onUpdateEpic={onUpdateEpic} 
+                    projectId={project.id} 
+                    tenantId={tenantId}
+                    projectStartDate={project.start_date}
+                    colorAccent="#6b7280"
+                />
+            </div>
+        );
+    }
 
     return (
         <div className="overflow-auto p-6">
-            <EpicGroup 
-                title="Epics" 
-                epics={activeEpics} 
-                phases={phases} 
-                priorities={priorities} 
-                onUpdateEpic={onUpdateEpic} 
-                projectId={project.id} 
-                tenantId={tenantId}
-                projectStartDate={project.start_date}
-                colorAccent="#3b82f6"
+            <div className="mb-6 flex items-center justify-between">
+                <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">Project Horizons</h1>
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={() => setIsGroupModalOpen(true)}
+                        className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-300 dark:hover:bg-slate-700"
+                    >
+                        Add New Group
+                    </button>
+                    <button 
+                        onClick={() => setIsEpicModalOpen(true)}
+                        className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-dark"
+                    >
+                        New Epic
+                    </button>
+                </div>
+            </div>
+
+            {epicGroups.map(group => {
+                const groupEpics = epics.filter(e => e.epic_group_id === group.id);
+                // Cycle through colors based on display_order
+                const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981'];
+                const colorAccent = group.is_default ? '#6b7280' : colors[(group.display_order || 0) % colors.length];
+
+                return (
+                    <EpicGroup 
+                        key={group.id}
+                        title={group.name} 
+                        epics={groupEpics} 
+                        phases={phases} 
+                        priorities={priorities} 
+                        onUpdateEpic={onUpdateEpic} 
+                        projectId={project.id} 
+                        tenantId={tenantId}
+                        projectStartDate={project.start_date}
+                        colorAccent={colorAccent}
+                    />
+                );
+            })}
+
+            <CreateEpicGroupModal
+                isOpen={isGroupModalOpen}
+                onClose={() => setIsGroupModalOpen(false)}
+                onSubmit={handleCreateGroup}
+                isSubmitting={isSubmitting}
+                validationErrors={validationErrors}
             />
-            
-            <EpicGroup 
-                title="Epics Backlog" 
-                epics={backlogEpics} 
-                phases={phases} 
-                priorities={priorities} 
-                onUpdateEpic={onUpdateEpic} 
-                projectId={project.id} 
-                tenantId={tenantId}
-                projectStartDate={project.start_date}
-                colorAccent="#6b7280"
+
+            <CreateEpicModal
+                isOpen={isEpicModalOpen}
+                onClose={() => setIsEpicModalOpen(false)}
+                onSubmit={handleCreateEpic}
+                isSubmitting={isSubmitting}
+                validationErrors={validationErrors}
+                epicGroups={epicGroups}
+                phases={phases}
+                priorities={priorities}
             />
         </div>
     );
