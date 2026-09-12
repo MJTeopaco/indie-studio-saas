@@ -10,6 +10,32 @@ import CpaStatusBadge from '@/Components/Tenant/CpaStatusBadge';
 import EpicBreakdown from '@/Components/Tenant/Projects/EpicBreakdown';
 import SprintBreakdown from '@/Components/Tenant/Projects/SprintBreakdown';
 
+function getContrastColor(hexColor) {
+    if (!hexColor) return '#111827';
+    const hex = hexColor.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.5 ? '#111827' : '#ffffff';
+}
+
+const SPRINT_STATUSES = [
+    { value: 'ready_to_start', label: 'Ready to start', color: '#3b82f6' },
+    { value: 'in_progress', label: 'In progress', color: '#f97316' },
+    { value: 'waiting_for_review', label: 'Waiting for review', color: '#d97706' },
+    { value: 'pending_deploy', label: 'Pending deploy', color: '#eab308' },
+    { value: 'done', label: 'Done', color: '#10b981' },
+    { value: 'stuck', label: 'Stuck', color: '#ef4444' },
+];
+
+const SPRINT_PRIORITIES = [
+    { value: 'critical', label: 'Critical', color: '#ef4444' },
+    { value: 'high', label: 'High', color: '#eab308' },
+    { value: 'medium', label: 'Medium', color: '#3b82f6' },
+    { value: 'low', label: 'Low', color: '#10b981' },
+];
+
 const statuses = [
     { id: 'todo', title: 'To Do', className: 'bg-slate-500/15 text-slate-500' },
     { id: 'in_progress', title: 'In Progress', className: 'bg-brand/15 text-brand' },
@@ -486,12 +512,10 @@ function Spreadsheet({ groups, onFindFit, onEdit, projectStartDate }) {
                     </div>
 
                     <div className="min-w-[1100px]">
-                        <div className="grid grid-cols-[1.8fr_1.4fr_1.6fr_1.2fr_.8fr_1fr_.8fr_1fr_.6fr] gap-4 border-b border-gray-100 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:border-slate-800">
+                        <div className="grid grid-cols-[2fr_1.5fr_1.2fr_1.2fr_1fr_1.2fr_.8fr] gap-4 border-b border-gray-100 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:border-slate-800">
                             <span>Task</span>
                             <span>Depends On</span>
-                            <span>CPA Status</span>
                             <span>Assignee</span>
-                            <span>Hours</span>
                             <span>Target Finish</span>
                             <span>Priority</span>
                             <span>Status</span>
@@ -501,11 +525,13 @@ function Spreadsheet({ groups, onFindFit, onEdit, projectStartDate }) {
                         {group.tasks.map(task => {
                             const isClickable = canManage || isUserAssignedToTask(task, auth?.user);
                             const finishDateStr = projectStartDate && task.ef !== null ? deriveCalendarDate(projectStartDate, task.ef) : (task.ef !== null ? `Hour ${task.ef}` : '—');
+                            const sPriority = SPRINT_PRIORITIES.find(p => p.value === (task.sprint_priority || 'medium')) || SPRINT_PRIORITIES[2];
+                            const sStatus = SPRINT_STATUSES.find(s => s.value === (task.sprint_status || 'ready_to_start')) || SPRINT_STATUSES[0];
                             return (
                                 <div
                                     key={task.id}
                                     onClick={() => isClickable && onEdit(task)}
-                                    className={`group grid grid-cols-[1.8fr_1.4fr_1.6fr_1.2fr_.8fr_1fr_.8fr_1fr_.6fr] items-center gap-4 border-b border-gray-100 px-4 py-3 last:border-0 hover:bg-gray-50/60 dark:border-slate-800 dark:hover:bg-slate-800/40 transition-colors ${isClickable ? 'cursor-pointer' : 'cursor-default'}`}
+                                    className={`group grid grid-cols-[2fr_1.5fr_1.2fr_1.2fr_1fr_1.2fr_.8fr] items-center gap-4 border-b border-gray-100 px-4 py-3 last:border-0 hover:bg-gray-50/60 dark:border-slate-800 dark:hover:bg-slate-800/40 transition-colors ${isClickable ? 'cursor-pointer' : 'cursor-default'}`}
                                 >
                                     <div className="min-w-0">
                                         <div className="flex items-center gap-1.5">
@@ -520,14 +546,8 @@ function Spreadsheet({ groups, onFindFit, onEdit, projectStartDate }) {
                                     </div>
 
                                     <div>
-                                        <CpaStatusBadge totalFloat={task.total_float} isCritical={task.is_critical} />
-                                    </div>
-
-                                    <div>
                                         <TaskAssignee task={task} onFindFit={onFindFit} />
                                     </div>
-
-                                    <span className="font-mono text-xs text-gray-600 dark:text-slate-300">{task.estimated_hours}h</span>
 
                                     <div className="text-xs text-gray-700 dark:text-slate-300">
                                         <span className="block font-medium">{finishDateStr}</span>
@@ -537,11 +557,21 @@ function Spreadsheet({ groups, onFindFit, onEdit, projectStartDate }) {
                                     </div>
 
                                     <div>
-                                        <PriorityBadge priority={task.priority} />
+                                        <button
+                                            className="w-full truncate rounded px-2 py-1.5 text-[10px] font-bold text-center cursor-default uppercase tracking-wider"
+                                            style={{ backgroundColor: sPriority.color, color: getContrastColor(sPriority.color) }}
+                                        >
+                                            {sPriority.label}
+                                        </button>
                                     </div>
 
                                     <div>
-                                        <span className={`w-fit rounded-full px-2 py-1 text-[10px] font-bold ${group.className}`}>{group.title}</span>
+                                        <button
+                                            className="w-full truncate rounded px-2 py-1.5 text-[10px] font-bold text-center cursor-default uppercase tracking-wider"
+                                            style={{ backgroundColor: sStatus.color, color: getContrastColor(sStatus.color) }}
+                                        >
+                                            {sStatus.label}
+                                        </button>
                                     </div>
 
                                     <div className="text-right">
