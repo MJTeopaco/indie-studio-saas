@@ -322,6 +322,12 @@ function TaskRow({ task, epics, onUpdateTask, onFindFit, canManage, currentUserI
     const actSpRef = useRef(null);
     const dateRef = useRef(null);
 
+    const canEditTask = (task) => {
+        if (canManage) return true;
+        const assignees = Array.isArray(task.assignees) ? task.assignees : (task.assignee ? [task.assignee] : []);
+        return assignees.some(a => Number(a.id) === Number(currentUserId));
+    };
+
     const sStatus = SPRINT_STATUSES.find(s => s.value === (task.sprint_status || 'ready_to_start')) || SPRINT_STATUSES[0];
     const sPriority = SPRINT_PRIORITIES.find(p => p.value === (task.sprint_priority || 'medium')) || SPRINT_PRIORITIES[2];
     const typeObj = TASK_TYPES.find(t => t.value === task.task_classification) || TASK_TYPES.find(t => t.value === 'Feature');
