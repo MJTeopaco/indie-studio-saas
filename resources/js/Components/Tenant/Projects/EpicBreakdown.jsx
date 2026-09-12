@@ -164,7 +164,7 @@ function InlinePriorityEditor({ epic, priorities, onUpdate, onClose, projectId, 
                     <button onClick={handleAddCustom} className="rounded bg-brand px-2 py-1 text-xs font-bold text-white hover:bg-brand-light">Add</button>
                 </div>
             </div>
-        </div>
+        </PortaledPopover>
     );
 }
 
@@ -185,7 +185,7 @@ function ProductRequirementsModal({ isOpen, onClose }) {
                     No product requirements document attached yet.
                 </div>
             </div>
-        </PortaledPopover>
+        </div>
     );
 }
 
