@@ -67,7 +67,7 @@ export default function CreateEpicModal({ isOpen, onClose, onSubmit, isSubmittin
                                 className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
                             >
                                 {phases?.map(p => (
-                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                    <option key={p.id} value={p.id}>{p.label}</option>
                                 ))}
                             </select>
                             {validationErrors?.phase_id && <p className="mt-1 text-xs text-red-500">{validationErrors.phase_id[0]}</p>}
@@ -84,7 +84,7 @@ export default function CreateEpicModal({ isOpen, onClose, onSubmit, isSubmittin
                                 className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
                             >
                                 {priorities?.map(p => (
-                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                    <option key={p.id} value={p.id}>{p.label}</option>
                                 ))}
                             </select>
                             {validationErrors?.priority_id && <p className="mt-1 text-xs text-red-500">{validationErrors.priority_id[0]}</p>}
