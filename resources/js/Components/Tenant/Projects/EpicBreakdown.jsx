@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, ChevronRight, FileText, Edit2 } from 'lucide-react';
+import PortaledPopover from '@/Components/UI/PortaledPopover';
+import PortaledTooltip from '@/Components/UI/PortaledTooltip';
 import axios from 'axios';
 
 function getContrastColor(hexColor) {
@@ -28,27 +30,9 @@ function deriveCalendarDate(startDateStr, hoursOffset) {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function InlinePhaseEditor({ epic, phases, onUpdate, onClose, projectId, tenantId }) {
-    const popoverRef = useRef(null);
+function InlinePhaseEditor({ epic, phases, onUpdate, onClose, projectId, tenantId, triggerRef }) {
     const [customLabel, setCustomLabel] = useState('');
     const [customColor, setCustomColor] = useState('#8b5cf6');
-
-    useEffect(() => {
-        function handleClickOutside(event) {
-            if (popoverRef.current && !popoverRef.current.contains(event.target)) {
-                onClose();
-            }
-        }
-        function handleEscape(event) {
-            if (event.key === 'Escape') onClose();
-        }
-        document.addEventListener('mousedown', handleClickOutside);
-        document.addEventListener('keydown', handleEscape);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-            document.removeEventListener('keydown', handleEscape);
-        };
-    }, [onClose]);
 
     const handleSelect = async (phaseId) => {
         onUpdate(epic.id, { phase_id: phaseId });
@@ -78,7 +62,7 @@ function InlinePhaseEditor({ epic, phases, onUpdate, onClose, projectId, tenantI
     };
 
     return (
-        <div ref={popoverRef} className="absolute z-50 mt-2 w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-slate-800 dark:bg-slate-900" onClick={e => e.stopPropagation()}>
+        <PortaledPopover isOpen={true} onClose={onClose} triggerRef={triggerRef} className="w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-2 text-xs font-bold text-gray-500 uppercase">Select Phase</div>
             <div className="max-h-48 overflow-y-auto space-y-1">
                 {phases.map(p => (
@@ -111,31 +95,13 @@ function InlinePhaseEditor({ epic, phases, onUpdate, onClose, projectId, tenantI
                     <button onClick={handleAddCustom} className="rounded bg-brand px-2 py-1 text-xs font-bold text-white hover:bg-brand-light">Add</button>
                 </div>
             </div>
-        </div>
+        </PortaledPopover>
     );
 }
 
-function InlinePriorityEditor({ epic, priorities, onUpdate, onClose, projectId, tenantId }) {
-    const popoverRef = useRef(null);
+function InlinePriorityEditor({ epic, priorities, onUpdate, onClose, projectId, tenantId, triggerRef }) {
     const [customLabel, setCustomLabel] = useState('');
     const [customColor, setCustomColor] = useState('#ef4444');
-
-    useEffect(() => {
-        function handleClickOutside(event) {
-            if (popoverRef.current && !popoverRef.current.contains(event.target)) {
-                onClose();
-            }
-        }
-        function handleEscape(event) {
-            if (event.key === 'Escape') onClose();
-        }
-        document.addEventListener('mousedown', handleClickOutside);
-        document.addEventListener('keydown', handleEscape);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-            document.removeEventListener('keydown', handleEscape);
-        };
-    }, [onClose]);
 
     const handleSelect = async (priorityId) => {
         onUpdate(epic.id, { priority_id: priorityId });
@@ -165,7 +131,7 @@ function InlinePriorityEditor({ epic, priorities, onUpdate, onClose, projectId, 
     };
 
     return (
-        <div ref={popoverRef} className="absolute z-50 mt-2 w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-slate-800 dark:bg-slate-900" onClick={e => e.stopPropagation()}>
+        <PortaledPopover isOpen={true} onClose={onClose} triggerRef={triggerRef} className="w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-2 text-xs font-bold text-gray-500 uppercase">Select Priority</div>
             <div className="max-h-48 overflow-y-auto space-y-1">
                 {priorities.map(p => (
@@ -219,13 +185,165 @@ function ProductRequirementsModal({ isOpen, onClose }) {
                     No product requirements document attached yet.
                 </div>
             </div>
+        </PortaledPopover>
+    );
+}
+
+function EpicRow({ epic, phases, priorities, onUpdateEpic, projectId, tenantId, projectStartDate, setOpenPrdModal }) {
+    const [openEditor, setOpenEditor] = useState(null);
+    const phaseRef = useRef(null);
+    const priorityRef = useRef(null);
+
+    const phase = phases.find(p => p.id === epic.phase_id);
+    const priority = priorities.find(p => p.id === epic.priority_id);
+    
+    let minEs = null;
+    let maxEf = null;
+    (epic.tasks || []).forEach(t => {
+        if (t.es !== null && (minEs === null || t.es < minEs)) minEs = t.es;
+        if (t.ef !== null && (maxEf === null || t.ef > maxEf)) maxEf = t.ef;
+    });
+    
+    const startStr = minEs !== null && projectStartDate ? deriveCalendarDate(projectStartDate, minEs) : '—';
+    const endStr = maxEf !== null && projectStartDate ? deriveCalendarDate(projectStartDate, maxEf) : '—';
+    const timelineStr = (startStr !== '—' || endStr !== '—') ? `${startStr} – ${endStr}` : '—';
+
+    const totalTasks = epic.tasks ? epic.tasks.length : 0;
+    let doneCount = 0;
+    let wipCount = 0;
+    let todoCount = 0;
+    if (totalTasks > 0) {
+        epic.tasks.forEach(task => {
+            if (task.status === 'completed') doneCount++;
+            else if (task.status === 'in_progress' || task.status === 'review') wipCount++;
+            else todoCount++;
+        });
+    }
+    const donePct = totalTasks > 0 ? (doneCount / totalTasks) * 100 : 0;
+    const wipPct = totalTasks > 0 ? (wipCount / totalTasks) * 100 : 0;
+    const todoPct = totalTasks > 0 ? (todoCount / totalTasks) * 100 : 0;
+
+    return (
+        <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_auto_1fr_1fr_1.5fr_auto_auto] items-center gap-4 border-b border-gray-100 px-4 py-3 last:border-0 hover:bg-gray-50/50 dark:border-slate-800 dark:hover:bg-slate-800/30">
+            <div className="flex items-center gap-2 min-w-0">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: epic.color || '#9ca3af' }} />
+                <span className="truncate text-sm font-semibold text-gray-900 dark:text-slate-100">{epic.name}</span>
+            </div>
+            
+            <div className="text-xs text-gray-600 dark:text-slate-300">
+                {timelineStr}
+            </div>
+            
+            <div>
+                <button
+                    ref={phaseRef}
+                    onClick={(e) => { e.stopPropagation(); setOpenEditor('phase'); }}
+                    className="w-full truncate rounded px-2 py-1 text-xs font-bold transition-opacity hover:opacity-80 text-left"
+                    style={{ backgroundColor: phase?.color || '#e5e7eb', color: getContrastColor(phase?.color || '#e5e7eb') }}
+                >
+                    {phase?.label || 'Unassigned'}
+                </button>
+                {openEditor === 'phase' && (
+                    <InlinePhaseEditor epic={epic} phases={phases} onUpdate={onUpdateEpic} onClose={() => setOpenEditor(null)} projectId={projectId} tenantId={tenantId} triggerRef={phaseRef} />
+                )}
+            </div>
+            
+            <div>
+                <button
+                    ref={priorityRef}
+                    onClick={(e) => { e.stopPropagation(); setOpenEditor('priority'); }}
+                    className="w-full truncate rounded px-2 py-1 text-xs font-bold transition-opacity hover:opacity-80 text-left"
+                    style={{ backgroundColor: priority?.color || '#e5e7eb', color: getContrastColor(priority?.color || '#e5e7eb') }}
+                >
+                    {priority?.label || 'Unassigned'}
+                </button>
+                {openEditor === 'priority' && (
+                    <InlinePriorityEditor epic={epic} priorities={priorities} onUpdate={onUpdateEpic} onClose={() => setOpenEditor(null)} projectId={projectId} tenantId={tenantId} triggerRef={priorityRef} />
+                )}
+            </div>
+            
+            <div className="flex justify-center">
+                <button onClick={() => setOpenPrdModal(true)} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-slate-800 dark:hover:text-gray-200">
+                    <FileText className="h-4 w-4" />
+                </button>
+            </div>
+            
+            <PortaledTooltip 
+                offsetY={4}
+                tooltipContent={
+                    epic.tasks && epic.tasks.length > 0 && (
+                        <div className="w-64 rounded-lg border border-gray-200 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-800">
+                            <div className="max-h-48 overflow-y-auto space-y-1">
+                                {epic.tasks.map(t => (
+                                    <div key={t.id} className="flex flex-col truncate text-xs text-gray-700 dark:text-slate-300">
+                                        <span>#{t.id} {t.title}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )
+                }
+            >
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600 dark:bg-slate-800 dark:text-slate-300 cursor-pointer">
+                    {epic.tasks_count || 0} tasks
+                </span>
+            </PortaledTooltip>
+            
+            <div className="font-mono text-xs text-gray-600 dark:text-slate-300">
+                {epic.tasks_sum_story_points != null
+                    ? <span className="inline-flex items-center gap-1 font-bold">
+                          {epic.tasks_sum_story_points} <span className="text-[10px] text-gray-400 font-normal">SP</span>
+                      </span>
+                    : <span className="text-gray-400 italic text-[11px]">—</span>}
+            </div>
+            
+            <PortaledTooltip
+                offsetY={8}
+                className="w-full"
+                tooltipContent={
+                    totalTasks > 0 && (
+                        <div className="flex flex-col rounded-lg bg-gray-900 px-3 py-2 text-xs text-white shadow-xl whitespace-nowrap dark:bg-slate-800 border border-gray-700">
+                            <div className="flex items-center gap-2 mb-1"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> {doneCount} Done ({Math.round(donePct)}%)</div>
+                            <div className="flex items-center gap-2 mb-1"><span className="w-2 h-2 rounded-full bg-indigo-500"></span> {wipCount} Dev WIP ({Math.round(wipPct)}%)</div>
+                            <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-slate-400"></span> {todoCount} Ready ({Math.round(todoPct)}%)</div>
+                        </div>
+                    )
+                }
+            >
+                <div className="flex items-center w-full">
+                    {totalTasks > 0 ? (
+                        <div className="flex h-3.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-slate-800">
+                            {donePct > 0 && <div style={{ width: `${donePct}%` }} className="bg-emerald-500 hover:opacity-80 transition-opacity" />}
+                            {wipPct > 0 && <div style={{ width: `${wipPct}%` }} className="bg-indigo-500 hover:opacity-80 transition-opacity" />}
+                            {todoPct > 0 && <div style={{ width: `${todoPct}%` }} className="bg-slate-400 hover:opacity-80 transition-opacity" />}
+                        </div>
+                    ) : (
+                        <div className="flex h-3.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-slate-800/50" />
+                    )}
+                </div>
+            </PortaledTooltip>
+            
+            <div>
+                <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] text-gray-500 dark:bg-slate-800 dark:text-slate-400">
+                    EPIC-{epic.id}
+                </span>
+            </div>
+            
+            <div className="text-center">
+                <button 
+                    className="flex items-center justify-center gap-1.5 w-full rounded px-2 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-80 cursor-not-allowed shadow-sm bg-blue-500"
+                    title="Update function coming soon"
+                >
+                    <Edit2 className="h-3.5 w-3.5" />
+                    Update
+                </button>
+            </div>
         </div>
     );
 }
 
 function EpicTable({ epics, phases, priorities, onUpdateEpic, projectId, tenantId, projectStartDate }) {
-    const [openPhaseEditor, setOpenPhaseEditor] = useState(null);
-    const [openPriorityEditor, setOpenPriorityEditor] = useState(null);
+    
     const [openPrdModal, setOpenPrdModal] = useState(false);
 
     return (
@@ -243,141 +361,19 @@ function EpicTable({ epics, phases, priorities, onUpdateEpic, projectId, tenantI
                 <span>Update</span>
             </div>
             
-            {epics.map(epic => {
-                const phase = phases.find(p => p.id === epic.phase_id);
-                const priority = priorities.find(p => p.id === epic.priority_id);
-                
-                let minEs = null;
-                let maxEf = null;
-                (epic.tasks || []).forEach(t => {
-                    if (t.es !== null && (minEs === null || t.es < minEs)) minEs = t.es;
-                    if (t.ef !== null && (maxEf === null || t.ef > maxEf)) maxEf = t.ef;
-                });
-                
-                const startStr = minEs !== null && projectStartDate ? deriveCalendarDate(projectStartDate, minEs) : '—';
-                const endStr = maxEf !== null && projectStartDate ? deriveCalendarDate(projectStartDate, maxEf) : '—';
-                const timelineStr = (startStr !== '—' || endStr !== '—') ? `${startStr} – ${endStr}` : '—';
-
-                const totalTasks = epic.tasks ? epic.tasks.length : 0;
-                let doneCount = 0;
-                let wipCount = 0;
-                let todoCount = 0;
-                if (totalTasks > 0) {
-                    epic.tasks.forEach(task => {
-                        if (task.status === 'completed') doneCount++;
-                        else if (task.status === 'in_progress' || task.status === 'review') wipCount++;
-                        else todoCount++;
-                    });
-                }
-                const donePct = totalTasks > 0 ? (doneCount / totalTasks) * 100 : 0;
-                const wipPct = totalTasks > 0 ? (wipCount / totalTasks) * 100 : 0;
-                const todoPct = totalTasks > 0 ? (todoCount / totalTasks) * 100 : 0;
-
-                return (
-                    <div key={epic.id} className="grid grid-cols-[1.5fr_1fr_1fr_1fr_auto_1fr_1fr_1.5fr_auto_auto] items-center gap-4 border-b border-gray-100 px-4 py-3 last:border-0 hover:bg-gray-50/50 dark:border-slate-800 dark:hover:bg-slate-800/30">
-                        <div className="flex items-center gap-2 min-w-0">
-                            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: epic.color || '#9ca3af' }} />
-                            <span className="truncate text-sm font-semibold text-gray-900 dark:text-slate-100">{epic.name}</span>
-                        </div>
-                        
-                        <div className="text-xs text-gray-600 dark:text-slate-300">
-                            {timelineStr}
-                        </div>
-                        
-                        <div className="relative">
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setOpenPhaseEditor(epic.id); setOpenPriorityEditor(null); }}
-                                className="w-full truncate rounded px-2 py-1 text-xs font-bold transition-opacity hover:opacity-80 text-left"
-                                style={{ backgroundColor: phase?.color || '#e5e7eb', color: getContrastColor(phase?.color || '#e5e7eb') }}
-                            >
-                                {phase?.label || 'Unassigned'}
-                            </button>
-                            {openPhaseEditor === epic.id && (
-                                <InlinePhaseEditor epic={epic} phases={phases} onUpdate={onUpdateEpic} onClose={() => setOpenPhaseEditor(null)} projectId={projectId} tenantId={tenantId} />
-                            )}
-                        </div>
-                        
-                        <div className="relative">
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setOpenPriorityEditor(epic.id); setOpenPhaseEditor(null); }}
-                                className="w-full truncate rounded px-2 py-1 text-xs font-bold transition-opacity hover:opacity-80 text-left"
-                                style={{ backgroundColor: priority?.color || '#e5e7eb', color: getContrastColor(priority?.color || '#e5e7eb') }}
-                            >
-                                {priority?.label || 'Unassigned'}
-                            </button>
-                            {openPriorityEditor === epic.id && (
-                                <InlinePriorityEditor epic={epic} priorities={priorities} onUpdate={onUpdateEpic} onClose={() => setOpenPriorityEditor(null)} projectId={projectId} tenantId={tenantId} />
-                            )}
-                        </div>
-                        
-                        <div className="flex justify-center">
-                            <button onClick={() => setOpenPrdModal(true)} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-slate-800 dark:hover:text-gray-200">
-                                <FileText className="h-4 w-4" />
-                            </button>
-                        </div>
-                        
-                        <div className="flex group relative">
-                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600 dark:bg-slate-800 dark:text-slate-300">
-                                {epic.tasks_count || 0} tasks
-                            </span>
-                            {(epic.tasks && epic.tasks.length > 0) && (
-                                <div className="absolute left-0 top-full z-10 mt-1 hidden w-64 rounded-lg border border-gray-200 bg-white p-2 shadow-lg group-hover:block dark:border-slate-700 dark:bg-slate-800">
-                                    <div className="max-h-32 overflow-y-auto space-y-1">
-                                        {epic.tasks.map(t => (
-                                            <div key={t.id} className="flex flex-col truncate text-xs text-gray-700 dark:text-slate-300">
-                                                <span>#{t.id} {t.title}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                        
-                        <div className="font-mono text-xs text-gray-600 dark:text-slate-300">
-                            {epic.tasks_sum_story_points != null
-                                ? <span className="inline-flex items-center gap-1 font-bold">
-                                      {epic.tasks_sum_story_points} <span className="text-[10px] text-gray-400 font-normal">SP</span>
-                                  </span>
-                                : <span className="text-gray-400 italic text-[11px]">—</span>}
-                        </div>
-                        
-                        <div className="flex items-center w-full group relative" title={`${doneCount} Done, ${wipCount} Dev WIP, ${todoCount} Ready`}>
-                            {totalTasks > 0 ? (
-                                <div className="flex h-3.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-slate-800">
-                                    {donePct > 0 && <div style={{ width: `${donePct}%` }} className="bg-emerald-500 hover:opacity-80 transition-opacity" />}
-                                    {wipPct > 0 && <div style={{ width: `${wipPct}%` }} className="bg-indigo-500 hover:opacity-80 transition-opacity" />}
-                                    {todoPct > 0 && <div style={{ width: `${todoPct}%` }} className="bg-slate-400 hover:opacity-80 transition-opacity" />}
-                                </div>
-                            ) : (
-                                <div className="flex h-3.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-slate-800/50" />
-                            )}
-                            {totalTasks > 0 && (
-                                <div className="absolute bottom-full left-1/2 z-10 mb-2 hidden -translate-x-1/2 flex-col rounded-lg bg-gray-900 px-3 py-2 text-xs text-white shadow-xl group-hover:flex whitespace-nowrap dark:bg-slate-800 border border-gray-700">
-                                    <div className="flex items-center gap-2 mb-1"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> {doneCount} Done ({Math.round(donePct)}%)</div>
-                                    <div className="flex items-center gap-2 mb-1"><span className="w-2 h-2 rounded-full bg-indigo-500"></span> {wipCount} Dev WIP ({Math.round(wipPct)}%)</div>
-                                    <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-slate-400"></span> {todoCount} Ready ({Math.round(todoPct)}%)</div>
-                                </div>
-                            )}
-                        </div>
-                        
-                        <div>
-                            <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] text-gray-500 dark:bg-slate-800 dark:text-slate-400">
-                                EPIC-{epic.id}
-                            </span>
-                        </div>
-                        
-                        <div className="text-center">
-                            <button 
-                                className="flex items-center justify-center gap-1.5 w-full rounded px-2 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-80 cursor-not-allowed shadow-sm bg-blue-500"
-                                title="Update function coming soon"
-                            >
-                                <Edit2 className="h-3.5 w-3.5" />
-                                Update
-                            </button>
-                        </div>
-                    </div>
-                );
-            })}
+            {epics.map(epic => (
+                <EpicRow 
+                    key={epic.id} 
+                    epic={epic} 
+                    phases={phases} 
+                    priorities={priorities} 
+                    onUpdateEpic={onUpdateEpic} 
+                    projectId={projectId} 
+                    tenantId={tenantId} 
+                    projectStartDate={projectStartDate} 
+                    setOpenPrdModal={setOpenPrdModal}
+                />
+            ))}
             
             {!epics.length && (
                 <div className="py-8 text-center text-xs text-gray-400">No epics found in this group.</div>

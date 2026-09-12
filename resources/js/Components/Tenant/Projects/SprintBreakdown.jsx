@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, ChevronRight, FileText, Edit2, CalendarDays, ExternalLink, Search, Plus, PlayCircle, CheckCircle2 } from 'lucide-react';
 import axios from 'axios';
 import { router, usePage } from '@inertiajs/react';
+import PortaledPopover from '@/Components/UI/PortaledPopover';
+import PortaledTooltip from '@/Components/UI/PortaledTooltip';
 
 function getContrastColor(hexColor) {
     if (!hexColor) return '#111827';
@@ -40,26 +42,9 @@ const TASK_TYPES = [
     { value: 'Quality', label: 'Quality', color: '#f472b6' } // Added from image
 ];
 
-function InlineSelectEditor({ options, currentValue, onSelect, onClose }) {
-    const popoverRef = useRef(null);
-
-    useEffect(() => {
-        function handleClickOutside(event) {
-            if (popoverRef.current && !popoverRef.current.contains(event.target)) onClose();
-        }
-        function handleEscape(event) {
-            if (event.key === 'Escape') onClose();
-        }
-        document.addEventListener('mousedown', handleClickOutside);
-        document.addEventListener('keydown', handleEscape);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-            document.removeEventListener('keydown', handleEscape);
-        };
-    }, [onClose]);
-
+function InlineSelectEditor({ options, currentValue, onSelect, onClose, triggerRef }) {
     return (
-        <div ref={popoverRef} className="absolute z-50 mt-2 w-48 rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-slate-900" onClick={e => e.stopPropagation()}>
+        <PortaledPopover isOpen={true} onClose={onClose} triggerRef={triggerRef} className="w-48 rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-slate-900">
             <div className="max-h-48 overflow-y-auto space-y-1">
                 {options.map(opt => (
                     <button
@@ -72,31 +57,14 @@ function InlineSelectEditor({ options, currentValue, onSelect, onClose }) {
                     </button>
                 ))}
             </div>
-        </div>
+        </PortaledPopover>
     );
 }
 
-function InlineTextEditor({ initialValue, onSave, onClose, type = 'text', placeholder = '' }) {
+function InlineTextEditor({ initialValue, onSave, onClose, type = 'text', placeholder = '', triggerRef }) {
     const [val, setVal] = useState(initialValue || '');
-    const popoverRef = useRef(null);
-
-    useEffect(() => {
-        function handleClickOutside(event) {
-            if (popoverRef.current && !popoverRef.current.contains(event.target)) onClose();
-        }
-        function handleEscape(event) {
-            if (event.key === 'Escape') onClose();
-        }
-        document.addEventListener('mousedown', handleClickOutside);
-        document.addEventListener('keydown', handleEscape);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-            document.removeEventListener('keydown', handleEscape);
-        };
-    }, [onClose]);
-
     return (
-        <div ref={popoverRef} className="absolute z-50 mt-2 w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-slate-800 dark:bg-slate-900" onClick={e => e.stopPropagation()}>
+        <PortaledPopover isOpen={true} onClose={onClose} triggerRef={triggerRef} className="w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-center gap-2">
                 <input
                     type={type}
@@ -116,7 +84,7 @@ function InlineTextEditor({ initialValue, onSave, onClose, type = 'text', placeh
                     Save
                 </button>
             </div>
-        </div>
+        </PortaledPopover>
     );
 }
 
@@ -344,14 +312,155 @@ function SprintTaskAssignee({ task, onFindFit, canManage }) {
     );
 }
 
-function SprintTable({ tasks, epics, onUpdateTask, onFindFit, canManage, projectId, tenantId, currentUserId, currentSprintStatus }) {
-    const [openPopover, setOpenPopover] = useState({ taskId: null, field: null });
-    const [openEpicModal, setOpenEpicModal] = useState(null);
 
-    // Close popovers if sprint status changes (mid-edit concurrent flip)
-    useEffect(() => {
-        setOpenPopover({ taskId: null, field: null });
-    }, [currentSprintStatus]);
+function TaskRow({ task, epics, onUpdateTask, onFindFit, canManage, currentUserId, setOpenEpicModal }) {
+    const [openPopover, setOpenPopover] = useState(null);
+    const statusRef = useRef(null);
+    const priorityRef = useRef(null);
+    const typeRef = useRef(null);
+    const estSpRef = useRef(null);
+    const actSpRef = useRef(null);
+    const dateRef = useRef(null);
+
+    const sStatus = SPRINT_STATUSES.find(s => s.value === (task.sprint_status || 'ready_to_start')) || SPRINT_STATUSES[0];
+    const sPriority = SPRINT_PRIORITIES.find(p => p.value === (task.sprint_priority || 'medium')) || SPRINT_PRIORITIES[2];
+    const typeObj = TASK_TYPES.find(t => t.value === task.task_classification) || TASK_TYPES.find(t => t.value === 'Feature');
+    const isEditable = canEditTask(task);
+    const isDone = (task.sprint_status === 'done');
+
+    return (
+        <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr_0.8fr_0.8fr_1fr_0.6fr_1fr] items-center gap-4 border-b border-gray-100 px-4 py-2.5 last:border-0 hover:bg-gray-50/50 dark:border-slate-800 dark:hover:bg-slate-800/30">
+            <div className="flex items-center gap-2 min-w-0">
+                <span className="truncate text-sm font-medium text-gray-900 dark:text-slate-100" title={task.title}>{task.title}</span>
+            </div>
+            
+            <div>
+                <SprintTaskAssignee task={task} onFindFit={onFindFit} canManage={canManage} />
+            </div>
+            
+            <div>
+                <button
+                    ref={statusRef}
+                    onClick={(e) => { e.stopPropagation(); isEditable && setOpenPopover('status'); }}
+                    className={`w-full truncate rounded px-2 py-1.5 text-xs font-bold text-center transition-opacity ${isEditable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
+                    style={{ backgroundColor: sStatus.color, color: getContrastColor(sStatus.color) }}
+                >
+                    {sStatus.label}
+                </button>
+                {openPopover === 'status' && (
+                    <InlineSelectEditor options={SPRINT_STATUSES} currentValue={sStatus.value} onSelect={(val) => onUpdateTask(task.id, { sprint_status: val })} onClose={() => setOpenPopover(null)} triggerRef={statusRef} />
+                )}
+            </div>
+            
+            <div>
+                <button
+                    ref={priorityRef}
+                    onClick={(e) => { e.stopPropagation(); isEditable && setOpenPopover('priority'); }}
+                    className={`w-full truncate rounded px-2 py-1.5 text-xs font-bold text-center transition-opacity ${isEditable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
+                    style={{ backgroundColor: sPriority.color, color: getContrastColor(sPriority.color) }}
+                >
+                    {sPriority.label}
+                </button>
+                {openPopover === 'priority' && (
+                    <InlineSelectEditor options={SPRINT_PRIORITIES} currentValue={sPriority.value} onSelect={(val) => onUpdateTask(task.id, { sprint_priority: val })} onClose={() => setOpenPopover(null)} triggerRef={priorityRef} />
+                )}
+            </div>
+
+            <div>
+                <button
+                    ref={typeRef}
+                    onClick={(e) => { e.stopPropagation(); isEditable && setOpenPopover('type'); }}
+                    className={`w-full truncate rounded px-2 py-1.5 text-xs font-bold text-center transition-opacity ${isEditable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
+                    style={{ backgroundColor: typeObj?.color || '#6b7280', color: getContrastColor(typeObj?.color || '#6b7280') }}
+                >
+                    {task.task_classification || 'Unclassified'}
+                </button>
+                {openPopover === 'type' && (
+                    <InlineSelectEditor options={TASK_TYPES} currentValue={task.task_classification} onSelect={(val) => onUpdateTask(task.id, { task_classification: val })} onClose={() => setOpenPopover(null)} triggerRef={typeRef} />
+                )}
+            </div>
+
+            <div className="text-center">
+                <button
+                    ref={estSpRef}
+                    onClick={(e) => { e.stopPropagation(); canManage && setOpenPopover('est_sp'); }}
+                    className={`w-full rounded px-2 py-1 font-mono text-xs ${canManage ? 'hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300' : 'text-gray-500 cursor-default'}`}
+                >
+                    {task.story_points ? `${task.story_points} SP` : '-'}
+                </button>
+                {openPopover === 'est_sp' && (
+                    <InlineTextEditor type="number" initialValue={task.story_points} onSave={(val) => onUpdateTask(task.id, { story_points: val ? parseInt(val) : null })} onClose={() => setOpenPopover(null)} triggerRef={estSpRef} />
+                )}
+            </div>
+
+            <div className="text-center">
+                <button
+                    ref={actSpRef}
+                    onClick={(e) => { e.stopPropagation(); isEditable && isDone && setOpenPopover('actual_sp'); }}
+                    disabled={!isDone}
+                    className={`w-full rounded px-2 py-1 font-mono text-xs ${!isDone ? 'opacity-30 cursor-not-allowed' : (isEditable ? 'hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-900 dark:text-slate-100 font-bold' : 'text-gray-700 dark:text-slate-300')}`}
+                    title={!isDone ? "Task must be 'Done' to set Actual SP" : ""}
+                >
+                    {task.actual_story_points ? `${task.actual_story_points} SP` : '-'}
+                </button>
+                {openPopover === 'actual_sp' && (
+                    <InlineTextEditor type="number" initialValue={task.actual_story_points} onSave={(val) => onUpdateTask(task.id, { actual_story_points: val ? parseInt(val) : null })} onClose={() => setOpenPopover(null)} triggerRef={actSpRef} />
+                )}
+            </div>
+
+            <div className="flex justify-center items-center group relative">
+                {task.hard_constraint_date ? (
+                    <span className="text-xs font-semibold text-gray-700 dark:text-slate-300">
+                        {new Date(task.hard_constraint_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                ) : (
+                    <span className="text-gray-300 dark:text-slate-700">-</span>
+                )}
+                {isEditable && (
+                    <button 
+                        ref={dateRef}
+                        onClick={(e) => { e.stopPropagation(); setOpenPopover('due_date'); }}
+                        className="absolute right-0 opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-gray-700 transition-all bg-white dark:bg-slate-900 rounded-full shadow-sm"
+                    >
+                        <Edit2 className="w-3 h-3" />
+                    </button>
+                )}
+                {openPopover === 'due_date' && (
+                    <InlineTextEditor type="date" initialValue={task.hard_constraint_date ? task.hard_constraint_date.split('T')[0] : ''} onSave={(val) => onUpdateTask(task.id, { hard_constraint_date: val })} onClose={() => setOpenPopover(null)} triggerRef={dateRef} />
+                )}
+            </div>
+
+            <div>
+                <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] text-gray-500 dark:bg-slate-800 dark:text-slate-400">
+                    TALP-{task.id}
+                </span>
+            </div>
+
+            <div>
+                {task.epic ? (
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); canManage && setOpenEpicModal(task.id); }}
+                        className={`truncate max-w-[120px] rounded-full px-2 py-0.5 text-[10px] font-bold inline-flex items-center gap-1.5 border transition-colors ${canManage ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800' : 'cursor-default'}`}
+                        style={{ borderColor: task.epic.color || '#e5e7eb', color: task.epic.color || '#6b7280' }}
+                    >
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: task.epic.color || '#9ca3af' }} />
+                        {task.epic.name}
+                    </button>
+                ) : (
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); canManage && setOpenEpicModal(task.id); }}
+                        className={`text-[10px] font-bold text-gray-400 border border-dashed border-gray-300 dark:border-slate-700 rounded-full px-2 py-0.5 ${canManage ? 'hover:border-gray-400 hover:text-gray-500 cursor-pointer' : 'cursor-default'}`}
+                    >
+                        + Link Epic
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function SprintTable({ tasks, epics, onUpdateTask, onFindFit, canManage, projectId, tenantId, currentUserId, currentSprintStatus }) {
+    const [openEpicModal, setOpenEpicModal] = useState(null);
 
     const canEditTask = (task) => {
         if (canManage) return true;
@@ -374,177 +483,18 @@ function SprintTable({ tasks, epics, onUpdateTask, onFindFit, canManage, project
                 <span>Epic</span>
             </div>
             
-            {tasks.map(task => {
-                const sStatus = SPRINT_STATUSES.find(s => s.value === (task.sprint_status || 'ready_to_start')) || SPRINT_STATUSES[0];
-                const sPriority = SPRINT_PRIORITIES.find(p => p.value === (task.sprint_priority || 'medium')) || SPRINT_PRIORITIES[2];
-                const typeObj = TASK_TYPES.find(t => t.value === task.task_classification) || TASK_TYPES.find(t => t.value === 'Feature');
-                const isEditable = canEditTask(task);
-                const isDone = (task.sprint_status === 'done');
-
-                return (
-                    <div key={task.id} className="grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr_0.8fr_0.8fr_1fr_0.6fr_1fr] items-center gap-4 border-b border-gray-100 px-4 py-2.5 last:border-0 hover:bg-gray-50/50 dark:border-slate-800 dark:hover:bg-slate-800/30">
-                        {/* Task Title */}
-                        <div className="flex items-center gap-2 min-w-0">
-                            <span className="truncate text-sm font-medium text-gray-900 dark:text-slate-100" title={task.title}>{task.title}</span>
-                        </div>
-                        
-                        {/* Owner */}
-                        <div>
-                            <SprintTaskAssignee task={task} onFindFit={onFindFit} canManage={canManage} />
-                        </div>
-                        
-                        {/* Status */}
-                        <div className="relative">
-                            <button
-                                onClick={(e) => { e.stopPropagation(); isEditable && setOpenPopover({ taskId: task.id, field: 'status' }); }}
-                                className={`w-full truncate rounded px-2 py-1.5 text-xs font-bold text-center transition-opacity ${isEditable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
-                                style={{ backgroundColor: sStatus.color, color: getContrastColor(sStatus.color) }}
-                            >
-                                {sStatus.label}
-                            </button>
-                            {openPopover.taskId === task.id && openPopover.field === 'status' && (
-                                <InlineSelectEditor 
-                                    options={SPRINT_STATUSES} 
-                                    currentValue={sStatus.value} 
-                                    onSelect={(val) => onUpdateTask(task.id, { sprint_status: val })} 
-                                    onClose={() => setOpenPopover({ taskId: null, field: null })} 
-                                />
-                            )}
-                        </div>
-                        
-                        {/* Priority */}
-                        <div className="relative">
-                            <button
-                                onClick={(e) => { e.stopPropagation(); isEditable && setOpenPopover({ taskId: task.id, field: 'priority' }); }}
-                                className={`w-full truncate rounded px-2 py-1.5 text-xs font-bold text-center transition-opacity ${isEditable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
-                                style={{ backgroundColor: sPriority.color, color: getContrastColor(sPriority.color) }}
-                            >
-                                {sPriority.label}
-                            </button>
-                            {openPopover.taskId === task.id && openPopover.field === 'priority' && (
-                                <InlineSelectEditor 
-                                    options={SPRINT_PRIORITIES} 
-                                    currentValue={sPriority.value} 
-                                    onSelect={(val) => onUpdateTask(task.id, { sprint_priority: val })} 
-                                    onClose={() => setOpenPopover({ taskId: null, field: null })} 
-                                />
-                            )}
-                        </div>
-
-                        {/* Type */}
-                        <div className="relative">
-                            <button
-                                onClick={(e) => { e.stopPropagation(); isEditable && setOpenPopover({ taskId: task.id, field: 'type' }); }}
-                                className={`w-full truncate rounded px-2 py-1.5 text-xs font-bold text-center transition-opacity ${isEditable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
-                                style={{ backgroundColor: typeObj?.color || '#6b7280', color: getContrastColor(typeObj?.color || '#6b7280') }}
-                            >
-                                {task.task_classification || 'Unclassified'}
-                            </button>
-                            {openPopover.taskId === task.id && openPopover.field === 'type' && (
-                                <InlineSelectEditor 
-                                    options={TASK_TYPES} 
-                                    currentValue={task.task_classification} 
-                                    onSelect={(val) => onUpdateTask(task.id, { task_classification: val })} 
-                                    onClose={() => setOpenPopover({ taskId: null, field: null })} 
-                                />
-                            )}
-                        </div>
-
-                        {/* Estimate SP */}
-                        <div className="relative text-center">
-                            <button
-                                onClick={(e) => { e.stopPropagation(); canManage && setOpenPopover({ taskId: task.id, field: 'est_sp' }); }}
-                                className={`w-full rounded px-2 py-1 font-mono text-xs ${canManage ? 'hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300' : 'text-gray-500 cursor-default'}`}
-                            >
-                                {task.story_points ? `${task.story_points} SP` : '-'}
-                            </button>
-                            {openPopover.taskId === task.id && openPopover.field === 'est_sp' && (
-                                <InlineTextEditor 
-                                    type="number"
-                                    initialValue={task.story_points} 
-                                    onSave={(val) => onUpdateTask(task.id, { story_points: val ? parseInt(val) : null })} 
-                                    onClose={() => setOpenPopover({ taskId: null, field: null })} 
-                                />
-                            )}
-                        </div>
-
-                        {/* Actual SP */}
-                        <div className="relative text-center">
-                            <button
-                                onClick={(e) => { e.stopPropagation(); isEditable && isDone && setOpenPopover({ taskId: task.id, field: 'actual_sp' }); }}
-                                disabled={!isDone}
-                                className={`w-full rounded px-2 py-1 font-mono text-xs ${!isDone ? 'opacity-30 cursor-not-allowed' : (isEditable ? 'hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-900 dark:text-slate-100 font-bold' : 'text-gray-700 dark:text-slate-300')}`}
-                                title={!isDone ? "Task must be 'Done' to set Actual SP" : ""}
-                            >
-                                {task.actual_story_points ? `${task.actual_story_points} SP` : '-'}
-                            </button>
-                            {openPopover.taskId === task.id && openPopover.field === 'actual_sp' && (
-                                <InlineTextEditor 
-                                    type="number"
-                                    initialValue={task.actual_story_points} 
-                                    onSave={(val) => onUpdateTask(task.id, { actual_story_points: val ? parseInt(val) : null })} 
-                                    onClose={() => setOpenPopover({ taskId: null, field: null })} 
-                                />
-                            )}
-                        </div>
-
-                        {/* Task Due Date */}
-                        <div className="relative flex justify-center items-center group">
-                            {task.hard_constraint_date ? (
-                                <span className="text-xs font-semibold text-gray-700 dark:text-slate-300">
-                                    {new Date(task.hard_constraint_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                </span>
-                            ) : (
-                                <span className="text-gray-300 dark:text-slate-700">-</span>
-                            )}
-                            {isEditable && (
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); setOpenPopover({ taskId: task.id, field: 'due_date' }); }}
-                                    className="absolute right-0 opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-gray-700 transition-all bg-white dark:bg-slate-900 rounded-full shadow-sm"
-                                >
-                                    <Edit2 className="w-3 h-3" />
-                                </button>
-                            )}
-                            {openPopover.taskId === task.id && openPopover.field === 'due_date' && (
-                                <InlineTextEditor 
-                                    type="date"
-                                    initialValue={task.hard_constraint_date ? task.hard_constraint_date.split('T')[0] : ''} 
-                                    onSave={(val) => onUpdateTask(task.id, { hard_constraint_date: val })} 
-                                    onClose={() => setOpenPopover({ taskId: null, field: null })} 
-                                />
-                            )}
-                        </div>
-
-                        {/* Task ID */}
-                        <div>
-                            <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] text-gray-500 dark:bg-slate-800 dark:text-slate-400">
-                                TALP-{task.id}
-                            </span>
-                        </div>
-
-                        {/* Epic */}
-                        <div>
-                            {task.epic ? (
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); canManage && setOpenEpicModal(task.id); }}
-                                    className={`truncate max-w-[120px] rounded-full px-2 py-0.5 text-[10px] font-bold inline-flex items-center gap-1.5 border transition-colors ${canManage ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800' : 'cursor-default'}`}
-                                    style={{ borderColor: task.epic.color || '#e5e7eb', color: task.epic.color || '#6b7280' }}
-                                >
-                                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: task.epic.color || '#9ca3af' }} />
-                                    {task.epic.name}
-                                </button>
-                            ) : (
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); canManage && setOpenEpicModal(task.id); }}
-                                    className={`text-[10px] font-bold text-gray-400 border border-dashed border-gray-300 dark:border-slate-700 rounded-full px-2 py-0.5 ${canManage ? 'hover:border-gray-400 hover:text-gray-500 cursor-pointer' : 'cursor-default'}`}
-                                >
-                                    + Link Epic
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                );
-            })}
+            {tasks.map(task => (
+                <TaskRow 
+                    key={task.id} 
+                    task={task} 
+                    epics={epics} 
+                    onUpdateTask={onUpdateTask} 
+                    onFindFit={onFindFit} 
+                    canManage={canManage} 
+                    currentUserId={currentUserId} 
+                    setOpenEpicModal={setOpenEpicModal} 
+                />
+            ))}
             
             {!tasks.length && (
                 <div className="py-8 text-center text-xs text-gray-400">No tasks in this group.</div>
