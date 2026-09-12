@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, ChevronRight, FileText, Edit2, CalendarDays, ExternalLink, Search, Plus, PlayCircle, CheckCircle2 } from 'lucide-react';
 import axios from 'axios';
 import { router, usePage } from '@inertiajs/react';
+import PortaledPopover from '@/Components/UI/PortaledPopover';
+import PortaledTooltip from '@/Components/UI/PortaledTooltip';
 
 function getContrastColor(hexColor) {
     if (!hexColor) return '#111827';
@@ -40,26 +42,9 @@ const TASK_TYPES = [
     { value: 'Quality', label: 'Quality', color: '#f472b6' } // Added from image
 ];
 
-function InlineSelectEditor({ options, currentValue, onSelect, onClose }) {
-    const popoverRef = useRef(null);
-
-    useEffect(() => {
-        function handleClickOutside(event) {
-            if (popoverRef.current && !popoverRef.current.contains(event.target)) onClose();
-        }
-        function handleEscape(event) {
-            if (event.key === 'Escape') onClose();
-        }
-        document.addEventListener('mousedown', handleClickOutside);
-        document.addEventListener('keydown', handleEscape);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-            document.removeEventListener('keydown', handleEscape);
-        };
-    }, [onClose]);
-
+function InlineSelectEditor({ options, currentValue, onSelect, onClose, triggerRef }) {
     return (
-        <div ref={popoverRef} className="absolute z-50 mt-2 w-48 rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-slate-900" onClick={e => e.stopPropagation()}>
+        <PortaledPopover isOpen={true} onClose={onClose} triggerRef={triggerRef} className="w-48 rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-slate-900">
             <div className="max-h-48 overflow-y-auto space-y-1">
                 {options.map(opt => (
                     <button
@@ -72,31 +57,14 @@ function InlineSelectEditor({ options, currentValue, onSelect, onClose }) {
                     </button>
                 ))}
             </div>
-        </div>
+        </PortaledPopover>
     );
 }
 
-function InlineTextEditor({ initialValue, onSave, onClose, type = 'text', placeholder = '' }) {
+function InlineTextEditor({ initialValue, onSave, onClose, type = 'text', placeholder = '', triggerRef }) {
     const [val, setVal] = useState(initialValue || '');
-    const popoverRef = useRef(null);
-
-    useEffect(() => {
-        function handleClickOutside(event) {
-            if (popoverRef.current && !popoverRef.current.contains(event.target)) onClose();
-        }
-        function handleEscape(event) {
-            if (event.key === 'Escape') onClose();
-        }
-        document.addEventListener('mousedown', handleClickOutside);
-        document.addEventListener('keydown', handleEscape);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-            document.removeEventListener('keydown', handleEscape);
-        };
-    }, [onClose]);
-
     return (
-        <div ref={popoverRef} className="absolute z-50 mt-2 w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-slate-800 dark:bg-slate-900" onClick={e => e.stopPropagation()}>
+        <PortaledPopover isOpen={true} onClose={onClose} triggerRef={triggerRef} className="w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-center gap-2">
                 <input
                     type={type}
@@ -116,7 +84,7 @@ function InlineTextEditor({ initialValue, onSave, onClose, type = 'text', placeh
                     Save
                 </button>
             </div>
-        </div>
+        </PortaledPopover>
     );
 }
 
@@ -344,14 +312,161 @@ function SprintTaskAssignee({ task, onFindFit, canManage }) {
     );
 }
 
-function SprintTable({ tasks, epics, onUpdateTask, onFindFit, canManage, projectId, tenantId, currentUserId, currentSprintStatus }) {
-    const [openPopover, setOpenPopover] = useState({ taskId: null, field: null });
-    const [openEpicModal, setOpenEpicModal] = useState(null);
 
-    // Close popovers if sprint status changes (mid-edit concurrent flip)
-    useEffect(() => {
-        setOpenPopover({ taskId: null, field: null });
-    }, [currentSprintStatus]);
+function TaskRow({ task, epics, onUpdateTask, onFindFit, canManage, currentUserId, setOpenEpicModal }) {
+    const [openPopover, setOpenPopover] = useState(null);
+    const statusRef = useRef(null);
+    const priorityRef = useRef(null);
+    const typeRef = useRef(null);
+    const estSpRef = useRef(null);
+    const actSpRef = useRef(null);
+    const dateRef = useRef(null);
+
+    const canEditTask = (task) => {
+        if (canManage) return true;
+        const assignees = Array.isArray(task.assignees) ? task.assignees : (task.assignee ? [task.assignee] : []);
+        return assignees.some(a => Number(a.id) === Number(currentUserId));
+    };
+
+    const sStatus = SPRINT_STATUSES.find(s => s.value === (task.sprint_status || 'ready_to_start')) || SPRINT_STATUSES[0];
+    const sPriority = SPRINT_PRIORITIES.find(p => p.value === (task.sprint_priority || 'medium')) || SPRINT_PRIORITIES[2];
+    const typeObj = TASK_TYPES.find(t => t.value === task.task_classification) || TASK_TYPES.find(t => t.value === 'Feature');
+    const isEditable = canEditTask(task);
+    const isDone = (task.sprint_status === 'done');
+
+    return (
+        <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr_0.8fr_0.8fr_1fr_0.6fr_1fr] items-center gap-4 border-b border-gray-100 px-4 py-2.5 last:border-0 hover:bg-gray-50/50 dark:border-slate-800 dark:hover:bg-slate-800/30">
+            <div className="flex items-center gap-2 min-w-0">
+                <span className="truncate text-sm font-medium text-gray-900 dark:text-slate-100" title={task.title}>{task.title}</span>
+            </div>
+            
+            <div>
+                <SprintTaskAssignee task={task} onFindFit={onFindFit} canManage={canManage} />
+            </div>
+            
+            <div>
+                <button
+                    ref={statusRef}
+                    onClick={(e) => { e.stopPropagation(); isEditable && setOpenPopover('status'); }}
+                    className={`w-full truncate rounded px-2 py-1.5 text-xs font-bold text-center transition-opacity ${isEditable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
+                    style={{ backgroundColor: sStatus.color, color: getContrastColor(sStatus.color) }}
+                >
+                    {sStatus.label}
+                </button>
+                {openPopover === 'status' && (
+                    <InlineSelectEditor options={SPRINT_STATUSES} currentValue={sStatus.value} onSelect={(val) => onUpdateTask(task.id, { sprint_status: val })} onClose={() => setOpenPopover(null)} triggerRef={statusRef} />
+                )}
+            </div>
+            
+            <div>
+                <button
+                    ref={priorityRef}
+                    onClick={(e) => { e.stopPropagation(); isEditable && setOpenPopover('priority'); }}
+                    className={`w-full truncate rounded px-2 py-1.5 text-xs font-bold text-center transition-opacity ${isEditable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
+                    style={{ backgroundColor: sPriority.color, color: getContrastColor(sPriority.color) }}
+                >
+                    {sPriority.label}
+                </button>
+                {openPopover === 'priority' && (
+                    <InlineSelectEditor options={SPRINT_PRIORITIES} currentValue={sPriority.value} onSelect={(val) => onUpdateTask(task.id, { sprint_priority: val })} onClose={() => setOpenPopover(null)} triggerRef={priorityRef} />
+                )}
+            </div>
+
+            <div>
+                <button
+                    ref={typeRef}
+                    onClick={(e) => { e.stopPropagation(); isEditable && setOpenPopover('type'); }}
+                    className={`w-full truncate rounded px-2 py-1.5 text-xs font-bold text-center transition-opacity ${isEditable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
+                    style={{ backgroundColor: typeObj?.color || '#6b7280', color: getContrastColor(typeObj?.color || '#6b7280') }}
+                >
+                    {task.task_classification || 'Unclassified'}
+                </button>
+                {openPopover === 'type' && (
+                    <InlineSelectEditor options={TASK_TYPES} currentValue={task.task_classification} onSelect={(val) => onUpdateTask(task.id, { task_classification: val })} onClose={() => setOpenPopover(null)} triggerRef={typeRef} />
+                )}
+            </div>
+
+            <div className="text-center">
+                <button
+                    ref={estSpRef}
+                    onClick={(e) => { e.stopPropagation(); canManage && setOpenPopover('est_sp'); }}
+                    className={`w-full rounded px-2 py-1 font-mono text-xs ${canManage ? 'hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300' : 'text-gray-500 cursor-default'}`}
+                >
+                    {task.story_points ? `${task.story_points} SP` : '-'}
+                </button>
+                {openPopover === 'est_sp' && (
+                    <InlineTextEditor type="number" initialValue={task.story_points} onSave={(val) => onUpdateTask(task.id, { story_points: val ? parseInt(val) : null })} onClose={() => setOpenPopover(null)} triggerRef={estSpRef} />
+                )}
+            </div>
+
+            <div className="text-center">
+                <button
+                    ref={actSpRef}
+                    onClick={(e) => { e.stopPropagation(); isEditable && isDone && setOpenPopover('actual_sp'); }}
+                    disabled={!isDone}
+                    className={`w-full rounded px-2 py-1 font-mono text-xs ${!isDone ? 'opacity-30 cursor-not-allowed' : (isEditable ? 'hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-900 dark:text-slate-100 font-bold' : 'text-gray-700 dark:text-slate-300')}`}
+                    title={!isDone ? "Task must be 'Done' to set Actual SP" : ""}
+                >
+                    {task.actual_story_points ? `${task.actual_story_points} SP` : '-'}
+                </button>
+                {openPopover === 'actual_sp' && (
+                    <InlineTextEditor type="number" initialValue={task.actual_story_points} onSave={(val) => onUpdateTask(task.id, { actual_story_points: val ? parseInt(val) : null })} onClose={() => setOpenPopover(null)} triggerRef={actSpRef} />
+                )}
+            </div>
+
+            <div className="flex justify-center items-center group relative">
+                {task.hard_constraint_date ? (
+                    <span className="text-xs font-semibold text-gray-700 dark:text-slate-300">
+                        {new Date(task.hard_constraint_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                ) : (
+                    <span className="text-gray-300 dark:text-slate-700">-</span>
+                )}
+                {isEditable && (
+                    <button 
+                        ref={dateRef}
+                        onClick={(e) => { e.stopPropagation(); setOpenPopover('due_date'); }}
+                        className="absolute right-0 opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-gray-700 transition-all bg-white dark:bg-slate-900 rounded-full shadow-sm"
+                    >
+                        <Edit2 className="w-3 h-3" />
+                    </button>
+                )}
+                {openPopover === 'due_date' && (
+                    <InlineTextEditor type="date" initialValue={task.hard_constraint_date ? task.hard_constraint_date.split('T')[0] : ''} onSave={(val) => onUpdateTask(task.id, { hard_constraint_date: val })} onClose={() => setOpenPopover(null)} triggerRef={dateRef} />
+                )}
+            </div>
+
+            <div>
+                <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] text-gray-500 dark:bg-slate-800 dark:text-slate-400">
+                    TALP-{task.id}
+                </span>
+            </div>
+
+            <div>
+                {task.epic ? (
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); canManage && setOpenEpicModal(task.id); }}
+                        className={`truncate max-w-[120px] rounded-full px-2 py-0.5 text-[10px] font-bold inline-flex items-center gap-1.5 border transition-colors ${canManage ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800' : 'cursor-default'}`}
+                        style={{ borderColor: task.epic.color || '#e5e7eb', color: task.epic.color || '#6b7280' }}
+                    >
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: task.epic.color || '#9ca3af' }} />
+                        {task.epic.name}
+                    </button>
+                ) : (
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); canManage && setOpenEpicModal(task.id); }}
+                        className={`text-[10px] font-bold text-gray-400 border border-dashed border-gray-300 dark:border-slate-700 rounded-full px-2 py-0.5 ${canManage ? 'hover:border-gray-400 hover:text-gray-500 cursor-pointer' : 'cursor-default'}`}
+                    >
+                        + Link Epic
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function SprintTable({ tasks, epics, onUpdateTask, onFindFit, canManage, projectId, tenantId, currentUserId, currentSprintStatus }) {
+    const [openEpicModal, setOpenEpicModal] = useState(null);
 
     const canEditTask = (task) => {
         if (canManage) return true;
@@ -369,183 +484,23 @@ function SprintTable({ tasks, epics, onUpdateTask, onFindFit, canManage, project
                 <span>Type</span>
                 <span>Estimate SP</span>
                 <span>Actual SP</span>
-                <span>GitHub Link</span>
+                <span>Due Date</span>
                 <span>Task ID</span>
                 <span>Epic</span>
             </div>
             
-            {tasks.map(task => {
-                const sStatus = SPRINT_STATUSES.find(s => s.value === (task.sprint_status || 'ready_to_start')) || SPRINT_STATUSES[0];
-                const sPriority = SPRINT_PRIORITIES.find(p => p.value === (task.sprint_priority || 'medium')) || SPRINT_PRIORITIES[2];
-                const typeObj = TASK_TYPES.find(t => t.value === task.task_classification) || TASK_TYPES.find(t => t.value === 'Feature');
-                const isEditable = canEditTask(task);
-                const isDone = (task.sprint_status === 'done');
-
-                return (
-                    <div key={task.id} className="grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr_0.8fr_0.8fr_1fr_0.6fr_1fr] items-center gap-4 border-b border-gray-100 px-4 py-2.5 last:border-0 hover:bg-gray-50/50 dark:border-slate-800 dark:hover:bg-slate-800/30">
-                        {/* Task Title */}
-                        <div className="flex items-center gap-2 min-w-0">
-                            <span className="truncate text-sm font-medium text-gray-900 dark:text-slate-100" title={task.title}>{task.title}</span>
-                        </div>
-                        
-                        {/* Owner */}
-                        <div>
-                            <SprintTaskAssignee task={task} onFindFit={onFindFit} canManage={canManage} />
-                        </div>
-                        
-                        {/* Status */}
-                        <div className="relative">
-                            <button
-                                onClick={(e) => { e.stopPropagation(); isEditable && setOpenPopover({ taskId: task.id, field: 'status' }); }}
-                                className={`w-full truncate rounded px-2 py-1.5 text-xs font-bold text-center transition-opacity ${isEditable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
-                                style={{ backgroundColor: sStatus.color, color: getContrastColor(sStatus.color) }}
-                            >
-                                {sStatus.label}
-                            </button>
-                            {openPopover.taskId === task.id && openPopover.field === 'status' && (
-                                <InlineSelectEditor 
-                                    options={SPRINT_STATUSES} 
-                                    currentValue={sStatus.value} 
-                                    onSelect={(val) => onUpdateTask(task.id, { sprint_status: val })} 
-                                    onClose={() => setOpenPopover({ taskId: null, field: null })} 
-                                />
-                            )}
-                        </div>
-                        
-                        {/* Priority */}
-                        <div className="relative">
-                            <button
-                                onClick={(e) => { e.stopPropagation(); isEditable && setOpenPopover({ taskId: task.id, field: 'priority' }); }}
-                                className={`w-full truncate rounded px-2 py-1.5 text-xs font-bold text-center transition-opacity ${isEditable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
-                                style={{ backgroundColor: sPriority.color, color: getContrastColor(sPriority.color) }}
-                            >
-                                {sPriority.label}
-                            </button>
-                            {openPopover.taskId === task.id && openPopover.field === 'priority' && (
-                                <InlineSelectEditor 
-                                    options={SPRINT_PRIORITIES} 
-                                    currentValue={sPriority.value} 
-                                    onSelect={(val) => onUpdateTask(task.id, { sprint_priority: val })} 
-                                    onClose={() => setOpenPopover({ taskId: null, field: null })} 
-                                />
-                            )}
-                        </div>
-
-                        {/* Type */}
-                        <div className="relative">
-                            <button
-                                onClick={(e) => { e.stopPropagation(); isEditable && setOpenPopover({ taskId: task.id, field: 'type' }); }}
-                                className={`w-full truncate rounded px-2 py-1.5 text-xs font-bold text-center transition-opacity ${isEditable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
-                                style={{ backgroundColor: typeObj?.color || '#6b7280', color: getContrastColor(typeObj?.color || '#6b7280') }}
-                            >
-                                {task.task_classification || 'Unclassified'}
-                            </button>
-                            {openPopover.taskId === task.id && openPopover.field === 'type' && (
-                                <InlineSelectEditor 
-                                    options={TASK_TYPES} 
-                                    currentValue={task.task_classification} 
-                                    onSelect={(val) => onUpdateTask(task.id, { task_classification: val })} 
-                                    onClose={() => setOpenPopover({ taskId: null, field: null })} 
-                                />
-                            )}
-                        </div>
-
-                        {/* Estimate SP */}
-                        <div className="relative text-center">
-                            <button
-                                onClick={(e) => { e.stopPropagation(); canManage && setOpenPopover({ taskId: task.id, field: 'est_sp' }); }}
-                                className={`w-full rounded px-2 py-1 font-mono text-xs ${canManage ? 'hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300' : 'text-gray-500 cursor-default'}`}
-                            >
-                                {task.story_points ? `${task.story_points} SP` : '-'}
-                            </button>
-                            {openPopover.taskId === task.id && openPopover.field === 'est_sp' && (
-                                <InlineTextEditor 
-                                    type="number"
-                                    initialValue={task.story_points} 
-                                    onSave={(val) => onUpdateTask(task.id, { story_points: val ? parseInt(val) : null })} 
-                                    onClose={() => setOpenPopover({ taskId: null, field: null })} 
-                                />
-                            )}
-                        </div>
-
-                        {/* Actual SP */}
-                        <div className="relative text-center">
-                            <button
-                                onClick={(e) => { e.stopPropagation(); isEditable && isDone && setOpenPopover({ taskId: task.id, field: 'actual_sp' }); }}
-                                disabled={!isDone}
-                                className={`w-full rounded px-2 py-1 font-mono text-xs ${!isDone ? 'opacity-30 cursor-not-allowed' : (isEditable ? 'hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-900 dark:text-slate-100 font-bold' : 'text-gray-700 dark:text-slate-300')}`}
-                                title={!isDone ? "Task must be 'Done' to set Actual SP" : ""}
-                            >
-                                {task.actual_story_points ? `${task.actual_story_points} SP` : '-'}
-                            </button>
-                            {openPopover.taskId === task.id && openPopover.field === 'actual_sp' && (
-                                <InlineTextEditor 
-                                    type="number"
-                                    initialValue={task.actual_story_points} 
-                                    onSave={(val) => onUpdateTask(task.id, { actual_story_points: val ? parseInt(val) : null })} 
-                                    onClose={() => setOpenPopover({ taskId: null, field: null })} 
-                                />
-                            )}
-                        </div>
-
-                        {/* GitHub Link */}
-                        <div className="relative flex justify-center items-center group">
-                            {task.github_link ? (
-                                <a href={task.github_link} target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-brand transition-colors p-1" onClick={e => e.stopPropagation()}>
-                                    <ExternalLink className="w-4 h-4" />
-                                </a>
-                            ) : (
-                                <span className="text-gray-300 dark:text-slate-700">-</span>
-                            )}
-                            {isEditable && (
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); setOpenPopover({ taskId: task.id, field: 'github' }); }}
-                                    className="absolute right-0 opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-gray-700 transition-all bg-white dark:bg-slate-900 rounded-full shadow-sm"
-                                >
-                                    <Edit2 className="w-3 h-3" />
-                                </button>
-                            )}
-                            {openPopover.taskId === task.id && openPopover.field === 'github' && (
-                                <InlineTextEditor 
-                                    type="url"
-                                    placeholder="https://github.com/..."
-                                    initialValue={task.github_link} 
-                                    onSave={(val) => onUpdateTask(task.id, { github_link: val })} 
-                                    onClose={() => setOpenPopover({ taskId: null, field: null })} 
-                                />
-                            )}
-                        </div>
-
-                        {/* Task ID */}
-                        <div>
-                            <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] text-gray-500 dark:bg-slate-800 dark:text-slate-400">
-                                TALP-{task.id}
-                            </span>
-                        </div>
-
-                        {/* Epic */}
-                        <div>
-                            {task.epic ? (
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); canManage && setOpenEpicModal(task.id); }}
-                                    className={`truncate max-w-[120px] rounded-full px-2 py-0.5 text-[10px] font-bold inline-flex items-center gap-1.5 border transition-colors ${canManage ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800' : 'cursor-default'}`}
-                                    style={{ borderColor: task.epic.color || '#e5e7eb', color: task.epic.color || '#6b7280' }}
-                                >
-                                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: task.epic.color || '#9ca3af' }} />
-                                    {task.epic.name}
-                                </button>
-                            ) : (
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); canManage && setOpenEpicModal(task.id); }}
-                                    className={`text-[10px] font-bold text-gray-400 border border-dashed border-gray-300 dark:border-slate-700 rounded-full px-2 py-0.5 ${canManage ? 'hover:border-gray-400 hover:text-gray-500 cursor-pointer' : 'cursor-default'}`}
-                                >
-                                    + Link Epic
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                );
-            })}
+            {tasks.map(task => (
+                <TaskRow 
+                    key={task.id} 
+                    task={task} 
+                    epics={epics} 
+                    onUpdateTask={onUpdateTask} 
+                    onFindFit={onFindFit} 
+                    canManage={canManage} 
+                    currentUserId={currentUserId} 
+                    setOpenEpicModal={setOpenEpicModal} 
+                />
+            ))}
             
             {!tasks.length && (
                 <div className="py-8 text-center text-xs text-gray-400">No tasks in this group.</div>
@@ -562,7 +517,7 @@ function SprintTable({ tasks, epics, onUpdateTask, onFindFit, canManage, project
     );
 }
 
-function SprintGroup({ sprint, tasks, epics, defaultOpen = true, onUpdateTask, onUpdateSprintStatus, onFindFit, canManage, projectId, tenantId, currentUserId }) {
+function SprintGroup({ sprint, tasks, epics, defaultOpen = true, onUpdateTask, onUpdateSprintStatus, onEditSprint, onFindFit, canManage, projectId, tenantId, currentUserId }) {
     const [isOpen, setIsOpen] = useState(defaultOpen);
 
     const isCompleted = sprint.status === 'completed';
@@ -591,7 +546,11 @@ function SprintGroup({ sprint, tasks, epics, defaultOpen = true, onUpdateTask, o
                 </span>
 
                 <div className="ml-auto flex items-center gap-4" onClick={e => e.stopPropagation()}>
-                    <button className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-700 dark:text-slate-400 hover:dark:text-slate-200" title="Change dates (Manager only)">
+                    <button
+                        onClick={() => canManage && !isCompleted && onEditSprint(sprint)}
+                        className={`flex items-center gap-1.5 text-xs font-semibold transition-colors ${canManage && !isCompleted ? 'text-gray-500 hover:text-brand dark:text-slate-400 dark:hover:text-brand-light cursor-pointer' : 'text-gray-400 dark:text-slate-600 cursor-default'}`}
+                        title={canManage && !isCompleted ? 'Edit sprint details' : isCompleted ? 'Completed sprints cannot be edited' : 'Managers only'}
+                    >
                         <CalendarDays className="w-3.5 h-3.5" />
                         {sprint.start_date && sprint.end_date ? (
                             <span>{new Date(sprint.start_date).toLocaleDateString('en-US', {month:'short', day:'numeric'})} - {new Date(sprint.end_date).toLocaleDateString('en-US', {month:'short', day:'numeric'})}</span>
@@ -671,6 +630,289 @@ function BacklogGroup({ tasks, epics, defaultOpen = true, onUpdateTask, onFindFi
     );
 }
 
+function EditSprintModal({ isOpen, onClose, sprint, onSubmit, isSubmitting, validationErrors }) {
+    if (!isOpen || !sprint) return null;
+
+    const toInputDate = (val) => {
+        if (!val) return '';
+        if (typeof val === 'string' && val.includes('T')) return val.split('T')[0];
+        if (typeof val === 'string') return val;
+        return new Date(val).toISOString().split('T')[0];
+    };
+
+    const [formState, setFormState] = useState({
+        name: sprint.name || '',
+        goal: sprint.goal || '',
+        start_date: toInputDate(sprint.start_date),
+        end_date: toInputDate(sprint.end_date),
+    });
+
+    // Sync form when sprint prop changes (e.g. switching which sprint to edit)
+    useEffect(() => {
+        setFormState({
+            name: sprint.name || '',
+            goal: sprint.goal || '',
+            start_date: toInputDate(sprint.start_date),
+            end_date: toInputDate(sprint.end_date),
+        });
+    }, [sprint.id]);
+
+    const setDuration = (weeks) => {
+        if (!formState.start_date) return;
+        const d = new Date(formState.start_date);
+        d.setDate(d.getDate() + (weeks * 7));
+        setFormState(s => ({ ...s, end_date: d.toISOString().split('T')[0] }));
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onSubmit(sprint.id, formState);
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm" onClick={onClose}>
+            <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900 border border-gray-100 dark:border-slate-800" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4 dark:border-slate-800">
+                    <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Edit Sprint</h2>
+                    <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"><X className="h-5 w-5" /></button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="mb-1 block text-sm font-bold text-gray-700 dark:text-slate-300">Sprint name</label>
+                        <input
+                            type="text"
+                            required
+                            value={formState.name}
+                            onChange={e => setFormState(s => ({ ...s, name: e.target.value }))}
+                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                        />
+                        {validationErrors?.name && <p className="mt-1 text-xs text-red-500">{validationErrors.name[0]}</p>}
+                    </div>
+
+                    <div>
+                        <label className="mb-1 block text-sm font-bold text-gray-700 dark:text-slate-300">Sprint dates</label>
+                        <div className="flex gap-3">
+                            <div className="flex-1">
+                                <input
+                                    type="date"
+                                    required
+                                    value={formState.start_date}
+                                    onChange={e => setFormState(s => ({ ...s, start_date: e.target.value }))}
+                                    className="w-full rounded-lg border border-gray-200 p-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                                />
+                            </div>
+                            <div className="flex items-center justify-center text-gray-400">-</div>
+                            <div className="flex-1">
+                                <input
+                                    type="date"
+                                    required
+                                    value={formState.end_date}
+                                    onChange={e => setFormState(s => ({ ...s, end_date: e.target.value }))}
+                                    min={formState.start_date}
+                                    className="w-full rounded-lg border border-gray-200 p-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                                />
+                            </div>
+                        </div>
+                        {validationErrors?.start_date && <p className="mt-1 text-xs text-red-500">{validationErrors.start_date[0]}</p>}
+                        {validationErrors?.end_date && <p className="mt-1 text-xs text-red-500">{validationErrors.end_date[0]}</p>}
+
+                        <div className="mt-2 flex gap-2">
+                            {[1, 2, 3, 4].map(w => (
+                                <button
+                                    key={w}
+                                    type="button"
+                                    onClick={() => setDuration(w)}
+                                    className="rounded-full bg-brand/10 px-3 py-1 text-[10px] font-bold text-brand hover:bg-brand/20 dark:bg-brand/20 dark:text-brand-light"
+                                >
+                                    {w} Week{w > 1 ? 's' : ''}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="mb-1 block text-sm font-bold text-gray-700 dark:text-slate-300">Sprint goal</label>
+                        <textarea
+                            rows="2"
+                            placeholder="Enter sprint goals"
+                            value={formState.goal}
+                            onChange={e => setFormState(s => ({ ...s, goal: e.target.value }))}
+                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                        ></textarea>
+                        {validationErrors?.goal && <p className="mt-1 text-xs text-red-500">{validationErrors.goal[0]}</p>}
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 mt-6 dark:border-slate-800">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            disabled={isSubmitting}
+                            className="rounded-lg px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-slate-800"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={isSubmitting}
+                            className="rounded-lg bg-brand px-5 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-dark disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {isSubmitting ? 'Saving...' : 'Save Changes'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+function CreateSprintModal({ isOpen, onClose, sprintCount, activeSprintName, onSubmit, isSubmitting, validationErrors }) {
+    if (!isOpen) return null;
+
+    const [formState, setFormState] = useState({
+        name: `Sprint ${sprintCount + 1}`,
+        goal: '',
+        start_date: new Date().toISOString().split('T')[0],
+        end_date: (() => {
+            const d = new Date();
+            d.setDate(d.getDate() + 14); // 2 weeks default
+            return d.toISOString().split('T')[0];
+        })(),
+        status: 'planned'
+    });
+
+    const setDuration = (weeks) => {
+        if (!formState.start_date) return;
+        const d = new Date(formState.start_date);
+        d.setDate(d.getDate() + (weeks * 7));
+        setFormState(s => ({ ...s, end_date: d.toISOString().split('T')[0] }));
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onSubmit(formState);
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm" onClick={onClose}>
+            <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900 border border-gray-100 dark:border-slate-800" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4 dark:border-slate-800">
+                    <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Create new sprint</h2>
+                    <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"><X className="h-5 w-5" /></button>
+                </div>
+                
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <div className="flex items-center justify-between">
+                            <label className="mb-1 block text-sm font-bold text-gray-700 dark:text-slate-300">Sprint name</label>
+                            {activeSprintName && <span className="text-[10px] text-gray-500 font-medium">Last sprint created: <span className="text-emerald-500">•</span> {activeSprintName}</span>}
+                        </div>
+                        <input 
+                            type="text" 
+                            required
+                            value={formState.name}
+                            onChange={e => setFormState(s => ({ ...s, name: e.target.value }))}
+                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                        />
+                        {validationErrors?.name && <p className="mt-1 text-xs text-red-500">{validationErrors.name[0]}</p>}
+                    </div>
+
+                    <div>
+                        <label className="mb-1 block text-sm font-bold text-gray-700 dark:text-slate-300">Sprint dates</label>
+                        <div className="flex gap-3">
+                            <div className="flex-1">
+                                <input 
+                                    type="date" 
+                                    required
+                                    value={formState.start_date}
+                                    onChange={e => {
+                                        setFormState(s => ({ ...s, start_date: e.target.value }));
+                                    }}
+                                    className="w-full rounded-lg border border-gray-200 p-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                                />
+                            </div>
+                            <div className="flex items-center justify-center text-gray-400">-</div>
+                            <div className="flex-1">
+                                <input 
+                                    type="date" 
+                                    required
+                                    value={formState.end_date}
+                                    onChange={e => setFormState(s => ({ ...s, end_date: e.target.value }))}
+                                    min={formState.start_date}
+                                    className="w-full rounded-lg border border-gray-200 p-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                                />
+                            </div>
+                        </div>
+                        {validationErrors?.start_date && <p className="mt-1 text-xs text-red-500">{validationErrors.start_date[0]}</p>}
+                        {validationErrors?.end_date && <p className="mt-1 text-xs text-red-500">{validationErrors.end_date[0]}</p>}
+
+                        <div className="mt-2 flex gap-2">
+                            {[1, 2, 3, 4].map(w => (
+                                <button
+                                    key={w}
+                                    type="button"
+                                    onClick={() => setDuration(w)}
+                                    className="rounded-full bg-brand/10 px-3 py-1 text-[10px] font-bold text-brand hover:bg-brand/20 dark:bg-brand/20 dark:text-brand-light"
+                                >
+                                    {w} Week{w > 1 ? 's' : ''}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="mb-1 block text-sm font-bold text-gray-700 dark:text-slate-300">Sprint goal</label>
+                        <textarea 
+                            rows="2"
+                            placeholder="Enter sprint goals"
+                            value={formState.goal}
+                            onChange={e => setFormState(s => ({ ...s, goal: e.target.value }))}
+                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                        ></textarea>
+                        {validationErrors?.goal && <p className="mt-1 text-xs text-red-500">{validationErrors.goal[0]}</p>}
+                    </div>
+
+                    <div>
+                        <label className="mb-1 block text-sm font-bold text-gray-700 dark:text-slate-300">Status</label>
+                        <select 
+                            value={formState.status}
+                            onChange={e => setFormState(s => ({ ...s, status: e.target.value }))}
+                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                        >
+                            <option value="planned">Planned (Start later)</option>
+                            <option value="active">Active (Start immediately)</option>
+                        </select>
+                        {formState.status === 'active' && activeSprintName && (
+                            <div className="mt-2 text-xs font-medium text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 p-2 rounded-lg">
+                                Starting this sprint will automatically complete the currently active sprint ({activeSprintName}).
+                            </div>
+                        )}
+                        {validationErrors?.status && <p className="mt-1 text-xs text-red-500">{validationErrors.status[0]}</p>}
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 mt-6 dark:border-slate-800">
+                        <button 
+                            type="button"
+                            onClick={onClose}
+                            disabled={isSubmitting}
+                            className="rounded-lg px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-slate-800"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            type="submit"
+                            disabled={isSubmitting}
+                            className="rounded-lg bg-brand px-5 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-dark disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {isSubmitting ? 'Creating...' : 'Create Sprint'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
 export default function SprintBreakdown({ sprints: initialSprints, backlogTasks: initialBacklog, epics, project, tenantId, canManage, onNewTask, onFindFit }) {
     const [sprints, setSprints] = useState(initialSprints || []);
     const [backlogTasks, setBacklogTasks] = useState(initialBacklog || []);
@@ -692,7 +934,69 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
     
     const [isSubmittingClosure, setIsSubmittingClosure] = useState(false);
 
-    // Optimistic background task update
+    const [isCreateSprintModalOpen, setIsCreateSprintModalOpen] = useState(false);
+    const [isCreatingSprint, setIsCreatingSprint] = useState(false);
+    const [createSprintValidationErrors, setCreateSprintValidationErrors] = useState(null);
+
+    const handleCreateSprint = async (formState) => {
+        setIsCreatingSprint(true);
+        setCreateSprintValidationErrors(null);
+        try {
+            const res = await axios.post(route('tenant.projects.sprints.store', { tenant: tenantId, project: project.id }), formState);
+            const newSprint = { ...res.data.sprint, tasks: [] };
+            
+            setSprints(current => {
+                let updated = [...current];
+                if (formState.status === 'active') {
+                    updated = updated.map(s => s.status === 'active' ? { ...s, status: 'completed' } : s);
+                }
+                return [newSprint, ...updated];
+            });
+
+            setIsCreateSprintModalOpen(false);
+        } catch (e) {
+            console.error('Failed to create sprint', e);
+            if (e.response?.status === 422) {
+                setCreateSprintValidationErrors(e.response.data.errors);
+            } else {
+                alert(e.response?.data?.message || 'Failed to create sprint.');
+            }
+        } finally {
+            setIsCreatingSprint(false);
+        }
+    };
+
+    const [editingSprintData, setEditingSprintData] = useState(null);
+    const [isEditingSprintSubmitting, setIsEditingSprintSubmitting] = useState(false);
+    const [editSprintValidationErrors, setEditSprintValidationErrors] = useState(null);
+
+    const handleEditSprint = async (sprintId, updates) => {
+        setIsEditingSprintSubmitting(true);
+        setEditSprintValidationErrors(null);
+        try {
+            const res = await axios.patch(
+                route('tenant.projects.sprints.update-details', { tenant: tenantId, project: project.id, sprint: sprintId }),
+                updates
+            );
+            const updated = res.data.sprint;
+            setSprints(current => current.map(s =>
+                s.id === sprintId
+                    ? { ...s, name: updated.name, goal: updated.goal, start_date: updated.start_date, end_date: updated.end_date }
+                    : s
+            ));
+            setEditingSprintData(null);
+        } catch (e) {
+            console.error('Failed to update sprint', e);
+            if (e.response?.status === 422) {
+                setEditSprintValidationErrors(e.response.data.errors);
+            } else {
+                alert(e.response?.data?.message || 'Failed to update sprint.');
+            }
+        } finally {
+            setIsEditingSprintSubmitting(false);
+        }
+    };
+
     const handleUpdateTaskInline = async (taskId, updates) => {
         // Optimistic update
         const applyUpdates = (tasks) => tasks.map(t => {
@@ -820,10 +1124,18 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
     };
 
     return (
-        <div className="flex flex-col h-full bg-white dark:bg-slate-950">
+        <div className="flex flex-col h-full bg-slate-50/50 dark:bg-slate-950">
             {/* Top Toolbar */}
-            <div className="flex items-center justify-between border-b border-gray-100 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900 shrink-0">
+            <div className="flex items-center justify-between px-6 pt-6 pb-2 shrink-0">
+                <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">Sprint Planning</h1>
                 <div className="flex items-center gap-3">
+                    <button 
+                        onClick={() => canManage && setIsCreateSprintModalOpen(true)}
+                        disabled={!canManage}
+                        className={`inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold shadow-sm transition-colors ${canManage ? 'bg-white text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700' : 'bg-gray-50 text-gray-400 opacity-60 cursor-not-allowed dark:bg-slate-800/50 dark:text-slate-500'}`}
+                    >
+                        Create Sprint
+                    </button>
                     <button 
                         onClick={onNewTask}
                         className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-brand-dark"
@@ -831,23 +1143,11 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
                         <Plus className="h-4 w-4" />
                         New Task
                     </button>
-                    <button 
-                        disabled
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 shadow-sm opacity-50 cursor-not-allowed dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                    >
-                        Create Sprint
-                    </button>
-                </div>
-                <div className="flex items-center gap-4">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                        <input type="text" placeholder="Search tasks..." className="w-64 rounded-xl border border-gray-200 bg-gray-50 py-2 pl-9 pr-4 text-sm outline-none focus:border-brand focus:bg-white dark:border-slate-700 dark:bg-slate-800/50 dark:focus:bg-slate-800" />
-                    </div>
                 </div>
             </div>
 
             {/* Scrollable Area */}
-            <div className="flex-1 overflow-auto p-6 bg-slate-50/50 dark:bg-slate-950">
+            <div className="flex-1 overflow-auto px-6 pb-6 pt-2">
                 {sprints.map(sprint => (
                     <SprintGroup 
                         key={sprint.id}
@@ -856,6 +1156,7 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
                         epics={epics}
                         onUpdateTask={handleUpdateTaskInline}
                         onUpdateSprintStatus={handleRequestSprintAction}
+                        onEditSprint={(s) => { setEditSprintValidationErrors(null); setEditingSprintData(s); }}
                         onFindFit={onFindFit}
                         canManage={canManage}
                         projectId={project.id}
@@ -885,6 +1186,24 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
                 onConfirm={handleConfirmSprintAction}
                 isSubmitting={isSubmittingClosure}
                 pendingStartSprintId={closureModal.pendingStartSprintId}
+            />
+
+            <CreateSprintModal
+                isOpen={isCreateSprintModalOpen}
+                onClose={() => setIsCreateSprintModalOpen(false)}
+                sprintCount={sprints.length}
+                activeSprintName={sprints.find(s => s.status === 'active' || s.status === 'completed')?.name}
+                onSubmit={handleCreateSprint}
+                isSubmitting={isCreatingSprint}
+                validationErrors={createSprintValidationErrors}
+            />
+            <EditSprintModal
+                isOpen={editingSprintData !== null}
+                onClose={() => setEditingSprintData(null)}
+                sprint={editingSprintData}
+                onSubmit={handleEditSprint}
+                isSubmitting={isEditingSprintSubmitting}
+                validationErrors={editSprintValidationErrors}
             />
         </div>
     );

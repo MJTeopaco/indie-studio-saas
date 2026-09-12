@@ -708,7 +708,7 @@ function Timeline({ tasks, project, onEdit }) {
     );
 }
 
-export default function Show({ project, studio, teamMembers, auth, skills = [], positions = [], epics = [], epicPhases = [], epicPriorities = [], sprints = [], backlogTasks = [] }) {
+export default function Show({ project, studio, teamMembers, auth, skills = [], positions = [], epics = [], epicGroups = [], epicPhases = [], epicPriorities = [], sprints = [], backlogTasks = [] }) {
     const pageProps = usePage().props;
     const { canManage } = pageProps;
     const [activeView, setActiveView] = useState('dashboard');
@@ -850,6 +850,7 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                     {activeView === 'epic' && (
                         <EpicBreakdown
                             epics={epics}
+                            epicGroups={epicGroups}
                             epicPhases={epicPhases}
                             epicPriorities={epicPriorities}
                             project={project}

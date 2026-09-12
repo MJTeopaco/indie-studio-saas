@@ -83,8 +83,9 @@ class TenantProjectController extends Controller
             'epics' => function ($query) {
                 $query->withCount('tasks')
                       ->withSum('tasks', 'estimated_hours')
+                      ->withSum('tasks', 'story_points')
                       ->with(['phase', 'priority', 'tasks' => function ($q) {
-                          $q->select('id', 'epic_id', 'title', 'status');
+                          $q->select('id', 'epic_id', 'title', 'status', 'sprint_status');
                       }]);
             }
         ])->findOrFail($project);
@@ -131,6 +132,9 @@ class TenantProjectController extends Controller
                 'tasks' => $projectModel->tasks,
             ],
             'epics' => $projectModel->epics,
+            'epicGroups' => function () use ($projectModel) {
+                return $projectModel->epicGroups()->orderBy('is_default', 'asc')->orderBy('display_order', 'asc')->get();
+            },
             'sprints' => function () use ($projectModel, &$assignmentIdsByTask, &$membersById) {
                 return $projectModel->sprints()
                     ->orderBy('created_at')
@@ -599,7 +603,50 @@ class TenantProjectController extends Controller
     }
 
     /**
-     * Update an epic's phase and priority.
+     * Store a newly created epic in storage.
+     */
+    public function storeEpic(Request $request, $project)
+    {
+        $projectModel = Project::findOrFail($project);
+        $tenantId = tenant('id') ?? 'default';
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'epic_group_id' => 'nullable|exists:epic_groups,id',
+            'phase_id' => 'required|exists:epic_phases,id',
+            'priority_id' => 'required|exists:epic_priorities,id',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
+        ]);
+
+        // Default to the Epics Backlog if no group is provided
+        if (empty($validated['epic_group_id'])) {
+            $defaultGroup = $projectModel->epicGroups()->where('is_default', true)->first();
+            $validated['epic_group_id'] = $defaultGroup?->id;
+        }
+
+        $epicPhase = EpicPhase::where('tenant_id', $tenantId)->find($validated['phase_id']);
+        $epicPriority = EpicPriority::where('tenant_id', $tenantId)->find($validated['priority_id']);
+
+        if (!$epicPhase || !$epicPriority) {
+            abort(400, 'Invalid phase or priority for this tenant.');
+        }
+
+        $projectModel->epics()->create([
+            'name' => $validated['name'],
+            'epic_group_id' => $validated['epic_group_id'],
+            'phase_id' => $epicPhase->id,
+            'priority_id' => $epicPriority->id,
+            'start_date' => $validated['start_date'] ?? null,
+            'end_date' => $validated['end_date'] ?? null,
+            'color' => '#10b981', // Default green, can be changed later
+        ]);
+
+        return redirect()->back()->with('success', 'Epic created successfully.');
+    }
+
+    /**
+     * Update an epic's attributes.
      */
     public function updateEpic(Request $request, $project, $epic, $routeEpic = null)
     {
@@ -623,8 +670,12 @@ class TenantProjectController extends Controller
         }
 
         $validated = $request->validate([
+            'name' => 'nullable|string|max:255',
             'phase_id' => 'nullable|integer',
             'priority_id' => 'nullable|integer',
+            'epic_group_id' => 'nullable|exists:epic_groups,id',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
         ]);
 
         $tenantId = tenant('id') ?? 'default';
@@ -645,7 +696,7 @@ class TenantProjectController extends Controller
 
         $epicModel->update($validated);
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if (!$request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
             return response()->json([
                 'status' => 'success',
                 'epic' => $epicModel->load('phase', 'priority'),
@@ -806,8 +857,64 @@ class TenantProjectController extends Controller
     }
 
     /**
+     * Update a sprint's details (name, goal, dates).
+     * Intentionally separate from updateSprintStatus to keep concerns clean.
+     */
+    public function updateSprint(Request $request, $project, $sprint, $routeSprint = null)
+    {
+        $this->authorizeManager();
+
+        if ($routeSprint !== null) {
+            $project = $sprint;
+            $sprint  = $routeSprint;
+        }
+
+        $projectModel = Project::findOrFail($project);
+        if ($projectModel->tenant_id && $projectModel->tenant_id !== tenant('id')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $sprintModel = Sprint::findOrFail($sprint);
+        if ($sprintModel->project_id !== $projectModel->id) {
+            abort(404, 'Sprint not found in this project.');
+        }
+
+        $validated = $request->validate([
+            'name'       => 'required|string|max:255',
+            'goal'       => 'nullable|string',
+            'start_date' => 'required|date',
+            'end_date'   => 'required|date|after:start_date',
+        ]);
+
+        // Validate unique name within project, excluding the current sprint
+        $exists = Sprint::where('project_id', $projectModel->id)
+            ->where('name', $validated['name'])
+            ->where('id', '!=', $sprintModel->id)
+            ->exists();
+
+        if ($exists) {
+            return response()->json([
+                'message' => 'The given data was invalid.',
+                'errors'  => ['name' => ['A sprint with this name already exists in this project.']],
+            ], 422);
+        }
+
+        $sprintModel->update($validated);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'status' => 'success',
+                'sprint' => $sprintModel,
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Sprint updated successfully.');
+    }
+
+    /**
      * Update a sprint's status.
      */
+
     public function updateSprintStatus(Request $request, $project, $sprint, $routeSprint = null)
     {
         $this->authorizeManager();
