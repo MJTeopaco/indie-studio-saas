@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { showToast } from '@/Components/SystemToast';
 
 // ── Inline Icons ──────────────────────────────────────────────────────────────
 const PlusIcon = () => (
@@ -182,7 +183,7 @@ export default function BoardView({ tasks = [], onTaskClick, onStatusChange }) {
     const [hoveredColId, setHoveredColId] = useState(null);
 
     const handleAddTask = (colId) => {
-        alert(`Add task to "${COLUMN_CONFIG[colId].title}" — modal coming soon!`);
+        showToast(`Add task to "${COLUMN_CONFIG[colId].title}" — modal coming soon!`, 'info');
     };
 
     const handleDropTask = (status) => {

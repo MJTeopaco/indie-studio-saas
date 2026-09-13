@@ -6,6 +6,7 @@ import ListView     from '@/Components/Tenant/Tasks/ListView';
 import TimelineView from '@/Components/Tenant/Tasks/TimelineView';
 import DueView      from '@/Components/Tenant/Tasks/DueView';
 import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
+import MemberTaskDetailModal from '@/Components/Tenant/Tasks/MemberTaskDetailModal';
 
 // ── Inline Icons ──────────────────────────────────────────────────────────────
 const PlusIcon = () => (
@@ -48,8 +49,9 @@ const VIEWS = [
     { key: 'due',      label: 'Due Tasks' },
 ];
 
-export default function TasksIndex({ studio, projects = [], tasks = {} }) {
-    const { activeWorkspace } = usePage().props;
+export default function TasksIndex({ studio, projects = [], tasks = {}, isManager = false }) {
+    const { activeWorkspace, canManage = false } = usePage().props;
+    const hasManagerRights = isManager || Boolean(canManage);
 
     // Active view tab
     const [activeView, setActiveView] = useState('board');
@@ -186,7 +188,14 @@ export default function TasksIndex({ studio, projects = [], tasks = {} }) {
                                     href={route('tenant.projects.show', { tenant: activeWorkspace, project: selectedProjectId })}
                                     className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm transition-all"
                                 >
-                                    <PlusIcon /> Manage Tasks
+                                    {hasManagerRights ? (
+                                        <>
+                                            <PlusIcon />
+                                            <span>Manage Tasks</span>
+                                        </>
+                                    ) : (
+                                        <span>Project Details</span>
+                                    )}
                                 </Link>
                             )}
                         </div>
@@ -266,15 +275,33 @@ export default function TasksIndex({ studio, projects = [], tasks = {} }) {
                 <div className="fixed inset-0 z-40" onClick={() => setProjectDropdownOpen(false)} />
             )}
 
-            {/* Modal for updating and completing a task (accessible to both managers and members) */}
+            {/* Modal for updating task */}
             {taskModalOpen && selectedTask && (
-                <ManualTaskModal
-                    isOpen={taskModalOpen}
-                    onClose={() => { setTaskModalOpen(false); setSelectedTask(null); }}
-                    project={projects.find(p => p.id === selectedTask.project_id) || selectedProject}
-                    editingTask={selectedTask}
-                    tenantId={activeWorkspace}
-                />
+                hasManagerRights ? (
+                    <ManualTaskModal
+                        isOpen={taskModalOpen}
+                        onClose={() => { setTaskModalOpen(false); setSelectedTask(null); }}
+                        project={projects.find(p => p.id === selectedTask.project_id) || selectedProject}
+                        editingTask={selectedTask}
+                        tenantId={activeWorkspace}
+                    />
+                ) : (
+                    <MemberTaskDetailModal
+                        isOpen={taskModalOpen}
+                        onClose={() => { setTaskModalOpen(false); setSelectedTask(null); }}
+                        task={selectedTask}
+                        tenantId={activeWorkspace}
+                        currentUserId={usePage().props.auth?.user?.id}
+                        onTaskUpdated={(updatedTask) => {
+                            setLocalTasksMap(prev => {
+                                const copy = { ...prev };
+                                const projectList = copy[updatedTask.project_id] || [];
+                                copy[updatedTask.project_id] = projectList.map(t => t.id === updatedTask.id ? { ...t, ...updatedTask } : t);
+                                return copy;
+                            });
+                        }}
+                    />
+                )
             )}
         </TenantLayout>
     );

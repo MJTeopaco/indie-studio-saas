@@ -4,6 +4,8 @@ import axios from 'axios';
 import { router, usePage } from '@inertiajs/react';
 import PortaledPopover from '@/Components/UI/PortaledPopover';
 import PortaledTooltip from '@/Components/UI/PortaledTooltip';
+import ConfirmationModal from '@/Components/ConfirmationModal';
+import { showToast } from '@/Components/SystemToast';
 
 function getContrastColor(hexColor) {
     if (!hexColor) return '#111827';
@@ -926,6 +928,7 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
         targetSprintId: null,
         pendingStartSprintId: null,
     });
+    const [startSprintTarget, setStartSprintTarget] = useState(null);
 
     const [closureForm, setClosureForm] = useState({
         incompleteAction: 'move_to_backlog',
@@ -960,7 +963,7 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
             if (e.response?.status === 422) {
                 setCreateSprintValidationErrors(e.response.data.errors);
             } else {
-                alert(e.response?.data?.message || 'Failed to create sprint.');
+                showToast(e.response?.data?.message || 'Failed to create sprint.', 'error');
             }
         } finally {
             setIsCreatingSprint(false);
@@ -991,7 +994,7 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
             if (e.response?.status === 422) {
                 setEditSprintValidationErrors(e.response.data.errors);
             } else {
-                alert(e.response?.data?.message || 'Failed to update sprint.');
+                showToast(e.response?.data?.message || 'Failed to update sprint.', 'error');
             }
         } finally {
             setIsEditingSprintSubmitting(false);
@@ -1020,7 +1023,7 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
         } catch (e) {
             console.error('Failed to update task inline', e);
             // Revert changes could be implemented here if needed by keeping original state copy
-            alert(e.response?.data?.message || 'Failed to update task.');
+            showToast(e.response?.data?.message || 'Failed to update task.', 'error');
         }
     };
 
@@ -1044,13 +1047,11 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
                     });
                 } catch (e) {
                     console.error('Failed to fetch sprint summary', e);
-                    alert('Could not prepare sprint closure.');
+                    showToast('Could not prepare sprint closure.', 'error');
                 }
             } else {
-                // No active sprint, just start immediately
-                if (confirm('Start this sprint?')) {
-                    handleUpdateSprintStatus(sprintId, 'active');
-                }
+                // No active sprint, open confirmation modal to start
+                setStartSprintTarget(sprintId);
             }
         } else if (actionType === 'completed') {
             // Normal complete flow
@@ -1069,7 +1070,7 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
                 });
             } catch (e) {
                 console.error('Failed to fetch sprint summary', e);
-                alert('Could not prepare sprint closure.');
+                showToast('Could not prepare sprint closure.', 'error');
             }
         }
     };
@@ -1103,7 +1104,7 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
             }
         } catch (e) {
             console.error('Failed to close sprint', e);
-            alert(e.response?.data?.message || 'Failed to complete sprint.');
+            showToast(e.response?.data?.message || 'Failed to complete sprint.', 'error');
             setIsSubmittingClosure(false);
         }
     };
@@ -1205,6 +1206,23 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
                 onSubmit={handleEditSprint}
                 isSubmitting={isEditingSprintSubmitting}
                 validationErrors={editSprintValidationErrors}
+            />
+
+            <ConfirmationModal
+                isOpen={!!startSprintTarget}
+                onClose={() => setStartSprintTarget(null)}
+                onConfirm={() => {
+                    if (startSprintTarget) {
+                        handleUpdateSprintStatus(startSprintTarget, 'active');
+                        setStartSprintTarget(null);
+                        showToast('Sprint started successfully.', 'success');
+                    }
+                }}
+                title="Start Sprint"
+                message="Are you sure you want to start this sprint? This will set it as the currently active sprint."
+                confirmText="Start Sprint"
+                cancelText="Cancel"
+                variant="brand"
             />
         </div>
     );

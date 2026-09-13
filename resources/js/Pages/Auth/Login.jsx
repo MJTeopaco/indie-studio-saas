@@ -7,6 +7,7 @@ import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
+import { showToast } from '@/Components/SystemToast';
 
 export default function Login({ status, canResetPassword }) {
     const { data, setData, post, processing, errors, reset } = useForm({
@@ -42,7 +43,7 @@ export default function Login({ status, canResetPassword }) {
             <div className="mb-6">
                 <button
                     type="button"
-                    onClick={() => alert('Google authentication placeholder')}
+                    onClick={() => showToast('Google authentication placeholder', 'info')}
                     className="w-full flex items-center justify-center rounded-lg border border-surface-border bg-transparent px-4 py-2.5 text-sm font-heading font-semibold text-text-primary hover:bg-brand-10 transition-colors"
                 >
                     <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">

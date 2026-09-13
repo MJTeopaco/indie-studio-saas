@@ -7,6 +7,8 @@ import RightSidebar from '@/Components/Tenant/Projects/RightSidebar';
 import SprintDecomposeModal from '@/Components/ML/SprintDecomposeModal';
 import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
 import CreateProjectModal from '@/Components/Tenant/Projects/CreateProjectModal';
+import ConfirmationModal from '@/Components/ConfirmationModal';
+import { showToast } from '@/Components/SystemToast';
 import { useChatSessions } from '@/hooks/useChatSessions';
 import { CheckSquare, Cpu, Calendar, Users, Paperclip, Mic, Send, Sparkles, Bot, X } from 'lucide-react';
 
@@ -101,7 +103,27 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
             setTimeout(() => { isRestoringRef.current = false; }, 50);
         });
     };
-    const handleDeleteChat = (id) => deleteSession(id, messages, setMessages);
+    const [chatToDelete, setChatToDelete] = useState(null);
+    const [isDeletingChat, setIsDeletingChat] = useState(false);
+
+    const handleDeleteChat = (id) => {
+        setChatToDelete(id);
+    };
+
+    const confirmDeleteChat = async () => {
+        if (!chatToDelete) return;
+        setIsDeletingChat(true);
+        try {
+            await deleteSession(chatToDelete, messages, setMessages);
+            showToast('Chat session deleted successfully.', 'info');
+        } catch (error) {
+            console.error('Failed to delete chat:', error);
+            showToast('Failed to delete chat session.', 'error');
+        } finally {
+            setIsDeletingChat(false);
+            setChatToDelete(null);
+        }
+    };
 
 
 
@@ -261,7 +283,7 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                 </h1>
                 <div className="flex items-center gap-4">
                     <button
-                        onClick={() => alert('StudioSprint Plan: Standard Account')}
+                        onClick={() => showToast('StudioSprint Plan: Standard Account', 'info')}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-dark text-white text-xs font-heading font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm shadow-brand/15"
                     >
                         <Sparkles className="w-3.5 h-3.5" />
@@ -438,7 +460,7 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                                 <div className="flex items-center gap-1">
                                     <button
                                         type="button"
-                                        onClick={() => alert('Attachment upload coming soon!')}
+                                        onClick={() => showToast('Attachment upload coming soon!', 'info')}
                                         className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-sans text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/60 transition-colors"
                                         title="Attach Sprint Doc or Spec"
                                     >
@@ -447,7 +469,7 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => alert('Voice input coming soon!')}
+                                        onClick={() => showToast('Voice input coming soon!', 'info')}
                                         className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-sans text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/60 transition-colors"
                                         title="Voice Input Prompt"
                                     >
@@ -456,7 +478,7 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => alert('Prompt library coming soon!')}
+                                        onClick={() => showToast('Prompt library coming soon!', 'info')}
                                         className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-sans text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/60 transition-colors"
                                         title="Browse Prompt Library"
                                     >
@@ -494,6 +516,18 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                     onDeleteChat={handleDeleteChat}
                 />
             </div>
+
+            <ConfirmationModal
+                isOpen={!!chatToDelete}
+                onClose={() => setChatToDelete(null)}
+                onConfirm={confirmDeleteChat}
+                title="Delete Chat Session"
+                message="Are you sure you want to delete this chat session? This action cannot be undone."
+                confirmText="Delete Chat"
+                cancelText="Keep Chat"
+                variant="danger"
+                isLoading={isDeletingChat}
+            />
         </TenantLayout>
     );
 }

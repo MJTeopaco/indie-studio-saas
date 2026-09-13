@@ -126,10 +126,6 @@ export function useChatSessions(studioId) {
     };
 
     const deleteSession = async (sessionId, currentMessages, setMessagesCallback) => {
-        if (!confirm('Delete this chat? This cannot be undone.')) {
-            return;
-        }
-
         try {
             await chatStore.deleteSession(studioId, sessionId);
             setSessions(prev => prev.filter(s => s.id !== sessionId));

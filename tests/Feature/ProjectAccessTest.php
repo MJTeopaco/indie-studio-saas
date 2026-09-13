@@ -17,9 +17,7 @@ class ProjectAccessTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->artisan('migrate', ['--path' => 'database/migrations/tenant/2026_07_10_000001_create_projects_table.php']);
-        $this->artisan('migrate', ['--path' => 'database/migrations/tenant/2026_07_10_000002_create_project_members_table.php']);
-        $this->artisan('migrate', ['--path' => 'database/migrations/tenant/2026_07_10_000003_create_tasks_table.php']);
+        $this->artisan('migrate', ['--path' => 'database/migrations/tenant']);
     }
 
     public function test_project_membership_and_policy_isolation(): void
@@ -30,11 +28,11 @@ class ProjectAccessTest extends TestCase
         ]);
         $project->id = 1;
 
-        $assignedUser = new User();
+        $assignedUser = new User;
         $assignedUser->id = 100;
         $assignedUser->role = User::ROLE_PROGRAMMER;
 
-        $unassignedUser = new User();
+        $unassignedUser = new User;
         $unassignedUser->id = 200;
         $unassignedUser->role = User::ROLE_PROGRAMMER;
 
@@ -47,7 +45,7 @@ class ProjectAccessTest extends TestCase
         $this->assertTrue($project->hasMember(100));
         $this->assertFalse($project->hasMember(200));
 
-        $policy = new ProjectPolicy();
+        $policy = new ProjectPolicy;
         $this->assertTrue($policy->view($assignedUser, $project));
         $this->assertFalse($policy->view($unassignedUser, $project));
     }
