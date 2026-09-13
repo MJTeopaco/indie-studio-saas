@@ -1,5 +1,6 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import { Link } from '@inertiajs/react';
+import SystemToast from '@/Components/SystemToast';
 
 export default function GuestLayout({ children }) {
     return (
@@ -24,6 +25,8 @@ export default function GuestLayout({ children }) {
                     © {new Date().getFullYear()} Vaultera Labs · StudioSprint
                 </p>
             </footer>
+
+            <SystemToast />
         </div>
     );
 }

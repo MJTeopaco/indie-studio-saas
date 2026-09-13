@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Head, usePage } from '@inertiajs/react';
 import TenantLayout from '@/Layouts/TenantLayout';
+import { showToast } from '@/Components/SystemToast';
 
 // ── High-Fidelity SVG Icons ──────────────────────────────────────────────────
 const TasksIcon = () => (
@@ -513,7 +514,7 @@ export default function Overview({ projects: propProjects = [], stats: propStats
                                     <span>Filter</span>
                                 </button>
                                 <button 
-                                    onClick={() => alert("Add Schedule modal coming soon!")}
+                                    onClick={() => showToast("Add Schedule modal coming soon!", "info")}
                                     className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#4f46e5] hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition-all"
                                 >
                                     <span className="text-sm font-semibold">+</span>

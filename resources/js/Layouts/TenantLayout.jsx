@@ -1,6 +1,7 @@
 import React from 'react';
 import { usePage } from '@inertiajs/react';
 import Sidebar from '@/Components/Sidebar';
+import SystemToast from '@/Components/SystemToast';
 
 /**
  * Workspace-aware layout for all tenant (studio) pages.
@@ -22,6 +23,9 @@ export default function TenantLayout({ children, studioName }) {
                     {children}
                 </main>
             </div>
+
+            {/* Global system toast notifications */}
+            <SystemToast />
         </div>
     );
 }
