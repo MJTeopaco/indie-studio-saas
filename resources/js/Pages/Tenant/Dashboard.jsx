@@ -60,7 +60,7 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
     const studioName = studio?.name || 'Pixel Play Studio';
 
     const [prompt, setPrompt] = useState('');
-    const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id || '');
+    const [selectedProjectId, setSelectedProjectId] = useState('');
     const [messages, setMessages] = useState([]);
     const [generation, setGeneration] = useState(null);
 
