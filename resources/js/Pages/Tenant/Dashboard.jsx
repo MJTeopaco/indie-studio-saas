@@ -377,7 +377,10 @@ Done when: [Acceptance criteria — how we'll know it's finished]`;
                     {isPlanOpen && pendingProjectPlan && (
                         <HierarchicalDecompositionModal
                             isOpen={isPlanOpen}
-                            onClose={() => setIsPlanOpen(false)}
+                            onClose={() => {
+                                setIsPlanOpen(false);
+                                setPendingProjectPlan(null);
+                            }}
                             projectId={selectedProjectId}
                             tenantId={studio.id}
                             teamMembers={teamMembers}
@@ -391,7 +394,6 @@ Done when: [Acceptance criteria — how we'll know it's finished]`;
                         isOpen={isProjectCreationOpen}
                         onClose={() => {
                             setIsProjectCreationOpen(false);
-                            setPendingProjectPlan(null);
                         }}
                         onCreated={handleProjectCreated}
                         initialTitle={pendingProjectPlan?.name || ''}
