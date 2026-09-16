@@ -33,31 +33,47 @@ const SPRINT_PRIORITIES = [
     { value: 'low', label: 'Low', color: '#10b981' },           // Green
 ];
 
-const TASK_TYPES = [
-    { value: 'Feature', label: 'Feature', color: '#10b981' },
-    { value: 'Bug', label: 'Bug', color: '#ef4444' },
-    { value: 'Research', label: 'Research', color: '#8b5cf6' },
-    { value: 'DevOps', label: 'DevOps', color: '#3b82f6' },
-    { value: 'Testing', label: 'Testing', color: '#f59e0b' },
-    { value: 'Documentation', label: 'Documentation', color: '#6b7280' },
-    { value: 'Refactor', label: 'Refactor', color: '#ec4899' },
-    { value: 'Quality', label: 'Quality', color: '#f472b6' } // Added from image
-];
+import { TASK_CLASSIFICATIONS_GROUPED, TASK_TYPE_HEX_COLORS } from '@/constants';
 
-function InlineSelectEditor({ options, currentValue, onSelect, onClose, triggerRef }) {
+function InlineSelectEditor({ options, groupedOptions, currentValue, onSelect, onClose, triggerRef }) {
     return (
-        <PortaledPopover isOpen={true} onClose={onClose} triggerRef={triggerRef} className="w-48 rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-slate-900">
-            <div className="max-h-48 overflow-y-auto space-y-1">
-                {options.map(opt => (
-                    <button
-                        key={opt.value}
-                        onClick={() => { onSelect(opt.value); onClose(); }}
-                        className={`w-full rounded px-2 py-1.5 text-left text-xs font-bold transition-colors flex items-center gap-2 hover:opacity-80`}
-                        style={{ backgroundColor: opt.color, color: getContrastColor(opt.color) }}
-                    >
-                        {opt.label}
-                    </button>
-                ))}
+        <PortaledPopover isOpen={true} onClose={onClose} triggerRef={triggerRef} className="w-56 rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-slate-900">
+            <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+                {groupedOptions ? (
+                    groupedOptions.map(group => (
+                        <div key={group.category} className="mb-2 last:mb-0">
+                            <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                {group.category}
+                            </div>
+                            <div className="space-y-0.5">
+                                {group.options.map(opt => {
+                                    const hexColor = TASK_TYPE_HEX_COLORS[opt] || '#10b981';
+                                    return (
+                                        <button
+                                            key={opt}
+                                            onClick={() => { onSelect(opt); onClose(); }}
+                                            className={`w-full rounded px-2 py-1.5 text-left text-[11px] font-bold transition-colors flex items-center gap-2 hover:opacity-80`}
+                                            style={{ backgroundColor: hexColor, color: getContrastColor(hexColor) }}
+                                        >
+                                            {opt}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ))
+                ) : (
+                    options.map(opt => (
+                        <button
+                            key={opt.value}
+                            onClick={() => { onSelect(opt.value); onClose(); }}
+                            className={`w-full rounded px-2 py-1.5 text-left text-xs font-bold transition-colors flex items-center gap-2 hover:opacity-80`}
+                            style={{ backgroundColor: opt.color, color: getContrastColor(opt.color) }}
+                        >
+                            {opt.label}
+                        </button>
+                    ))
+                )}
             </div>
         </PortaledPopover>
     );
@@ -332,7 +348,8 @@ function TaskRow({ task, epics, onUpdateTask, onFindFit, canManage, currentUserI
 
     const sStatus = SPRINT_STATUSES.find(s => s.value === (task.sprint_status || 'ready_to_start')) || SPRINT_STATUSES[0];
     const sPriority = SPRINT_PRIORITIES.find(p => p.value === (task.sprint_priority || 'medium')) || SPRINT_PRIORITIES[2];
-    const typeObj = TASK_TYPES.find(t => t.value === task.task_classification) || TASK_TYPES.find(t => t.value === 'Feature');
+    const hexColor = TASK_TYPE_HEX_COLORS[task.task_classification] || '#10b981';
+    const typeLabel = task.task_classification || 'Unclassified';
     const isEditable = canEditTask(task);
     const isDone = (task.sprint_status === 'done');
 
@@ -379,12 +396,13 @@ function TaskRow({ task, epics, onUpdateTask, onFindFit, canManage, currentUserI
                     ref={typeRef}
                     onClick={(e) => { e.stopPropagation(); isEditable && setOpenPopover('type'); }}
                     className={`w-full truncate rounded px-2 py-1.5 text-xs font-bold text-center transition-opacity ${isEditable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
-                    style={{ backgroundColor: typeObj?.color || '#6b7280', color: getContrastColor(typeObj?.color || '#6b7280') }}
                 >
-                    {task.task_classification || 'Unclassified'}
+                    <span className={`inline-block whitespace-nowrap rounded px-2 py-1 text-[10px] font-bold hover:opacity-80 transition-opacity`} style={{ backgroundColor: hexColor, color: getContrastColor(hexColor) }}>
+                        {typeLabel}
+                    </span>
                 </button>
                 {openPopover === 'type' && (
-                    <InlineSelectEditor options={TASK_TYPES} currentValue={task.task_classification} onSelect={(val) => onUpdateTask(task.id, { task_classification: val })} onClose={() => setOpenPopover(null)} triggerRef={typeRef} />
+                    <InlineSelectEditor groupedOptions={TASK_CLASSIFICATIONS_GROUPED} currentValue={task.task_classification} onSelect={(val) => onUpdateTask(task.id, { task_classification: val })} onClose={() => setOpenPopover(null)} triggerRef={typeRef} />
                 )}
             </div>
 

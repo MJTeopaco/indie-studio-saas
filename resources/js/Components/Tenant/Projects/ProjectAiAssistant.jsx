@@ -30,7 +30,7 @@ function CreateTaskActionCard({ payload, projectId, tenantId, canManage, onDismi
         estimated_hours: payload?.estimated_hours || 4,
         priority: payload?.priority || 'Medium',
         task_difficulty: payload?.task_difficulty || 'Medium',
-        task_classification: payload?.task_classification || 'Feature',
+        task_classification: payload?.task_classification || 'Feature Implementation',
         required_skills: payload?.required_skills || [],
     });
     const [isEditing, setIsEditing] = useState(false);

@@ -6,6 +6,7 @@ import {
     CheckCircle2, Clock, Zap, Brain, ListChecks,
     ChevronRight, AlertCircle, Plus, Layers, User, Users, ChevronDown, IterationCw
 } from 'lucide-react';
+import { TASK_CLASSIFICATIONS_GROUPED } from '@/constants';
 
 // ─── Canonical Skills Dictionary ──────────────────────────────────────────────
 export const CANONICAL_SKILLS_LIST = [
@@ -570,17 +571,19 @@ function EditableTaskCard({ task, index, updateTask, removeTask, teamMembers, fi
                         Type
                     </span>
                     <select
-                        value={task.task_classification || 'Feature'}
+                        value={task.task_classification || 'Feature Implementation'}
                         onChange={handleClassificationChange}
                         className="bg-transparent border-0 py-0 pl-1 pr-6 text-xs font-semibold text-gray-700 dark:text-slate-200 focus:ring-0 cursor-pointer"
                     >
-                        <option value="Feature" className="bg-white dark:bg-slate-900">Feature</option>
-                        <option value="Bug" className="bg-white dark:bg-slate-900">Bug</option>
-                        <option value="Model Training" className="bg-white dark:bg-slate-900">Model Training</option>
-                        <option value="UI/UX" className="bg-white dark:bg-slate-900">UI/UX</option>
-                        <option value="Refactor" className="bg-white dark:bg-slate-900">Refactor</option>
-                        <option value="Documentation" className="bg-white dark:bg-slate-900">Documentation</option>
-                        <option value="DevOps" className="bg-white dark:bg-slate-900">DevOps</option>
+                        {TASK_CLASSIFICATIONS_GROUPED.map(group => (
+                            <optgroup key={group.category} label={group.category} className="bg-white dark:bg-slate-900 text-slate-500 font-bold">
+                                {group.options.map(classification => (
+                                    <option key={classification} value={classification} className="text-slate-700 dark:text-slate-300 font-normal">
+                                        {classification}
+                                    </option>
+                                ))}
+                            </optgroup>
+                        ))}
                     </select>
                 </div>
 
@@ -709,7 +712,7 @@ export default function HierarchicalDecompositionModal({
                     required_skills: task.required_skills ?? [],
                     estimated_hours: task.estimated_hours ?? 4,
                     task_difficulty: task.task_difficulty ?? 'Medium',
-                    task_classification: task.task_classification ?? 'Feature',
+                    task_classification: task.task_classification ?? 'Feature Implementation',
                     priority: task.priority ?? 'Medium',
                 }, { timeout: 300000 });
 
