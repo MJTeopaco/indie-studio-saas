@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import axios from 'axios';
 import { Head, Link } from '@inertiajs/react';
 import TenantLayout from '@/Layouts/TenantLayout';
 import {
@@ -14,6 +15,7 @@ import {
     Grid,
     List,
     X,
+    Copy,
 } from 'lucide-react';
 import TeamMemberCard from '@/Components/Tenant/TeamMemberCard';
 import TeamTimeline from '@/Components/Tenant/TeamTimeline';
@@ -51,6 +53,24 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
     // UI state
     const [activeTab, setActiveTab] = useState('Team Overview');
     const [timelineMode, setTimelineMode] = useState('Day');
+    const [copying, setCopying] = useState(false);
+    
+    const copyInviteLink = async () => {
+        if (copying) return;
+        setCopying(true);
+        try {
+            const response = await axios.post(`/hub/studio/${studio.id}/invite`);
+            const token = response.data.code;
+            await navigator.clipboard.writeText(token);
+            
+            showToast('Invitation code copied to clipboard!', 'success');
+            setTimeout(() => setCopying(false), 2000);
+        } catch (error) {
+            console.error("Failed to generate invite link", error);
+            showToast('Failed to copy invitation code.', 'error');
+            setCopying(false);
+        }
+    };
     
     // Filter & Search states
     const [searchQuery, setSearchQuery] = useState('');
@@ -182,25 +202,11 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
                     {canManage && (
                         <div className="flex items-center gap-2.5">
                             <button
-                                onClick={() => showToast('Add Team Member modal placeholder', 'info')}
+                                onClick={copyInviteLink}
                                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-heading font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm shadow-brand/15"
                             >
-                                <UserPlus className="w-4 h-4" />
-                                <span>New Member</span>
-                            </button>
-                            <button
-                                onClick={() => showToast('New Project coming soon!', 'info')}
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-transparent border border-surface-border text-text-primary text-xs font-heading font-semibold hover:bg-white/10 dark:hover:bg-slate-800/40 transition-colors"
-                            >
-                                <FolderPlus className="w-4 h-4 text-text-muted" />
-                                <span>New Project</span>
-                            </button>
-                            <button
-                                onClick={() => showToast('New Task coming soon!', 'info')}
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-transparent border border-surface-border text-text-primary text-xs font-heading font-semibold hover:bg-white/10 dark:hover:bg-slate-800/40 transition-colors"
-                            >
-                                <Plus className="w-4 h-4 text-text-muted" />
-                                <span>New Task</span>
+                                <Copy className="w-4 h-4" />
+                                <span>{copying ? 'Copied Code!' : 'Copy Invite Code'}</span>
                             </button>
                         </div>
                     )}
@@ -244,11 +250,11 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
                         </p>
                         {canManage && (
                             <button
-                                onClick={() => showToast('Invite member triggered', 'info')}
+                                onClick={copyInviteLink}
                                 className="mt-6 inline-flex items-center gap-1.5 px-4 py-2.25 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-heading font-semibold transition-all hover:scale-105 active:scale-95 shadow-md shadow-brand/20"
                             >
-                                <UserPlus className="w-4 h-4" />
-                                <span>Invite Member</span>
+                                <Copy className="w-4 h-4" />
+                                <span>{copying ? 'Copied Code!' : 'Copy Invite Code'}</span>
                             </button>
                         )}
                     </div>

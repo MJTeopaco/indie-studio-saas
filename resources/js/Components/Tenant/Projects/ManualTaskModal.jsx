@@ -10,16 +10,7 @@ const STATUSES = [
     { value: 'completed', label: 'Done' },
 ];
 
-const TASK_CLASSIFICATIONS = [
-    'Engineering',
-    'Feature',
-    'Bug Fix',
-    'Research',
-    'DevOps',
-    'Testing',
-    'Documentation',
-    'Design',
-];
+import { TASK_CLASSIFICATIONS_GROUPED } from '@/constants';
 
 const POSITIONS = [
     "Technical Product Manager",
@@ -101,7 +92,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
         hard_constraint_date: '',
         priority: 'Medium',
         status: 'todo',
-        task_classification: 'Engineering',
+        task_classification: 'Feature Implementation',
         required_position: 'Backend Developer',
         minimum_experience_years: 1,
         task_difficulty: 'Medium',
@@ -139,7 +130,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
                     hard_constraint_date: editingTask.hard_constraint_date ? editingTask.hard_constraint_date.split('T')[0] : '',
                     priority: editingTask.priority || 'Medium',
                     status: editingTask.status || 'todo',
-                    task_classification: editingTask.task_classification || 'Engineering',
+                    task_classification: editingTask.task_classification || 'Feature Implementation',
                     required_position: editingTask.required_position || 'Backend Developer',
                     minimum_experience_years: editingTask.minimum_experience_years || 1,
                     task_difficulty: editingTask.task_difficulty || 'Medium',
@@ -447,8 +438,12 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
                                     <div className="grid grid-cols-2 gap-4">
                                         <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Task Classification
                                             <select value={form.task_classification} onChange={event => updateField('task_classification', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950">
-                                                {TASK_CLASSIFICATIONS.map(classification => (
-                                                    <option key={classification} value={classification}>{classification}</option>
+                                                {TASK_CLASSIFICATIONS_GROUPED.map(group => (
+                                                    <optgroup key={group.category} label={group.category}>
+                                                        {group.options.map(classification => (
+                                                            <option key={classification} value={classification}>{classification}</option>
+                                                        ))}
+                                                    </optgroup>
                                                 ))}
                                             </select>
                                         </label>

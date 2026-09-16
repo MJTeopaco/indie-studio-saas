@@ -63,7 +63,7 @@ def _is_groq_configured() -> bool:
     return True
 
 
-def _make_groq_llm():
+def _make_groq_llm(json_mode: bool = False):
     """
     Internal factory — build and return a ChatGroq instance wrapped with
     retry-on-429 behaviour via tenacity.
@@ -93,12 +93,16 @@ def _make_groq_llm():
         _retry_on = (Exception,)
 
     # Build the base LLM object.
-    base_llm = ChatGroq(
-        api_key=GROQ_API_KEY,
-        model=GROQ_MODEL,
-        temperature=0.2,   # Low temperature for structured JSON extraction
-        max_tokens=4096,   # Enough tokens for multi-task sprint decompositions without truncation
-    )
+    kwargs = {
+        "api_key": GROQ_API_KEY,
+        "model": GROQ_MODEL,
+        "temperature": 0.1 if json_mode else 0.4,
+        "max_tokens": 4096,
+    }
+    if json_mode:
+        kwargs["model_kwargs"] = {"response_format": {"type": "json_object"}}
+
+    base_llm = ChatGroq(**kwargs)
 
     # Build the retrying invoke function as a standalone callable.
     @retry(
@@ -125,8 +129,8 @@ def _make_groq_llm():
     return _GroqLLMWithRetry()
 
 
-@lru_cache(maxsize=1)
-def get_llm():
+@lru_cache(maxsize=2)
+def get_llm(json_mode: bool = False):
     """
     Return a LangChain-compatible ChatGroq LLM with retry-on-429.
     Returns None if GROQ_API_KEY is missing (graceful degradation).
@@ -139,7 +143,7 @@ def get_llm():
         return None
 
     try:
-        llm = _make_groq_llm()
+        llm = _make_groq_llm(json_mode)
         logger.info("LLM client ready: %s (Groq cloud API)", GROQ_MODEL)
         return llm
 

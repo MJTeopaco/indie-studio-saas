@@ -8,7 +8,7 @@ import {
     PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer, 
     BarChart, Bar, XAxis, YAxis, CartesianGrid 
 } from 'recharts';
-import SprintDecomposeModal from '@/Components/ML/SprintDecomposeModal';
+import HierarchicalDecompositionModal from '@/Components/ML/HierarchicalDecompositionModal';
 
 const quickActions = [
     { label: 'Risk scan', mode: 'risk', prompt: 'Scan this project for risks.' },
@@ -30,7 +30,7 @@ function CreateTaskActionCard({ payload, projectId, tenantId, canManage, onDismi
         estimated_hours: payload?.estimated_hours || 4,
         priority: payload?.priority || 'Medium',
         task_difficulty: payload?.task_difficulty || 'Medium',
-        task_classification: payload?.task_classification || 'Feature',
+        task_classification: payload?.task_classification || 'Feature Implementation',
         required_skills: payload?.required_skills || [],
     });
     const [isEditing, setIsEditing] = useState(false);
@@ -497,7 +497,7 @@ export default function ProjectAiAssistant({ projectId, tenantId, teamMembers = 
             <form onSubmit={event => { event.preventDefault(); sendMessage(); }} className="flex gap-2 border-t border-slate-100 p-3 dark:border-slate-800"><input value={input} onChange={event => setInput(event.target.value)} placeholder="Ask a question or describe a task/sprint to create…" className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs outline-none focus:border-brand focus:ring-1 focus:ring-brand dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" /><button disabled={!input.trim() || isLoading} className="rounded-xl bg-brand p-2 text-white disabled:opacity-50 hover:bg-brand-dark transition-colors shrink-0"><Send className="h-4 w-4" /></button></form>
         </div>}
 
-        <SprintDecomposeModal
+        <HierarchicalDecompositionModal
             isOpen={decomposeModalConfig.isOpen}
             onClose={() => setDecomposeModalConfig({ isOpen: false, description: '' })}
             projectId={projectId}

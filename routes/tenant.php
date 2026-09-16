@@ -109,6 +109,8 @@ Route::prefix('/studio/{tenant}')->middleware([
     // Project Task Bulk Save Route
     Route::post('/projects/{project}/tasks/bulk', [TenantProjectController::class, 'storeBulkTasks'])
         ->name('tenant.projects.tasks.bulk');
+    Route::post('/projects/{project}/hierarchy/bulk', [TenantProjectController::class, 'storeBulkHierarchy'])
+        ->name('tenant.projects.hierarchy.bulk');
     Route::post('/projects/{project}/tasks', [TenantProjectController::class, 'storeTask'])
         ->name('tenant.projects.tasks.store');
     Route::patch('/projects/{project}/tasks/{task}', [TenantProjectController::class, 'updateTask'])
@@ -135,10 +137,14 @@ Route::prefix('/studio/{tenant}')->middleware([
         ->name('tenant.projects.ai-assistant');
     Route::post('/projects/{project}/ai-assistant/execute-action', [MLEngineIntegrationController::class, 'executeProjectAction'])
         ->name('tenant.projects.ai-assistant.execute-action');
+    Route::post('/ai-router', [MLEngineIntegrationController::class, 'routeIntent'])
+        ->name('tenant.workspace.ai-router');
     Route::post('/ai-assistant', [MLEngineIntegrationController::class, 'workspaceAssistant'])
         ->name('tenant.workspace.ai-assistant');
     Route::post('/ai/decompose-project', [MLEngineIntegrationController::class, 'decomposeWorkspaceProject'])
         ->name('tenant.workspace.decompose');
+    Route::post('/ai/decompose-project/hierarchical', [MLEngineIntegrationController::class, 'decomposeWorkspaceProjectHierarchical'])
+        ->name('tenant.workspace.decompose-hierarchical');
     Route::post('/tasks/{task}/ml/best-fit', [MLEngineIntegrationController::class, 'bestFit'])
         ->name('tenant.ml.best-fit');
     Route::post('/tasks/{task}/assign', [MLEngineIntegrationController::class, 'assignTask'])

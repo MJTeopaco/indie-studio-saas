@@ -262,6 +262,25 @@ def parse_task(request: ParseTaskRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+class IntentRouteRequest(BaseModel):
+    message: str = Field(description="Raw user message")
+
+@app.post("/api/llm/route-intent", tags=["llm"])
+def route_intent(request: IntentRouteRequest):
+    """
+    Categorize user input into actionable intents for the frontend routing.
+    """
+    try:
+        from orchestration.intent_parser import parse_semantic_intent
+        result = parse_semantic_intent(request.message)
+        if result.confidence < 0.70:
+            result.intent = "GENERAL_CHAT"
+        return result.model_dump()
+    except Exception as exc:
+        logger.exception("Intent route endpoint failed")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 class DecomposeProjectRequest(BaseModel):
     description: str = Field(description="Full project description to decompose into tasks")
 
@@ -337,6 +356,118 @@ async def decompose_project_stream(request: DecomposeProjectRequest):
 
         except Exception as exc:
             logger.exception("SSE decompose stream failed")
+            yield _sse("error", {"message": str(exc)})
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+class HierarchicalDecomposeRequest(BaseModel):
+    description: str = Field(description="Full project description to decompose into hierarchy")
+
+
+@app.post("/api/llm/decompose-project/hierarchical", tags=["llm"])
+def decompose_project_hierarchical(request: HierarchicalDecomposeRequest):
+    """
+    Sprint Plan Generator: project description → hierarchical decomposition
+    with epics, tasks, and sprint suggestions.
+    """
+    try:
+        from orchestration.intent_parser import decompose_project_hierarchically
+        from orchestration.response_synthesizer import synthesize_hierarchical_explanation
+
+        result = decompose_project_hierarchically(request.description)
+        epics = result.get("epics", [])
+        sprints = result.get("sprint_suggestions", [])
+        explanation = synthesize_hierarchical_explanation(epics, sprints, request.description)
+        
+        return {
+            "status": "success", 
+            "epics": epics,
+            "sprint_suggestions": sprints,
+            "explanation": explanation
+        }
+    except Exception as exc:
+        logger.exception("Hierarchical decomposition endpoint failed")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/llm/decompose-project/hierarchical/stream", tags=["llm"])
+async def decompose_project_hierarchical_stream(request: HierarchicalDecomposeRequest):
+    """
+    SSE streaming endpoint for hierarchical project decomposition.
+    """
+    async def event_generator() -> AsyncGenerator[str, None]:
+        def _sse(event: str, data: dict) -> str:
+            return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+        try:
+            from orchestration.intent_parser import decompose_project_hierarchically
+
+            # ---- Stage 1: intent analysis ----
+            yield _sse("progress", {"stage": "intent", "message": "Analysing project description...", "pct": 10})
+            await asyncio.sleep(0)
+
+            # ---- Stage 2: LLM running (blocking in executor so event loop stays live) ----
+            yield _sse("progress", {"stage": "llm", "message": "AI is generating hierarchy — this may take a minute...", "pct": 30})
+            await asyncio.sleep(0)
+
+            loop = asyncio.get_running_loop()
+            work = loop.run_in_executor(None, decompose_project_hierarchically, request.description)
+            elapsed_seconds = 0.0
+            
+            while not work.done():
+                await asyncio.sleep(0.4)
+                elapsed_seconds += 0.4
+                pct = min(84, 30 + int(55 * (1 - 1 / (1 + elapsed_seconds / 12))))
+                yield _sse("progress", {"stage": "llm", "message": "AI is generating hierarchy — still working...", "pct": pct})
+            
+            result = await work
+            epics = result.get("epics", [])
+            sprints = result.get("sprint_suggestions", [])
+
+            tasks_list = []
+            for e_idx, epic in enumerate(epics):
+                s_idx = None
+                for i, sprint in enumerate(sprints):
+                    if e_idx in sprint.get("epic_indices", []):
+                        s_idx = i
+                        break
+                
+                epic_tasks = epic.get("tasks", [])
+                for task in epic_tasks:
+                    task["epic_index"] = e_idx
+                    task["sprint_index"] = s_idx
+                    tasks_list.append(task)
+                
+                if "tasks" in epic:
+                    del epic["tasks"]
+
+            # ---- Stage 3: synthesis ----
+            yield _sse("progress", {"stage": "synthesize", "message": "Generating executive summary...", "pct": 94})
+            await asyncio.sleep(0)
+
+            from orchestration.response_synthesizer import synthesize_hierarchical_explanation
+            explanation_work = loop.run_in_executor(None, synthesize_hierarchical_explanation, epics, sprints, request.description)
+            explanation = await explanation_work
+
+            # ---- Done ----
+            yield _sse("done", {
+                "status": "success", 
+                "epics": epics,
+                "sprint_suggestions": sprints,
+                "tasks": tasks_list,
+                "explanation": explanation
+            })
+
+        except Exception as exc:
+            logger.exception("SSE hierarchical decompose stream failed")
             yield _sse("error", {"message": str(exc)})
 
     return StreamingResponse(

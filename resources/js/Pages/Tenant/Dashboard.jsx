@@ -2,9 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
+import TextareaAutosize from 'react-textarea-autosize';
 import TenantLayout from '@/Layouts/TenantLayout';
 import RightSidebar from '@/Components/Tenant/Projects/RightSidebar';
-import SprintDecomposeModal from '@/Components/ML/SprintDecomposeModal';
+import HierarchicalDecompositionModal from '@/Components/ML/HierarchicalDecompositionModal';
 import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
 import CreateProjectModal from '@/Components/Tenant/Projects/CreateProjectModal';
 import ConfirmationModal from '@/Components/ConfirmationModal';
@@ -59,16 +60,17 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
     const studioName = studio?.name || 'Pixel Play Studio';
 
     const [prompt, setPrompt] = useState('');
-    const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id || '');
+    const [selectedProjectId, setSelectedProjectId] = useState('');
     const [messages, setMessages] = useState([]);
     const [generation, setGeneration] = useState(null);
-    const [draftTasks, setDraftTasks] = useState(null);
+
     const [isPlanOpen, setIsPlanOpen] = useState(false);
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [isProjectCreationOpen, setIsProjectCreationOpen] = useState(false);
     const [pendingProjectPlan, setPendingProjectPlan] = useState(null);
     const abortRef = useRef(null);
     const chatEndRef = useRef(null);
+    const promptTextareaRef = useRef(null);
     const isRestoringRef = useRef(false); // Bug 3 fix: suppresses auto-persist while loading a past session
 
     const {
@@ -105,6 +107,7 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
     };
     const [chatToDelete, setChatToDelete] = useState(null);
     const [isDeletingChat, setIsDeletingChat] = useState(false);
+    const [activeActionIntent, setActiveActionIntent] = useState(null);
 
     const handleDeleteChat = (id) => {
         setChatToDelete(id);
@@ -132,11 +135,45 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
     };
 
     const handleQuickAction = (actionTitle) => {
-        if (actionTitle === 'Create Task') {
-            setIsTaskModalOpen(true);
+        if (actionTitle === 'Plan Sprint') {
+            setActiveActionIntent('CREATE_TASK');
+            const template = `📝 Feature Breakdown Guide
+Please fill in the details below. I will break this down into a complete set of tasks and sub-tasks for your team.
+
+Create a task: [Task Title]
+
+Goal: [What are we building, and why does it matter?]
+Requirements: [Key things it must do]
+Constraints: [Any technical limits — optional]
+Done when: [Acceptance criteria — how we'll know it's finished]`;
+            setPrompt(template);
+            setTimeout(() => {
+                promptTextareaRef.current?.focus();
+            }, 50);
         } else {
+            setActiveActionIntent(null);
             setPrompt(`StudioSprint AI, please help me ${actionTitle.toLowerCase()} for ${studioName}.`);
+            setTimeout(() => {
+                promptTextareaRef.current?.focus();
+            }, 50);
         }
+    };
+
+    const isTaskPlanningRequest = (text) => {
+        const triggers = ['plan', 'break down', 'decompose', 'generate tasks', 'sprint', 'roadmap', 'schedule'];
+        return triggers.some(t => text.toLowerCase().includes(t));
+    };
+
+    const isNewProjectRequest = (text) => {
+        const triggers = ['new project', 'start a project', 'create a project', 'build a new'];
+        return triggers.some(t => text.toLowerCase().includes(t));
+    };
+
+    const suggestedProjectName = (text) => {
+        const titleMatch = text.match(/project (?:called|named|for) ["']?([^"'.]+)["']?/i);
+        if (titleMatch) return titleMatch[1].trim();
+        const firstSentence = text.split(/[.!?]/)[0];
+        return firstSentence.length < 40 ? firstSentence : firstSentence.substring(0, 37) + '...';
     };
 
     const handlePromptSubmit = async (e) => {
@@ -144,73 +181,33 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
         const trimmedPrompt = prompt.trim();
         if (!trimmedPrompt || generation) return;
 
-        const daysUntilDeadline = deadlineDaysFromPrompt(trimmedPrompt);
-        const planningPrompt = daysUntilDeadline === null
-            ? trimmedPrompt
-            : `${trimmedPrompt}\n\nPlanning rule: The stated date is the overall delivery deadline, not the amount of work. Break the work into lean, AI-assisted tasks with realistic, efficient hour estimates.`;
         setMessages(current => [...current, { id: crypto.randomUUID(), role: 'user', content: trimmedPrompt }]);
         setPrompt('');
 
         const controller = new AbortController();
         abortRef.current = controller;
 
-        const streamDecompose = async (description) => {
-            const ML_URL = 'http://127.0.0.1:8001/api/llm/decompose-project/stream';
-            setGeneration({ stage: 'plan', message: 'Analysing project description...', pct: 10 });
+        try {
+            let isPlanning = false;
+            let isNewProject = false;
 
-            const response = await fetch(ML_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ description }),
-                signal: controller.signal,
-            });
+            if (activeActionIntent === 'CREATE_TASK') {
+                isPlanning = true;
+            } else {
+                // Call backend semantic router
+                setGeneration({ stage: 'chat', message: 'Analyzing request intent…', pct: 15 });
+                const { data: intentData } = await axios.post(route('tenant.workspace.ai-router', { tenant: studio.id }), {
+                    message: trimmedPrompt,
+                }, { signal: controller.signal });
 
-            if (!response.ok) throw new Error(`ML Engine returned HTTP ${response.status}`);
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-            let finalTasks = null;
-
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-                const chunks = buffer.split('\n\n');
-                buffer = chunks.pop() ?? '';
-
-                for (const chunk of chunks) {
-                    if (!chunk.trim()) continue;
-                    const lines = chunk.split('\n');
-                    let event = 'message';
-                    let data = '';
-                    for (const line of lines) {
-                        if (line.startsWith('event:')) event = line.slice(6).trim();
-                        if (line.startsWith('data:'))  data  = line.slice(5).trim();
-                    }
-                    if (!data) continue;
-                    const payload = JSON.parse(data);
-
-                    if (event === 'progress') {
-                        setGeneration({ stage: payload.stage, message: payload.message, pct: payload.pct });
-                    } else if (event === 'done') {
-                        setGeneration(g => ({ ...g, pct: 100 }));
-                        finalTasks = payload.tasks ?? [];
-                    } else if (event === 'error') {
-                        throw new Error(payload.message || 'Unknown error from ML Engine');
-                    }
+                if (intentData.intent === 'CREATE_TASK') {
+                    isPlanning = true;
+                } else if (intentData.intent === 'NEW_PROJECT') {
+                    isNewProject = true;
                 }
             }
 
-            if (!finalTasks) throw new Error('The AI did not return any tasks to review.');
-            return finalTasks;
-        };
-
-        try {
-            const isPlanning = isTaskPlanningRequest(trimmedPrompt);
-
-            if (!isPlanning && !isNewProjectRequest(trimmedPrompt)) {
+            if (!isPlanning && !isNewProject) {
                 setGeneration({ stage: 'chat', message: 'Preparing a response…', pct: 35 });
                 const history = messages.slice(-10).map(({ role, content }) => ({ role, content }));
                 const { data } = await axios.post(route('tenant.workspace.ai-assistant', { tenant: studio.id }), {
@@ -218,39 +215,34 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                     history,
                 }, { signal: controller.signal });
                 addAssistantMessage(data.reply || 'I could not answer that right now. Please try again.');
+                setActiveActionIntent(null);
                 return;
             }
 
             if (!canManage) {
                 addAssistantMessage('Only studio managers are authorized to plan and create tasks or projects.');
+                setActiveActionIntent(null);
                 return;
             }
 
-            const rawTasks = await streamDecompose(planningPrompt);
-            if (!rawTasks.length) throw new Error('The AI did not return a project plan to review.');
-
-            if (selectedProjectId === '') {
+            if (isNewProject || selectedProjectId === '') {
                 // New Project path
                 setPendingProjectPlan({
-                    tasks: rawTasks.map(task => ({
-                        ...task,
-                        ...(daysUntilDeadline === null ? {} : { days_until_deadline: daysUntilDeadline }),
-                    })),
                     description: trimmedPrompt,
                     name: suggestedProjectName(trimmedPrompt),
                 });
                 setIsProjectCreationOpen(true);
-                addAssistantMessage('I’ve prepared a draft plan. Add a project name in the next step, then you can review every task before saving it.');
+                addAssistantMessage('I’ll help you decompose this. Add a project name first, and then I will generate the Epic and Sprint breakdown.');
+                setActiveActionIntent(null);
                 return;
             } else {
                 // Existing Project path
-                const tasks = rawTasks.map(task => ({
-                    ...task,
-                    ...(daysUntilDeadline === null ? {} : { days_until_deadline: daysUntilDeadline }),
-                }));
-                setDraftTasks(tasks);
-                addAssistantMessage(`Your draft plan is ready with ${tasks.length} tasks. Review and edit it before adding it to the project.`);
+                setPendingProjectPlan({
+                    description: trimmedPrompt,
+                });
                 setIsPlanOpen(true);
+                addAssistantMessage('Opening the AI Project Decomposer to draft your tasks...');
+                setActiveActionIntent(null);
             }
         } catch (error) {
             if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') return;
@@ -266,10 +258,8 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
     const handleProjectCreated = (project) => {
         if (!pendingProjectPlan || !project) return;
         setSelectedProjectId(String(project.id));
-        setDraftTasks(pendingProjectPlan.tasks);
-        setPendingProjectPlan(null);
         setIsPlanOpen(true);
-        addAssistantMessage(`Created “${project.name}”. Review the draft plan and save it when you’re ready.`);
+        addAssistantMessage(`Created “${project.name}”. Opening the AI Project Decomposer...`);
     };
 
     return (
@@ -308,12 +298,12 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                                     <div className={`mx-auto mt-10 grid max-w-2xl grid-cols-1 gap-4 ${canManage ? 'sm:grid-cols-2' : 'sm:grid-cols-2'}`}>
                                         {canManage && (
                                             <>
-                                                <QuickActionCard title="Create Task" description="Define task requirements and deadlines." icon={CheckSquare} badgeColor="brand" onClick={() => handleQuickAction('Create Task')} />
-                                                <QuickActionCard title="Run GNN Match" description="Recommend optimal developers based on GNN model." icon={Cpu} badgeColor="emerald" onClick={() => handleQuickAction('Run GNN Match')} />
+                                                <QuickActionCard title="Plan Sprint" description="Break down an epic into sprint tasks." icon={CheckSquare} badgeColor="brand" onClick={() => handleQuickAction('Plan Sprint')} />
+                                                <QuickActionCard title="Analyze Capacity" description="Check team workload and predict velocity." icon={Cpu} badgeColor="emerald" onClick={() => handleQuickAction('Analyze Capacity')} />
                                             </>
                                         )}
-                                        <QuickActionCard title="View Timeline" description="Explore interactive roadmaps and sprint milestones." icon={Calendar} badgeColor="sky" onClick={() => handleQuickAction('View Timeline')} />
-                                        <QuickActionCard title="Manage Team" description="Assign developers and configure permission roles." icon={Users} badgeColor="purple" onClick={() => handleQuickAction('Manage Team')} />
+                                        <QuickActionCard title="Suggest Architecture" description="Draft a technical architecture for a new feature." icon={Calendar} badgeColor="sky" onClick={() => handleQuickAction('Suggest Architecture')} />
+                                        <QuickActionCard title="Sprint Health" description="Analyze current sprint bottlenecks." icon={Users} badgeColor="purple" onClick={() => handleQuickAction('Analyze Sprint Health')} />
                                     </div>
                                 </div>
                             )}
@@ -384,14 +374,18 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                         </div>
                     </div>
 
-                    {isPlanOpen && draftTasks && (
-                        <SprintDecomposeModal
+                    {isPlanOpen && pendingProjectPlan && (
+                        <HierarchicalDecompositionModal
                             isOpen={isPlanOpen}
-                            onClose={() => setIsPlanOpen(false)}
+                            onClose={() => {
+                                setIsPlanOpen(false);
+                                setPendingProjectPlan(null);
+                            }}
                             projectId={selectedProjectId}
                             tenantId={studio.id}
                             teamMembers={teamMembers}
-                            initialDraftTasks={draftTasks}
+                            initialDescription={pendingProjectPlan.description}
+                            autoStart={true}
                             onSaveSuccess={() => router.visit(route('tenant.projects.show', { tenant: studio.id, project: selectedProjectId }))}
                         />
                     )}
@@ -400,7 +394,6 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                         isOpen={isProjectCreationOpen}
                         onClose={() => {
                             setIsProjectCreationOpen(false);
-                            setPendingProjectPlan(null);
                         }}
                         onCreated={handleProjectCreated}
                         initialTitle={pendingProjectPlan?.name || ''}
@@ -428,10 +421,15 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                         >
                             {/* Top row: Textarea & Send button */}
                             <div className="flex items-center gap-2">
-                                <textarea
-                                    rows="1"
+                                <TextareaAutosize
+                                    minRows={1}
+                                    maxRows={10}
+                                    ref={promptTextareaRef}
                                     value={prompt}
-                                    onChange={(e) => setPrompt(e.target.value)}
+                                    onChange={(e) => {
+                                        setPrompt(e.target.value);
+                                        if (e.target.value.trim() === '') setActiveActionIntent(null);
+                                    }}
                                     placeholder="Ask a question, or describe a task to create a plan…"
                                     maxLength="3000"
                                     className="flex-1 bg-transparent border-0 px-2 py-1.5 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-slate-600 focus:outline-none focus:ring-0 resize-none min-h-[2.5rem] align-middle font-sans"

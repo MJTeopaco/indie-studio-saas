@@ -127,10 +127,10 @@ const SKILL_CATEGORIES = CANONICAL_SKILLS_LIST.reduce((acc, skill) => {
 
 // ─── Progress Stage Indicator ────────────────────────────────────────────────
 const STAGES = [
-    { key: 'intent',     icon: Brain,      label: 'Analysing Description' },
-    { key: 'llm',        icon: Zap,        label: 'AI Generating Tasks'   },
-    { key: 'validate',   icon: ListChecks, label: 'Validating Output'     },
-    { key: 'synthesize', icon: Sparkles,   label: 'Generating Overview'   },
+    { key: 'intent', icon: Brain, label: 'Analysing Description' },
+    { key: 'llm', icon: Zap, label: 'AI Generating Tasks' },
+    { key: 'validate', icon: ListChecks, label: 'Validating Output' },
+    { key: 'synthesize', icon: Sparkles, label: 'Generating Overview' },
 ];
 
 function StageIndicator({ stages, currentStage, pct }) {
@@ -147,7 +147,7 @@ function StageIndicator({ stages, currentStage, pct }) {
                         AI Sprint Decomposition in Progress
                     </p>
                     <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-                        Running local LLM — this takes 1–3 minutes on your machine
+                        Running LLM — this takes a few minutes
                     </p>
                 </div>
             </div>
@@ -162,27 +162,25 @@ function StageIndicator({ stages, currentStage, pct }) {
 
             <div className="flex flex-col gap-2 mt-1">
                 {stages.map((stage, idx) => {
-                    const done    = idx < currentIdx;
-                    const active  = idx === currentIdx;
-                    const Icon    = stage.icon;
+                    const done = idx < currentIdx;
+                    const active = idx === currentIdx;
+                    const Icon = stage.icon;
                     return (
                         <div
                             key={stage.key}
-                            className={`flex items-center gap-3 px-3 py-2 rounded-xl border transition-all duration-300 ${
-                                active
+                            className={`flex items-center gap-3 px-3 py-2 rounded-xl border transition-all duration-300 ${active
                                     ? 'border-brand/40 bg-brand/5 dark:bg-brand/10'
                                     : done
-                                    ? 'border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-900/10'
-                                    : 'border-gray-100 dark:border-slate-800 opacity-40'
-                            }`}
+                                        ? 'border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-900/10'
+                                        : 'border-gray-100 dark:border-slate-800 opacity-40'
+                                }`}
                         >
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
-                                done
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${done
                                     ? 'bg-emerald-500/20'
                                     : active
-                                    ? 'bg-brand/20'
-                                    : 'bg-gray-200 dark:bg-slate-700'
-                            }`}>
+                                        ? 'bg-brand/20'
+                                        : 'bg-gray-200 dark:bg-slate-700'
+                                }`}>
                                 {done ? (
                                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                                 ) : active ? (
@@ -191,11 +189,10 @@ function StageIndicator({ stages, currentStage, pct }) {
                                     <Icon className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />
                                 )}
                             </div>
-                            <span className={`text-xs font-semibold ${
-                                done ? 'text-emerald-600 dark:text-emerald-400'
+                            <span className={`text-xs font-semibold ${done ? 'text-emerald-600 dark:text-emerald-400'
                                     : active ? 'text-brand dark:text-brand-light'
-                                    : 'text-gray-400 dark:text-slate-500'
-                            }`}>
+                                        : 'text-gray-400 dark:text-slate-500'
+                                }`}>
                                 {stage.label}
                             </span>
                             {done && (
@@ -349,7 +346,7 @@ function InlineAssignment({ taskIndex, teamMembers = [], fitState, onAssign, onR
 
     const getMember = (userId) => teamMembers.find(m => Number(m.id) === Number(userId));
     const getMemberName = (userId) => getMember(userId)?.name ?? null;
-    const getInitial  = (userId) => getMemberName(userId)?.charAt(0).toUpperCase() ?? '?';
+    const getInitial = (userId) => getMemberName(userId)?.charAt(0).toUpperCase() ?? '?';
 
     const topCandidate = candidates[0] ?? null;
     const pct = (score) => Math.round((score ?? 0) * 100);
@@ -480,7 +477,7 @@ function InlineAssignment({ taskIndex, teamMembers = [], fitState, onAssign, onR
 }
 
 // ─── Editable Task Card Sub-Component ─────────────────────────────────────────
-function EditableTaskCard({ task, index, updateTask, removeTask, teamMembers, fitState, onAssign, onRemoveMember, onClear }) {
+function EditableTaskCard({ task, index, updateTask, removeTask, teamMembers, fitState, onAssign, onRemoveMember, onClear, sprintName }) {
     const handlePriorityChange = (e) => {
         updateTask(index, 'priority', e.target.value);
     };
@@ -511,12 +508,18 @@ function EditableTaskCard({ task, index, updateTask, removeTask, teamMembers, fi
                     {index + 1}
                 </div>
 
+                {sprintName && (
+                    <div className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 shrink-0 border border-indigo-200 dark:border-indigo-800 uppercase tracking-wider">
+                        {sprintName}
+                    </div>
+                )}
+
                 <input
                     type="text"
                     value={task.title || ''}
                     onChange={(e) => updateTask(index, 'title', e.target.value)}
                     placeholder="Task Title..."
-                    className="flex-1 px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-slate-100 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder-gray-400 dark:placeholder-slate-500"
+                    className="flex-1 px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-transparent hover:border-indigo-300 hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm focus:bg-white text-sm font-bold text-gray-900 dark:text-slate-100 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder-gray-400 dark:placeholder-slate-500 cursor-text"
                 />
 
                 <button
@@ -539,7 +542,7 @@ function EditableTaskCard({ task, index, updateTask, removeTask, teamMembers, fi
                         updateTask(index, 'description', e.target.value);
                     }}
                     placeholder="Describe the task objective and requirements..."
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 text-xs text-gray-700 dark:text-slate-300 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all resize-none placeholder-gray-400 dark:placeholder-slate-500 leading-relaxed"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-transparent hover:border-indigo-300 hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm focus:bg-white text-xs text-gray-700 dark:text-slate-300 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all resize-none placeholder-gray-400 dark:placeholder-slate-500 leading-relaxed cursor-text"
                 />
             </div>
 
@@ -663,8 +666,8 @@ function TaskAssignmentCard({ task, index, teamMembers, fitState, onAssign, onRe
     );
 }
 
-// ─── Main SprintDecomposeModal Component ──────────────────────────────────────
-export default function SprintDecomposeModal({
+// ─── Main HierarchicalDecompositionModal Component ──────────────────────────────────────
+export default function HierarchicalDecompositionModal({
     isOpen,
     onClose,
     projectId,
@@ -677,15 +680,18 @@ export default function SprintDecomposeModal({
     onSaveSuccess = null,
 }) {
     const [description, setDescription] = useState('');
-    const [phase, setPhase]             = useState('input');   // input | loading | review | assign
-    const [progress, setProgress]       = useState({ stage: null, message: '', pct: 0 });
+    const [outputMode, setOutputMode] = useState('hierarchical'); // 'flat' | 'hierarchical'
+    const [phase, setPhase] = useState('input');   // input | loading | outline | review | assign
+    const [progress, setProgress] = useState({ stage: null, message: '', pct: 0 });
+    const [epics, setEpics] = useState([]);
+    const [sprints, setSprints] = useState([]);
     const [editableTasks, setEditableTasks] = useState(null);
     const [sprintExplanation, setSprintExplanation] = useState(null);
     const [isOverviewExpanded, setIsOverviewExpanded] = useState(true);
-    const [isSaving, setIsSaving]       = useState(false);
-    const [error, setError]             = useState(null);
+    const [isSaving, setIsSaving] = useState(false);
+    const [error, setError] = useState(null);
     // Per-task fit suggestion state: { loading, candidates, error, assignedUserIds }
-    const [taskFits, setTaskFits]       = useState([]);
+    const [taskFits, setTaskFits] = useState([]);
 
     const abortRef = useRef(null);
     const hasAutoStartedRef = useRef(false);
@@ -702,12 +708,12 @@ export default function SprintDecomposeModal({
         tasks.forEach(async (task, idx) => {
             try {
                 const res = await axios.post(previewUrl, {
-                    title:               task.title,
-                    required_skills:     task.required_skills ?? [],
-                    estimated_hours:     task.estimated_hours ?? 4,
-                    task_difficulty:     task.task_difficulty ?? 'Medium',
+                    title: task.title,
+                    required_skills: task.required_skills ?? [],
+                    estimated_hours: task.estimated_hours ?? 4,
+                    task_difficulty: task.task_difficulty ?? 'Medium',
                     task_classification: task.task_classification ?? 'Feature Implementation',
-                    priority:            task.priority ?? 'Medium',
+                    priority: task.priority ?? 'Medium',
                 }, { timeout: 300000 });
 
                 const eligibleIds = new Set(teamMembers.map(member => Number(member.id)));
@@ -804,7 +810,9 @@ export default function SprintDecomposeModal({
         setError(null);
         setProgress({ stage: 'intent', message: 'Analysing project description...', pct: 10 });
 
-        const ML_URL = 'http://127.0.0.1:8001/api/llm/decompose-project/stream';
+        const ML_URL = outputMode === 'hierarchical'
+            ? 'http://127.0.0.1:8001/api/llm/decompose-project/hierarchical/stream'
+            : 'http://127.0.0.1:8001/api/llm/decompose-project/stream';
 
         try {
             const controller = new AbortController();
@@ -821,9 +829,9 @@ export default function SprintDecomposeModal({
                 throw new Error(`ML Engine returned HTTP ${response.status}`);
             }
 
-            const reader  = response.body.getReader();
+            const reader = response.body.getReader();
             const decoder = new TextDecoder();
-            let buffer    = '';
+            let buffer = '';
 
             while (true) {
                 const { value, done } = await reader.read();
@@ -837,10 +845,10 @@ export default function SprintDecomposeModal({
                     if (!msg.trim()) continue;
                     const lines = msg.split('\n');
                     let event = 'message';
-                    let data  = '';
+                    let data = '';
                     for (const line of lines) {
                         if (line.startsWith('event:')) event = line.slice(6).trim();
-                        if (line.startsWith('data:'))  data  = line.slice(5).trim();
+                        if (line.startsWith('data:')) data = line.slice(5).trim();
                     }
                     if (!data) continue;
                     const payload = JSON.parse(data);
@@ -849,10 +857,12 @@ export default function SprintDecomposeModal({
                         setProgress({ stage: payload.stage, message: payload.message, pct: payload.pct });
                     } else if (event === 'done') {
                         setProgress(p => ({ ...p, pct: 100 }));
-                        setEditableTasks(payload.tasks);
+                        setEpics(payload.epics || []);
+                        setSprints(payload.sprint_suggestions || []);
+                        setEditableTasks(payload.tasks || []);
                         setSprintExplanation(payload.explanation || null);
                         setIsOverviewExpanded(true);
-                        setPhase('review');
+                        setPhase(outputMode === 'hierarchical' ? 'outline' : 'review');
                         setTaskFits([]);
                     } else if (event === 'error') {
                         throw new Error(payload.message || 'Unknown error from ML Engine');
@@ -885,16 +895,50 @@ export default function SprintDecomposeModal({
                 ...task,
                 assigned_user_ids: taskFits[idx]?.assignedUserIds ?? [],
             }));
-            const url = route('tenant.projects.tasks.bulk', { tenant: tenantId, project: projectId });
-            await axios.post(url, { tasks: tasksWithAssignments }, {
-                headers: { Accept: 'application/json' },
-            });
+
+            if (outputMode === 'hierarchical') {
+                const url = route('tenant.projects.hierarchy.bulk', { tenant: tenantId, project: projectId });
+                
+                // Re-nest tasks into epics for the backend payload
+                const payloadEpics = epics.map((epic, eIdx) => ({
+                    ...epic,
+                    tasks: tasksWithAssignments.filter(t => t.epic_index === eIdx)
+                }));
+
+                // Group tasks that belong to a sprint but not to an epic
+                const payloadSprints = sprints.map((sprint, sIdx) => ({
+                    ...sprint,
+                    tasks: tasksWithAssignments.filter(t => t.sprint_index === sIdx && (t.epic_index === undefined || t.epic_index === -1 || t.epic_index === null))
+                }));
+
+                // Tasks that belong to neither
+                const backlogTasks = tasksWithAssignments.filter(t => 
+                    (t.epic_index === undefined || t.epic_index === -1 || t.epic_index === null) && 
+                    (t.sprint_index === undefined || t.sprint_index === -1 || t.sprint_index === null)
+                );
+
+                await axios.post(url, {
+                    epics: payloadEpics,
+                    sprints: payloadSprints,
+                    backlog_tasks: backlogTasks,
+                }, {
+                    headers: { Accept: 'application/json' },
+                });
+            } else {
+                const url = route('tenant.projects.tasks.bulk', { tenant: tenantId, project: projectId });
+                await axios.post(url, { tasks: tasksWithAssignments }, {
+                    headers: { Accept: 'application/json' },
+                });
+            }
+
             if (onSaveSuccess) {
                 onSaveSuccess();
             } else {
                 router.reload({ only: ['project'] });
             }
             setEditableTasks(null);
+            setEpics([]);
+            setSprints([]);
             setSprintExplanation(null);
             setTaskFits([]);
             setDescription('');
@@ -902,7 +946,17 @@ export default function SprintDecomposeModal({
             onClose();
         } catch (err) {
             console.error(err);
-            setError('Error saving tasks to the database.');
+            console.error(err.response?.data);
+            
+            let errorMessage = 'Failed to save tasks. Please review and try again.';
+            if (err.response?.data?.errors) {
+                // If it's a Laravel validation error, show the specific fields
+                errorMessage = 'Validation Failed: ' + Object.values(err.response.data.errors).flat().join(', ');
+            } else if (err.response?.data?.message && !err.response?.data?.message.includes('Server Error')) {
+                errorMessage = err.response.data.message;
+            }
+            
+            setError(errorMessage);
         } finally {
             setIsSaving(false);
         }
@@ -928,8 +982,8 @@ export default function SprintDecomposeModal({
     };
 
     return (
-        <div className={embedded ? 'mx-auto w-full max-w-4xl pt-6' : 'fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-md'}>
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border border-gray-200 dark:border-slate-700">
+        <div className={embedded ? 'mx-auto w-full max-w-5xl pt-6' : 'fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-md'}>
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden border border-gray-200 dark:border-slate-700">
 
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between bg-gray-50/70 dark:bg-slate-800/70 shrink-0">
@@ -979,10 +1033,37 @@ export default function SprintDecomposeModal({
                                 />
                             </div>
 
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">
+                                    Decomposition Strategy
+                                </label>
+                                <div className="flex items-center gap-3 bg-gray-50 dark:bg-slate-800/50 p-1.5 rounded-xl border border-gray-200 dark:border-slate-700 w-max">
+                                    <button
+                                        type="button"
+                                        onClick={() => setOutputMode('hierarchical')}
+                                        className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${outputMode === 'hierarchical' ? 'bg-white dark:bg-slate-900 shadow text-brand' : 'text-gray-500 hover:text-gray-900 dark:hover:text-slate-100'}`}
+                                    >
+                                        <div className="flex items-center gap-1.5"><Layers className="w-4 h-4" /> Hierarchical (Epics, Sprints, Tasks)</div>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setOutputMode('flat')}
+                                        className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${outputMode === 'flat' ? 'bg-white dark:bg-slate-900 shadow text-brand' : 'text-gray-500 hover:text-gray-900 dark:hover:text-slate-100'}`}
+                                    >
+                                        <div className="flex items-center gap-1.5"><ListChecks className="w-4 h-4" /> Flat Tasks</div>
+                                    </button>
+                                </div>
+                            </div>
+
                             {error && (
-                                <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 text-sm">
-                                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                                    <span>{error}</span>
+                                <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 text-sm">
+                                    <div className="flex items-start gap-2">
+                                        <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                                        <span>{error}</span>
+                                    </div>
+                                    <button type="button" onClick={() => setError(null)} className="px-3 py-1 rounded-lg bg-white/50 dark:bg-slate-900/50 hover:bg-white dark:hover:bg-slate-900 text-red-700 dark:text-red-300 font-semibold text-xs transition-colors border border-red-200 dark:border-red-500/30">
+                                        Dismiss
+                                    </button>
                                 </div>
                             )}
 
@@ -1025,7 +1106,7 @@ export default function SprintDecomposeModal({
                     {/* AI SPRINT OVERVIEW (Visible on both Review and Assign phases) */}
                     {(phase === 'review' || phase === 'assign') && editableTasks && sprintExplanation && (
                         <div className="rounded-2xl border border-brand/30 bg-brand/5 dark:bg-brand/10 p-4 shadow-sm transition-all mb-4">
-                            <div 
+                            <div
                                 className="flex items-center justify-between cursor-pointer select-none"
                                 onClick={() => setIsOverviewExpanded(!isOverviewExpanded)}
                             >
@@ -1039,10 +1120,53 @@ export default function SprintDecomposeModal({
                                 </button>
                             </div>
                             {isOverviewExpanded && (
-                                <div className="mt-3 pt-3 border-t border-brand/15 text-xs text-gray-700 dark:text-slate-300 leading-relaxed whitespace-pre-line font-normal">
-                                    {sprintExplanation}
+                                <div className="mt-3 pt-3 border-t border-brand/15 text-xs text-gray-700 dark:text-slate-300 leading-relaxed font-normal">
+                                    <ul className="list-disc pl-5 space-y-1.5">
+                                        {sprintExplanation.split(/(?<=[.!?])\s+/).filter(Boolean).map((sentence, idx) => (
+                                            <li key={idx}>{sentence}</li>
+                                        ))}
+                                    </ul>
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {/* OUTLINE PHASE */}
+                    {phase === 'outline' && epics.length > 0 && (
+                        <div className="space-y-4">
+                            <p className="text-sm font-semibold text-gray-800 dark:text-slate-200">Hierarchical Outline</p>
+                            <p className="text-sm text-gray-500 dark:text-slate-400">Review the generated Epic and Sprint structure.</p>
+
+                            <div className="space-y-6 mt-4">
+                                {sprints.map((sprint, sIdx) => {
+                                    const sprintEpics = epics.filter((_, eIdx) => sprint.epic_indices?.includes(eIdx));
+                                    return (
+                                        <div key={sIdx} className="rounded-xl border border-gray-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900 shadow-sm">
+                                            <h3 className="text-sm font-bold text-indigo-700 dark:text-indigo-400">
+                                                <IterationCw className="inline w-4 h-4 mr-1" /> {sprint.name}
+                                            </h3>
+                                            <p className="text-xs text-gray-500 mt-1">{sprint.goal}</p>
+
+                                            <div className="mt-4 space-y-3 pl-4 border-l-2 border-gray-100 dark:border-slate-800">
+                                                {sprintEpics.map((epic) => {
+                                                    const eIdx = epics.indexOf(epic);
+                                                    const sprintTasks = editableTasks.filter(t => t.epic_index === eIdx && t.sprint_index === sIdx);
+                                                    return (
+                                                        <div key={eIdx} className="rounded-lg border border-indigo-100 dark:border-indigo-500/20 bg-indigo-50/30 dark:bg-indigo-500/5 p-3">
+                                                            <h4 className="text-xs font-bold text-gray-900 dark:text-slate-100">
+                                                                <Layers className="inline w-3 h-3 mr-1 text-brand" /> {epic.epic_name}
+                                                            </h4>
+                                                            <div className="mt-2 text-[10px] font-semibold text-gray-400">
+                                                                {sprintTasks.length} {sprintTasks.length === 1 ? 'task' : 'tasks'}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
 
@@ -1054,22 +1178,50 @@ export default function SprintDecomposeModal({
                             </p>
 
                             {error && (
-                                <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 text-sm">
-                                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                                    <span>{error}</span>
+                                <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 text-sm">
+                                    <div className="flex items-start gap-2">
+                                        <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                                        <span>{error}</span>
+                                    </div>
+                                    <button type="button" onClick={() => setError(null)} className="px-3 py-1 rounded-lg bg-white/50 dark:bg-slate-900/50 hover:bg-white dark:hover:bg-slate-900 text-red-700 dark:text-red-300 font-semibold text-xs transition-colors border border-red-200 dark:border-red-500/30">
+                                        Dismiss
+                                    </button>
                                 </div>
                             )}
 
-                            <div className="space-y-4">
-                                {editableTasks.map((task, idx) => (
-                                    <EditableTaskCard
-                                        key={idx}
-                                        task={task}
-                                        index={idx}
-                                        updateTask={updateTask}
-                                        removeTask={removeTask}
-                                    />
-                                ))}
+                            <div className="space-y-8">
+                                {outputMode === 'hierarchical' && epics.length > 0 ? epics.map((epic, eIdx) => {
+                                    const epicTasks = editableTasks.map((t, tIdx) => ({ task: t, index: tIdx })).filter(item => item.task.epic_index === eIdx);
+                                    if (epicTasks.length === 0) return null;
+                                    return (
+                                        <div key={eIdx} className="space-y-4">
+                                            <h3 className="text-base font-bold text-gray-900 dark:text-slate-100 border-b border-gray-200 dark:border-slate-800 pb-2 mb-4">
+                                                <Layers className="inline w-5 h-5 mr-1.5 text-brand" /> {epic.epic_name}
+                                            </h3>
+                                            {epicTasks.map(({ task, index }) => (
+                                                <EditableTaskCard
+                                                    key={index}
+                                                    task={task}
+                                                    index={index}
+                                                    updateTask={updateTask}
+                                                    removeTask={removeTask}
+                                                    sprintName={task.sprint_index !== undefined && task.sprint_index !== null ? sprints[task.sprint_index]?.name : null}
+                                                />
+                                            ))}
+                                        </div>
+                                    )
+                                }) : (
+                                    editableTasks.map((task, idx) => (
+                                        <EditableTaskCard
+                                            key={idx}
+                                            task={task}
+                                            index={idx}
+                                            updateTask={updateTask}
+                                            removeTask={removeTask}
+                                            sprintName={task.sprint_index !== undefined && task.sprint_index !== null ? sprints[task.sprint_index]?.name : null}
+                                        />
+                                    ))
+                                )}
                             </div>
                         </div>
                     )}
@@ -1080,42 +1232,80 @@ export default function SprintDecomposeModal({
                                 <p className="text-sm font-semibold text-gray-800 dark:text-slate-200">Assign the team</p>
                                 <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">Select the recommended member or add as many additional members as needed. Tasks are saved only after this step.</p>
                             </div>
-                            <div className="space-y-4">
-                                {editableTasks.map((task, idx) => (
-                                    <TaskAssignmentCard
-                                        key={idx}
-                                        task={task}
-                                        index={idx}
-                                        teamMembers={teamMembers}
-                                        fitState={taskFits[idx] ?? { loading: true, candidates: [], error: null, assignedUserIds: [] }}
-                                        onAssign={(userIds) => setTaskFitAssignment(idx, userIds)}
-                                        onRemoveMember={(uid) => removeTaskFitMember(idx, uid)}
-                                        onClear={() => clearTaskFitAssignment(idx)}
-                                    />
-                                ))}
+
+                            {error && (
+                                <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 text-sm">
+                                    <div className="flex items-start gap-2">
+                                        <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                                        <span>{error}</span>
+                                    </div>
+                                    <button type="button" onClick={() => setError(null)} className="px-3 py-1 rounded-lg bg-white/50 dark:bg-slate-900/50 hover:bg-white dark:hover:bg-slate-900 text-red-700 dark:text-red-300 font-semibold text-xs transition-colors border border-red-200 dark:border-red-500/30">
+                                        Dismiss
+                                    </button>
+                                </div>
+                            )}
+                            <div className="space-y-8">
+                                {outputMode === 'hierarchical' && epics.length > 0 ? epics.map((epic, eIdx) => {
+                                    const epicTasks = editableTasks.map((t, tIdx) => ({ task: t, index: tIdx })).filter(item => item.task.epic_index === eIdx);
+                                    if (epicTasks.length === 0) return null;
+                                    return (
+                                        <div key={eIdx} className="space-y-4">
+                                            <h3 className="text-base font-bold text-gray-900 dark:text-slate-100 border-b border-gray-200 dark:border-slate-800 pb-2 mb-4">
+                                                <Layers className="inline w-5 h-5 mr-1.5 text-brand" /> {epic.epic_name}
+                                            </h3>
+                                            {epicTasks.map(({ task, index }) => (
+                                                <TaskAssignmentCard
+                                                    key={index}
+                                                    task={task}
+                                                    index={index}
+                                                    teamMembers={teamMembers}
+                                                    fitState={taskFits[index] ?? { loading: true, candidates: [], error: null, assignedUserIds: [] }}
+                                                    onAssign={(userIds) => setTaskFitAssignment(index, userIds)}
+                                                    onRemoveMember={(uid) => removeTaskFitMember(index, uid)}
+                                                    onClear={() => clearTaskFitAssignment(index)}
+                                                />
+                                            ))}
+                                        </div>
+                                    )
+                                }) : (
+                                    editableTasks.map((task, idx) => (
+                                        <TaskAssignmentCard
+                                            key={idx}
+                                            task={task}
+                                            index={idx}
+                                            teamMembers={teamMembers}
+                                            fitState={taskFits[idx] ?? { loading: true, candidates: [], error: null, assignedUserIds: [] }}
+                                            onAssign={(userIds) => setTaskFitAssignment(idx, userIds)}
+                                            onRemoveMember={(uid) => removeTaskFitMember(idx, uid)}
+                                            onClear={() => clearTaskFitAssignment(idx)}
+                                        />
+                                    ))
+                                )}
                             </div>
                         </div>
                     )}
                 </div>
 
-                {/* Footer (review and assignment) */}
-                {(phase === 'review' || phase === 'assign') && (
+                {/* Footer (outline, review, and assignment) */}
+                {['outline', 'review', 'assign'].includes(phase) && (
                     <div className="px-6 py-4 border-t border-gray-100 dark:border-slate-800 bg-gray-50/70 dark:bg-slate-800/70 flex items-center justify-between gap-3 shrink-0">
                         <button
                             type="button"
-                            onClick={() => phase === 'assign' ? setPhase('review') : (setEditableTasks(null), setSprintExplanation(null), setTaskFits([]), setPhase('input'))}
+                            onClick={() => phase === 'assign' ? setPhase('review') : phase === 'review' && outputMode === 'hierarchical' ? setPhase('outline') : (setEditableTasks(null), setEpics([]), setSprints([]), setSprintExplanation(null), setTaskFits([]), setPhase('input'))}
                             className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
                         >
-                            {phase === 'assign' ? '← Back to task review' : '← Try Again'}
+                            {phase === 'assign' ? '← Back to task review' : phase === 'review' && outputMode === 'hierarchical' ? '← Back to outline' : (
+                                <div className="flex items-center gap-1.5"><IterationCw className="w-3.5 h-3.5" /> Try Again</div>
+                            )}
                         </button>
                         <button
                             type="button"
-                            onClick={phase === 'assign' ? handleSaveDraft : handleProceedToAssignments}
-                            disabled={isSaving || !editableTasks?.length}
+                            onClick={phase === 'assign' ? handleSaveDraft : phase === 'outline' ? () => setPhase('review') : handleProceedToAssignments}
+                            disabled={isSaving || !!error || (phase !== 'outline' && !editableTasks?.length)}
                             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand text-white font-semibold shadow-md shadow-brand/20 disabled:opacity-50 hover:bg-brand-light transition-all"
                         >
-                            {phase === 'assign' && isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : phase === 'assign' ? <Save className="w-4 h-4" /> : <Users className="w-4 h-4" />}
-                            {phase === 'assign' ? `Confirm & Save${editableTasks?.length ? ` (${editableTasks.length} tasks)` : ''}` : 'Continue to member assignment'}
+                            {phase === 'assign' && isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : phase === 'assign' ? <Save className="w-4 h-4" /> : phase === 'outline' ? <ListChecks className="w-4 h-4" /> : <Users className="w-4 h-4" />}
+                            {phase === 'assign' ? `Confirm & Save${editableTasks?.length ? ` (${editableTasks.length} tasks)` : ''}` : phase === 'outline' ? 'Continue to task review' : 'Continue to member assignment'}
                         </button>
                     </div>
                 )}
