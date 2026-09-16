@@ -13,7 +13,7 @@ export default function Dashboard({ ownedStudios = [], joinedStudios = [] }) {
 
             <div className="py-12">
                 <div className="mx-auto max-w-7xl sm:px-6 lg:px-8 space-y-12">
-                    
+
                     {/* Action Bar */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div>
@@ -48,7 +48,7 @@ export default function Dashboard({ ownedStudios = [], joinedStudios = [] }) {
                             {ownedStudios.length > 0 && (
                                 <section>
                                     <h2 className="font-heading text-xl font-bold text-text-primary mb-4 flex items-center gap-2">
-                                        Workspaces You Manage
+                                        Studio Workspaces You Manage
                                         <span className="bg-brand/10 text-brand text-xs px-2 py-0.5 rounded-full font-semibold">
                                             {ownedStudios.length}
                                         </span>
@@ -72,10 +72,10 @@ export default function Dashboard({ ownedStudios = [], joinedStudios = [] }) {
                                     </h2>
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                         {joinedStudios.map(studio => (
-                                            <StudioCard 
-                                                key={studio.id} 
-                                                studio={studio} 
-                                                role={studio.pivot?.role === 'owner' ? 'Owner' : 'Member'} 
+                                            <StudioCard
+                                                key={studio.id}
+                                                studio={studio}
+                                                role={studio.pivot?.role === 'owner' ? 'Owner' : 'Member'}
                                             />
                                         ))}
                                     </div>
