@@ -460,7 +460,7 @@ class TenantProjectController extends Controller
         $sprintIdMapping = []; // map index in $sprintsData to real DB Sprint ID
 
         DB::transaction(function () use (
-            $projectModel, $epicsData, $sprintsData, $defaultEpicGroup, 
+            $projectModel, $epicsData, $sprintsData, $backlogTasksData, $defaultEpicGroup, 
             $defaultPhase, $defaultPriority, $validPhaseLabels, $validPriorityLabels,
             &$epicIdMapping, &$taskIdMapping, &$sprintIdMapping
         ) {
