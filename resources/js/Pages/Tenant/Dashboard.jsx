@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import TextareaAutosize from 'react-textarea-autosize';
 import TenantLayout from '@/Layouts/TenantLayout';
 import RightSidebar from '@/Components/Tenant/Projects/RightSidebar';
@@ -359,14 +360,24 @@ Requirements:
                                             {message.content}
                                         </div>
                                     ) : (
-                                        /* Assistant bubble: Bug 1 fix — render LLM Markdown with prose typography */
                                         <div className="max-w-[80%] rounded-2xl px-4 py-3 bg-white shadow-sm ring-1 ring-gray-100 dark:bg-slate-800 dark:ring-slate-700">
                                             <div className="prose prose-sm dark:prose-invert max-w-none
                                                             prose-p:my-1 prose-headings:my-2 prose-headings:font-semibold
                                                             prose-ul:my-1 prose-ol:my-1 prose-li:my-0
                                                             prose-pre:my-2 prose-code:text-brand dark:prose-code:text-brand-light
                                                             prose-a:text-brand dark:prose-a:text-brand-light">
-                                                <ReactMarkdown>{message.content}</ReactMarkdown>
+                                                <ReactMarkdown 
+                                                    remarkPlugins={[remarkGfm]}
+                                                    components={{
+                                                        table: ({node, ...props}) => (
+                                                          <div className="overflow-x-auto my-4">
+                                                            <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700" {...props} />
+                                                          </div>
+                                                        ),
+                                                    }}
+                                                >
+                                                    {message.content}
+                                                </ReactMarkdown>
                                             </div>
                                         </div>
                                     )}

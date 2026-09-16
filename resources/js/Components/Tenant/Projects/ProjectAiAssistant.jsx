@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { 
     Bot, Loader2, MessageCircle, Send, X, Calendar as CalendarIcon, 
     AlertTriangle, Check, Plus, Sparkles, ShieldAlert, Clock, Edit2 
@@ -446,8 +448,29 @@ export default function ProjectAiAssistant({ projectId, tenantId, teamMembers = 
             <div className="flex-1 space-y-4 overflow-y-auto custom-scrollbar p-4">
                 {messages.map((message, index) => (
                     <div key={index} className={`max-w-[92%] ${message.role === 'user' ? 'ml-auto' : 'mr-auto'}`}>
-                        <div className={`whitespace-pre-wrap rounded-2xl px-3 py-2.5 text-xs leading-relaxed shadow-sm ${message.role === 'user' ? 'bg-brand text-white rounded-br-none' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-bl-none'}`}>
-                            {message.content}
+                        <div className={`rounded-2xl px-3 py-2.5 shadow-sm ${message.role === 'user' ? 'bg-brand text-white rounded-br-none whitespace-pre-wrap text-xs leading-relaxed' : 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-bl-none'}`}>
+                            {message.role === 'user' ? (
+                                message.content
+                            ) : (
+                                <div className="prose prose-sm prose-slate dark:prose-invert max-w-none text-xs leading-relaxed
+                                                prose-p:my-1 prose-headings:my-2 prose-headings:font-semibold
+                                                prose-ul:my-1 prose-ol:my-1 prose-li:my-0
+                                                prose-pre:my-2 prose-code:text-brand dark:prose-code:text-brand-light
+                                                prose-a:text-brand dark:prose-a:text-brand-light">
+                                    <ReactMarkdown 
+                                        remarkPlugins={[remarkGfm]}
+                                        components={{
+                                            table: ({node, ...props}) => (
+                                              <div className="overflow-x-auto my-4">
+                                                <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700" {...props} />
+                                              </div>
+                                            ),
+                                        }}
+                                    >
+                                        {message.content}
+                                    </ReactMarkdown>
+                                </div>
+                            )}
                         </div>
                         {message.role === 'assistant' && (
                             <>
