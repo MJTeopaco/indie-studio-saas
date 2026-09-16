@@ -358,42 +358,43 @@ def synthesize_project_summary(stats: dict[str, Any]) -> str:
     return summary
 
 
+_CHATBOT_SYSTEM = """You are an autonomous AI Workspace Assistant for a software studio.
+You do not have all data upfront. You MUST use your available tools to query the database when asked about studio skills, sprint health, or workloads.
+
+Available Tools (output exact JSON to call a tool):
+1. {"tool": "get_studio_workforce_profile", "parameters": {"studio_id": <int>}}
+2. {"tool": "get_active_sprint_health", "parameters": {"studio_id": <int>}}
+3. {"tool": "get_developer_workload", "parameters": {"studio_id": <int>, "user_id": <int>}}
+
+CRITICAL INSTRUCTION: If you need to use a tool, you MUST output ONLY the raw JSON object and NOTHING else. Do not add any conversational text, greetings, or explanations before or after the JSON. 
+Once you receive the tool result, you may then synthesize a conversational response to the user.
+
+Basic context provided:
+- `studio`: basic studio info (id, name)
+"""
+
 def chat_with_project_data(
     user_message: str,
     project_context: dict[str, Any],
     conversation_history: Optional[list[dict]] = None,
 ) -> str:
-    """
-    Answer a manager's natural-language question about the project,
-    grounding all responses in real project_context data.
-
-    project_context should include relevant DB-fetched data: tasks, members,
-    assignments, stats — whatever the calling endpoint retrieved.
-
-    conversation_history: list of {"role": "user"|"assistant", "content": str}
-    """
     from orchestration.llm_client import get_llm
+    from orchestration.agent_tools import execute_tool
+    import re
 
     llm = get_llm()
     if llm is None:
-        return (
-            "The AI project assistant is currently unavailable. "
-            "Please ensure GROQ_API_KEY is set in ml-engine/.env and "
-            "that your Groq daily quota has not been exceeded."
-        )
+        return "The AI project assistant is currently unavailable."
 
     from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
     context_json = json.dumps(project_context, indent=2, default=str)
-    system_with_context = (
-        f"{_CHATBOT_SYSTEM}\n\nProject data:\n{context_json}"
-    )
+    system_with_context = f"{_CHATBOT_SYSTEM}\n\nBase Project data:\n{context_json}"
 
     messages = [SystemMessage(content=system_with_context)]
 
-    # Replay conversation history
     if conversation_history:
-        for turn in conversation_history[-10:]:  # cap at 10 turns to stay within context
+        for turn in conversation_history[-10:]:
             if turn["role"] == "user":
                 messages.append(HumanMessage(content=turn["content"]))
             elif turn["role"] == "assistant":
@@ -401,12 +402,41 @@ def chat_with_project_data(
 
     messages.append(HumanMessage(content=user_message))
 
-    try:
-        response = llm.invoke(messages)
-        return response.content.strip()
-    except Exception as exc:
-        logger.error("Chat LLM call failed: %s", exc)
-        return "An error occurred while processing your request. Please try again."
+    max_iterations = 3
+    for _ in range(max_iterations):
+        try:
+            response = llm.invoke(messages)
+            content = response.content.strip()
+            
+            tool_req = None
+            match = re.search(r'\{.*\}', content, re.DOTALL)
+            if match:
+                try:
+                    parsed = json.loads(match.group(0))
+                    if isinstance(parsed, dict) and "tool" in parsed and "parameters" in parsed:
+                        tool_req = parsed
+                except json.JSONDecodeError:
+                    pass
+            
+            if tool_req:
+                tool_name = tool_req["tool"]
+                params = tool_req["parameters"]
+                
+                logger.info(f"LLM called tool {tool_name} with args {params}")
+                tool_result = execute_tool(tool_name, params)
+                
+                messages.append(AIMessage(content=content))
+                messages.append(SystemMessage(content=f"Tool '{tool_name}' result: {tool_result}"))
+                continue # loop back to LLM
+            
+            # If not a tool call or JSON parsing failed, return to user
+            return content
+            
+        except Exception as exc:
+            logger.error("Chat LLM call failed: %s", exc)
+            return "An error occurred while processing your request. Please try again."
+            
+    return "The system required too many operations to answer your request."
 
 
 def classify_chat_intent(message: str) -> dict[str, Any]:

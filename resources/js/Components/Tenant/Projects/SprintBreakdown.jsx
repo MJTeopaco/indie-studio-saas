@@ -947,6 +947,26 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
     });
     const [startSprintTarget, setStartSprintTarget] = useState(null);
 
+    // Sync global task updates from ManageAssignmentModal and StatusModal
+    useEffect(() => {
+        const handleTaskUpdated = (e) => {
+            const { taskId, updates } = e.detail;
+            
+            const applyUpdates = (tasks) => tasks.map(t => {
+                if (t.id === taskId) {
+                    return { ...t, ...updates };
+                }
+                return t;
+            });
+
+            setSprints(current => current.map(s => ({ ...s, tasks: applyUpdates(s.tasks) })));
+            setBacklogTasks(current => applyUpdates(current));
+        };
+        
+        window.addEventListener('task-updated', handleTaskUpdated);
+        return () => window.removeEventListener('task-updated', handleTaskUpdated);
+    }, []);
+
     const [closureForm, setClosureForm] = useState({
         incompleteAction: 'move_to_backlog',
         moveToSprintId: null,

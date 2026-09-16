@@ -86,7 +86,7 @@ function ScoreBar({ score }) {
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenantId }) {
+export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenantId, onSuccess }) {
     const [isLoading,     setIsLoading]     = useState(false);
     const [candidates,    setCandidates]    = useState([]);
     const [explanation,   setExplanation]   = useState(null);
@@ -161,11 +161,16 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
                 // Since this is a bulk assign, we default the source to GNN or Manual
                 assigned_by: 'manual',
             });
-            // Refresh the project data after a short delay so the Kanban card updates
+            
+            // Trigger optimistic real-time update in UI
+            const newAssignees = Array.from(assignedUserIds).map(id => teamMembers?.find(m => m.id === id)).filter(Boolean);
+            if (onSuccess) onSuccess(task.id, newAssignees);
+            
+            // Refresh the project data quietly in background
             setTimeout(() => {
-                router.reload({ only: ['project'] });
+                router.reload({ only: ['project', 'sprints', 'backlogTasks'] });
                 onClose();
-            }, 800);
+            }, 100);
         } catch (err) {
             console.error(err);
             setError('Failed to save assignments. Please try again.');
