@@ -366,8 +366,8 @@ Available Tools (output exact JSON to call a tool):
 2. {"tool": "get_active_sprint_health", "parameters": {"studio_id": <int>}}
 3. {"tool": "get_developer_workload", "parameters": {"studio_id": <int>, "user_id": <int>}}
 
-If you need data, reply ONLY with the JSON tool call. 
-Once you have the data, or if you don't need a tool, reply in plain text to the user.
+CRITICAL INSTRUCTION: If you need to use a tool, you MUST output ONLY the raw JSON object and NOTHING else. Do not add any conversational text, greetings, or explanations before or after the JSON. 
+Once you receive the tool result, you may then synthesize a conversational response to the user.
 
 Basic context provided:
 - `studio`: basic studio info (id, name)
@@ -380,6 +380,7 @@ def chat_with_project_data(
 ) -> str:
     from orchestration.llm_client import get_llm
     from orchestration.agent_tools import execute_tool
+    import re
 
     llm = get_llm()
     if llm is None:
@@ -407,22 +408,26 @@ def chat_with_project_data(
             response = llm.invoke(messages)
             content = response.content.strip()
             
-            # Check if it's a tool call (starts and ends with { })
-            if content.startswith('{') and content.endswith('}'):
+            tool_req = None
+            match = re.search(r'\{.*\}', content, re.DOTALL)
+            if match:
                 try:
-                    tool_req = json.loads(content)
-                    if "tool" in tool_req and "parameters" in tool_req:
-                        tool_name = tool_req["tool"]
-                        params = tool_req["parameters"]
-                        
-                        logger.info(f"LLM called tool {tool_name} with args {params}")
-                        tool_result = execute_tool(tool_name, params)
-                        
-                        messages.append(AIMessage(content=content))
-                        messages.append(SystemMessage(content=f"Tool '{tool_name}' result: {tool_result}"))
-                        continue # loop back to LLM
+                    parsed = json.loads(match.group(0))
+                    if isinstance(parsed, dict) and "tool" in parsed and "parameters" in parsed:
+                        tool_req = parsed
                 except json.JSONDecodeError:
                     pass
+            
+            if tool_req:
+                tool_name = tool_req["tool"]
+                params = tool_req["parameters"]
+                
+                logger.info(f"LLM called tool {tool_name} with args {params}")
+                tool_result = execute_tool(tool_name, params)
+                
+                messages.append(AIMessage(content=content))
+                messages.append(SystemMessage(content=f"Tool '{tool_name}' result: {tool_result}"))
+                continue # loop back to LLM
             
             # If not a tool call or JSON parsing failed, return to user
             return content
