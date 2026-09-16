@@ -445,8 +445,6 @@ class TenantProjectController extends Controller
         $defaultEpicGroup = $projectModel->epicGroups()->where('is_default', true)->first();
 
         // Data arrays for processing
-        $epicsData = $validated['epics'];
-        $sprintsData = $validated['sprints'];
         
         $epicIdMapping = []; // map index in $epicsData to real DB Epic ID
         $taskIdMapping = []; // map flat index across all tasks to real DB Task ID
