@@ -392,6 +392,9 @@ class TenantProjectController extends Controller
             'epics.*.tasks.*.macro_domains' => 'nullable|array',
             'epics.*.tasks.*.required_position' => 'nullable|string',
             'epics.*.tasks.*.assigned_user_ids' => 'nullable|array',
+            'epics.*.tasks.*.required_skills' => 'nullable|array',
+            'epics.*.tasks.*.required_skills.*.name' => 'required|string',
+            'epics.*.tasks.*.required_skills.*.level' => 'nullable|integer|min:1|max:5',
             
             'sprints' => 'nullable|array',
             'sprints.*.name' => 'required|string|max:255',
@@ -412,6 +415,9 @@ class TenantProjectController extends Controller
             'sprints.*.tasks.*.macro_domains' => 'nullable|array',
             'sprints.*.tasks.*.required_position' => 'nullable|string',
             'sprints.*.tasks.*.assigned_user_ids' => 'nullable|array',
+            'sprints.*.tasks.*.required_skills' => 'nullable|array',
+            'sprints.*.tasks.*.required_skills.*.name' => 'required|string',
+            'sprints.*.tasks.*.required_skills.*.level' => 'nullable|integer|min:1|max:5',
 
             'backlog_tasks' => 'nullable|array',
             'backlog_tasks.*.title' => 'required|string|max:255',
@@ -427,6 +433,9 @@ class TenantProjectController extends Controller
             'backlog_tasks.*.macro_domains' => 'nullable|array',
             'backlog_tasks.*.required_position' => 'nullable|string',
             'backlog_tasks.*.assigned_user_ids' => 'nullable|array',
+            'backlog_tasks.*.required_skills' => 'nullable|array',
+            'backlog_tasks.*.required_skills.*.name' => 'required|string',
+            'backlog_tasks.*.required_skills.*.level' => 'nullable|integer|min:1|max:5',
         ]);
 
         $epicsData = $validated['epics'] ?? [];
@@ -439,8 +448,8 @@ class TenantProjectController extends Controller
         $defaultPhase = EpicPhase::where('tenant_id', $tenantId)->first();
         $defaultPriority = EpicPriority::where('tenant_id', $tenantId)->first();
         
-        $validPhaseLabels = EpicPhase::where('tenant_id', $tenantId)->pluck('id', 'name')->mapWithKeys(fn($id, $name) => [strtolower($name) => $id])->all();
-        $validPriorityLabels = EpicPriority::where('tenant_id', $tenantId)->pluck('id', 'name')->mapWithKeys(fn($id, $name) => [strtolower($name) => $id])->all();
+        $validPhaseLabels = EpicPhase::where('tenant_id', $tenantId)->pluck('id', 'label')->mapWithKeys(fn($id, $label) => [strtolower($label) => $id])->all();
+        $validPriorityLabels = EpicPriority::where('tenant_id', $tenantId)->pluck('id', 'label')->mapWithKeys(fn($id, $label) => [strtolower($label) => $id])->all();
 
         $defaultEpicGroup = $projectModel->epicGroups()->where('is_default', true)->first();
 
