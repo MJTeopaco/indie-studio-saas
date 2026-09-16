@@ -271,7 +271,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                 href: `${baseHref}/team`,
                 active: currentPath.includes('/team'),
             },
-            {
+            /* {
                 label: 'Estimates',
                 icon: PremiumEstimatesIcon,
                 href: `${baseHref}/estimates/pending`,
@@ -283,7 +283,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                 icon: PremiumDashboardIcon,
                 href: `${baseHref}/burndown`,
                 active: currentPath.includes('/burndown'),
-            },
+            }, */
         ]
         : [
             {
@@ -292,7 +292,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                 href: `${baseHref}/tasks`,
                 active: currentPath.includes('/tasks'),
             },
-            {
+            /* {
                 label: 'Estimates',
                 icon: PremiumEstimatesIcon,
                 href: `${baseHref}/estimates/pending`,
@@ -304,7 +304,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                 icon: PremiumDashboardIcon,
                 href: `${baseHref}/burndown`,
                 active: currentPath.includes('/burndown'),
-            },
+            }, */
         ];
 
     const automationLinks = isManager
