@@ -181,7 +181,7 @@ _SPRINT_DECOMPOSE_SYSTEM = """You are a senior engineering lead decomposing a pr
 Given a project description or task instruction:
 1. Return ONE task only when the request is a narrowly scoped atomic change (e.g. "update logo", "fix one button color").
 2. For a project, sprint, feature set, application, or implementation request, return as many concrete development tasks as the scope genuinely requires — no artificial minimum or maximum. A small focused feature may need 2-4 tasks; a full application or multi-feature sprint may need 8-15 or more. Scale the count to the work, not to a fixed target.
-3. If the request mentions multiple deliverables, every deliverable must be represented by at least one task.
+3. If the request mentions multiple deliverables, every deliverable must be represented by at least one task. IMPORTANT: If defining Sprint names in your own reasoning, number them starting from Sprint 1 (do not use Sprint 0).
 
 CRITICAL REQUIREMENT FOR DEPENDENCIES (Critical Path Analysis):
 You MUST establish logical, realistic inter-task dependencies using "suggested_depends_on".
@@ -221,7 +221,7 @@ Given a project description or task instruction:
 1. Group related tasks into logical Epics. A project should typically have at least 2-4 Epics, but use as many as genuinely needed.
 2. For each Epic, define concrete development tasks as the scope genuinely requires — no artificial minimum or maximum. A small focused Epic may need 2-4 tasks; a complex one may need 8-15 or more.
 3. If the request mentions multiple deliverables, every deliverable must be represented by at least one task.
-4. Propose sprint batching by grouping epics into Sprint Suggestions. Group epics that have strong affinity or sequential dependency into the same sprint. Use 0-based indices into the epics array to assign them to sprints.
+4. Propose sprint batching by grouping epics into Sprint Suggestions. Group epics that have strong affinity or sequential dependency into the same sprint. Use 0-based indices into the epics array to assign them to sprints. IMPORTANT: Name sprints starting from Sprint 1 (do not use Sprint 0).
 
 CRITICAL REQUIREMENT FOR DEPENDENCIES (Critical Path Analysis):
 You MUST establish logical, realistic inter-task dependencies using "suggested_depends_on".
