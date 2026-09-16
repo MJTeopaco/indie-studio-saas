@@ -62,7 +62,7 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
     const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id || '');
     const [messages, setMessages] = useState([]);
     const [generation, setGeneration] = useState(null);
-    const [draftTasks, setDraftTasks] = useState(null);
+
     const [isPlanOpen, setIsPlanOpen] = useState(false);
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [isProjectCreationOpen, setIsProjectCreationOpen] = useState(false);
@@ -139,73 +139,33 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
         }
     };
 
+    const isTaskPlanningRequest = (text) => {
+        const triggers = ['plan', 'break down', 'decompose', 'generate tasks', 'sprint', 'roadmap', 'schedule'];
+        return triggers.some(t => text.toLowerCase().includes(t));
+    };
+
+    const isNewProjectRequest = (text) => {
+        const triggers = ['new project', 'start a project', 'create a project', 'build a new'];
+        return triggers.some(t => text.toLowerCase().includes(t));
+    };
+
+    const suggestedProjectName = (text) => {
+        const titleMatch = text.match(/project (?:called|named|for) ["']?([^"'.]+)["']?/i);
+        if (titleMatch) return titleMatch[1].trim();
+        const firstSentence = text.split(/[.!?]/)[0];
+        return firstSentence.length < 40 ? firstSentence : firstSentence.substring(0, 37) + '...';
+    };
+
     const handlePromptSubmit = async (e) => {
         e.preventDefault();
         const trimmedPrompt = prompt.trim();
         if (!trimmedPrompt || generation) return;
 
-        const daysUntilDeadline = deadlineDaysFromPrompt(trimmedPrompt);
-        const planningPrompt = daysUntilDeadline === null
-            ? trimmedPrompt
-            : `${trimmedPrompt}\n\nPlanning rule: The stated date is the overall delivery deadline, not the amount of work. Break the work into lean, AI-assisted tasks with realistic, efficient hour estimates.`;
         setMessages(current => [...current, { id: crypto.randomUUID(), role: 'user', content: trimmedPrompt }]);
         setPrompt('');
 
         const controller = new AbortController();
         abortRef.current = controller;
-
-        const streamDecompose = async (description) => {
-            const ML_URL = 'http://127.0.0.1:8001/api/llm/decompose-project/stream';
-            setGeneration({ stage: 'plan', message: 'Analysing project description...', pct: 10 });
-
-            const response = await fetch(ML_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ description }),
-                signal: controller.signal,
-            });
-
-            if (!response.ok) throw new Error(`ML Engine returned HTTP ${response.status}`);
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-            let finalTasks = null;
-
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-                const chunks = buffer.split('\n\n');
-                buffer = chunks.pop() ?? '';
-
-                for (const chunk of chunks) {
-                    if (!chunk.trim()) continue;
-                    const lines = chunk.split('\n');
-                    let event = 'message';
-                    let data = '';
-                    for (const line of lines) {
-                        if (line.startsWith('event:')) event = line.slice(6).trim();
-                        if (line.startsWith('data:'))  data  = line.slice(5).trim();
-                    }
-                    if (!data) continue;
-                    const payload = JSON.parse(data);
-
-                    if (event === 'progress') {
-                        setGeneration({ stage: payload.stage, message: payload.message, pct: payload.pct });
-                    } else if (event === 'done') {
-                        setGeneration(g => ({ ...g, pct: 100 }));
-                        finalTasks = payload.tasks ?? [];
-                    } else if (event === 'error') {
-                        throw new Error(payload.message || 'Unknown error from ML Engine');
-                    }
-                }
-            }
-
-            if (!finalTasks) throw new Error('The AI did not return any tasks to review.');
-            return finalTasks;
-        };
 
         try {
             const isPlanning = isTaskPlanningRequest(trimmedPrompt);
@@ -226,31 +186,22 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                 return;
             }
 
-            const rawTasks = await streamDecompose(planningPrompt);
-            if (!rawTasks.length) throw new Error('The AI did not return a project plan to review.');
-
             if (selectedProjectId === '') {
                 // New Project path
                 setPendingProjectPlan({
-                    tasks: rawTasks.map(task => ({
-                        ...task,
-                        ...(daysUntilDeadline === null ? {} : { days_until_deadline: daysUntilDeadline }),
-                    })),
                     description: trimmedPrompt,
                     name: suggestedProjectName(trimmedPrompt),
                 });
                 setIsProjectCreationOpen(true);
-                addAssistantMessage('I’ve prepared a draft plan. Add a project name in the next step, then you can review every task before saving it.');
+                addAssistantMessage('I’ll help you decompose this. Add a project name first, and then I will generate the Epic and Sprint breakdown.');
                 return;
             } else {
                 // Existing Project path
-                const tasks = rawTasks.map(task => ({
-                    ...task,
-                    ...(daysUntilDeadline === null ? {} : { days_until_deadline: daysUntilDeadline }),
-                }));
-                setDraftTasks(tasks);
-                addAssistantMessage(`Your draft plan is ready with ${tasks.length} tasks. Review and edit it before adding it to the project.`);
+                setPendingProjectPlan({
+                    description: trimmedPrompt,
+                });
                 setIsPlanOpen(true);
+                addAssistantMessage('Opening the AI Project Decomposer to draft your tasks...');
             }
         } catch (error) {
             if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') return;
@@ -266,10 +217,8 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
     const handleProjectCreated = (project) => {
         if (!pendingProjectPlan || !project) return;
         setSelectedProjectId(String(project.id));
-        setDraftTasks(pendingProjectPlan.tasks);
-        setPendingProjectPlan(null);
         setIsPlanOpen(true);
-        addAssistantMessage(`Created “${project.name}”. Review the draft plan and save it when you’re ready.`);
+        addAssistantMessage(`Created “${project.name}”. Opening the AI Project Decomposer...`);
     };
 
     return (
@@ -384,14 +333,15 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                         </div>
                     </div>
 
-                    {isPlanOpen && draftTasks && (
+                    {isPlanOpen && pendingProjectPlan && (
                         <HierarchicalDecompositionModal
                             isOpen={isPlanOpen}
                             onClose={() => setIsPlanOpen(false)}
                             projectId={selectedProjectId}
                             tenantId={studio.id}
                             teamMembers={teamMembers}
-                            initialDraftTasks={draftTasks}
+                            initialDescription={pendingProjectPlan.description}
+                            autoStart={true}
                             onSaveSuccess={() => router.visit(route('tenant.projects.show', { tenant: studio.id, project: selectedProjectId }))}
                         />
                     )}

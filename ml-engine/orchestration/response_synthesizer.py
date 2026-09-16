@@ -70,9 +70,14 @@ Rules:
 
 _INTENT_CLASSIFIER_SYSTEM = """You are an intent classifier for a software studio AI Assistant.
 Given a user message from a project manager, classify their intent into exactly ONE of these three categories:
-1. "create_task" — The user is specifying a SINGLE task they want to create/add (e.g., "Add a bug fix for infinite scroll...", "Create a task: Refactor database schema...", "Bug Fixing & Performance Optimization Task: Resolve an issue where...").
-2. "decompose_sprint" — The user is requesting to plan, break down, or generate MULTIPLE tasks for a sprint, epic, or major feature (e.g., "Plan a sprint for the new user authentication module", "Decompose the onboarding flow into tasks...", "Generate sprint tasks for telemetry dashboard").
-3. "qa" — The user is asking a question or requesting analysis about existing project data, status, deadlines, risks, or team members (e.g., "How many tasks are in review?", "Summarize the project", "Who is working on task #5?").
+1. "create_task" — The user is specifying a SINGLE, narrowly scoped task they want to create/add (e.g., "Add a bug fix for infinite scroll...", "Create a task: Refactor database schema...", "Fix the login button color.").
+2. "decompose_sprint" — The user is describing a MULTI-TASK body of work. This includes:
+   - Explicit planning requests ("Plan a sprint for...", "Decompose the onboarding flow...", "Generate tasks for...")
+   - Rich project or feature descriptions that span multiple components, systems, or concerns (e.g., describing a backend pipeline AND a frontend dashboard AND authentication in one message)
+   - Any message that mentions building, implementing, or shipping a feature set or full application, even without using the word "sprint" or "epic"
+   - Messages that describe multiple deliverables, integrations, or phases of work
+   When in doubt between "create_task" and "decompose_sprint", prefer "decompose_sprint" if the work described would naturally result in more than one task.
+3. "qa" — The user is asking a QUESTION or requesting ANALYSIS about existing project data, status, deadlines, risks, or team members (e.g., "How many tasks are in review?", "Summarize the project", "Who is working on task #5?", "When will we finish?"). Only classify as "qa" if the message is clearly interrogative or analytical, not descriptive of new work to be done.
 
 Respond ONLY with valid JSON in this exact format:
 {"intent": "qa" | "create_task" | "decompose_sprint", "confidence": float}"""

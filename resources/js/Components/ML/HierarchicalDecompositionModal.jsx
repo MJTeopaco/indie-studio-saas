@@ -126,10 +126,10 @@ const SKILL_CATEGORIES = CANONICAL_SKILLS_LIST.reduce((acc, skill) => {
 
 // ─── Progress Stage Indicator ────────────────────────────────────────────────
 const STAGES = [
-    { key: 'intent',     icon: Brain,      label: 'Analysing Description' },
-    { key: 'llm',        icon: Zap,        label: 'AI Generating Tasks'   },
-    { key: 'validate',   icon: ListChecks, label: 'Validating Output'     },
-    { key: 'synthesize', icon: Sparkles,   label: 'Generating Overview'   },
+    { key: 'intent', icon: Brain, label: 'Analysing Description' },
+    { key: 'llm', icon: Zap, label: 'AI Generating Tasks' },
+    { key: 'validate', icon: ListChecks, label: 'Validating Output' },
+    { key: 'synthesize', icon: Sparkles, label: 'Generating Overview' },
 ];
 
 function StageIndicator({ stages, currentStage, pct }) {
@@ -146,7 +146,7 @@ function StageIndicator({ stages, currentStage, pct }) {
                         AI Sprint Decomposition in Progress
                     </p>
                     <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-                        Running local LLM — this takes 1–3 minutes on your machine
+                        Running LLM — this takes a few minutes
                     </p>
                 </div>
             </div>
@@ -161,27 +161,25 @@ function StageIndicator({ stages, currentStage, pct }) {
 
             <div className="flex flex-col gap-2 mt-1">
                 {stages.map((stage, idx) => {
-                    const done    = idx < currentIdx;
-                    const active  = idx === currentIdx;
-                    const Icon    = stage.icon;
+                    const done = idx < currentIdx;
+                    const active = idx === currentIdx;
+                    const Icon = stage.icon;
                     return (
                         <div
                             key={stage.key}
-                            className={`flex items-center gap-3 px-3 py-2 rounded-xl border transition-all duration-300 ${
-                                active
+                            className={`flex items-center gap-3 px-3 py-2 rounded-xl border transition-all duration-300 ${active
                                     ? 'border-brand/40 bg-brand/5 dark:bg-brand/10'
                                     : done
-                                    ? 'border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-900/10'
-                                    : 'border-gray-100 dark:border-slate-800 opacity-40'
-                            }`}
+                                        ? 'border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-900/10'
+                                        : 'border-gray-100 dark:border-slate-800 opacity-40'
+                                }`}
                         >
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
-                                done
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${done
                                     ? 'bg-emerald-500/20'
                                     : active
-                                    ? 'bg-brand/20'
-                                    : 'bg-gray-200 dark:bg-slate-700'
-                            }`}>
+                                        ? 'bg-brand/20'
+                                        : 'bg-gray-200 dark:bg-slate-700'
+                                }`}>
                                 {done ? (
                                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                                 ) : active ? (
@@ -190,11 +188,10 @@ function StageIndicator({ stages, currentStage, pct }) {
                                     <Icon className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />
                                 )}
                             </div>
-                            <span className={`text-xs font-semibold ${
-                                done ? 'text-emerald-600 dark:text-emerald-400'
+                            <span className={`text-xs font-semibold ${done ? 'text-emerald-600 dark:text-emerald-400'
                                     : active ? 'text-brand dark:text-brand-light'
-                                    : 'text-gray-400 dark:text-slate-500'
-                            }`}>
+                                        : 'text-gray-400 dark:text-slate-500'
+                                }`}>
                                 {stage.label}
                             </span>
                             {done && (
@@ -348,7 +345,7 @@ function InlineAssignment({ taskIndex, teamMembers = [], fitState, onAssign, onR
 
     const getMember = (userId) => teamMembers.find(m => Number(m.id) === Number(userId));
     const getMemberName = (userId) => getMember(userId)?.name ?? null;
-    const getInitial  = (userId) => getMemberName(userId)?.charAt(0).toUpperCase() ?? '?';
+    const getInitial = (userId) => getMemberName(userId)?.charAt(0).toUpperCase() ?? '?';
 
     const topCandidate = candidates[0] ?? null;
     const pct = (score) => Math.round((score ?? 0) * 100);
@@ -674,18 +671,18 @@ export default function HierarchicalDecompositionModal({
     onSaveSuccess = null,
 }) {
     const [description, setDescription] = useState('');
-    const [outputMode, setOutputMode]   = useState('hierarchical'); // 'flat' | 'hierarchical'
-    const [phase, setPhase]             = useState('input');   // input | loading | outline | review | assign
-    const [progress, setProgress]       = useState({ stage: null, message: '', pct: 0 });
-    const [epics, setEpics]             = useState([]);
-    const [sprints, setSprints]         = useState([]);
+    const [outputMode, setOutputMode] = useState('hierarchical'); // 'flat' | 'hierarchical'
+    const [phase, setPhase] = useState('input');   // input | loading | outline | review | assign
+    const [progress, setProgress] = useState({ stage: null, message: '', pct: 0 });
+    const [epics, setEpics] = useState([]);
+    const [sprints, setSprints] = useState([]);
     const [editableTasks, setEditableTasks] = useState(null);
     const [sprintExplanation, setSprintExplanation] = useState(null);
     const [isOverviewExpanded, setIsOverviewExpanded] = useState(true);
-    const [isSaving, setIsSaving]       = useState(false);
-    const [error, setError]             = useState(null);
+    const [isSaving, setIsSaving] = useState(false);
+    const [error, setError] = useState(null);
     // Per-task fit suggestion state: { loading, candidates, error, assignedUserIds }
-    const [taskFits, setTaskFits]       = useState([]);
+    const [taskFits, setTaskFits] = useState([]);
 
     const abortRef = useRef(null);
     const hasAutoStartedRef = useRef(false);
@@ -702,12 +699,12 @@ export default function HierarchicalDecompositionModal({
         tasks.forEach(async (task, idx) => {
             try {
                 const res = await axios.post(previewUrl, {
-                    title:               task.title,
-                    required_skills:     task.required_skills ?? [],
-                    estimated_hours:     task.estimated_hours ?? 4,
-                    task_difficulty:     task.task_difficulty ?? 'Medium',
+                    title: task.title,
+                    required_skills: task.required_skills ?? [],
+                    estimated_hours: task.estimated_hours ?? 4,
+                    task_difficulty: task.task_difficulty ?? 'Medium',
                     task_classification: task.task_classification ?? 'Feature',
-                    priority:            task.priority ?? 'Medium',
+                    priority: task.priority ?? 'Medium',
                 }, { timeout: 300000 });
 
                 const eligibleIds = new Set(teamMembers.map(member => Number(member.id)));
@@ -804,7 +801,7 @@ export default function HierarchicalDecompositionModal({
         setError(null);
         setProgress({ stage: 'intent', message: 'Analysing project description...', pct: 10 });
 
-        const ML_URL = outputMode === 'hierarchical' 
+        const ML_URL = outputMode === 'hierarchical'
             ? 'http://127.0.0.1:8001/api/llm/decompose-project/hierarchical/stream'
             : 'http://127.0.0.1:8001/api/llm/decompose-project/stream';
 
@@ -823,9 +820,9 @@ export default function HierarchicalDecompositionModal({
                 throw new Error(`ML Engine returned HTTP ${response.status}`);
             }
 
-            const reader  = response.body.getReader();
+            const reader = response.body.getReader();
             const decoder = new TextDecoder();
-            let buffer    = '';
+            let buffer = '';
 
             while (true) {
                 const { value, done } = await reader.read();
@@ -839,10 +836,10 @@ export default function HierarchicalDecompositionModal({
                     if (!msg.trim()) continue;
                     const lines = msg.split('\n');
                     let event = 'message';
-                    let data  = '';
+                    let data = '';
                     for (const line of lines) {
                         if (line.startsWith('event:')) event = line.slice(6).trim();
-                        if (line.startsWith('data:'))  data  = line.slice(5).trim();
+                        if (line.startsWith('data:')) data = line.slice(5).trim();
                     }
                     if (!data) continue;
                     const payload = JSON.parse(data);
@@ -892,12 +889,12 @@ export default function HierarchicalDecompositionModal({
 
             if (outputMode === 'hierarchical') {
                 const url = route('tenant.projects.hierarchy.bulk', { tenant: tenantId, project: projectId });
-                await axios.post(url, { 
+                await axios.post(url, {
                     hierarchy: {
                         epics,
                         sprints,
                         tasks: tasksWithAssignments
-                    } 
+                    }
                 }, {
                     headers: { Accept: 'application/json' },
                 });
@@ -1068,7 +1065,7 @@ export default function HierarchicalDecompositionModal({
                     {/* AI SPRINT OVERVIEW (Visible on both Review and Assign phases) */}
                     {(phase === 'review' || phase === 'assign') && editableTasks && sprintExplanation && (
                         <div className="rounded-2xl border border-brand/30 bg-brand/5 dark:bg-brand/10 p-4 shadow-sm transition-all mb-4">
-                            <div 
+                            <div
                                 className="flex items-center justify-between cursor-pointer select-none"
                                 onClick={() => setIsOverviewExpanded(!isOverviewExpanded)}
                             >
@@ -1094,20 +1091,20 @@ export default function HierarchicalDecompositionModal({
                         <div className="space-y-4">
                             <p className="text-sm font-semibold text-gray-800 dark:text-slate-200">Hierarchical Outline</p>
                             <p className="text-sm text-gray-500 dark:text-slate-400">Review the generated Epic and Sprint structure.</p>
-                            
+
                             <div className="space-y-6 mt-4">
                                 {epics.map((epic, eIdx) => (
                                     <div key={eIdx} className="rounded-xl border border-gray-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900 shadow-sm">
-                                        <h3 className="text-sm font-bold text-gray-900 dark:text-slate-100"><Layers className="inline w-4 h-4 mr-1 text-brand"/> {epic.epic_name}</h3>
+                                        <h3 className="text-sm font-bold text-gray-900 dark:text-slate-100"><Layers className="inline w-4 h-4 mr-1 text-brand" /> {epic.epic_name}</h3>
                                         <p className="text-xs text-gray-500 mt-1">{epic.epic_description}</p>
-                                        
+
                                         <div className="mt-4 space-y-3 pl-4 border-l-2 border-gray-100 dark:border-slate-800">
                                             {sprints.map((sprint, sIdx) => {
                                                 if (!sprint.epic_indices?.includes(eIdx)) return null;
                                                 const sprintTasks = editableTasks.filter(t => t.epic_index === eIdx && t.sprint_index === sIdx);
                                                 return (
                                                     <div key={sIdx} className="rounded-lg border border-indigo-100 dark:border-indigo-500/20 bg-indigo-50/30 dark:bg-indigo-500/5 p-3">
-                                                        <h4 className="text-xs font-bold text-indigo-700 dark:text-indigo-400"><IterationCw className="inline w-3 h-3 mr-1"/> {sprint.sprint_name}</h4>
+                                                        <h4 className="text-xs font-bold text-indigo-700 dark:text-indigo-400"><IterationCw className="inline w-3 h-3 mr-1" /> {sprint.sprint_name}</h4>
                                                         <p className="text-[10px] text-gray-500 mt-0.5">{sprint.sprint_goal}</p>
                                                         <div className="mt-2 text-[10px] font-semibold text-gray-400">{sprintTasks.length} tasks generated</div>
                                                     </div>
@@ -1148,14 +1145,14 @@ export default function HierarchicalDecompositionModal({
 
                             <div className="space-y-8">
                                 {outputMode === 'hierarchical' && epics.length > 0 ? epics.map((epic, eIdx) => {
-                                    const epicTasks = editableTasks.map((t, tIdx) => ({task: t, index: tIdx})).filter(item => item.task.epic_index === eIdx);
+                                    const epicTasks = editableTasks.map((t, tIdx) => ({ task: t, index: tIdx })).filter(item => item.task.epic_index === eIdx);
                                     if (epicTasks.length === 0) return null;
                                     return (
                                         <div key={eIdx} className="space-y-4">
                                             <h3 className="text-base font-bold text-gray-900 dark:text-slate-100 border-b border-gray-200 dark:border-slate-800 pb-2 mb-4">
-                                                <Layers className="inline w-5 h-5 mr-1.5 text-brand"/> {epic.epic_name}
+                                                <Layers className="inline w-5 h-5 mr-1.5 text-brand" /> {epic.epic_name}
                                             </h3>
-                                            {epicTasks.map(({task, index}) => (
+                                            {epicTasks.map(({ task, index }) => (
                                                 <EditableTaskCard
                                                     key={index}
                                                     task={task}
@@ -1189,14 +1186,14 @@ export default function HierarchicalDecompositionModal({
                             </div>
                             <div className="space-y-8">
                                 {outputMode === 'hierarchical' && epics.length > 0 ? epics.map((epic, eIdx) => {
-                                    const epicTasks = editableTasks.map((t, tIdx) => ({task: t, index: tIdx})).filter(item => item.task.epic_index === eIdx);
+                                    const epicTasks = editableTasks.map((t, tIdx) => ({ task: t, index: tIdx })).filter(item => item.task.epic_index === eIdx);
                                     if (epicTasks.length === 0) return null;
                                     return (
                                         <div key={eIdx} className="space-y-4">
                                             <h3 className="text-base font-bold text-gray-900 dark:text-slate-100 border-b border-gray-200 dark:border-slate-800 pb-2 mb-4">
-                                                <Layers className="inline w-5 h-5 mr-1.5 text-brand"/> {epic.epic_name}
+                                                <Layers className="inline w-5 h-5 mr-1.5 text-brand" /> {epic.epic_name}
                                             </h3>
-                                            {epicTasks.map(({task, index}) => (
+                                            {epicTasks.map(({ task, index }) => (
                                                 <TaskAssignmentCard
                                                     key={index}
                                                     task={task}

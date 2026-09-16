@@ -413,7 +413,22 @@ async def decompose_project_hierarchical_stream(request: HierarchicalDecomposeRe
             epics = result.get("epics", [])
             sprints = result.get("sprint_suggestions", [])
 
-            tasks_list = result.get("tasks", [])
+            tasks_list = []
+            for e_idx, epic in enumerate(epics):
+                s_idx = None
+                for i, sprint in enumerate(sprints):
+                    if e_idx in sprint.get("epic_indices", []):
+                        s_idx = i
+                        break
+                
+                epic_tasks = epic.get("tasks", [])
+                for task in epic_tasks:
+                    task["epic_index"] = e_idx
+                    task["sprint_index"] = s_idx
+                    tasks_list.append(task)
+                
+                if "tasks" in epic:
+                    del epic["tasks"]
 
             # ---- Stage 3: synthesis ----
             yield _sse("progress", {"stage": "synthesize", "message": "Generating executive summary...", "pct": 94})

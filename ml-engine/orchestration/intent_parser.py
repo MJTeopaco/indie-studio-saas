@@ -147,7 +147,7 @@ class EpicDraft(BaseModel):
 
 class HierarchicalDecomposition(BaseModel):
     epics: List[EpicDraft]
-    sprint_suggestions: List[SprintSuggestion]
+    sprint_suggestions: List[SprintSuggestion] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -345,7 +345,7 @@ def parse_task_from_text(raw_text: str) -> TaskParseResult:
     """
     from orchestration.llm_client import get_llm
 
-    llm = get_llm()
+    llm = get_llm(json_mode=True)
     if llm is None:
         return _stub_task_parse(raw_text)
 
@@ -435,8 +435,7 @@ def decompose_project_into_tasks(project_description: str) -> list[dict]:
             if attempt == 1:
                 messages.append(HumanMessage(content=f"Your previous output failed validation/parsing ({exc}). Respond STRICTLY with a single valid JSON array of tasks matching the schema. Ensure no trailing commas and no truncation."))
 
-    logger.error("Sprint decomposition failed after 2 attempts: %s", last_error)
-    return []
+    raise ValueError(f"Sprint decomposition failed after 2 attempts: {last_error}")
 
 
 def decompose_project_hierarchically(project_description: str) -> dict:
@@ -447,9 +446,9 @@ def decompose_project_hierarchically(project_description: str) -> dict:
     from orchestration.llm_client import get_llm
     from langchain_core.messages import HumanMessage, SystemMessage
 
-    llm = get_llm()
+    llm = get_llm(json_mode=True)
     if llm is None:
-        logger.info("LLM unavailable — returning empty hierarchical decomposition.")
+        logger.info("LLM unavailable — returning empty task list.")
         return {"epics": [], "sprint_suggestions": []}
 
     messages = [
@@ -472,6 +471,5 @@ def decompose_project_hierarchically(project_description: str) -> dict:
             if attempt == 1:
                 messages.append(HumanMessage(content=f"Your previous output failed validation/parsing ({exc}). Respond STRICTLY with a single valid JSON object matching the schema. Ensure no trailing commas and no truncation."))
 
-    logger.error("Hierarchical decomposition failed after 2 attempts: %s", last_error)
-    return {"epics": [], "sprint_suggestions": []}
+    raise ValueError(f"Hierarchical decomposition failed after 2 attempts: {last_error}")
 
