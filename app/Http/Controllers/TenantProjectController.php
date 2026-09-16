@@ -12,6 +12,7 @@ use App\Models\Tenant\EpicPriority;
 use App\Models\Tenant\Project;
 use App\Models\Tenant\Sprint;
 use App\Models\Tenant\Task;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -22,7 +23,7 @@ class TenantProjectController extends Controller
     private function authorizeManager()
     {
         $user = auth()->user();
-        if ($user && $user->role === \App\Models\User::ROLE_ADMIN) {
+        if ($user && $user->role === User::ROLE_ADMIN) {
             return;
         }
 
@@ -33,7 +34,7 @@ class TenantProjectController extends Controller
 
         $role = $member ? $member->role : 'member';
 
-        if (!in_array($role, ['owner', 'leader', 'manager'])) {
+        if (! in_array($role, ['owner', 'leader', 'manager'])) {
             abort(403, 'Unauthorized action. Only studio managers can perform this task.');
         }
     }
@@ -78,16 +79,16 @@ class TenantProjectController extends Controller
         $studio = Studio::find(tenant('id'));
 
         $projectModel = Project::with([
-            'tasks.assignee', 
+            'tasks.assignee',
             'tasks.predecessors',
             'epics' => function ($query) {
                 $query->withCount('tasks')
-                      ->withSum('tasks', 'estimated_hours')
-                      ->withSum('tasks', 'story_points')
-                      ->with(['phase', 'priority', 'tasks' => function ($q) {
-                          $q->select('id', 'epic_id', 'title', 'status', 'sprint_status');
-                      }]);
-            }
+                    ->withSum('tasks', 'estimated_hours')
+                    ->withSum('tasks', 'story_points')
+                    ->with(['phase', 'priority', 'tasks' => function ($q) {
+                        $q->select('id', 'epic_id', 'title', 'status', 'sprint_status');
+                    }]);
+            },
         ])->findOrFail($project);
 
         $teamMembers = $studio ? $studio->users()->get()->map(fn ($u) => ['id' => $u->id, 'name' => $u->name]) : [];
@@ -145,7 +146,7 @@ class TenantProjectController extends Controller
                             'task_classification', 'story_points', 'actual_story_points',
                             'github_link', 'assigned_user_id', 'priority',
                         ])->with('epic:id,name,color');
-                    }])->get()->map(function ($sprint) use ($projectModel, &$assignmentIdsByTask, &$membersById) {
+                    }])->get()->map(function ($sprint) use (&$assignmentIdsByTask, &$membersById) {
                         $sprint->tasks->each(function ($task) use (&$assignmentIdsByTask, &$membersById) {
                             $task->setAttribute('assignees', collect($assignmentIdsByTask->get($task->id, []))
                                 ->map(fn ($assignment) => $membersById->get($assignment->employee_user_id))
@@ -153,6 +154,7 @@ class TenantProjectController extends Controller
                                 ->values()
                                 ->all());
                         });
+
                         return $sprint;
                     });
             },
@@ -282,7 +284,7 @@ class TenantProjectController extends Controller
                 'required_position' => $taskData['required_position'] ?? null,
                 'required_skills' => $taskData['required_skills'] ?? [],
                 'story_points_ai_suggested' => $hours > 0 ? $points : null,
-                'expected_estimators' => !empty($taskData['assigned_user_ids']) ? $taskData['assigned_user_ids'] : null,
+                'expected_estimators' => ! empty($taskData['assigned_user_ids']) ? $taskData['assigned_user_ids'] : null,
                 'status' => 'todo',
             ]);
 
@@ -372,6 +374,7 @@ class TenantProjectController extends Controller
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'assigned_user_id' => 'nullable|integer',
+            'reviewer_user_id' => 'nullable|integer',
             'estimated_hours' => 'required|numeric|min:0',
             'hard_constraint_date' => 'nullable|date',
             'priority' => 'required|string|in:Low,Medium,High,Critical',
@@ -394,6 +397,7 @@ class TenantProjectController extends Controller
                 'title' => $validated['title'],
                 'description' => $validated['description'] ?? null,
                 'assigned_user_id' => $validated['assigned_user_id'] ?? null,
+                'reviewer_user_id' => $validated['reviewer_user_id'] ?? null,
                 'estimated_hours' => $validated['estimated_hours'],
                 'hard_constraint_date' => $validated['hard_constraint_date'] ?? null,
                 'priority' => $validated['priority'],
@@ -408,7 +412,7 @@ class TenantProjectController extends Controller
 
             $this->syncTaskDependencies($task, $validated['depends_on'] ?? []);
 
-            if (!empty($validated['assigned_user_id'])) {
+            if (! empty($validated['assigned_user_id'])) {
                 DB::table('assignments')->insert([
                     'task_id' => $task->id,
                     'employee_user_id' => $validated['assigned_user_id'],
@@ -453,7 +457,7 @@ class TenantProjectController extends Controller
 
         $user = auth()->user();
         $isManager = false;
-        if ($user && $user->role === \App\Models\User::ROLE_ADMIN) {
+        if ($user && $user->role === User::ROLE_ADMIN) {
             $isManager = true;
         } else {
             $member = \DB::connection(config('tenancy.database.central_connection', 'central'))->table('studio_members')
@@ -464,27 +468,77 @@ class TenantProjectController extends Controller
             $isManager = in_array($role, ['owner', 'leader', 'manager']);
         }
 
-        if (!$isManager) {
-            // Check if they tried to update any field other than 'status'
-            $modifiedFields = array_keys($request->except(['status', '_method', '_token']));
-            if (!empty($modifiedFields)) {
+        if (! $isManager) {
+            // Check if they tried to update any field other than 'status' or 'sprint_status'
+            $modifiedFields = array_keys($request->except(['status', 'sprint_status', '_method', '_token']));
+            if (! empty($modifiedFields)) {
                 abort(403, 'Unauthorized. Members can only update task status.');
             }
 
-            // Ensure task is assigned to them
-            if ((int) $taskModel->assigned_user_id !== (int) $user->id) {
-                abort(403, 'Unauthorized. You can only update tasks assigned to you.');
+            // Ensure user is the assigned doer or reviewer
+            $isDoer = ((int) $taskModel->assigned_user_id === (int) $user->id) || DB::table('assignments')
+                ->where('task_id', $taskModel->id)
+                ->where('employee_user_id', $user->id)
+                ->where('status', 'active')
+                ->exists();
+            $isReviewer = (int) $taskModel->reviewer_user_id === (int) $user->id;
+            $hasReviewer = ! empty($taskModel->reviewer_user_id);
+
+            if (! $isDoer && ! $isReviewer) {
+                abort(403, 'Unauthorized. You can only update tasks assigned to you or assigned to you for review.');
             }
 
             $validated = $request->validate([
-                'status' => 'required|string|in:todo,in_progress,review,completed,stuck',
+                'status' => 'sometimes|required|string|in:todo,in_progress,review,completed,stuck',
                 'sprint_status' => 'sometimes|nullable|string|max:50',
             ]);
+
+            // Sync sprint_status and status if one was supplied
+            if (isset($validated['sprint_status']) && ! isset($validated['status'])) {
+                $map = [
+                    'ready_to_start' => 'todo',
+                    'in_progress' => 'in_progress',
+                    'waiting_for_review' => 'review',
+                    'pending_deploy' => 'review',
+                    'done' => 'completed',
+                    'stuck' => 'stuck',
+                ];
+                if (isset($map[$validated['sprint_status']])) {
+                    $validated['status'] = $map[$validated['sprint_status']];
+                }
+            } elseif (isset($validated['status']) && ! isset($validated['sprint_status'])) {
+                $map = [
+                    'todo' => 'ready_to_start',
+                    'in_progress' => 'in_progress',
+                    'review' => 'waiting_for_review',
+                    'completed' => 'done',
+                    'stuck' => 'stuck',
+                ];
+                if (isset($map[$validated['status']])) {
+                    $validated['sprint_status'] = $map[$validated['status']];
+                }
+            }
+
+            $newStatus = $validated['status'] ?? null;
+            $currentStatus = $taskModel->status;
+
+            if ($currentStatus === 'review' && $newStatus === 'completed' && ! $isReviewer) {
+                abort(403, 'Only the assigned reviewer can mark this task as done.');
+            }
+
+            if ($currentStatus === 'in_progress' && $newStatus === 'completed' && $hasReviewer && ! $isReviewer) {
+                abort(403, 'This task requires reviewer approval. Move it to "In Review" first.');
+            }
+
+            if (in_array($currentStatus, ['in_progress', 'review', 'completed']) && $newStatus === 'todo') {
+                abort(422, 'You cannot move a task back to "To Do" once started.');
+            }
         } else {
             $validated = $request->validate([
                 'title' => 'sometimes|required|string|max:255',
                 'description' => 'nullable|string',
                 'assigned_user_id' => 'nullable|integer',
+                'reviewer_user_id' => 'nullable|integer',
                 'assignees' => 'sometimes|array',
                 'assignees.*' => 'integer',
                 'estimated_hours' => 'sometimes|required|numeric|min:0',
@@ -515,7 +569,7 @@ class TenantProjectController extends Controller
 
             if (array_key_exists('assignees', $validated)) {
                 DB::table('assignments')->where('task_id', $taskModel->id)->where('status', 'active')->update(['status' => 'cancelled']);
-                
+
                 foreach ($validated['assignees'] as $employeeId) {
                     DB::table('assignments')->insert([
                         'task_id' => $taskModel->id,
@@ -529,11 +583,11 @@ class TenantProjectController extends Controller
                         'updated_at' => now(),
                     ]);
                 }
-                
+
                 // Keep the first ID for legacy compatibility if we want, or set null if empty
                 $taskModel->assigned_user_id = count($validated['assignees']) > 0 ? $validated['assignees'][0] : null;
                 $taskModel->save();
-                
+
             } elseif (array_key_exists('assigned_user_id', $validated) && (int) $validated['assigned_user_id'] !== (int) $oldAssignedId) {
                 DB::table('assignments')->where('task_id', $taskModel->id)->where('status', 'active')->update(['status' => 'cancelled']);
                 if ($validated['assigned_user_id']) {
@@ -600,11 +654,11 @@ class TenantProjectController extends Controller
         $exists = Sprint::where('project_id', $projectModel->id)
             ->where('name', $validated['name'])
             ->exists();
-            
+
         if ($exists) {
             return response()->json([
                 'message' => 'The given data was invalid.',
-                'errors' => ['name' => ['A sprint with this name already exists in this project.']]
+                'errors' => ['name' => ['A sprint with this name already exists in this project.']],
             ], 422);
         }
 
@@ -653,7 +707,7 @@ class TenantProjectController extends Controller
         $epicPhase = EpicPhase::where('tenant_id', $tenantId)->find($validated['phase_id']);
         $epicPriority = EpicPriority::where('tenant_id', $tenantId)->find($validated['priority_id']);
 
-        if (!$epicPhase || !$epicPriority) {
+        if (! $epicPhase || ! $epicPriority) {
             abort(400, 'Invalid phase or priority for this tenant.');
         }
 
@@ -682,14 +736,14 @@ class TenantProjectController extends Controller
         }
 
         $projectModel = Project::findOrFail($project);
-        
+
         // Ownership check: Ensure project belongs to current tenant
         if ($projectModel->tenant_id && $projectModel->tenant_id !== tenant('id')) {
             abort(403, 'Unauthorized. Project does not belong to the current tenant.');
         }
 
         $epicModel = Epic::findOrFail($epic);
-        
+
         if ($epicModel->project_id !== $projectModel->id) {
             abort(404, 'Epic not found in this project.');
         }
@@ -707,21 +761,21 @@ class TenantProjectController extends Controller
 
         if (isset($validated['phase_id'])) {
             $phase = EpicPhase::where('tenant_id', $tenantId)->find($validated['phase_id']);
-            if (!$phase) {
+            if (! $phase) {
                 abort(422, 'Invalid phase selected.');
             }
         }
 
         if (isset($validated['priority_id'])) {
             $priority = EpicPriority::where('tenant_id', $tenantId)->find($validated['priority_id']);
-            if (!$priority) {
+            if (! $priority) {
                 abort(422, 'Invalid priority selected.');
             }
         }
 
         $epicModel->update($validated);
 
-        if (!$request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
+        if (! $request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
             return response()->json([
                 'status' => 'success',
                 'epic' => $epicModel->load('phase', 'priority'),
@@ -734,7 +788,7 @@ class TenantProjectController extends Controller
     /**
      * Check if the current user can edit a task inline.
      */
-    private function canEditTaskInline(Task $task, \App\Models\User $user): bool
+    private function canEditTaskInline(Task $task, User $user): bool
     {
         $member = DB::connection(config('tenancy.database.central_connection', 'central'))->table('studio_members')
             ->where('studio_id', tenant('id'))
@@ -742,7 +796,11 @@ class TenantProjectController extends Controller
             ->first();
 
         $role = $member ? $member->role : 'member';
-        if (in_array($role, ['owner', 'leader', 'manager']) || $user->role === \App\Models\User::ROLE_ADMIN) {
+        if (in_array($role, ['owner', 'leader', 'manager']) || $user->role === User::ROLE_ADMIN) {
+            return true;
+        }
+
+        if ((int) $task->assigned_user_id === (int) $user->id || (int) $task->reviewer_user_id === (int) $user->id) {
             return true;
         }
 
@@ -775,27 +833,27 @@ class TenantProjectController extends Controller
 
         $user = auth()->user();
         $isManager = false;
-        
+
         $member = DB::connection(config('tenancy.database.central_connection', 'central'))->table('studio_members')
             ->where('studio_id', tenant('id'))
             ->where('user_id', $user->id)
             ->first();
 
         $role = $member ? $member->role : 'member';
-        if (in_array($role, ['owner', 'leader', 'manager']) || $user->role === \App\Models\User::ROLE_ADMIN) {
+        if (in_array($role, ['owner', 'leader', 'manager']) || $user->role === User::ROLE_ADMIN) {
             $isManager = true;
         }
 
-        if (!$this->canEditTaskInline($taskModel, $user)) {
+        if (! $this->canEditTaskInline($taskModel, $user)) {
             return response()->json([
-                'message' => 'Unauthorized. You must be the assigned member or a manager to edit this task.',
+                'message' => 'Unauthorized. You must be the assigned member, reviewer, or a manager to edit this task.',
             ], 403);
         }
 
         if ($request->has('actual_story_points') && $taskModel->sprint_status !== 'done' && $request->input('sprint_status') !== 'done') {
             return response()->json([
                 'message' => 'Actual SP can only be set when the task status is Done.',
-                'errors' => ['actual_story_points' => ['Task must be Done before setting Actual SP.']]
+                'errors' => ['actual_story_points' => ['Task must be Done before setting Actual SP.']],
             ], 422);
         }
 
@@ -813,6 +871,49 @@ class TenantProjectController extends Controller
         }
 
         $validated = $request->validate($rules);
+
+        $newSprintStatus = $validated['sprint_status'] ?? null;
+        if (! $isManager && $newSprintStatus !== null) {
+            $currentSprintStatus = $taskModel->sprint_status ?? ($taskModel->status === 'completed' ? 'done' : ($taskModel->status === 'review' ? 'waiting_for_review' : $taskModel->status));
+            $isReviewer = (int) $taskModel->reviewer_user_id === (int) $user->id;
+            $hasReviewer = ! empty($taskModel->reviewer_user_id);
+
+            // Only assigned reviewer or manager can mark done from review
+            if (in_array($currentSprintStatus, ['waiting_for_review', 'pending_deploy']) && $newSprintStatus === 'done' && ! $isReviewer) {
+                return response()->json([
+                    'message' => 'Only the assigned reviewer can mark this task as done.',
+                ], 403);
+            }
+
+            // Doer cannot skip review directly to done if a reviewer is assigned
+            if ($currentSprintStatus === 'in_progress' && $newSprintStatus === 'done' && $hasReviewer && ! $isReviewer) {
+                return response()->json([
+                    'message' => 'This task requires reviewer approval. Move it to "In Review" first.',
+                ], 403);
+            }
+
+            // Cannot go back to ready_to_start once in progress or beyond
+            if (in_array($currentSprintStatus, ['in_progress', 'waiting_for_review', 'pending_deploy', 'done']) && $newSprintStatus === 'ready_to_start') {
+                return response()->json([
+                    'message' => 'You cannot move a task back to "Ready to Start" once started.',
+                ], 422);
+            }
+        }
+
+        if (isset($validated['sprint_status'])) {
+            $map = [
+                'ready_to_start' => 'todo',
+                'in_progress' => 'in_progress',
+                'waiting_for_review' => 'review',
+                'pending_deploy' => 'review',
+                'done' => 'completed',
+                'stuck' => 'stuck',
+            ];
+            if (isset($map[$validated['sprint_status']])) {
+                $validated['status'] = $map[$validated['sprint_status']];
+            }
+        }
+
         $taskModel->update($validated);
 
         return response()->json([
@@ -831,12 +932,12 @@ class TenantProjectController extends Controller
         $this->authorizeManager();
 
         $projectModel = Project::findOrFail($project);
-        $sprintModel  = Sprint::with('tasks')->findOrFail($sprint);
+        $sprintModel = Sprint::with('tasks')->findOrFail($sprint);
 
         abort_unless($sprintModel->project_id === $projectModel->id, 404);
 
-        $tasks      = $sprintModel->tasks;
-        $done       = $tasks->where('sprint_status', 'done');
+        $tasks = $sprintModel->tasks;
+        $done = $tasks->where('sprint_status', 'done');
         $incomplete = $tasks->where('sprint_status', '!=', 'done');
 
         // Other planned/active sprints that can receive the incomplete tasks
@@ -847,16 +948,16 @@ class TenantProjectController extends Controller
             ->get(['id', 'name', 'start_date', 'end_date', 'status']);
 
         return response()->json([
-            'sprint'  => [
-                'id'   => $sprintModel->id,
+            'sprint' => [
+                'id' => $sprintModel->id,
                 'name' => $sprintModel->name,
             ],
             'summary' => [
-                'total_tasks'         => $tasks->count(),
-                'done_count'          => $done->count(),
-                'incomplete_count'    => $incomplete->count(),
-                'estimated_sp_total'  => $tasks->sum('story_points'),
-                'actual_sp_burned'    => $done->sum('actual_story_points'),
+                'total_tasks' => $tasks->count(),
+                'done_count' => $done->count(),
+                'incomplete_count' => $incomplete->count(),
+                'estimated_sp_total' => $tasks->sum('story_points'),
+                'actual_sp_burned' => $done->sum('actual_story_points'),
                 'completion_rate_pct' => $tasks->count()
                     ? round(($done->count() / $tasks->count()) * 100)
                     : 0,
@@ -891,7 +992,7 @@ class TenantProjectController extends Controller
 
         if ($routeSprint !== null) {
             $project = $sprint;
-            $sprint  = $routeSprint;
+            $sprint = $routeSprint;
         }
 
         $projectModel = Project::findOrFail($project);
@@ -905,10 +1006,10 @@ class TenantProjectController extends Controller
         }
 
         $validated = $request->validate([
-            'name'       => 'required|string|max:255',
-            'goal'       => 'nullable|string',
+            'name' => 'required|string|max:255',
+            'goal' => 'nullable|string',
             'start_date' => 'required|date',
-            'end_date'   => 'required|date|after:start_date',
+            'end_date' => 'required|date|after:start_date',
         ]);
 
         // Validate unique name within project, excluding the current sprint
@@ -920,7 +1021,7 @@ class TenantProjectController extends Controller
         if ($exists) {
             return response()->json([
                 'message' => 'The given data was invalid.',
-                'errors'  => ['name' => ['A sprint with this name already exists in this project.']],
+                'errors' => ['name' => ['A sprint with this name already exists in this project.']],
             ], 422);
         }
 
@@ -939,11 +1040,10 @@ class TenantProjectController extends Controller
     /**
      * Update a sprint's status.
      */
-
     public function updateSprintStatus(Request $request, $project, $sprint, $routeSprint = null)
     {
         $this->authorizeManager();
-        
+
         if ($routeSprint !== null) {
             $project = $sprint;
             $sprint = $routeSprint;
@@ -960,9 +1060,9 @@ class TenantProjectController extends Controller
         }
 
         $validated = $request->validate([
-            'status'                  => 'required|string|in:planned,active,completed',
-            'incomplete_task_action'  => 'nullable|string|in:keep,move_to_sprint,move_to_backlog',
-            'move_to_sprint_id'       => 'nullable|integer|exists:sprints,id',
+            'status' => 'required|string|in:planned,active,completed',
+            'incomplete_task_action' => 'nullable|string|in:keep,move_to_sprint,move_to_backlog',
+            'move_to_sprint_id' => 'nullable|integer|exists:sprints,id',
             'activate_next_sprint_id' => 'nullable|integer|exists:sprints,id',
         ]);
 
@@ -971,41 +1071,42 @@ class TenantProjectController extends Controller
         DB::transaction(function () use ($projectModel, $sprintModel, $newStatus, $validated) {
             if ($newStatus === 'active') {
                 $this->activateSprint($sprintModel, $projectModel);
+
                 return;
             }
-        
+
             $sprintModel->update(['status' => $newStatus]);
-        
+
             if ($newStatus === 'completed') {
                 $action = $validated['incomplete_task_action'] ?? 'keep';
-        
-                if ($action === 'move_to_sprint' && !empty($validated['move_to_sprint_id'])) {
+
+                if ($action === 'move_to_sprint' && ! empty($validated['move_to_sprint_id'])) {
                     $targetSprint = Sprint::where('project_id', $projectModel->id)
                         ->whereIn('status', ['planned', 'active'])
                         ->whereKeyNot($sprintModel->id)
                         ->findOrFail($validated['move_to_sprint_id']);
-        
+
                     Task::where('sprint_id', $sprintModel->id)
                         ->where('sprint_status', '!=', 'done')
                         ->update([
-                            'sprint_id'     => $targetSprint->id,
+                            'sprint_id' => $targetSprint->id,
                             'sprint_status' => 'ready_to_start',
                         ]);
-        
+
                 } elseif ($action === 'move_to_backlog') {
                     Task::where('sprint_id', $sprintModel->id)
                         ->where('sprint_status', '!=', 'done')
                         ->update([
-                            'sprint_id'     => null,
+                            'sprint_id' => null,
                             'sprint_status' => 'ready_to_start',
                         ]);
                 }
-        
-                if (!empty($validated['activate_next_sprint_id'])) {
+
+                if (! empty($validated['activate_next_sprint_id'])) {
                     $nextSprint = Sprint::where('project_id', $projectModel->id)
                         ->where('status', 'planned')
                         ->findOrFail($validated['activate_next_sprint_id']);
-        
+
                     $this->activateSprint($nextSprint, $projectModel);
                 }
             }

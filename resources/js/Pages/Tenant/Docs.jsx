@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { Head, usePage, useForm } from '@inertiajs/react';
+import { Head, usePage, useForm, router } from '@inertiajs/react';
 import TenantLayout from '@/Layouts/TenantLayout';
 import { FileText, Archive, Download, Trash2, Calendar, User, FolderKanban, PlusCircle, CheckCircle2, ChevronRight, HelpCircle } from 'lucide-react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
+import ConfirmationModal from '@/Components/ConfirmationModal';
+import { showToast } from '@/Components/SystemToast';
 
 export default function Docs({ studio, projects = [], members = [], reports = [] }) {
     const { activeWorkspace } = usePage().props;
@@ -94,11 +96,28 @@ export default function Docs({ studio, projects = [], members = [], reports = []
         });
     };
 
+    const [reportToDelete, setReportToDelete] = useState(null);
+    const [isDeletingReport, setIsDeletingReport] = useState(false);
+
     const handleDeleteReport = (reportId) => {
-        if (confirm('Are you sure you want to delete this archived report? This cannot be undone.')) {
-            // Delete report
-            useForm().delete(route('tenant.docs.archive.delete', { tenant: activeWorkspace, report: reportId }));
-        }
+        setReportToDelete(reportId);
+    };
+
+    const confirmDeleteReport = () => {
+        if (!reportToDelete) return;
+        setIsDeletingReport(true);
+        router.delete(route('tenant.docs.archive.delete', { tenant: activeWorkspace, report: reportToDelete }), {
+            preserveScroll: true,
+            onSuccess: () => {
+                showToast('Archived report deleted successfully.', 'info');
+                setReportToDelete(null);
+                setIsDeletingReport(false);
+            },
+            onError: () => {
+                showToast('Failed to delete archived report.', 'error');
+                setIsDeletingReport(false);
+            }
+        });
     };
 
     const triggerDownload = (report) => {
@@ -741,6 +760,18 @@ export default function Docs({ studio, projects = [], members = [], reports = []
                     </div>
                 </div>
             )}
+
+            <ConfirmationModal
+                isOpen={!!reportToDelete}
+                onClose={() => setReportToDelete(null)}
+                onConfirm={confirmDeleteReport}
+                title="Delete Archived Report"
+                message="Are you sure you want to delete this archived report? This action cannot be undone."
+                confirmText="Delete Report"
+                cancelText="Keep Report"
+                variant="danger"
+                isLoading={isDeletingReport}
+            />
         </TenantLayout>
     );
 }

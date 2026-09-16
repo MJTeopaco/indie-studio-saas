@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import TenantLayout from '@/Layouts/TenantLayout';
 import { Head, router, useForm } from '@inertiajs/react';
+import { showToast } from '@/Components/SystemToast';
 
 export default function ReviewQueue({ studio, tasks }) {
     const [resolving, setResolving] = useState(null);
@@ -9,7 +10,7 @@ export default function ReviewQueue({ studio, tasks }) {
     const handleResolve = (taskId) => {
         const data = resolutionData[taskId] || {};
         if (!data.story_points) {
-            alert('Please select a final point value.');
+            showToast('Please select a final point value.', 'warning');
             return;
         }
 

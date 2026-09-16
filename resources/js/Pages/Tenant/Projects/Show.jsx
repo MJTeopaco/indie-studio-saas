@@ -39,11 +39,11 @@ const SPRINT_PRIORITIES = [
 ];
 
 const statuses = [
-    { id: 'todo', title: 'To Do', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300', headerBgClass: 'bg-blue-50 dark:bg-blue-900/20' },
-    { id: 'in_progress', title: 'In Progress', className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300', headerBgClass: 'bg-orange-50 dark:bg-orange-900/20' },
-    { id: 'review', title: 'In Review', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300', headerBgClass: 'bg-amber-50 dark:bg-amber-900/20' },
-    { id: 'completed', title: 'Done', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300', headerBgClass: 'bg-emerald-50 dark:bg-emerald-900/20' },
-    { id: 'stuck', title: 'Stuck', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300', headerBgClass: 'bg-red-50 dark:bg-red-900/20' },
+    { id: 'todo', title: 'To Do', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300', headerBgClass: 'bg-blue-50 dark:bg-blue-900/20', dotClass: 'bg-blue-500' },
+    { id: 'in_progress', title: 'In Progress', className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300', headerBgClass: 'bg-orange-50 dark:bg-orange-900/20', dotClass: 'bg-orange-500' },
+    { id: 'review', title: 'In Review', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300', headerBgClass: 'bg-amber-50 dark:bg-amber-900/20', dotClass: 'bg-amber-500' },
+    { id: 'completed', title: 'Done', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300', headerBgClass: 'bg-emerald-50 dark:bg-emerald-900/20', dotClass: 'bg-emerald-500' },
+    { id: 'stuck', title: 'Stuck', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300', headerBgClass: 'bg-red-50 dark:bg-red-900/20', dotClass: 'bg-red-500' },
 ];
 
 const priorityWeight = {
@@ -80,8 +80,8 @@ function PriorityBadge({ priority }) {
     const colors = {
         Critical: 'bg-rose-500/15 text-rose-500 border-rose-500/30',
         High: 'bg-amber-500/15 text-amber-500 border-amber-500/30',
-        Medium: 'bg-sky-500/15 text-sky-500 border-sky-500/30',
-        Low: 'bg-slate-500/15 text-slate-500 border-slate-500/30'
+        Medium: 'bg-blue-500/15 text-blue-500 border-blue-500/30',
+        Low: 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30'
     };
     return (
         <span className={`inline-flex rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${colors[priority] || colors.Medium}`}>
@@ -161,6 +161,15 @@ function KanbanCard({ task, onFindFit, onEdit, projectStartDate, onDragStart }) 
     const isDelayed = task.total_float !== null && task.total_float !== undefined && Number(task.total_float) < 0;
     const canMove = isClickable && task.status !== 'completed';
 
+    const priorityHighlight = {
+        Critical: 'border-l-4 border-l-rose-500 border-gray-200 dark:border-slate-800',
+        High: 'border-l-4 border-l-amber-500 border-gray-200 dark:border-slate-800',
+        Medium: 'border-l-4 border-l-blue-500 border-gray-200 dark:border-slate-800',
+        Low: 'border-l-4 border-l-emerald-500 border-gray-200 dark:border-slate-800'
+    };
+    
+    const highlightClass = priorityHighlight[task.priority || 'Medium'] || priorityHighlight['Medium'];
+
     return (
         <div
             draggable={canMove}
@@ -171,24 +180,13 @@ function KanbanCard({ task, onFindFit, onEdit, projectStartDate, onDragStart }) 
                 onDragStart?.(task);
             }}
             onClick={() => isClickable && onEdit(task)}
-            className={`group rounded-xl border bg-white p-4 shadow-sm transition-all dark:bg-slate-900 ${canMove ? 'cursor-grab active:cursor-grabbing hover:shadow-md' : isClickable ? 'cursor-pointer hover:shadow-md' : 'cursor-default'
-                } ${isDelayed
-                    ? 'border-rose-400/80 bg-rose-50/20 dark:border-rose-500/50 dark:bg-rose-950/20'
-                    : task.is_critical
-                        ? 'border-amber-400/80 dark:border-amber-500/50'
-                        : 'border-gray-200 dark:border-slate-800'
-                }`}
+            className={`group rounded-xl border-y border-r bg-white p-4 shadow-sm transition-all dark:bg-slate-900 ${canMove ? 'cursor-grab active:cursor-grabbing hover:shadow-md' : isClickable ? 'cursor-pointer hover:shadow-md' : 'cursor-default'
+                } ${highlightClass}`}
         >
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <span className="font-mono text-[11px] text-gray-400">#{task.id}</span>
-                    {task.hard_constraint_date && (
-                        <span title={`Fixed Deadline: ${task.hard_constraint_date}`} className="inline-flex items-center gap-1 rounded bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800 px-1.5 py-0.5 text-[9px] font-bold text-purple-700 dark:text-purple-300">
-                            <Flag className="w-2.5 h-2.5" /> Fixed
-                        </span>
-                    )}
                 </div>
-                <PriorityBadge priority={task.priority} />
             </div>
 
             <h4 className="mt-2.5 text-sm font-bold text-gray-900 dark:text-slate-100 group-hover:text-brand transition-colors">
@@ -198,20 +196,21 @@ function KanbanCard({ task, onFindFit, onEdit, projectStartDate, onDragStart }) 
                 {task.task_classification || 'Engineering'}
             </p>
 
-            <div className="mt-3 flex items-center justify-between">
-                <CpaStatusBadge totalFloat={task.total_float} isCritical={task.is_critical} />
-                {(task.es !== null && task.ef !== null) && (
-                    <span className="font-mono text-[10px] text-gray-500 dark:text-slate-400">
-                        {projectStartDate ? deriveCalendarDate(projectStartDate, task.ef) : `EF ${task.ef}h`}
-                    </span>
-                )}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+                <PriorityBadge priority={task.priority} />
+                <span className="inline-flex items-center gap-1 rounded bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:text-slate-300">
+                    <CalendarDays className="w-3 h-3 text-slate-400" />
+                    {task.hard_constraint_date ? new Date(task.hard_constraint_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-'}
+                </span>
             </div>
 
             <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3 dark:border-slate-800">
                 <TaskAssignee task={task} onFindFit={onFindFit} />
                 <span className="flex items-center gap-1 font-mono text-[11px] text-gray-500">
-                    <Clock className="h-3 w-3" />
-                    {task.estimated_hours}h
+                    <div className="flex items-center justify-center w-5 h-5 rounded bg-brand/10 text-brand">
+                        <span className="text-[10px] font-bold">{task.story_points ?? '-'}</span>
+                    </div>
+                    <span className="font-bold">SP</span>
                 </span>
             </div>
         </div>
@@ -398,16 +397,10 @@ function ProjectDashboard({ project, tasks }) {
                         {/* Status Legend List */}
                         <div className="space-y-3">
                             {statusRows.map(row => {
-                                const dotColors = {
-                                    completed: 'bg-emerald-500',
-                                    review: 'bg-amber-500',
-                                    in_progress: 'bg-brand',
-                                    todo: 'bg-slate-400'
-                                };
                                 return (
                                     <div key={row.id} className="flex items-center justify-between border-b border-gray-50 pb-2 last:border-0 dark:border-slate-800/40">
                                         <div className="flex items-center gap-2.5">
-                                            <span className={`h-2.5 w-2.5 rounded-full ${dotColors[row.id]}`} />
+                                            <span className={`h-2.5 w-2.5 rounded-full ${row.dotClass || 'bg-slate-400'}`} />
                                             <span className="text-xs font-semibold text-gray-700 dark:text-slate-350">{row.title}</span>
                                         </div>
                                         <div className="text-right">
@@ -508,10 +501,10 @@ function MyTasksList({ groups, onFindFit, onEditStatus, projectStartDate }) {
         <div className="space-y-6 overflow-auto p-6">
             {groups.map(group => (
                 <section key={group.id} className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-                    <div className="flex items-center gap-2 border-b border-gray-100 bg-gray-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/50">
-                        <span className={`h-2 w-2 rounded-full ${group.id === 'completed' ? 'bg-emerald-500' : group.id === 'review' ? 'bg-amber-500' : group.id === 'in_progress' ? 'bg-brand' : 'bg-slate-400'}`} />
+                    <div className={`flex items-center gap-2 border-b border-gray-100 px-4 py-3 dark:border-slate-800 ${group.headerBgClass || 'bg-gray-50 dark:bg-slate-900/50'}`}>
+                        <span className={`h-2 w-2 rounded-full ${group.dotClass || 'bg-slate-400'}`} />
                         <h2 className="text-xs font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-300">{group.title}</h2>
-                        <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-bold text-gray-500 dark:bg-slate-800">{group.tasks.length}</span>
+                        <span className="rounded-full bg-white/50 px-2 py-0.5 text-[10px] font-bold text-gray-600 dark:bg-slate-800">{group.tasks.length}</span>
                     </div>
 
                     <div className="min-w-[1100px]">
@@ -770,9 +763,11 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
         return sortByPriorityAndCriticality(allTasks.filter(task => !searchQuery || task.title.toLowerCase().includes(searchQuery.toLowerCase()) || task.assignee?.name?.toLowerCase().includes(searchQuery.toLowerCase())));
     }, [allTasks, searchQuery]);
 
+    const activeSprint = useMemo(() => sprints?.find(s => s.status === 'active'), [sprints]);
+
     const groups = statuses.map(status => ({
         ...status,
-        tasks: sortByPriorityAndCriticality(visibleTasks.filter(task => task.status === status.id))
+        tasks: sortByPriorityAndCriticality(visibleTasks.filter(task => task.status === status.id && task.sprint_id === activeSprint?.id))
     }));
 
     const myTasksGroups = statuses.map(status => {
@@ -952,50 +947,66 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                     )}
 
                     {activeView === 'board' && (
-                        <div className="flex min-w-max gap-5 p-6">
-                            {groups.map(group => (
-                                <section
-                                    key={group.id}
-                                    onDragOver={(event) => {
-                                        event.preventDefault();
-                                        if (hoveredColId !== group.id) {
-                                            setHoveredColId(group.id);
-                                        }
-                                    }}
-                                    onDragLeave={() => {
-                                        setHoveredColId(null);
-                                    }}
-                                    onDrop={(event) => {
-                                        event.preventDefault();
-                                        handleDropTask(group.id);
-                                    }}
-                                    className={`flex w-80 flex-col rounded-2xl border transition-all duration-200 ${hoveredColId === group.id && draggedTask && draggedTask.status !== group.id
-                                        ? 'border-brand ring-2 ring-brand/10 bg-brand/5'
-                                        : 'border-gray-250 dark:border-slate-800 bg-gray-100/70 dark:bg-slate-900/50'
-                                        }`}
+                        !activeSprint ? (
+                            <div className="flex flex-col items-center justify-center py-32 text-center h-full">
+                                <Columns3 className="h-12 w-12 text-gray-300 dark:text-slate-600 mb-4" />
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-slate-100">No Active Sprint</h3>
+                                <p className="mt-2 text-sm text-gray-500 max-w-sm mb-6">
+                                    The Kanban Board gives you a focused view of your current active sprint. 
+                                </p>
+                                <button
+                                    onClick={() => setActiveView('sprint')}
+                                    className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-600 transition-colors shadow-sm"
                                 >
-                                    <header className={`flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-slate-800 rounded-t-2xl ${group.headerBgClass}`}>
-                                        <h2 className="text-xs font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">{group.title}</h2>
-                                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${group.className}`}>{group.tasks.length}</span>
-                                    </header>
-                                    <div className="space-y-3 p-3 overflow-y-auto max-h-[calc(100vh-230px)]">
-                                        {group.tasks.map(task => (
-                                            <KanbanCard
-                                                key={task.id}
-                                                task={task}
-                                                onFindFit={handleFindFit}
-                                                onEdit={handleEditTask}
-                                                projectStartDate={project?.start_date}
-                                                onDragStart={setDraggedTask}
-                                            />
-                                        ))}
-                                        {!group.tasks.length && (
-                                            <p className="py-10 text-center text-xs text-gray-400">No tasks in {group.title}</p>
-                                        )}
-                                    </div>
-                                </section>
-                            ))}
-                        </div>
+                                    Go to Sprint Planning
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex min-w-max gap-5 p-6">
+                                {groups.map(group => (
+                                    <section
+                                        key={group.id}
+                                        onDragOver={(event) => {
+                                            event.preventDefault();
+                                            if (hoveredColId !== group.id) {
+                                                setHoveredColId(group.id);
+                                            }
+                                        }}
+                                        onDragLeave={() => {
+                                            setHoveredColId(null);
+                                        }}
+                                        onDrop={(event) => {
+                                            event.preventDefault();
+                                            handleDropTask(group.id);
+                                        }}
+                                        className={`flex w-80 flex-col rounded-2xl border transition-all duration-200 ${hoveredColId === group.id && draggedTask && draggedTask.status !== group.id
+                                            ? 'border-brand ring-2 ring-brand/10 bg-brand/5'
+                                            : 'border-gray-250 dark:border-slate-800 bg-gray-100/70 dark:bg-slate-900/50'
+                                            }`}
+                                    >
+                                        <header className={`flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-slate-800 rounded-t-2xl ${group.headerBgClass}`}>
+                                            <h2 className="text-xs font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">{group.title}</h2>
+                                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${group.className}`}>{group.tasks.length}</span>
+                                        </header>
+                                        <div className="space-y-3 p-3 overflow-y-auto max-h-[calc(100vh-230px)]">
+                                            {group.tasks.map(task => (
+                                                <KanbanCard
+                                                    key={task.id}
+                                                    task={task}
+                                                    onFindFit={handleFindFit}
+                                                    onEdit={handleEditTask}
+                                                    projectStartDate={project?.start_date}
+                                                    onDragStart={setDraggedTask}
+                                                />
+                                            ))}
+                                            {!group.tasks.length && (
+                                                <p className="py-10 text-center text-xs text-gray-400">No tasks in {group.title}</p>
+                                            )}
+                                        </div>
+                                    </section>
+                                ))}
+                            </div>
+                        )
                     )}
                 </div>
             </div>

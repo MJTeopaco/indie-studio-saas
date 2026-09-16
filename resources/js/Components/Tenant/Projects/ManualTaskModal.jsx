@@ -95,6 +95,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
         title: '',
         description: '',
         assigned_user_id: '',
+        reviewer_user_id: '',
         sprint_id: null,
         estimated_hours: 8,
         hard_constraint_date: '',
@@ -132,6 +133,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
                     title: editingTask.title || '',
                     description: editingTask.description || '',
                     assigned_user_id: editingTask.assigned_user_id || '',
+                    reviewer_user_id: editingTask.reviewer_user_id || '',
                     sprint_id: editingTask.sprint_id || null,
                     estimated_hours: editingTask.estimated_hours || 8,
                     hard_constraint_date: editingTask.hard_constraint_date ? editingTask.hard_constraint_date.split('T')[0] : '',
@@ -215,6 +217,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
                 ? {
                     ...form,
                     assigned_user_id: form.assigned_user_id || null,
+                    reviewer_user_id: form.reviewer_user_id || null,
                     sprint_id: form.sprint_id,
                     estimated_hours: Number(form.estimated_hours),
                     hard_constraint_date: form.hard_constraint_date || null,
@@ -389,9 +392,30 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
                                                          {sprints.map(sprint => <option key={sprint.id} value={sprint.id}>{sprint.name}</option>)}
                                                      </select>
                                                  </label>
-                                                 <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Assignee (Quick Manual)
+                                                 <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Assignee (Doer)
                                                      <select value={form.assigned_user_id} onChange={event => updateField('assigned_user_id', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950"><option value="">Unassigned</option>{safeTeamMembers.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}</select>
                                                  </label>
+                                             </div>
+
+                                             {/* Reviewer Assignment */}
+                                             <div className="p-3.5 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-200/60 dark:border-indigo-900/40 space-y-1.5">
+                                                 <label className="block text-xs font-bold text-indigo-800 dark:text-indigo-300">Reviewer <span className="font-normal text-indigo-600 dark:text-indigo-400">(Optional)</span></label>
+                                                 <p className="text-[11px] text-indigo-600 dark:text-indigo-400 leading-snug">
+                                                     If assigned, the task will require reviewer approval before it can be marked as Done.
+                                                 </p>
+                                                 <select
+                                                     value={form.reviewer_user_id}
+                                                     onChange={event => updateField('reviewer_user_id', event.target.value)}
+                                                     className="mt-1 w-full rounded-xl border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm outline-none focus:border-brand dark:focus:border-brand"
+                                                 >
+                                                     <option value="">No reviewer — member marks done directly</option>
+                                                     {safeTeamMembers
+                                                         .filter(m => String(m.id) !== String(form.assigned_user_id))
+                                                         .map(member => (
+                                                             <option key={member.id} value={member.id}>{member.name}</option>
+                                                         ))
+                                                     }
+                                                 </select>
                                              </div>
                                          </>
                                      ) : (

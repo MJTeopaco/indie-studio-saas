@@ -34,9 +34,9 @@ class AiChatSessionController extends Controller
         ]);
 
         $session = AiChatSession::create([
-            'id'       => (string) Str::uuid(), // explicit; booted() is the fallback
-            'user_id'  => auth()->id(),
-            'title'    => $request->input('title', 'New Chat'),
+            'id' => (string) Str::uuid(), // explicit; booted() is the fallback
+            'user_id' => auth()->id(),
+            'title' => $request->input('title', 'New Chat'),
             'messages' => $request->input('messages', []),
         ]);
 
@@ -46,8 +46,12 @@ class AiChatSessionController extends Controller
     /**
      * Display the specified chat session.
      */
-    public function show($chatSessionId): JsonResponse
+    public function show($chatSessionId, $routeChatSessionId = null): JsonResponse
     {
+        if ($routeChatSessionId !== null) {
+            $chatSessionId = $routeChatSessionId;
+        }
+
         $chatSession = AiChatSession::findOrFail($chatSessionId);
         abort_unless(auth()->id() == $chatSession->user_id, 403, 'Unauthorized access to chat session.');
 
@@ -57,8 +61,12 @@ class AiChatSessionController extends Controller
     /**
      * Update the specified chat session.
      */
-    public function update(Request $request, $chatSessionId): JsonResponse
+    public function update(Request $request, $chatSessionId, $routeChatSessionId = null): JsonResponse
     {
+        if ($routeChatSessionId !== null) {
+            $chatSessionId = $routeChatSessionId;
+        }
+
         $chatSession = AiChatSession::findOrFail($chatSessionId);
         abort_unless(auth()->id() == $chatSession->user_id, 403, 'Unauthorized access to chat session.');
 
@@ -70,7 +78,7 @@ class AiChatSessionController extends Controller
         if ($request->has('title')) {
             $chatSession->title = $request->input('title');
         }
-        
+
         if ($request->has('messages')) {
             $chatSession->messages = $request->input('messages');
         }
@@ -83,8 +91,12 @@ class AiChatSessionController extends Controller
     /**
      * Remove the specified chat session from storage.
      */
-    public function destroy($chatSessionId): Response
+    public function destroy($chatSessionId, $routeChatSessionId = null): Response
     {
+        if ($routeChatSessionId !== null) {
+            $chatSessionId = $routeChatSessionId;
+        }
+
         $chatSession = AiChatSession::findOrFail($chatSessionId);
         abort_unless(auth()->id() == $chatSession->user_id, 403, 'Unauthorized access to chat session.');
 

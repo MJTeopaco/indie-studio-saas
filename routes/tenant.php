@@ -3,15 +3,18 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\AiChatSessionController;
+use App\Http\Controllers\BurndownController;
+use App\Http\Controllers\ChannelMessageController;
+use App\Http\Controllers\EpicAttributeController;
+use App\Http\Controllers\EstimationController;
 use App\Http\Controllers\MLEngineIntegrationController;
 use App\Http\Controllers\TenantDashboardController;
-use App\Http\Controllers\TenantOverviewController;
 use App\Http\Controllers\TenantDocsController;
+use App\Http\Controllers\TenantEpicGroupController;
+use App\Http\Controllers\TenantOverviewController;
 use App\Http\Controllers\TenantProjectController;
 use App\Http\Controllers\TenantScheduleController;
 use App\Http\Controllers\TenantTaskController;
-use App\Http\Controllers\EstimationController;
-use App\Http\Controllers\EpicAttributeController;
 use App\Http\Controllers\TenantTeamController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -37,11 +40,21 @@ Route::prefix('/studio/{tenant}')->middleware([
     Route::get('/dashboard', [TenantDashboardController::class, 'index'])
         ->name('tenant.dashboard');
 
+    // Alias: members can bookmark /my-work and land on their member dashboard
+    Route::get('/my-work', [TenantDashboardController::class, 'index'])
+        ->name('tenant.my-work');
+
+    Route::get('/inbox', [TenantDashboardController::class, 'inbox'])
+        ->name('tenant.inbox');
+
     Route::get('/overview', [TenantOverviewController::class, 'index'])
         ->name('tenant.overview');
 
     Route::get('/tasks', [TenantTaskController::class, 'index'])
         ->name('tenant.tasks');
+
+    Route::patch('/tasks/{task}/status', [TenantTaskController::class, 'updateStatus'])
+        ->name('tenant.tasks.update-status');
 
     Route::get('/schedule', [TenantScheduleController::class, 'index'])
         ->name('tenant.schedule');
@@ -69,7 +82,7 @@ Route::prefix('/studio/{tenant}')->middleware([
     Route::patch('/projects/{project}', [TenantProjectController::class, 'update'])
         ->name('tenant.projects.update');
 
-    Route::post('/projects/{project}/epic-groups', [\App\Http\Controllers\TenantEpicGroupController::class, 'store'])
+    Route::post('/projects/{project}/epic-groups', [TenantEpicGroupController::class, 'store'])
         ->name('tenant.projects.epic-groups.store');
 
     Route::post('/projects/{project}/epics', [TenantProjectController::class, 'storeEpic'])
@@ -135,13 +148,13 @@ Route::prefix('/studio/{tenant}')->middleware([
         ->name('tenant.ml.preview-best-fit');
 
     // Estimation & Velocity Routes
-    Route::get('/estimates/pending', [\App\Http\Controllers\EstimationController::class, 'pendingQueue'])->name('tenant.estimates.pending');
-    Route::post('/tasks/{task}/estimates', [\App\Http\Controllers\EstimationController::class, 'submitEstimate'])->name('tenant.estimates.submit');
-    Route::get('/estimates/needs-review', [\App\Http\Controllers\EstimationController::class, 'reviewQueue'])->name('tenant.estimates.review');
-    Route::post('/tasks/{task}/estimates/resolve', [\App\Http\Controllers\EstimationController::class, 'resolveEstimate'])->name('tenant.estimates.resolve');
+    Route::get('/estimates/pending', [EstimationController::class, 'pendingQueue'])->name('tenant.estimates.pending');
+    Route::post('/tasks/{task}/estimates', [EstimationController::class, 'submitEstimate'])->name('tenant.estimates.submit');
+    Route::get('/estimates/needs-review', [EstimationController::class, 'reviewQueue'])->name('tenant.estimates.review');
+    Route::post('/tasks/{task}/estimates/resolve', [EstimationController::class, 'resolveEstimate'])->name('tenant.estimates.resolve');
 
     // Phase 6 Burndown Dashboard
-    Route::get('/burndown', [\App\Http\Controllers\BurndownController::class, 'index'])->name('tenant.burndown');
+    Route::get('/burndown', [BurndownController::class, 'index'])->name('tenant.burndown');
 
     // AI Chat Session History
     Route::get('/chats', [AiChatSessionController::class, 'index'])
@@ -154,5 +167,34 @@ Route::prefix('/studio/{tenant}')->middleware([
         ->name('tenant.chats.update');
     Route::delete('/chats/{chatSession}', [AiChatSessionController::class, 'destroy'])
         ->name('tenant.chats.destroy');
+
+    // Channel Messaging (real-time via polling)
+    Route::get('/channels-activity', [ChannelMessageController::class, 'activity'])
+        ->name('tenant.channels.activity');
+    Route::get('/channels/{channelId}/messages', [ChannelMessageController::class, 'index'])
+        ->name('tenant.channels.messages.index')
+        ->where('channelId', '[\w-]+');
+    Route::post('/channels/{channelId}/messages', [ChannelMessageController::class, 'store'])
+        ->name('tenant.channels.messages.store')
+        ->where('channelId', '[\w-]+');
+    Route::delete('/channels/{channelId}/messages/{message}', [ChannelMessageController::class, 'destroy'])
+        ->name('tenant.channels.messages.destroy')
+        ->where('channelId', '[\w-]+')
+        ->where('message', '[0-9]+');
+    Route::post('/channels/{channelId}/messages/{message}/pin', [ChannelMessageController::class, 'togglePin'])
+        ->name('tenant.channels.messages.pin')
+        ->where('channelId', '[\w-]+')
+        ->where('message', '[0-9]+');
+    Route::get('/channels/{channelId}/assets', [ChannelMessageController::class, 'assets'])
+        ->name('tenant.channels.assets')
+        ->where('channelId', '[\w-]+');
+    Route::post('/channels/{channelId}/email', [ChannelMessageController::class, 'emailMessage'])
+        ->name('tenant.channels.messages.email')
+        ->where('channelId', '[\w-]+');
+
+    // Secure tenant attachments serving (photos, files, documents)
+    Route::get('/attachments/{path}', [ChannelMessageController::class, 'downloadAttachment'])
+        ->name('tenant.attachments.show')
+        ->where('path', '.*');
 
 });

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import CpaStatusBadge from '@/Components/Tenant/CpaStatusBadge';
+import { showToast } from '@/Components/SystemToast';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const PlusIcon = () => (
@@ -185,7 +186,7 @@ export default function DayPanel({ selectedDate, onSelectDate, tasks = [], event
                         Tasks  <span className="ml-1 px-1.5 py-px rounded-full bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400">{tasks.length}</span>
                     </span>
                     <button
-                        onClick={() => alert('Add task — coming soon!')}
+                        onClick={() => showToast('Add task — coming soon!', 'info')}
                         className="flex items-center gap-1 text-[10px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-semibold transition-colors"
                     >
                         <PlusIcon /> Add
@@ -249,7 +250,7 @@ export default function DayPanel({ selectedDate, onSelectDate, tasks = [], event
                         Events  <span className="ml-1 px-1.5 py-px rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">{events.length}</span>
                     </span>
                     <button
-                        onClick={() => alert('Add event — coming soon!')}
+                        onClick={() => showToast('Add event — coming soon!', 'info')}
                         className="flex items-center gap-1 text-[10px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-semibold transition-colors"
                     >
                         <PlusIcon /> Add

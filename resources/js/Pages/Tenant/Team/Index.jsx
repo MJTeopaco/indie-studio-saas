@@ -18,6 +18,7 @@ import {
 import TeamMemberCard from '@/Components/Tenant/TeamMemberCard';
 import TeamTimeline from '@/Components/Tenant/TeamTimeline';
 import TeamMemberProfileModal from '@/Components/Tenant/Team/TeamMemberProfileModal';
+import { showToast } from '@/Components/SystemToast';
 
 // Helper to determine department based on position
 const getDepartment = (position) => {
@@ -181,21 +182,21 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
                     {canManage && (
                         <div className="flex items-center gap-2.5">
                             <button
-                                onClick={() => alert('Add Team Member modal placeholder')}
+                                onClick={() => showToast('Add Team Member modal placeholder', 'info')}
                                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-heading font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm shadow-brand/15"
                             >
                                 <UserPlus className="w-4 h-4" />
                                 <span>New Member</span>
                             </button>
                             <button
-                                onClick={() => alert('New Project coming soon!')}
+                                onClick={() => showToast('New Project coming soon!', 'info')}
                                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-transparent border border-surface-border text-text-primary text-xs font-heading font-semibold hover:bg-white/10 dark:hover:bg-slate-800/40 transition-colors"
                             >
                                 <FolderPlus className="w-4 h-4 text-text-muted" />
                                 <span>New Project</span>
                             </button>
                             <button
-                                onClick={() => alert('New Task coming soon!')}
+                                onClick={() => showToast('New Task coming soon!', 'info')}
                                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-transparent border border-surface-border text-text-primary text-xs font-heading font-semibold hover:bg-white/10 dark:hover:bg-slate-800/40 transition-colors"
                             >
                                 <Plus className="w-4 h-4 text-text-muted" />
@@ -243,7 +244,7 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
                         </p>
                         {canManage && (
                             <button
-                                onClick={() => alert('Invite member triggered')}
+                                onClick={() => showToast('Invite member triggered', 'info')}
                                 className="mt-6 inline-flex items-center gap-1.5 px-4 py-2.25 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-heading font-semibold transition-all hover:scale-105 active:scale-95 shadow-md shadow-brand/20"
                             >
                                 <UserPlus className="w-4 h-4" />

@@ -9,6 +9,7 @@ import {
     LogOut,
 } from 'lucide-react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
+import { showToast } from '@/Components/SystemToast';
 
 // =============================================================================
 // Premium Custom SVG Icons
@@ -98,14 +99,24 @@ const PremiumEstimatesIcon = ({ className }) => (
     </svg>
 );
 
+const PremiumInboxIcon = ({ className }) => (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22 12H16L14 15H10L8 12H2V19C2 20.1046 2.89543 21 4 21H20C21.1046 21 22 20.1046 22 19V12Z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M5.45 5.11L2 12V19C2 20.1 2.9 21 4 21H20C21.1 21 22 20.1 22 19V12L18.55 5.11C18.21 4.43 17.52 4 16.76 4H7.24C6.48 4 5.79 4.43 5.45 5.11Z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+);
+
 /**
  * Reusable NavItem sub-component handling both expanded (w-64) and collapsed (w-16) states.
  */
-function NavItem({ icon: Icon, label, href = '#', active = false, badge = null, isCollapsed = false }) {
+function NavItem({ icon: Icon, label, href = '#', active = false, badge = null, badgeVariant = null, isCollapsed = false }) {
+    const isNotif = badgeVariant === 'notification';
+    const badgeLabel = isNotif && Number(badge) > 9 ? '9+' : badge;
+
     return (
         <Link
             href={href}
-            title={isCollapsed ? label : undefined}
+            title={isCollapsed ? (badge ? `${label} (${badge})` : label) : undefined}
             className={`group relative flex items-center ${
                 isCollapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2.25'
             } rounded-xl text-sm font-medium transition-all duration-200 ${
@@ -114,31 +125,58 @@ function NavItem({ icon: Icon, label, href = '#', active = false, badge = null, 
                     : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 hover:dark:bg-slate-800/50 hover:text-gray-900 hover:dark:text-slate-200'
             }`}
         >
-            <Icon
-                className={`w-5 h-5 shrink-0 transition-transform duration-200 group-hover:scale-105 ${
-                    active ? 'text-brand' : 'text-gray-500 dark:text-slate-400 group-hover:text-gray-900 group-hover:dark:text-slate-200'
-                }`}
-            />
+            <div className="relative shrink-0 flex items-center justify-center">
+                <Icon
+                    className={`w-5 h-5 shrink-0 transition-transform duration-200 group-hover:scale-105 ${
+                        active ? 'text-brand' : 'text-gray-500 dark:text-slate-400 group-hover:text-gray-900 group-hover:dark:text-slate-200'
+                    }`}
+                />
+                {/* Collapsed notification badge — shows mini count instead of plain dot */}
+                {isCollapsed && badge && isNotif && (
+                    <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full text-[8px] font-extrabold text-white bg-gradient-to-br from-rose-500 to-rose-600 ring-2 ring-white dark:ring-slate-900 shadow-sm select-none">
+                        {/* Pulse dot */}
+                        <span className="absolute -top-0.5 -right-0.5 flex h-1.5 w-1.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-300 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-400" />
+                        </span>
+                        {badgeLabel}
+                    </span>
+                )}
+                {/* Collapsed non-notification badge — simple dot */}
+                {isCollapsed && badge && !isNotif && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-indigo-400 ring-2 ring-white dark:ring-slate-900" />
+                )}
+            </div>
 
             {!isCollapsed && (
                 <>
                     <span className="truncate flex-1">{label}</span>
                     {badge && (
-                        <span
-                            className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md transition-colors ${
-                                badge === 'GNN'
-                                    ? 'bg-brand-10 text-brand border border-brand-30'
-                                    : 'bg-gray-200 dark:bg-slate-800 text-gray-600 dark:text-slate-400 border border-gray-300 dark:border-slate-700'
-                            }`}
-                        >
-                            {badge}
-                        </span>
+                        isNotif ? (
+                            /* Premium gradient notification badge */
+                            <span className="relative inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-[9px] font-extrabold text-white bg-gradient-to-br from-rose-500 to-rose-600 shadow-sm ring-2 ring-rose-400/30 select-none">
+                                {/* Live pulse dot */}
+                                <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-300 opacity-75" />
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-400 ring-1 ring-white/60" />
+                                </span>
+                                {badgeLabel}
+                            </span>
+                        ) : badge === 'GNN' ? (
+                            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-brand-10 text-brand border border-brand-30 uppercase tracking-wider">
+                                {badge}
+                            </span>
+                        ) : (
+                            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                {badge}
+                            </span>
+                        )
                     )}
                 </>
             )}
 
-            {/* Collapsed floating indicator dot for active state */}
-            {isCollapsed && active && (
+            {/* Collapsed floating indicator dot for active state (if no badge) */}
+            {isCollapsed && active && !badge && (
                 <span className="absolute right-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-brand" />
             )}
         </Link>
@@ -147,10 +185,11 @@ function NavItem({ icon: Icon, label, href = '#', active = false, badge = null, 
 
 export default function Sidebar({ user: propUser, studioName: propStudioName }) {
     const pageProps = usePage().props || {};
-    const { auth, activeWorkspace, workspaceProjects = [], currentUserRole, pendingEstimatesCount } = pageProps;
+    const { auth, activeWorkspace, workspaceProjects = [], currentUserRole, canManage = false, pendingEstimatesCount, inboxNotificationCount = 0 } = pageProps;
     const currentPath = usePage().url || '';
 
-    const user = propUser || auth?.user || { name: 'Studio Member', role: 'Project Manager' };
+    const isManager = Boolean(canManage);
+    const user = propUser || auth?.user || { name: 'Studio Member', role: isManager ? 'Project Manager' : 'Developer' };
     const studioName = propStudioName || activeWorkspace || 'StudioSprint';
 
     // Mini-Sidebar collapse state
@@ -182,58 +221,103 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
 
     const baseHref = `/studio/${activeWorkspace || 'default'}`;
 
-    const dashboardLinks = [
-        {
-            label: 'Overview',
-            icon: PremiumDashboardIcon,
-            href: `${baseHref}/overview`,
-            active: currentPath.includes('/overview'),
-        },
-    ];
+    const isInboxActive = currentPath.includes('/inbox') || currentPath.includes('view=inbox');
 
-    const primaryLinks = [
-        {
-            label: 'Tasks',
-            icon: PremiumTasksIcon,
-            href: `${baseHref}/tasks`,
-            active: currentPath.includes('/tasks'),
-        },
-        {
-            label: 'Schedule',
-            icon: PremiumScheduleIcon,
-            href: `${baseHref}/schedule`,
-            active: currentPath.includes('/schedule'),
-        },
-        {
-            label: 'Team',
-            icon: PremiumTeamIcon,
-            href: `${baseHref}/team`,
-            active: currentPath.includes('/team'),
-            badge: 'GNN',
-        },
-        {
-            label: 'Estimates',
-            icon: PremiumEstimatesIcon,
-            href: `${baseHref}/estimates/pending`,
-            active: currentPath.includes('/estimates'),
-            badge: pendingEstimatesCount > 0 ? String(pendingEstimatesCount) : null,
-        },
-        {
-            label: 'Burndown',
-            icon: PremiumDashboardIcon,
-            href: `${baseHref}/burndown`,
-            active: currentPath.includes('/burndown'),
-        },
-    ];
+    const dashboardLinks = isManager
+        ? [
+            {
+                label: 'Overview',
+                icon: PremiumDashboardIcon,
+                href: `${baseHref}/overview`,
+                active: currentPath.includes('/overview'),
+            },
+        ]
+        : [
+            {
+                label: 'My Work',
+                icon: PremiumDashboardIcon,
+                href: `${baseHref}/dashboard`,
+                active: (currentPath.includes('/dashboard') || currentPath.includes('/my-work') || currentPath === baseHref) && !isInboxActive,
+            },
+        ];
 
-    const automationLinks = [
-        {
-            label: 'AI Workspace',
-            icon: PremiumAutomationIcon,
-            href: `${baseHref}/dashboard`,
-            active: currentPath.includes('/dashboard') || currentPath === baseHref || currentPath === '',
-        },
-    ];
+    // Inbox is always a standalone section for both roles
+    const inboxLink = {
+        label: 'Inbox',
+        icon: PremiumInboxIcon,
+        href: `${baseHref}/inbox`,
+        active: isInboxActive,
+        badge: inboxNotificationCount > 0 ? String(inboxNotificationCount) : null,
+        badgeVariant: 'notification',
+    };
+
+    const primaryLinks = isManager
+        ? [
+            {
+                label: 'Tasks',
+                icon: PremiumTasksIcon,
+                href: `${baseHref}/tasks`,
+                active: currentPath.includes('/tasks'),
+            },
+            {
+                label: 'Schedule',
+                icon: PremiumScheduleIcon,
+                href: `${baseHref}/schedule`,
+                active: currentPath.includes('/schedule'),
+            },
+            {
+                label: 'Team',
+                icon: PremiumTeamIcon,
+                href: `${baseHref}/team`,
+                active: currentPath.includes('/team'),
+                badge: 'GNN',
+            },
+            {
+                label: 'Estimates',
+                icon: PremiumEstimatesIcon,
+                href: `${baseHref}/estimates/pending`,
+                active: currentPath.includes('/estimates'),
+                badge: pendingEstimatesCount > 0 ? String(pendingEstimatesCount) : null,
+            },
+            {
+                label: 'Burndown',
+                icon: PremiumDashboardIcon,
+                href: `${baseHref}/burndown`,
+                active: currentPath.includes('/burndown'),
+            },
+        ]
+        : [
+            {
+                label: 'My Tasks',
+                icon: PremiumTasksIcon,
+                href: `${baseHref}/tasks`,
+                active: currentPath.includes('/tasks'),
+            },
+            {
+                label: 'Estimates',
+                icon: PremiumEstimatesIcon,
+                href: `${baseHref}/estimates/pending`,
+                active: currentPath.includes('/estimates'),
+                badge: pendingEstimatesCount > 0 ? String(pendingEstimatesCount) : null,
+            },
+            {
+                label: 'Burndown',
+                icon: PremiumDashboardIcon,
+                href: `${baseHref}/burndown`,
+                active: currentPath.includes('/burndown'),
+            },
+        ];
+
+    const automationLinks = isManager
+        ? [
+            {
+                label: 'AI Workspace',
+                icon: PremiumAutomationIcon,
+                href: `${baseHref}/dashboard`,
+                active: currentPath.includes('/dashboard') || currentPath === baseHref || currentPath === '',
+            },
+        ]
+        : [];
 
     const projectLinks = [
         {
@@ -304,7 +388,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                 {isCollapsed ? (
                     <button
                         type="button"
-                        onClick={() => alert('Search (⌘K)')}
+                        onClick={() => showToast('Quick Search (⌘K)', 'info')}
                         className="w-full flex items-center justify-center py-2 rounded-xl bg-gray-100 dark:bg-slate-800/50 text-gray-400 dark:text-slate-500 hover:text-brand dark:hover:text-brand hover:bg-gray-200 dark:hover:bg-slate-800 transition-colors"
                         title="Search (⌘K)"
                     >
@@ -317,7 +401,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                             type="text"
                             placeholder="Search..."
                             readOnly
-                            onClick={() => alert('Quick Search (⌘K)')}
+                            onClick={() => showToast('Quick Search (⌘K)', 'info')}
                             className="w-full pl-9 pr-12 py-2 rounded-xl bg-gray-100 dark:bg-slate-800/50 border border-transparent focus:border-brand dark:focus:border-brand text-xs text-gray-800 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none cursor-pointer transition-all"
                         />
                         <span className="absolute right-2.5 text-[10px] font-mono text-gray-500 dark:text-slate-400 bg-gray-200 dark:bg-slate-700/80 rounded px-1.5 py-0.5 pointer-events-none">
@@ -329,11 +413,11 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
 
             {/* 2. Primary Navigation (Middle, Scrollable) */}
             <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                {/* Dashboard Group */}
+                {/* Dashboard / Home Group */}
                 <div className="pb-1">
                     {!isCollapsed ? (
                         <p className="font-heading text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-3 uppercase tracking-wider">
-                            Dashboard
+                            {isManager ? 'Dashboard' : 'Workspace'}
                         </p>
                     ) : (
                         <div className="my-2 h-px bg-gray-200 dark:bg-slate-800 mx-2" />
@@ -352,11 +436,32 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                     />
                 ))}
 
-                {/* Core Workspace Group */}
+                {/* Inbox — standalone section, separate from My Work */}
                 <div className="pt-4 pb-1">
                     {!isCollapsed ? (
                         <p className="font-heading text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-3 uppercase tracking-wider">
-                            Core Workspace
+                            Inbox
+                        </p>
+                    ) : (
+                        <div className="my-2 h-px bg-gray-200 dark:bg-slate-800 mx-2" />
+                    )}
+                </div>
+                <NavItem
+                    key="inbox"
+                    icon={inboxLink.icon}
+                    label={inboxLink.label}
+                    href={inboxLink.href}
+                    active={inboxLink.active}
+                    badge={inboxLink.badge}
+                    badgeVariant={inboxLink.badgeVariant}
+                    isCollapsed={isCollapsed}
+                />
+
+                {/* Core Workspace / Work Group */}
+                <div className="pt-4 pb-1">
+                    {!isCollapsed ? (
+                        <p className="font-heading text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-3 uppercase tracking-wider">
+                            {isManager ? 'Core Workspace' : 'My Work'}
                         </p>
                     ) : (
                         <div className="my-2 h-px bg-gray-200 dark:bg-slate-800 mx-2" />
@@ -375,28 +480,32 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                     />
                 ))}
 
-                {/* Automation Group */}
-                <div className="pt-4 pb-1">
-                    {!isCollapsed ? (
-                        <p className="font-heading text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-3 uppercase tracking-wider">
-                            Automation
-                        </p>
-                    ) : (
-                        <div className="my-2 h-px bg-gray-200 dark:bg-slate-800 mx-2" />
-                    )}
-                </div>
+                {/* Automation Group (Manager only) */}
+                {automationLinks.length > 0 && (
+                    <>
+                        <div className="pt-4 pb-1">
+                            {!isCollapsed ? (
+                                <p className="font-heading text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-3 uppercase tracking-wider">
+                                    Automation
+                                </p>
+                            ) : (
+                                <div className="my-2 h-px bg-gray-200 dark:bg-slate-800 mx-2" />
+                            )}
+                        </div>
 
-                {automationLinks.map((item) => (
-                    <NavItem
-                        key={item.label}
-                        icon={item.icon}
-                        label={item.label}
-                        href={item.href}
-                        active={item.active}
-                        badge={item.badge}
-                        isCollapsed={isCollapsed}
-                    />
-                ))}
+                        {automationLinks.map((item) => (
+                            <NavItem
+                                key={item.label}
+                                icon={item.icon}
+                                label={item.label}
+                                href={item.href}
+                                active={item.active}
+                                badge={item.badge}
+                                isCollapsed={isCollapsed}
+                            />
+                        ))}
+                    </>
+                )}
 
                 {/* Projects Group */}
                 <div className="pt-4 pb-1">

@@ -31,6 +31,7 @@ class Task extends Model
         'target_macro_domains',
         'required_skills',
         'assigned_user_id',
+        'reviewer_user_id',
         'status',
         // CPA schedule fields
         'es',
@@ -107,6 +108,14 @@ class Task extends Model
     public function assignee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_user_id');
+    }
+
+    /**
+     * Get the central user assigned as reviewer for this task.
+     */
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewer_user_id');
     }
 
     /**
