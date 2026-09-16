@@ -33,7 +33,7 @@ const SPRINT_PRIORITIES = [
     { value: 'low', label: 'Low', color: '#10b981' },           // Green
 ];
 
-import { TASK_CLASSIFICATIONS_GROUPED, TASK_TYPE_HEX_COLORS } from '@/constants';
+import { TASK_CLASSIFICATIONS_GROUPED, TASK_TYPE_CLASSES } from '@/constants';
 
 function InlineSelectEditor({ options, groupedOptions, currentValue, onSelect, onClose, triggerRef }) {
     return (
@@ -47,13 +47,12 @@ function InlineSelectEditor({ options, groupedOptions, currentValue, onSelect, o
                             </div>
                             <div className="space-y-0.5">
                                 {group.options.map(opt => {
-                                    const hexColor = TASK_TYPE_HEX_COLORS[opt] || '#10b981';
+                                    const tailwindClasses = TASK_TYPE_CLASSES[opt] || 'bg-gray-100 text-gray-800 border border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700';
                                     return (
                                         <button
                                             key={opt}
                                             onClick={() => { onSelect(opt); onClose(); }}
-                                            className={`w-full rounded px-2 py-1.5 text-left text-[11px] font-bold transition-colors flex items-center gap-2 hover:opacity-80`}
-                                            style={{ backgroundColor: hexColor, color: getContrastColor(hexColor) }}
+                                            className={`w-full rounded px-2 py-1.5 text-left text-[11px] font-bold transition-colors flex items-center gap-2 hover:opacity-80 ${tailwindClasses}`}
                                         >
                                             {opt}
                                         </button>
@@ -348,13 +347,13 @@ function TaskRow({ task, epics, onUpdateTask, onFindFit, canManage, currentUserI
 
     const sStatus = SPRINT_STATUSES.find(s => s.value === (task.sprint_status || 'ready_to_start')) || SPRINT_STATUSES[0];
     const sPriority = SPRINT_PRIORITIES.find(p => p.value === (task.sprint_priority || 'medium')) || SPRINT_PRIORITIES[2];
-    const hexColor = TASK_TYPE_HEX_COLORS[task.task_classification] || '#10b981';
+    const tailwindClasses = TASK_TYPE_CLASSES[task.task_classification] || 'bg-gray-100 text-gray-800 border border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700';
     const typeLabel = task.task_classification || 'Unclassified';
     const isEditable = canEditTask(task);
     const isDone = (task.sprint_status === 'done');
 
     return (
-        <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr_0.8fr_0.8fr_1fr_0.6fr_1fr] items-center gap-4 border-b border-gray-100 px-4 py-2.5 last:border-0 hover:bg-gray-50/50 dark:border-slate-800 dark:hover:bg-slate-800/30">
+        <div className="grid grid-cols-[minmax(250px,1.5fr)_140px_130px_130px_240px_90px_90px_100px_80px_140px] items-center gap-4 border-b border-gray-100 px-4 py-2.5 last:border-0 hover:bg-gray-50/50 dark:border-slate-800 dark:hover:bg-slate-800/30">
             <div className="flex items-center gap-2 min-w-0">
                 <span className="truncate text-sm font-medium text-gray-900 dark:text-slate-100" title={task.title}>{task.title}</span>
             </div>
@@ -397,7 +396,7 @@ function TaskRow({ task, epics, onUpdateTask, onFindFit, canManage, currentUserI
                     onClick={(e) => { e.stopPropagation(); isEditable && setOpenPopover('type'); }}
                     className={`w-full truncate rounded px-2 py-1.5 text-xs font-bold text-center transition-opacity ${isEditable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
                 >
-                    <span className={`inline-block whitespace-nowrap rounded px-2 py-1 text-[10px] font-bold hover:opacity-80 transition-opacity`} style={{ backgroundColor: hexColor, color: getContrastColor(hexColor) }}>
+                    <span className={`inline-block whitespace-nowrap rounded px-2 py-1 text-[10px] font-bold hover:opacity-80 transition-opacity ${tailwindClasses}`}>
                         {typeLabel}
                     </span>
                 </button>
@@ -496,8 +495,8 @@ function SprintTable({ tasks, epics, onUpdateTask, onFindFit, canManage, project
     };
 
     return (
-        <div className="min-w-[1200px] border-t border-gray-100 dark:border-slate-800">
-            <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr_0.8fr_0.8fr_1fr_0.6fr_1fr] gap-4 border-b border-gray-100 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:border-slate-800">
+        <div className="min-w-[1400px] border-t border-gray-100 dark:border-slate-800">
+            <div className="grid grid-cols-[minmax(250px,1.5fr)_140px_130px_130px_240px_90px_90px_100px_80px_140px] gap-4 border-b border-gray-100 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:border-slate-800">
                 <span>Task</span>
                 <span>Owner</span>
                 <span>Status</span>
