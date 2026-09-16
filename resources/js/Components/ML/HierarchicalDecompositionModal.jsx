@@ -889,12 +889,29 @@ export default function HierarchicalDecompositionModal({
 
             if (outputMode === 'hierarchical') {
                 const url = route('tenant.projects.hierarchy.bulk', { tenant: tenantId, project: projectId });
+                
+                // Re-nest tasks into epics for the backend payload
+                const payloadEpics = epics.map((epic, eIdx) => ({
+                    ...epic,
+                    tasks: tasksWithAssignments.filter(t => t.epic_index === eIdx)
+                }));
+
+                // Group tasks that belong to a sprint but not to an epic
+                const payloadSprints = sprints.map((sprint, sIdx) => ({
+                    ...sprint,
+                    tasks: tasksWithAssignments.filter(t => t.sprint_index === sIdx && (t.epic_index === undefined || t.epic_index === -1 || t.epic_index === null))
+                }));
+
+                // Tasks that belong to neither
+                const backlogTasks = tasksWithAssignments.filter(t => 
+                    (t.epic_index === undefined || t.epic_index === -1 || t.epic_index === null) && 
+                    (t.sprint_index === undefined || t.sprint_index === -1 || t.sprint_index === null)
+                );
+
                 await axios.post(url, {
-                    hierarchy: {
-                        epics,
-                        sprints,
-                        tasks: tasksWithAssignments
-                    }
+                    epics: payloadEpics,
+                    sprints: payloadSprints,
+                    backlog_tasks: backlogTasks,
                 }, {
                     headers: { Accept: 'application/json' },
                 });
@@ -920,7 +937,19 @@ export default function HierarchicalDecompositionModal({
             onClose();
         } catch (err) {
             console.error(err);
-            setError('Error saving tasks to the database.');
+            console.error(err.response?.data);
+            
+            let errorMessage = 'Error saving tasks to the database.';
+            if (err.response?.data?.errors) {
+                // If it's a Laravel validation error, show the specific fields
+                errorMessage = 'Validation Failed: ' + Object.values(err.response.data.errors).flat().join(', ');
+            } else if (err.response?.data?.message) {
+                errorMessage = err.response.data.message;
+            } else if (err.message) {
+                errorMessage = err.message;
+            }
+            
+            setError(errorMessage);
         } finally {
             setIsSaving(false);
         }
@@ -1104,8 +1133,8 @@ export default function HierarchicalDecompositionModal({
                                                 const sprintTasks = editableTasks.filter(t => t.epic_index === eIdx && t.sprint_index === sIdx);
                                                 return (
                                                     <div key={sIdx} className="rounded-lg border border-indigo-100 dark:border-indigo-500/20 bg-indigo-50/30 dark:bg-indigo-500/5 p-3">
-                                                        <h4 className="text-xs font-bold text-indigo-700 dark:text-indigo-400"><IterationCw className="inline w-3 h-3 mr-1" /> {sprint.sprint_name}</h4>
-                                                        <p className="text-[10px] text-gray-500 mt-0.5">{sprint.sprint_goal}</p>
+                                                        <h4 className="text-xs font-bold text-indigo-700 dark:text-indigo-400"><IterationCw className="inline w-3 h-3 mr-1" /> {sprint.name}</h4>
+                                                        <p className="text-[10px] text-gray-500 mt-0.5">{sprint.goal}</p>
                                                         <div className="mt-2 text-[10px] font-semibold text-gray-400">{sprintTasks.length} tasks generated</div>
                                                     </div>
                                                 );

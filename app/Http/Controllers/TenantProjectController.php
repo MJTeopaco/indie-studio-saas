@@ -370,9 +370,10 @@ class TenantProjectController extends Controller
     {
         $this->authorizeManager();
         $project = $routeProject ?? $project;
+        $projectModel = is_string($project) ? Project::findOrFail($project) : $project;
         
         $validated = $request->validate([
-            'epics' => 'required|array',
+            'epics' => 'nullable|array',
             'epics.*.epic_name' => 'required|string|max:255',
             'epics.*.epic_description' => 'nullable|string',
             'epics.*.phase_label' => 'nullable|string|max:255',
@@ -384,17 +385,53 @@ class TenantProjectController extends Controller
             'epics.*.tasks.*.task_classification' => 'nullable|string',
             'epics.*.tasks.*.task_difficulty' => 'nullable|string',
             'epics.*.tasks.*.priority' => 'nullable|string',
-            'epics.*.tasks.*.required_skills' => 'nullable|array',
+            'epics.*.tasks.*.days_until_deadline' => 'nullable|numeric',
+            'epics.*.tasks.*.hard_constraint_date' => 'nullable|string',
             'epics.*.tasks.*.suggested_depends_on' => 'nullable|array',
             'epics.*.tasks.*.minimum_experience_years' => 'nullable|numeric',
             'epics.*.tasks.*.macro_domains' => 'nullable|array',
             'epics.*.tasks.*.required_position' => 'nullable|string',
-            'sprints' => 'required|array',
+            'epics.*.tasks.*.assigned_user_ids' => 'nullable|array',
+            
+            'sprints' => 'nullable|array',
             'sprints.*.name' => 'required|string|max:255',
             'sprints.*.goal' => 'nullable|string',
+            'sprints.*.duration_weeks' => 'nullable|integer',
             'sprints.*.epic_indices' => 'nullable|array',
+            'sprints.*.tasks' => 'nullable|array',
+            'sprints.*.tasks.*.title' => 'required|string|max:255',
+            'sprints.*.tasks.*.objective' => 'nullable|string',
+            'sprints.*.tasks.*.estimated_hours' => 'nullable|numeric',
+            'sprints.*.tasks.*.task_classification' => 'nullable|string',
+            'sprints.*.tasks.*.task_difficulty' => 'nullable|string',
+            'sprints.*.tasks.*.priority' => 'nullable|string',
+            'sprints.*.tasks.*.days_until_deadline' => 'nullable|numeric',
+            'sprints.*.tasks.*.hard_constraint_date' => 'nullable|string',
+            'sprints.*.tasks.*.suggested_depends_on' => 'nullable|array',
+            'sprints.*.tasks.*.minimum_experience_years' => 'nullable|numeric',
+            'sprints.*.tasks.*.macro_domains' => 'nullable|array',
+            'sprints.*.tasks.*.required_position' => 'nullable|string',
+            'sprints.*.tasks.*.assigned_user_ids' => 'nullable|array',
+
+            'backlog_tasks' => 'nullable|array',
+            'backlog_tasks.*.title' => 'required|string|max:255',
+            'backlog_tasks.*.objective' => 'nullable|string',
+            'backlog_tasks.*.estimated_hours' => 'nullable|numeric',
+            'backlog_tasks.*.task_classification' => 'nullable|string',
+            'backlog_tasks.*.task_difficulty' => 'nullable|string',
+            'backlog_tasks.*.priority' => 'nullable|string',
+            'backlog_tasks.*.days_until_deadline' => 'nullable|numeric',
+            'backlog_tasks.*.hard_constraint_date' => 'nullable|string',
+            'backlog_tasks.*.suggested_depends_on' => 'nullable|array',
+            'backlog_tasks.*.minimum_experience_years' => 'nullable|numeric',
+            'backlog_tasks.*.macro_domains' => 'nullable|array',
+            'backlog_tasks.*.required_position' => 'nullable|string',
+            'backlog_tasks.*.assigned_user_ids' => 'nullable|array',
         ]);
 
+        $epicsData = $validated['epics'] ?? [];
+        $sprintsData = $validated['sprints'] ?? [];
+        $backlogTasksData = $validated['backlog_tasks'] ?? [];
         $projectModel = Project::findOrFail($project);
         
         // 1. Pre-fetch the tenant's valid phases and priorities for epics to avoid N+1 issues
@@ -457,59 +494,107 @@ class TenantProjectController extends Controller
                 $sprintIdMapping[$sprintIndex] = $sprint->id;
             }
 
-            // Step 3: Store Tasks (with flat index for dependency resolution)
+            // Step 3: Create Tasks and Assignments
+            $tasksToProcessDependencies = [];
             $flatTaskIndex = 0;
-            $tasksToProcessDependencies = []; // Store tasks and their requested dependencies
+
+            $processTask = function ($taskData, $epicId, $sprintId) use ($projectModel, &$tasksToProcessDependencies, &$taskIdMapping, &$flatTaskIndex) {
+                // Ensure story points map correctly to hours if needed
+                $hours = (float) ($taskData['estimated_hours'] ?? 0);
+                $points = null;
+                if ($hours > 0 && $hours <= 4) {
+                    $points = 1;
+                } elseif ($hours > 4 && $hours <= 8) {
+                    $points = 2;
+                } elseif ($hours > 8 && $hours <= 16) {
+                    $points = 3;
+                } elseif ($hours > 16 && $hours <= 24) {
+                    $points = 5;
+                } elseif ($hours > 24 && $hours <= 40) {
+                    $points = 8;
+                } elseif ($hours > 40) {
+                    $points = 13;
+                }
+
+                $task = $projectModel->tasks()->create([
+                    'title' => $taskData['title'],
+                    'description' => $taskData['objective'] ?? $taskData['description'] ?? null,
+                    'task_classification' => $taskData['task_classification'] ?? 'Feature',
+                    'task_difficulty' => $taskData['task_difficulty'] ?? 'Medium',
+                    'priority' => $taskData['priority'] ?? 'Medium',
+                    'estimated_hours' => $hours,
+                    'days_until_deadline' => $taskData['days_until_deadline'] ?? null,
+                    'hard_constraint_date' => $taskData['hard_constraint_date'] ?? null,
+                    'minimum_experience_years' => isset($taskData['minimum_experience_years']) ? (float) $taskData['minimum_experience_years'] : 0.0,
+                    'target_macro_domains' => $taskData['macro_domains'] ?? null,
+                    'required_position' => $taskData['required_position'] ?? null,
+                    'required_skills' => $taskData['required_skills'] ?? [],
+                    'story_points_ai_suggested' => $hours > 0 ? $points : null,
+                    'expected_estimators' => !empty($taskData['assigned_user_ids']) ? $taskData['assigned_user_ids'] : null,
+                    'status' => 'todo',
+                    'epic_id' => $epicId,
+                    'sprint_id' => $sprintId,
+                    'sprint_status' => $sprintId ? 'ready_to_start' : null,
+                ]);
+
+                \Log::info("Created Task: {$task->id} for Epic ID {$epicId}, Sprint ID {$sprintId}");
+
+                $taskIdMapping[$flatTaskIndex] = $task->id;
+                
+                if (!empty($taskData['suggested_depends_on'])) {
+                    $tasksToProcessDependencies[$task->id] = $taskData['suggested_depends_on'];
+                }
+
+                // Create assignments for any inline-assigned users
+                $assignedUserIds = $taskData['assigned_user_ids'] ?? [];
+                if (!empty($assignedUserIds)) {
+                    $now = now();
+                    $primaryId = $assignedUserIds[0] ?? null;
+                    foreach ($assignedUserIds as $userId) {
+                        DB::table('assignments')->insert([
+                            'task_id' => $task->id,
+                            'employee_user_id' => $userId,
+                            'match_fit_score' => null,
+                            'assigned_by' => 'gnn',
+                            'match_source' => 'gnn',
+                            'status' => 'active',
+                            'assigned_at' => $now,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ]);
+                    }
+                    if ($primaryId) {
+                        $task->update(['assigned_user_id' => $primaryId]);
+                    }
+                }
+
+                $flatTaskIndex++;
+            };
 
             foreach ($epicsData as $epicIndex => $epicData) {
                 $epicId = $epicIdMapping[$epicIndex];
-                
-                // Find which sprint this epic belongs to
                 $sprintId = null;
                 foreach ($sprintsData as $sprintIndex => $sprintData) {
                     if (in_array($epicIndex, $sprintData['epic_indices'] ?? [])) {
-                        $sprintId = $sprintIdMapping[$sprintIndex];
+                        $sprintId = $sprintIdMapping[$sprintIndex] ?? null;
                         break;
                     }
                 }
 
                 foreach ($epicData['tasks'] ?? [] as $taskData) {
-                    $hours = isset($taskData['estimated_hours']) ? (float) $taskData['estimated_hours'] : 0.0;
-                    $points = match (true) {
-                        $hours <= 4 => 1,
-                        $hours <= 8 => 2,
-                        $hours <= 16 => 3,
-                        $hours <= 32 => 5,
-                        $hours <= 64 => 8,
-                        default => 13,
-                    };
-
-                    $task = $projectModel->tasks()->create([
-                        'title' => $taskData['title'],
-                        'description' => $taskData['objective'] ?? null,
-                        'task_classification' => $taskData['task_classification'] ?? 'Feature',
-                        'task_difficulty' => $taskData['task_difficulty'] ?? 'Medium',
-                        'priority' => $taskData['priority'] ?? 'Medium',
-                        'estimated_hours' => $hours,
-                        'minimum_experience_years' => isset($taskData['minimum_experience_years']) ? (float) $taskData['minimum_experience_years'] : 0.0,
-                        'target_macro_domains' => $taskData['macro_domains'] ?? null,
-                        'required_position' => $taskData['required_position'] ?? null,
-                        'required_skills' => $taskData['required_skills'] ?? [],
-                        'story_points_ai_suggested' => $hours > 0 ? $points : null,
-                        'status' => 'todo',
-                        'epic_id' => $epicId,
-                        'sprint_id' => $sprintId,
-                        'sprint_status' => $sprintId ? 'ready_to_start' : null,
-                    ]);
-
-                    $taskIdMapping[$flatTaskIndex] = $task->id;
-                    
-                    if (!empty($taskData['suggested_depends_on'])) {
-                        $tasksToProcessDependencies[$task->id] = $taskData['suggested_depends_on'];
-                    }
-
-                    $flatTaskIndex++;
+                    $processTask($taskData, $epicId, $sprintId);
                 }
+            }
+
+            foreach ($sprintsData as $sprintIndex => $sprintData) {
+                $sprintId = $sprintIdMapping[$sprintIndex] ?? null;
+                foreach ($sprintData['tasks'] ?? [] as $taskData) {
+                    $processTask($taskData, null, $sprintId);
+                }
+            }
+
+            foreach ($backlogTasksData as $taskData) {
+                $processTask($taskData, null, null);
             }
 
             // Step 4: Resolve Dependencies
