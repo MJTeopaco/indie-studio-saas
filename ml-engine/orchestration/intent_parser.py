@@ -473,3 +473,47 @@ def decompose_project_hierarchically(project_description: str) -> dict:
 
     raise ValueError(f"Hierarchical decomposition failed after 2 attempts: {last_error}")
 
+# ---------------------------------------------------------------------------
+# Routing / Intent Parsing
+# ---------------------------------------------------------------------------
+
+class SemanticIntent(BaseModel):
+    intent: str = Field(description="One of: CREATE_TASK, NEW_PROJECT, or GENERAL_CHAT")
+    confidence: float = Field(description="Confidence score between 0.0 and 1.0")
+
+_ROUTING_SYSTEM = """
+Categorize the following user input into one of three intents:
+1. CREATE_TASK: The user wants to break down a feature into tasks, plan a sprint, or create tasks.
+2. NEW_PROJECT: The user wants to start, build, or create a completely new project.
+3. GENERAL_CHAT: The user is asking a general question, querying the database, or just chatting.
+
+Output strictly in JSON format matching this schema:
+{ "intent": "CREATE_TASK", "confidence": 0.95 }
+"""
+
+def parse_semantic_intent(raw_text: str) -> SemanticIntent:
+    """
+    Categorize user input into an actionable routing intent.
+    Used by the frontend to decide which AI modal to open.
+    """
+    from orchestration.llm_client import get_llm
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    llm = get_llm(json_mode=True)
+    if llm is None:
+        return SemanticIntent(intent="GENERAL_CHAT", confidence=0.0)
+
+    messages = [
+        SystemMessage(content=_ROUTING_SYSTEM),
+        HumanMessage(content=raw_text),
+    ]
+    
+    try:
+        response = llm.invoke(messages)
+        raw_json = _extract_json_from_response(response.content)
+        data = json.loads(raw_json)
+        return SemanticIntent(**data)
+    except Exception as exc:
+        logger.warning("Semantic intent parse failed: %s", exc)
+        return SemanticIntent(intent="GENERAL_CHAT", confidence=0.0)
+

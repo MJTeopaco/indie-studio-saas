@@ -137,6 +137,8 @@ Route::prefix('/studio/{tenant}')->middleware([
         ->name('tenant.projects.ai-assistant');
     Route::post('/projects/{project}/ai-assistant/execute-action', [MLEngineIntegrationController::class, 'executeProjectAction'])
         ->name('tenant.projects.ai-assistant.execute-action');
+    Route::post('/ai-router', [MLEngineIntegrationController::class, 'routeIntent'])
+        ->name('tenant.workspace.ai-router');
     Route::post('/ai-assistant', [MLEngineIntegrationController::class, 'workspaceAssistant'])
         ->name('tenant.workspace.ai-assistant');
     Route::post('/ai/decompose-project', [MLEngineIntegrationController::class, 'decomposeWorkspaceProject'])

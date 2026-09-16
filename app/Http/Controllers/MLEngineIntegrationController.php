@@ -22,6 +22,20 @@ class MLEngineIntegrationController extends Controller
     }
 
     /**
+     * Categorize user input into actionable intents for the frontend routing.
+     */
+    public function routeIntent(Request $request)
+    {
+        $validated = $request->validate([
+            'message' => 'required|string',
+        ]);
+
+        $response = $this->mlService->routeIntent($validated['message']);
+
+        return response()->json($response);
+    }
+
+    /**
      * Ask the ML engine to decompose a project description into tasks.
      * The React frontend will display these before saving.
      *

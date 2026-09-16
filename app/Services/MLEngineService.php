@@ -17,6 +17,22 @@ class MLEngineService
         $this->baseUrl = config('services.mlengine.url', 'http://127.0.0.1:8001');
     }
 
+    public function routeIntent(string $message): array
+    {
+        try {
+            $response = Http::timeout(10)->post("{$this->baseUrl}/api/llm/route-intent", [
+                'message' => $message,
+            ]);
+            if ($response->successful()) {
+                return $response->json();
+            }
+            Log::error('ML Engine /route-intent failed', ['status' => $response->status(), 'body' => $response->body()]);
+        } catch (\Exception $e) {
+            Log::error('ML Engine Connection Error: '.$e->getMessage());
+        }
+        return ['intent' => 'GENERAL_CHAT', 'confidence' => 0.0];
+    }
+
     /**
      * Decompose a project description into a list of structured tasks.
      */

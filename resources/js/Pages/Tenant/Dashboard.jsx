@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
+import TextareaAutosize from 'react-textarea-autosize';
 import TenantLayout from '@/Layouts/TenantLayout';
 import RightSidebar from '@/Components/Tenant/Projects/RightSidebar';
 import HierarchicalDecompositionModal from '@/Components/ML/HierarchicalDecompositionModal';
@@ -69,6 +70,7 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
     const [pendingProjectPlan, setPendingProjectPlan] = useState(null);
     const abortRef = useRef(null);
     const chatEndRef = useRef(null);
+    const promptTextareaRef = useRef(null);
     const isRestoringRef = useRef(false); // Bug 3 fix: suppresses auto-persist while loading a past session
 
     const {
@@ -105,6 +107,7 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
     };
     const [chatToDelete, setChatToDelete] = useState(null);
     const [isDeletingChat, setIsDeletingChat] = useState(false);
+    const [activeActionIntent, setActiveActionIntent] = useState(null);
 
     const handleDeleteChat = (id) => {
         setChatToDelete(id);
@@ -133,9 +136,26 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
 
     const handleQuickAction = (actionTitle) => {
         if (actionTitle === 'Create Task') {
-            setIsTaskModalOpen(true);
+            setActiveActionIntent('CREATE_TASK');
+            const template = `📝 Feature Breakdown Guide
+Please fill in the details below. I will break this down into a complete set of tasks and sub-tasks for your team.
+
+Create a task: [Task Title]
+
+Goal: [What are we building, and why does it matter?]
+Requirements: [Key things it must do]
+Constraints: [Any technical limits — optional]
+Done when: [Acceptance criteria — how we'll know it's finished]`;
+            setPrompt(template);
+            setTimeout(() => {
+                promptTextareaRef.current?.focus();
+            }, 50);
         } else {
+            setActiveActionIntent(null);
             setPrompt(`StudioSprint AI, please help me ${actionTitle.toLowerCase()} for ${studioName}.`);
+            setTimeout(() => {
+                promptTextareaRef.current?.focus();
+            }, 50);
         }
     };
 
@@ -168,9 +188,26 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
         abortRef.current = controller;
 
         try {
-            const isPlanning = isTaskPlanningRequest(trimmedPrompt);
+            let isPlanning = false;
+            let isNewProject = false;
 
-            if (!isPlanning && !isNewProjectRequest(trimmedPrompt)) {
+            if (activeActionIntent === 'CREATE_TASK') {
+                isPlanning = true;
+            } else {
+                // Call backend semantic router
+                setGeneration({ stage: 'chat', message: 'Analyzing request intent…', pct: 15 });
+                const { data: intentData } = await axios.post(route('tenant.workspace.ai-router', { tenant: studio.id }), {
+                    message: trimmedPrompt,
+                }, { signal: controller.signal });
+
+                if (intentData.intent === 'CREATE_TASK') {
+                    isPlanning = true;
+                } else if (intentData.intent === 'NEW_PROJECT') {
+                    isNewProject = true;
+                }
+            }
+
+            if (!isPlanning && !isNewProject) {
                 setGeneration({ stage: 'chat', message: 'Preparing a response…', pct: 35 });
                 const history = messages.slice(-10).map(({ role, content }) => ({ role, content }));
                 const { data } = await axios.post(route('tenant.workspace.ai-assistant', { tenant: studio.id }), {
@@ -178,15 +215,17 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                     history,
                 }, { signal: controller.signal });
                 addAssistantMessage(data.reply || 'I could not answer that right now. Please try again.');
+                setActiveActionIntent(null);
                 return;
             }
 
             if (!canManage) {
                 addAssistantMessage('Only studio managers are authorized to plan and create tasks or projects.');
+                setActiveActionIntent(null);
                 return;
             }
 
-            if (selectedProjectId === '') {
+            if (isNewProject || selectedProjectId === '') {
                 // New Project path
                 setPendingProjectPlan({
                     description: trimmedPrompt,
@@ -194,6 +233,7 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                 });
                 setIsProjectCreationOpen(true);
                 addAssistantMessage('I’ll help you decompose this. Add a project name first, and then I will generate the Epic and Sprint breakdown.');
+                setActiveActionIntent(null);
                 return;
             } else {
                 // Existing Project path
@@ -202,6 +242,7 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                 });
                 setIsPlanOpen(true);
                 addAssistantMessage('Opening the AI Project Decomposer to draft your tasks...');
+                setActiveActionIntent(null);
             }
         } catch (error) {
             if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') return;
@@ -378,10 +419,15 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                         >
                             {/* Top row: Textarea & Send button */}
                             <div className="flex items-center gap-2">
-                                <textarea
-                                    rows="1"
+                                <TextareaAutosize
+                                    minRows={1}
+                                    maxRows={10}
+                                    ref={promptTextareaRef}
                                     value={prompt}
-                                    onChange={(e) => setPrompt(e.target.value)}
+                                    onChange={(e) => {
+                                        setPrompt(e.target.value);
+                                        if (e.target.value.trim() === '') setActiveActionIntent(null);
+                                    }}
                                     placeholder="Ask a question, or describe a task to create a plan…"
                                     maxLength="3000"
                                     className="flex-1 bg-transparent border-0 px-2 py-1.5 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-slate-600 focus:outline-none focus:ring-0 resize-none min-h-[2.5rem] align-middle font-sans"

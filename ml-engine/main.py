@@ -262,6 +262,25 @@ def parse_task(request: ParseTaskRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+class IntentRouteRequest(BaseModel):
+    message: str = Field(description="Raw user message")
+
+@app.post("/api/llm/route-intent", tags=["llm"])
+def route_intent(request: IntentRouteRequest):
+    """
+    Categorize user input into actionable intents for the frontend routing.
+    """
+    try:
+        from orchestration.intent_parser import parse_semantic_intent
+        result = parse_semantic_intent(request.message)
+        if result.confidence < 0.70:
+            result.intent = "GENERAL_CHAT"
+        return result.model_dump()
+    except Exception as exc:
+        logger.exception("Intent route endpoint failed")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 class DecomposeProjectRequest(BaseModel):
     description: str = Field(description="Full project description to decompose into tasks")
 
