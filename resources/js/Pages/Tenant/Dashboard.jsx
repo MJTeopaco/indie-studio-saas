@@ -68,6 +68,7 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [isProjectCreationOpen, setIsProjectCreationOpen] = useState(false);
     const [pendingProjectPlan, setPendingProjectPlan] = useState(null);
+    const [isTextareaFlashing, setIsTextareaFlashing] = useState(false);
     const abortRef = useRef(null);
     const chatEndRef = useRef(null);
     const promptTextareaRef = useRef(null);
@@ -135,9 +136,11 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
     };
 
     const handleQuickAction = (actionTitle) => {
+        let template = '';
+        
         if (actionTitle === 'Plan Sprint') {
             setActiveActionIntent('CREATE_TASK');
-            const template = `📝 Feature Breakdown Guide
+            template = `📝 Feature Breakdown Guide
 Please fill in the details below. I will break this down into a complete set of tasks and sub-tasks for your team.
 
 Create a task: [Task Title]
@@ -146,17 +149,52 @@ Goal: [What are we building, and why does it matter?]
 Requirements: [Key things it must do]
 Constraints: [Any technical limits — optional]
 Done when: [Acceptance criteria — how we'll know it's finished]`;
-            setPrompt(template);
-            setTimeout(() => {
-                promptTextareaRef.current?.focus();
-            }, 50);
-        } else {
+        } else if (actionTitle === 'Suggest Assignees') {
             setActiveActionIntent(null);
-            setPrompt(`StudioSprint AI, please help me ${actionTitle.toLowerCase()} for ${studioName}.`);
-            setTimeout(() => {
-                promptTextareaRef.current?.focus();
-            }, 50);
+            template = `Goal: Recommend optimal developer assignments for the unassigned tasks in the current sprint.
+
+Context: Evaluate our team's current workload and run the Graph Neural Network (GNN) matching algorithm against our skill matrices. 
+
+Focus Area: Please prioritize finding the best fit for tasks related to [Insert specific Epic, e.g., Backend API Integration or Frontend UI]. 
+
+Expected Output: Provide the top 3 developer recommendations per task, including their matching confidence score, and highlight any resource deficits if we lack specific skills.`;
+        } else if (actionTitle === 'Analyze Critical Path') {
+            setActiveActionIntent(null);
+            template = `Goal: Analyze the health and timeline of the current active sprint.
+
+Context: Evaluate the task dependencies and estimated hours using our Critical Path logic.
+
+Requirements:
+1. Identify any bottlenecks or tasks with zero total float that could delay the sprint.
+2. Flag any developers who are over-allocated based on the earliest start/latest finish times.
+3. Suggest actionable schedule adjustments to ensure we hit our delivery deadline.`;
+        } else if (actionTitle === 'Audit Skill Coverage') {
+            setActiveActionIntent(null);
+            template = `Goal: Audit our studio's current workforce profile and tech stack capabilities.
+
+Context: We are planning to take on a new project heavily focused on [Insert Macro-Domain, e.g., Data Science / Game Dev]. 
+
+Requirements:
+1. Analyze our team's current proficiency levels in required micro-domains.
+2. Identify any critical skill gaps or low-coverage areas that will lower our GNN matching scores.
+3. Recommend specific upskilling areas or new hiring profiles needed to support this upcoming project.`;
         }
+        
+        setPrompt(template);
+        
+        setIsTextareaFlashing(true);
+        setTimeout(() => setIsTextareaFlashing(false), 800);
+
+        setTimeout(() => {
+            if (promptTextareaRef.current) {
+                promptTextareaRef.current.focus();
+                const startBracketIdx = template.indexOf('[');
+                const endBracketIdx = template.indexOf(']');
+                if (startBracketIdx !== -1 && endBracketIdx !== -1 && endBracketIdx > startBracketIdx) {
+                    promptTextareaRef.current.setSelectionRange(startBracketIdx, endBracketIdx + 1);
+                }
+            }
+        }, 50);
     };
 
     const isTaskPlanningRequest = (text) => {
@@ -299,11 +337,11 @@ Done when: [Acceptance criteria — how we'll know it's finished]`;
                                         {canManage && (
                                             <>
                                                 <QuickActionCard title="Plan Sprint" description="Break down an epic into sprint tasks." icon={CheckSquare} badgeColor="brand" onClick={() => handleQuickAction('Plan Sprint')} />
-                                                <QuickActionCard title="Analyze Capacity" description="Check team workload and predict velocity." icon={Cpu} badgeColor="emerald" onClick={() => handleQuickAction('Analyze Capacity')} />
+                                                <QuickActionCard title="Suggest Assignees" description="Recommend optimal developer assignments for tasks." icon={Cpu} badgeColor="emerald" onClick={() => handleQuickAction('Suggest Assignees')} />
                                             </>
                                         )}
-                                        <QuickActionCard title="Suggest Architecture" description="Draft a technical architecture for a new feature." icon={Calendar} badgeColor="sky" onClick={() => handleQuickAction('Suggest Architecture')} />
-                                        <QuickActionCard title="Sprint Health" description="Analyze current sprint bottlenecks." icon={Users} badgeColor="purple" onClick={() => handleQuickAction('Analyze Sprint Health')} />
+                                        <QuickActionCard title="Analyze Critical Path" description="Analyze the health and timeline of the current sprint." icon={Calendar} badgeColor="sky" onClick={() => handleQuickAction('Analyze Critical Path')} />
+                                        <QuickActionCard title="Audit Skill Coverage" description="Audit our studio's current workforce profile and tech stack." icon={Users} badgeColor="purple" onClick={() => handleQuickAction('Audit Skill Coverage')} />
                                     </div>
                                 </div>
                             )}
@@ -417,7 +455,7 @@ Done when: [Acceptance criteria — how we'll know it's finished]`;
                     <div className="sticky bottom-0 z-20 pt-4 pb-2 w-full max-w-3xl mx-auto">
                         <form
                             onSubmit={handlePromptSubmit}
-                            className="flex flex-col gap-1.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-gray-200 dark:border-slate-800 shadow-2xl p-2.5 focus-within:border-brand dark:focus-within:border-brand/60 focus-within:ring-2 focus-within:ring-brand/20 transition-all"
+                            className={`flex flex-col gap-1.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border ${isTextareaFlashing ? 'border-brand ring-4 ring-brand/30 bg-brand/5 dark:bg-brand/10 shadow-brand/20' : 'border-gray-200 dark:border-slate-800 shadow-2xl'} p-2.5 focus-within:border-brand dark:focus-within:border-brand/60 focus-within:ring-2 focus-within:ring-brand/20 transition-all duration-300`}
                         >
                             {/* Top row: Textarea & Send button */}
                             <div className="flex items-center gap-2">
