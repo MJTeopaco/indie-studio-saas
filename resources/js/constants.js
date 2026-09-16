@@ -53,78 +53,38 @@ export const TASK_CLASSIFICATIONS_GROUPED = [
   }
 ];
 
-export const TASK_TYPE_COLORS = {
-  // RED Family (Fixes & Issues)
-  "Bug Resolution & Hotfixing": "bg-red-500 text-white",
-  "DevSecOps & Security Auditing": "bg-red-500 text-white",
-  
-  // BLUE Family (Core Dev & Architecture)
-  "Feature Implementation": "bg-blue-500 text-white",
-  "Third-Party API Setup": "bg-blue-500 text-white",
-  "System Architecture Design": "bg-blue-500 text-white",
-  "System Mechanics Planning": "bg-blue-500 text-white",
-  
-  // GREEN Family (Testing & Validation)
-  "Unit & Integration Testing": "bg-green-500 text-white",
-  "Peer Code Review": "bg-green-500 text-white",
-  "Algorithm Evaluation & Benchmarking": "bg-green-500 text-white",
-  
-  // PURPLE Family (AI & Data)
-  "Data Pre-processing & Pipeline Engineering": "bg-purple-500 text-white",
-  "Model Training & Fine-Tuning": "bg-purple-500 text-white",
-  "LLM Prompt Engineering & RAG Integration": "bg-purple-500 text-white",
-  "Algorithm Optimization & Refactoring": "bg-purple-500 text-white",
+export const TASK_TYPE_CLASSES = {
+  // PURPLE Family (Planning & Architecture)
+  "Product Requirements & Analysis": "bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20",
+  "Sprint & Roadmap Planning": "bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20",
+  "System Architecture Design": "bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20",
+  "System Mechanics Planning": "bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20",
+  "UI/UX Prototyping & Wireframing": "bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20",
+  "Market Viability Research": "bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20",
 
-  // ORANGE Family (Hardware & Game Dev)
-  "Hardware-in-the-Loop Testing": "bg-orange-500 text-white",
-  "Hardware Sensor Integration": "bg-orange-500 text-white",
-  "Game Engine Logic & Asset Integration": "bg-orange-500 text-white",
-  
-  // TEAL Family (DevOps)
-  "Client-Based Environment Provisioning": "bg-teal-500 text-white",
-  "Container Orchestration & Deployment": "bg-teal-500 text-white",
-  
-  // GRAY Family (Planning & Research)
-  "Product Requirements & Analysis": "bg-gray-500 text-white",
-  "Sprint & Roadmap Planning": "bg-gray-500 text-white",
-  "Market Viability Research": "bg-gray-500 text-white",
-  "UI/UX Prototyping & Wireframing": "bg-gray-500 text-white",
-};
+  // BLUE Family (Core Dev & Engineering)
+  "Feature Implementation": "bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20",
+  "Third-Party API Setup": "bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20",
+  "Game Engine Logic & Asset Integration": "bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20",
 
-export const TASK_TYPE_HEX_COLORS = {
-  // RED Family (Fixes & Issues)
-  "Bug Resolution & Hotfixing": "#ef4444",
-  "DevSecOps & Security Auditing": "#ef4444",
+  // AMBER Family (Data & ML)
+  "Data Pre-processing & Pipeline Engineering": "bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20",
+  "Model Training & Fine-Tuning": "bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20",
+  "LLM Prompt Engineering & RAG Integration": "bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20",
   
-  // BLUE Family (Core Dev & Architecture)
-  "Feature Implementation": "#3b82f6",
-  "Third-Party API Setup": "#3b82f6",
-  "System Architecture Design": "#3b82f6",
-  "System Mechanics Planning": "#3b82f6",
-  
-  // GREEN Family (Testing & Validation)
-  "Unit & Integration Testing": "#10b981",
-  "Peer Code Review": "#10b981",
-  "Algorithm Evaluation & Benchmarking": "#10b981",
-  
-  // PURPLE Family (AI & Data)
-  "Data Pre-processing & Pipeline Engineering": "#a855f7",
-  "Model Training & Fine-Tuning": "#a855f7",
-  "LLM Prompt Engineering & RAG Integration": "#a855f7",
-  "Algorithm Optimization & Refactoring": "#a855f7",
+  // TEAL Family (Optimization & Refactoring)
+  "Algorithm Optimization & Refactoring": "bg-teal-100 text-teal-800 border border-teal-200 dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/20",
+  "Algorithm Evaluation & Benchmarking": "bg-teal-100 text-teal-800 border border-teal-200 dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/20",
 
-  // ORANGE Family (Hardware & Game Dev)
-  "Hardware-in-the-Loop Testing": "#f97316",
-  "Hardware Sensor Integration": "#f97316",
-  "Game Engine Logic & Asset Integration": "#f97316",
+  // GREEN Family (QA & Testing)
+  "Unit & Integration Testing": "bg-green-100 text-green-800 border border-green-200 dark:bg-green-500/10 dark:text-green-300 dark:border-green-500/20",
+  "Hardware-in-the-Loop Testing": "bg-green-100 text-green-800 border border-green-200 dark:bg-green-500/10 dark:text-green-300 dark:border-green-500/20",
+  "Hardware Sensor Integration": "bg-green-100 text-green-800 border border-green-200 dark:bg-green-500/10 dark:text-green-300 dark:border-green-500/20",
+  "Peer Code Review": "bg-green-100 text-green-800 border border-green-200 dark:bg-green-500/10 dark:text-green-300 dark:border-green-500/20",
   
-  // TEAL Family (DevOps)
-  "Client-Based Environment Provisioning": "#14b8a6",
-  "Container Orchestration & Deployment": "#14b8a6",
-  
-  // GRAY Family (Planning & Research)
-  "Product Requirements & Analysis": "#6b7280",
-  "Sprint & Roadmap Planning": "#6b7280",
-  "Market Viability Research": "#6b7280",
-  "UI/UX Prototyping & Wireframing": "#6b7280",
+  // ROSE Family (DevOps, Security, & Bugs)
+  "Bug Resolution & Hotfixing": "bg-rose-100 text-rose-800 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20",
+  "Client-Based Environment Provisioning": "bg-rose-100 text-rose-800 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20",
+  "Container Orchestration & Deployment": "bg-rose-100 text-rose-800 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20",
+  "DevSecOps & Security Auditing": "bg-rose-100 text-rose-800 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20",
 };
