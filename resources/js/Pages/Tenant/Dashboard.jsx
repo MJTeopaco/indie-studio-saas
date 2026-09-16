@@ -135,7 +135,7 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
     };
 
     const handleQuickAction = (actionTitle) => {
-        if (actionTitle === 'Create Task') {
+        if (actionTitle === 'Plan Sprint') {
             setActiveActionIntent('CREATE_TASK');
             const template = `📝 Feature Breakdown Guide
 Please fill in the details below. I will break this down into a complete set of tasks and sub-tasks for your team.
@@ -298,12 +298,12 @@ Done when: [Acceptance criteria — how we'll know it's finished]`;
                                     <div className={`mx-auto mt-10 grid max-w-2xl grid-cols-1 gap-4 ${canManage ? 'sm:grid-cols-2' : 'sm:grid-cols-2'}`}>
                                         {canManage && (
                                             <>
-                                                <QuickActionCard title="Create Task" description="Define task requirements and deadlines." icon={CheckSquare} badgeColor="brand" onClick={() => handleQuickAction('Create Task')} />
-                                                <QuickActionCard title="Run GNN Match" description="Recommend optimal developers based on GNN model." icon={Cpu} badgeColor="emerald" onClick={() => handleQuickAction('Run GNN Match')} />
+                                                <QuickActionCard title="Plan Sprint" description="Break down an epic into sprint tasks." icon={CheckSquare} badgeColor="brand" onClick={() => handleQuickAction('Plan Sprint')} />
+                                                <QuickActionCard title="Analyze Capacity" description="Check team workload and predict velocity." icon={Cpu} badgeColor="emerald" onClick={() => handleQuickAction('Analyze Capacity')} />
                                             </>
                                         )}
-                                        <QuickActionCard title="View Timeline" description="Explore interactive roadmaps and sprint milestones." icon={Calendar} badgeColor="sky" onClick={() => handleQuickAction('View Timeline')} />
-                                        <QuickActionCard title="Manage Team" description="Assign developers and configure permission roles." icon={Users} badgeColor="purple" onClick={() => handleQuickAction('Manage Team')} />
+                                        <QuickActionCard title="Suggest Architecture" description="Draft a technical architecture for a new feature." icon={Calendar} badgeColor="sky" onClick={() => handleQuickAction('Suggest Architecture')} />
+                                        <QuickActionCard title="Sprint Health" description="Analyze current sprint bottlenecks." icon={Users} badgeColor="purple" onClick={() => handleQuickAction('Analyze Sprint Health')} />
                                     </div>
                                 </div>
                             )}
