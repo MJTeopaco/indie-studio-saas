@@ -270,7 +270,6 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                 icon: PremiumTeamIcon,
                 href: `${baseHref}/team`,
                 active: currentPath.includes('/team'),
-                badge: 'GNN',
             },
             {
                 label: 'Estimates',

@@ -188,20 +188,6 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
                                 <UserPlus className="w-4 h-4" />
                                 <span>New Member</span>
                             </button>
-                            <button
-                                onClick={() => showToast('New Project coming soon!', 'info')}
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-transparent border border-surface-border text-text-primary text-xs font-heading font-semibold hover:bg-white/10 dark:hover:bg-slate-800/40 transition-colors"
-                            >
-                                <FolderPlus className="w-4 h-4 text-text-muted" />
-                                <span>New Project</span>
-                            </button>
-                            <button
-                                onClick={() => showToast('New Task coming soon!', 'info')}
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-transparent border border-surface-border text-text-primary text-xs font-heading font-semibold hover:bg-white/10 dark:hover:bg-slate-800/40 transition-colors"
-                            >
-                                <Plus className="w-4 h-4 text-text-muted" />
-                                <span>New Task</span>
-                            </button>
                         </div>
                     )}
                 </div>
