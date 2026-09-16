@@ -40,6 +40,28 @@ class MLEngineService
     }
 
     /**
+     * Decompose a project description into a hierarchical structure of Epics -> Tasks and Sprint Suggestions.
+     */
+    public function decomposeProjectHierarchically(string $description): array
+    {
+        try {
+            $response = Http::timeout(600)->post("{$this->baseUrl}/api/llm/decompose-project/hierarchical", [
+                'description' => $description,
+            ]);
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            Log::error('ML Engine /decompose-project/hierarchical failed', ['status' => $response->status(), 'body' => $response->body()]);
+        } catch (\Exception $e) {
+            Log::error('ML Engine Connection Error: '.$e->getMessage());
+        }
+
+        return ['status' => 'error', 'epics' => [], 'sprint_suggestions' => []];
+    }
+
+    /**
      * Get the best fit developers for a given task using the GNN.
      */
     public function getBestFit(array $taskData): array

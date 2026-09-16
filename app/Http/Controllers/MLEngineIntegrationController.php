@@ -54,6 +54,17 @@ class MLEngineIntegrationController extends Controller
         return response()->json($this->mlService->decomposeProject($validated['description']));
     }
 
+    /** Generate an editable hierarchical task plan before a new project exists. */
+    public function decomposeWorkspaceProjectHierarchical(Request $request)
+    {
+        set_time_limit(0);
+        $validated = $request->validate([
+            'description' => 'required|string|max:3000',
+        ]);
+
+        return response()->json($this->mlService->decomposeProjectHierarchically($validated['description']));
+    }
+
     /**
      * Handle conversational requests made from the studio workspace. Unlike
      * project planning, this route does not require a project to be selected.
@@ -486,7 +497,7 @@ class MLEngineIntegrationController extends Controller
             'history.*.content' => 'required_with:history|string|max:3000',
         ]);
 
-        $projectModel = Project::with(['tasks.assignee', 'tasks.predecessors'])->findOrFail($project);
+        $projectModel = Project::with(['tasks.assignee', 'tasks.predecessors', 'epics', 'sprints'])->findOrFail($project);
         $tasks = $projectModel->tasks;
         $taskData = $tasks->map(fn (Task $task): array => [
             'id' => $task->id,
@@ -539,6 +550,8 @@ class MLEngineIntegrationController extends Controller
 
         $context = [
             'project' => $projectModel->only(['id', 'name', 'status', 'target_end_date']),
+            'epics' => $projectModel->epics->map(fn ($e) => $e->only(['id', 'name', 'phase', 'status', 'start_date', 'target_end_date']))->all(),
+            'sprints' => $projectModel->sprints->map(fn ($s) => $s->only(['id', 'name', 'goal', 'status', 'start_date', 'end_date']))->all(),
             'tasks' => $taskData,
             'stats' => $stats,
             'studio' => $studio?->only(['id', 'name']),
@@ -607,7 +620,7 @@ class MLEngineIntegrationController extends Controller
         $this->authorizeManager();
         $project = $routeProject ?? $project;
         $validated = $request->validate([
-            'action' => 'required|string|in:create_task,decompose_sprint',
+            'action' => 'required|string|in:create_task,decompose_sprint,create_epic,create_sprint',
             'payload' => 'required|array',
         ]);
 
@@ -655,6 +668,38 @@ class MLEngineIntegrationController extends Controller
                 'status' => 'success',
                 'message' => 'Task created successfully and schedule recalculated.',
                 'task' => $task,
+            ]);
+        }
+
+        if ($validated['action'] === 'create_epic') {
+            $payload = $validated['payload'];
+            $epic = $projectModel->epics()->create([
+                'name' => $payload['name'] ?? 'New Epic',
+                'description' => $payload['description'] ?? null,
+                'phase' => $payload['phase'] ?? 'Planning',
+                'priority' => $payload['priority'] ?? 'Medium',
+                'status' => 'draft',
+            ]);
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Epic created successfully.',
+                'epic' => $epic,
+            ]);
+        }
+
+        if ($validated['action'] === 'create_sprint') {
+            $payload = $validated['payload'];
+            $sprint = $projectModel->sprints()->create([
+                'name' => $payload['name'] ?? 'New Sprint',
+                'goal' => $payload['goal'] ?? null,
+                'status' => 'planning',
+                'start_date' => $payload['start_date'] ?? null,
+                'end_date' => $payload['end_date'] ?? null,
+            ]);
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Sprint created successfully.',
+                'sprint' => $sprint,
             ]);
         }
 

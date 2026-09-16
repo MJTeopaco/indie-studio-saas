@@ -364,6 +364,184 @@ class TenantProjectController extends Controller
     }
 
     /**
+     * Store a bulk hierarchy of epics, sprints, and tasks (e.g. from an AI Hierarchical Decomposition).
+     */
+    public function storeBulkHierarchy(Request $request, $project, $routeProject = null)
+    {
+        $this->authorizeManager();
+        $project = $routeProject ?? $project;
+        
+        $validated = $request->validate([
+            'epics' => 'required|array',
+            'epics.*.epic_name' => 'required|string|max:255',
+            'epics.*.epic_description' => 'nullable|string',
+            'epics.*.phase_label' => 'nullable|string|max:255',
+            'epics.*.priority_label' => 'nullable|string|max:255',
+            'epics.*.tasks' => 'nullable|array',
+            'epics.*.tasks.*.title' => 'required|string|max:255',
+            'epics.*.tasks.*.objective' => 'nullable|string',
+            'epics.*.tasks.*.estimated_hours' => 'nullable|numeric',
+            'epics.*.tasks.*.task_classification' => 'nullable|string',
+            'epics.*.tasks.*.task_difficulty' => 'nullable|string',
+            'epics.*.tasks.*.priority' => 'nullable|string',
+            'epics.*.tasks.*.required_skills' => 'nullable|array',
+            'epics.*.tasks.*.suggested_depends_on' => 'nullable|array',
+            'epics.*.tasks.*.minimum_experience_years' => 'nullable|numeric',
+            'epics.*.tasks.*.macro_domains' => 'nullable|array',
+            'epics.*.tasks.*.required_position' => 'nullable|string',
+            'sprints' => 'required|array',
+            'sprints.*.name' => 'required|string|max:255',
+            'sprints.*.goal' => 'nullable|string',
+            'sprints.*.epic_indices' => 'nullable|array',
+        ]);
+
+        $projectModel = Project::findOrFail($project);
+        
+        // 1. Pre-fetch the tenant's valid phases and priorities for epics to avoid N+1 issues
+        $tenantId = tenant('id') ?? 'default';
+        $defaultPhase = EpicPhase::where('tenant_id', $tenantId)->first();
+        $defaultPriority = EpicPriority::where('tenant_id', $tenantId)->first();
+        
+        $validPhaseLabels = EpicPhase::where('tenant_id', $tenantId)->pluck('id', 'name')->mapWithKeys(fn($id, $name) => [strtolower($name) => $id])->all();
+        $validPriorityLabels = EpicPriority::where('tenant_id', $tenantId)->pluck('id', 'name')->mapWithKeys(fn($id, $name) => [strtolower($name) => $id])->all();
+
+        $defaultEpicGroup = $projectModel->epicGroups()->where('is_default', true)->first();
+
+        // Data arrays for processing
+        $epicsData = $validated['epics'];
+        $sprintsData = $validated['sprints'];
+        
+        $epicIdMapping = []; // map index in $epicsData to real DB Epic ID
+        $taskIdMapping = []; // map flat index across all tasks to real DB Task ID
+        $sprintIdMapping = []; // map index in $sprintsData to real DB Sprint ID
+
+        DB::transaction(function () use (
+            $projectModel, $epicsData, $sprintsData, $defaultEpicGroup, 
+            $defaultPhase, $defaultPriority, $validPhaseLabels, $validPriorityLabels,
+            &$epicIdMapping, &$taskIdMapping, &$sprintIdMapping
+        ) {
+            // Step 1: Store Epics
+            foreach ($epicsData as $epicIndex => $epicData) {
+                $phaseLabel = strtolower($epicData['phase_label'] ?? '');
+                $priorityLabel = strtolower($epicData['priority_label'] ?? '');
+                
+                $phaseId = $validPhaseLabels[$phaseLabel] ?? $defaultPhase->id ?? null;
+                $priorityId = $validPriorityLabels[$priorityLabel] ?? $defaultPriority->id ?? null;
+                
+                if (!$phaseId || !$priorityId) {
+                    abort(500, 'Epic Phase or Priority configuration is missing for this workspace.');
+                }
+                
+                $epic = $projectModel->epics()->create([
+                    'name' => $epicData['epic_name'],
+                    'description' => $epicData['epic_description'] ?? null,
+                    'phase_id' => $phaseId,
+                    'priority_id' => $priorityId,
+                    'epic_group_id' => $defaultEpicGroup?->id,
+                    'color' => '#10b981', // Default green
+                    'status' => 'draft',
+                ]);
+                $epicIdMapping[$epicIndex] = $epic->id;
+            }
+
+            // Step 2: Store Sprints
+            foreach ($sprintsData as $sprintIndex => $sprintData) {
+                $sprint = $projectModel->sprints()->create([
+                    'name' => $sprintData['name'],
+                    'goal' => $sprintData['goal'] ?? null,
+                    'status' => 'planned',
+                    // Default to today and +14 days since LLM doesn't output dates here
+                    'start_date' => now()->toDateString(),
+                    'end_date' => now()->addDays(14)->toDateString(),
+                ]);
+                $sprintIdMapping[$sprintIndex] = $sprint->id;
+            }
+
+            // Step 3: Store Tasks (with flat index for dependency resolution)
+            $flatTaskIndex = 0;
+            $tasksToProcessDependencies = []; // Store tasks and their requested dependencies
+
+            foreach ($epicsData as $epicIndex => $epicData) {
+                $epicId = $epicIdMapping[$epicIndex];
+                
+                // Find which sprint this epic belongs to
+                $sprintId = null;
+                foreach ($sprintsData as $sprintIndex => $sprintData) {
+                    if (in_array($epicIndex, $sprintData['epic_indices'] ?? [])) {
+                        $sprintId = $sprintIdMapping[$sprintIndex];
+                        break;
+                    }
+                }
+
+                foreach ($epicData['tasks'] ?? [] as $taskData) {
+                    $hours = isset($taskData['estimated_hours']) ? (float) $taskData['estimated_hours'] : 0.0;
+                    $points = match (true) {
+                        $hours <= 4 => 1,
+                        $hours <= 8 => 2,
+                        $hours <= 16 => 3,
+                        $hours <= 32 => 5,
+                        $hours <= 64 => 8,
+                        default => 13,
+                    };
+
+                    $task = $projectModel->tasks()->create([
+                        'title' => $taskData['title'],
+                        'description' => $taskData['objective'] ?? null,
+                        'task_classification' => $taskData['task_classification'] ?? 'Feature',
+                        'task_difficulty' => $taskData['task_difficulty'] ?? 'Medium',
+                        'priority' => $taskData['priority'] ?? 'Medium',
+                        'estimated_hours' => $hours,
+                        'minimum_experience_years' => isset($taskData['minimum_experience_years']) ? (float) $taskData['minimum_experience_years'] : 0.0,
+                        'target_macro_domains' => $taskData['macro_domains'] ?? null,
+                        'required_position' => $taskData['required_position'] ?? null,
+                        'required_skills' => $taskData['required_skills'] ?? [],
+                        'story_points_ai_suggested' => $hours > 0 ? $points : null,
+                        'status' => 'todo',
+                        'epic_id' => $epicId,
+                        'sprint_id' => $sprintId,
+                        'sprint_status' => $sprintId ? 'ready_to_start' : null,
+                    ]);
+
+                    $taskIdMapping[$flatTaskIndex] = $task->id;
+                    
+                    if (!empty($taskData['suggested_depends_on'])) {
+                        $tasksToProcessDependencies[$task->id] = $taskData['suggested_depends_on'];
+                    }
+
+                    $flatTaskIndex++;
+                }
+            }
+
+            // Step 4: Resolve Dependencies
+            foreach ($tasksToProcessDependencies as $realTaskId => $suggestedDepIndices) {
+                $realDependsOnIds = [];
+                foreach ($suggestedDepIndices as $depIndex) {
+                    if (isset($taskIdMapping[$depIndex]) && $taskIdMapping[$depIndex] !== $realTaskId) {
+                        $realDependsOnIds[] = $taskIdMapping[$depIndex];
+                    }
+                }
+                
+                if (!empty($realDependsOnIds)) {
+                    $task = Task::find($realTaskId);
+                    $task->predecessors()->syncWithoutDetaching(array_unique($realDependsOnIds));
+                }
+            }
+        });
+
+        RecomputeProjectSchedule::dispatchSync($projectModel->id);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Hierarchy saved successfully. The timeline is being recalculated.',
+                'project_id' => $projectModel->id,
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Hierarchy saved successfully. The timeline is being recalculated.');
+    }
+
+    /**
      * Store a single manually-created task.
      */
     public function storeTask(Request $request, $project, $routeProject = null)

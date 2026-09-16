@@ -4,7 +4,7 @@ import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import TenantLayout from '@/Layouts/TenantLayout';
 import RightSidebar from '@/Components/Tenant/Projects/RightSidebar';
-import SprintDecomposeModal from '@/Components/ML/SprintDecomposeModal';
+import HierarchicalDecompositionModal from '@/Components/ML/HierarchicalDecompositionModal';
 import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
 import CreateProjectModal from '@/Components/Tenant/Projects/CreateProjectModal';
 import ConfirmationModal from '@/Components/ConfirmationModal';
@@ -385,7 +385,7 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                     </div>
 
                     {isPlanOpen && draftTasks && (
-                        <SprintDecomposeModal
+                        <HierarchicalDecompositionModal
                             isOpen={isPlanOpen}
                             onClose={() => setIsPlanOpen(false)}
                             projectId={selectedProjectId}

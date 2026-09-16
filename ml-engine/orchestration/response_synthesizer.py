@@ -52,6 +52,8 @@ The context includes these top-level keys:
 - `studio`: basic studio info (id, name)
 - `members`: list of all studio members INCLUDING the studio owner (is_owner=true). Use `stats.total_members` for the count.
 - `projects`: list of all projects
+- `epics`: list of epics in the project (if applicable)
+- `sprints`: list of sprints in the project (if applicable)
 - `tasks`: recent tasks (up to 40) with assignee names and deadline info
 - `stats`: pre-computed workspace-level aggregates:
     - `total_members`  — total studio members including the owner
@@ -232,6 +234,68 @@ def synthesize_sprint_explanation(
         roots = [t["title"] for t in compact_tasks if not t["depends_on"]]
         if roots:
             lines.append(f"**Initial Phase:** Starts with {', '.join(roots[:3])}.")
+        return "\n".join(lines)
+
+    return explanation
+
+
+def synthesize_hierarchical_explanation(
+    epics: list[dict[str, Any]],
+    sprint_suggestions: list[dict[str, Any]],
+    project_description: str,
+) -> str:
+    """
+    Generate a plain-language executive overview explaining the synthesized
+    hierarchical decomposition plan (Epics -> Tasks and Sprint Suggestions).
+    """
+    if not epics:
+        return "No epics generated."
+
+    total_tasks = sum(len(epic.get("tasks", [])) for epic in epics)
+    total_hours = sum(sum(float(t.get("estimated_hours", 0)) for t in epic.get("tasks", [])) for epic in epics)
+
+    compact_epics = []
+    for epic in epics:
+        compact_epics.append({
+            "name": epic.get("epic_name", "Unnamed Epic"),
+            "phase": epic.get("phase_label", "Development"),
+            "task_count": len(epic.get("tasks", [])),
+        })
+
+    compact_sprints = []
+    for sprint in sprint_suggestions:
+        compact_sprints.append({
+            "name": sprint.get("name", "Unnamed Sprint"),
+            "goal": sprint.get("goal", ""),
+            "epics_included": len(sprint.get("epic_indices", [])),
+        })
+
+    payload = json.dumps(
+        {
+            "project_goals": project_description,
+            "total_epics": len(epics),
+            "total_sprints": len(sprint_suggestions),
+            "total_tasks": total_tasks,
+            "estimated_total_hours": total_hours,
+            "epics_summary": compact_epics,
+            "sprints_summary": compact_sprints,
+        },
+        indent=2,
+    )
+
+    explanation = _call_llm(_SPRINT_EXPLAIN_SYSTEM, payload)
+    if explanation is None:
+        lines = [
+            f"**Project Structure:** Decomposed into {len(epics)} Epics and {len(sprint_suggestions)} Sprints, totaling {total_tasks} tasks (~{total_hours:.1f} hours)."
+        ]
+        epic_names = [e["name"] for e in compact_epics]
+        if epic_names:
+            lines.append(f"**Key Epics:** {', '.join(epic_names[:4])}" + ("..." if len(epic_names) > 4 else ""))
+            
+        sprint_names = [s["name"] for s in compact_sprints]
+        if sprint_names:
+            lines.append(f"**Sprint Plan:** {', '.join(sprint_names[:3])}")
+            
         return "\n".join(lines)
 
     return explanation
