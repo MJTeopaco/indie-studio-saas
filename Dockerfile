@@ -36,9 +36,9 @@ RUN composer install \
 
 
 # =============================================================================
-# Stage 3: Production image — PHP 8.3 + Apache
+# Stage 3: Production image — PHP 8.4 + Apache
 # =============================================================================
-FROM php:8.3-apache AS production
+FROM php:8.4-apache AS production
 
 # ── System dependencies ──────────────────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
