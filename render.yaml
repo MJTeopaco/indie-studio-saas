@@ -32,9 +32,10 @@ services:
       - key: APP_KEY
         sync: false     # must be set manually in Render dashboard
 
-      # ── Database (provided by Render Postgres) ──────────────────────────
+      # DB_CONNECTION must be 'central' to match tenancy.php's central_connection
+      # so the bootstrapper knows which connection is the untouchable central one.
       - key: DB_CONNECTION
-        value: pgsql
+        value: central
 
       - key: DATABASE_URL
         fromDatabase:
@@ -47,6 +48,11 @@ services:
 
       - key: SESSION_DRIVER
         value: database
+
+      # Pin sessions to the central DB — never gets switched by the tenancy
+      # bootstrapper, so tenant routes won't break with 'sessions' not found.
+      - key: SESSION_CONNECTION
+        value: central
 
       - key: QUEUE_CONNECTION
         value: database

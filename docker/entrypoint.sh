@@ -23,7 +23,7 @@ if [ -n "$DATABASE_URL" ]; then
     echo "export DB_DATABASE=" . escapeshellarg(ltrim($url["path"] ?? "/laravel", "/")) . "\n";
     echo "export DB_USERNAME=" . escapeshellarg($url["user"] ?? "") . "\n";
     echo "export DB_PASSWORD=" . escapeshellarg($url["pass"] ?? "") . "\n";
-    echo "export DB_CONNECTION=pgsql" . "\n";
+    echo "export DB_CONNECTION=central" . "\n";
     fwrite(STDERR, "✅ Parsed DATABASE_URL → host=" . ($url["host"] ?? "?") . " db=" . ltrim($url["path"] ?? "", "/") . "\n");
   ')
 else
