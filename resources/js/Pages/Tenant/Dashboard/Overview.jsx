@@ -1,7 +1,28 @@
 import React, { useState, useMemo } from 'react';
-import { Head, usePage } from '@inertiajs/react';
+import { Head, usePage, Link } from '@inertiajs/react';
 import TenantLayout from '@/Layouts/TenantLayout';
 import { showToast } from '@/Components/SystemToast';
+import { getEasyTaskAiReasoning, CpaTaskAiModal } from '@/Components/Tenant/CpaAiSynthesizer';
+import {
+    Calendar,
+    Clock,
+    AlertTriangle,
+    CheckCircle2,
+    Filter,
+    Layers,
+    Flame,
+    User,
+    ArrowRight,
+    Search,
+    SlidersHorizontal,
+    Info,
+    ExternalLink,
+    Sparkles,
+    ChevronDown,
+    ChevronUp,
+    Zap,
+    X as LucideX,
+} from 'lucide-react';
 
 // ── High-Fidelity SVG Icons ──────────────────────────────────────────────────
 const TasksIcon = () => (
@@ -135,6 +156,17 @@ const STATUS_FILTERS = [
     { key: 'paused',    label: 'Paused',       color: 'bg-gray-400 text-white' },
 ];
 
+// ── AI CPA Synthesis & Non-Technical Reasoning Engine ───────────────────────
+function getTaskAiReasoning(task) {
+    const easy = getEasyTaskAiReasoning(task);
+    if (!easy) return null;
+    return {
+        ...easy,
+        strategy: easy.action,
+        proof: `Estimated: ${task.estimated_hours || 0}h • Cushion: ${easy.bufferText}`,
+    };
+}
+
 export default function Overview({ projects: propProjects = [], stats: propStats = null }) {
     const pageProps = usePage().props;
     const projects = propProjects.length > 0 ? propProjects : (pageProps.projects ?? []);
@@ -193,15 +225,43 @@ export default function Overview({ projects: propProjects = [], stats: propStats
 
     const hasActiveFilter = activeStatus !== 'all' || searchQuery.length > 0;
 
-    // Extract all scheduled CPA tasks from all projects
+    // CPA Filter States
+    const [cpaSelectedProjectId, setCpaSelectedProjectId] = useState('all');
+    const [cpaCriticalOnly, setCpaCriticalOnly] = useState(false);
+    const [cpaSearchQuery, setCpaSearchQuery] = useState('');
+    const [cpaViewMode, setCpaViewMode] = useState('gantt'); // 'gantt' | 'table'
+
+    // CPA AI Synthesis Modal & Inline Expansion States
+    const [selectedTaskForAiModal, setSelectedTaskForAiModal] = useState(null);
+    const [expandedAiReasoningTaskId, setExpandedAiReasoningTaskId] = useState(null);
+
+    // Extract all scheduled CPA tasks from all projects with full CPM metrics
     const scheduledTasks = useMemo(() => {
         const list = [];
         projects.forEach(p => {
             if (p.tasks) {
                 p.tasks.forEach(t => {
-                    if (t.es !== null && t.ef !== null) {
+                    if (t.es !== null && t.ef !== null && t.es !== undefined && t.ef !== undefined) {
+                        const es = Number(t.es);
+                        const ef = Number(t.ef);
+                        const ls = (t.ls !== null && t.ls !== undefined) ? Number(t.ls) : null;
+                        const lf = (t.lf !== null && t.lf !== undefined) ? Number(t.lf) : null;
+                        const totalFloat = (t.total_float !== null && t.total_float !== undefined)
+                            ? Number(t.total_float)
+                            : (ls !== null ? Math.max(0, ls - es) : 0);
+                        const isCritical = Boolean(t.is_critical || totalFloat === 0);
+                        const duration = Math.max(1, ef - es);
+
                         list.push({
                             ...t,
+                            es,
+                            ef,
+                            ls,
+                            lf,
+                            total_float: totalFloat,
+                            is_critical: isCritical,
+                            duration,
+                            projectId: p.id,
                             projectName: p.name,
                         });
                     }
@@ -211,10 +271,95 @@ export default function Overview({ projects: propProjects = [], stats: propStats
         return list;
     }, [projects]);
 
-    const maxFinishTime = useMemo(() => {
-        if (scheduledTasks.length === 0) return 40;
-        return Math.max(40, ...scheduledTasks.map(t => Number(t.ef)));
+    // Filtered CPA tasks based on project selector, critical path toggle, and search
+    const filteredCpaTasks = useMemo(() => {
+        return scheduledTasks.filter(t => {
+            if (cpaSelectedProjectId !== 'all' && String(t.projectId) !== String(cpaSelectedProjectId)) {
+                return false;
+            }
+            if (cpaCriticalOnly && !t.is_critical) {
+                return false;
+            }
+            if (cpaSearchQuery.trim()) {
+                const q = cpaSearchQuery.toLowerCase();
+                const matchesTitle = t.title.toLowerCase().includes(q);
+                const matchesAssignee = t.assignee?.name?.toLowerCase().includes(q);
+                const matchesProject = t.projectName.toLowerCase().includes(q);
+                if (!matchesTitle && !matchesAssignee && !matchesProject) return false;
+            }
+            return true;
+        }).sort((a, b) => {
+            // Sort: critical first, then by early start ascending
+            if (a.is_critical && !b.is_critical) return -1;
+            if (!a.is_critical && b.is_critical) return 1;
+            return a.es - b.es;
+        });
+    }, [scheduledTasks, cpaSelectedProjectId, cpaCriticalOnly, cpaSearchQuery]);
+
+    // Calculate maximum timeline duration taking into account early finish AND late finish buffers
+    const maxTimelineHours = useMemo(() => {
+        if (filteredCpaTasks.length === 0) return 40;
+        const maxBoundary = Math.max(
+            ...filteredCpaTasks.map(t => Math.max(t.ef, Number(t.lf ?? (t.ef + (t.total_float || 0)))))
+        );
+        // Round up to nearest multiple of 16 (2 work days) or 24
+        return Math.max(40, Math.ceil(maxBoundary / 16) * 16);
+    }, [filteredCpaTasks]);
+
+    // Generate responsive tick intervals
+    const timelineTicks = useMemo(() => {
+        const step = maxTimelineHours > 160 ? 32 : (maxTimelineHours > 80 ? 16 : 8);
+        const ticks = [];
+        for (let h = 0; h <= maxTimelineHours; h += step) {
+            ticks.push({
+                hour: h,
+                day: Math.floor(h / 8) + 1,
+            });
+        }
+        return ticks;
+    }, [maxTimelineHours]);
+
+    const criticalTasksCount = useMemo(() => {
+        return scheduledTasks.filter(t => t.is_critical).length;
     }, [scheduledTasks]);
+
+    const flexibleTasksCount = useMemo(() => {
+        return scheduledTasks.filter(t => !t.is_critical).length;
+    }, [scheduledTasks]);
+
+    // High-level AI Synthesis & Schedule Intelligence for the active CPA scope
+    const cpaAiSynthesis = useMemo(() => {
+        if (filteredCpaTasks.length === 0) return null;
+
+        const criticalTasks = filteredCpaTasks.filter(t => t.is_critical);
+        const flexibleTasks = filteredCpaTasks.filter(t => !t.is_critical);
+        const totalCritHours = criticalTasks.reduce((acc, t) => acc + t.duration, 0);
+        const totalFlexHours = flexibleTasks.reduce((acc, t) => acc + t.duration, 0);
+        const avgSlack = flexibleTasks.length > 0
+            ? Math.round((flexibleTasks.reduce((acc, t) => acc + (t.total_float || 0), 0) / flexibleTasks.length) * 10) / 10
+            : 0;
+
+        // Developer bottleneck risk analysis on critical path
+        const devCriticalMap = {};
+        criticalTasks.forEach(t => {
+            const name = t.assignee?.name || 'Unassigned';
+            if (!devCriticalMap[name]) devCriticalMap[name] = { name, count: 0, hours: 0 };
+            devCriticalMap[name].count += 1;
+            devCriticalMap[name].hours += t.duration;
+        });
+
+        const topBottleneckDev = Object.values(devCriticalMap).sort((a, b) => b.hours - a.hours)[0] || null;
+
+        return {
+            criticalTasksCount: criticalTasks.length,
+            flexibleTasksCount: flexibleTasks.length,
+            totalCritHours,
+            totalFlexHours,
+            avgSlack,
+            topBottleneckDev,
+            critRatio: Math.round((criticalTasks.length / filteredCpaTasks.length) * 100),
+        };
+    }, [filteredCpaTasks]);
 
     return (
         <TenantLayout>
@@ -502,179 +647,572 @@ export default function Overview({ projects: propProjects = [], stats: propStats
 
                     {/* PROJECT TIMELINE (CPA) SECTION */}
                     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden p-6 space-y-5">
-                        <div className="flex items-center justify-between flex-wrap gap-4">
+                        {/* Section Header */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-100 dark:border-slate-800">
                             <div>
-                                <h2 className="font-heading text-base font-extrabold text-gray-900 dark:text-slate-100">
-                                    Project Timeline
-                                </h2>
+                                <div className="flex items-center gap-2">
+                                    <h2 className="font-heading text-base font-extrabold text-gray-900 dark:text-slate-100">
+                                        Project Timeline & Critical Path Analysis (CPA)
+                                    </h2>
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300">
+                                        CPM Network
+                                    </span>
+                                </div>
+                                <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                                    Workflow dependency schedule: highlights non-negotiable critical path bottlenecks and slack float buffers.
+                                </p>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-xs font-semibold text-gray-600 dark:text-slate-300 hover:border-indigo-500 shadow-sm transition-colors">
-                                    <FilterIcon />
-                                    <span>Filter</span>
-                                </button>
-                                <button 
-                                    onClick={() => showToast("Add Schedule modal coming soon!", "info")}
-                                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#4f46e5] hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition-all"
+
+                            {/* Filter & View Mode Controls */}
+                            <div className="flex flex-wrap items-center gap-2.5">
+                                {/* View Mode Toggle */}
+                                <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold">
+                                    <button
+                                        type="button"
+                                        onClick={() => setCpaViewMode('gantt')}
+                                        className={`px-3 py-1.5 rounded-lg transition-all ${
+                                            cpaViewMode === 'gantt'
+                                                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                                                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                                        }`}
+                                    >
+                                        Gantt Chart
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setCpaViewMode('table')}
+                                        className={`px-3 py-1.5 rounded-lg transition-all ${
+                                            cpaViewMode === 'table'
+                                                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                                                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                                        }`}
+                                    >
+                                        Sequence Table
+                                    </button>
+                                </div>
+
+                                {/* Project Picker */}
+                                <div className="flex items-center gap-1.5">
+                                    <label htmlFor="cpa-proj-select" className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">
+                                        Project:
+                                    </label>
+                                    <select
+                                        id="cpa-proj-select"
+                                        value={cpaSelectedProjectId}
+                                        onChange={(e) => setCpaSelectedProjectId(e.target.value)}
+                                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                                    >
+                                        <option value="all">All Projects ({scheduledTasks.length} tasks)</option>
+                                        {projects.map((p) => (
+                                            <option key={p.id} value={p.id}>
+                                                {p.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Search Filter */}
+                                <div className="relative">
+                                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <input
+                                        type="text"
+                                        value={cpaSearchQuery}
+                                        onChange={(e) => setCpaSearchQuery(e.target.value)}
+                                        placeholder="Search task or dev..."
+                                        className="pl-8 pr-3 py-1.5 rounded-xl text-xs bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 placeholder-slate-400 border-none focus:ring-2 focus:ring-indigo-500 w-36 sm:w-44"
+                                    />
+                                </div>
+
+                                {/* Critical Only Toggle */}
+                                <button
+                                    type="button"
+                                    onClick={() => setCpaCriticalOnly(!cpaCriticalOnly)}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                                        cpaCriticalOnly
+                                            ? 'bg-rose-500 text-white border-rose-500 shadow-xs'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-transparent hover:bg-slate-200 dark:hover:bg-slate-700'
+                                    }`}
+                                    title="Filter to tasks on the Critical Path"
                                 >
-                                    <span className="text-sm font-semibold">+</span>
-                                    <span>Add Schedule</span>
+                                    <Flame className="w-3.5 h-3.5" />
+                                    <span>Critical Path Only</span>
                                 </button>
                             </div>
                         </div>
 
-                        {/* Timeline Wrapper */}
-                        <div className="w-full overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                            <div className="min-w-[850px] space-y-4">
-                                
-                                {/* Axis Header Row */}
-                                <div className="grid grid-cols-[150px_1fr] gap-4 items-center shrink-0">
-                                    <div />
-                                    <div className="grid grid-cols-9 text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest text-center select-none">
-                                        {['8AM', '9AM', '10AM', '11AM', '12PM', '1PM', '2PM', '3PM', '4PM'].map(hour => (
-                                            <span key={hour} className="text-left pl-1">{hour}</span>
-                                        ))}
+                        {/* CPA Key Indicators & Explainer Legend */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            <div className="p-3.5 rounded-xl bg-rose-50/70 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/40 flex items-center justify-between">
+                                <div className="space-y-0.5">
+                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-700 dark:text-rose-400 block">Critical Path Tasks</span>
+                                    <span className="text-xl font-black text-rose-900 dark:text-rose-200">{criticalTasksCount}</span>
+                                </div>
+                                <div className="w-8 h-8 rounded-xl bg-rose-500/10 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+                                    <Flame className="w-4 h-4" />
+                                </div>
+                            </div>
+
+                            <div className="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/20 border border-indigo-200/80 dark:border-indigo-900/40 flex items-center justify-between">
+                                <div className="space-y-0.5">
+                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 block">Flexible Tasks (Has Float)</span>
+                                    <span className="text-xl font-black text-indigo-900 dark:text-indigo-200">{flexibleTasksCount}</span>
+                                </div>
+                                <div className="w-8 h-8 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                                    <Clock className="w-4 h-4" />
+                                </div>
+                            </div>
+
+                            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
+                                <div className="space-y-0.5">
+                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Scheduled Scope</span>
+                                    <span className="text-xl font-black text-slate-800 dark:text-slate-100">{filteredCpaTasks.length} Tasks</span>
+                                </div>
+                                <div className="w-8 h-8 rounded-xl bg-slate-200/60 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 flex items-center justify-center">
+                                    <Layers className="w-4 h-4" />
+                                </div>
+                            </div>
+
+                            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
+                                <div className="space-y-0.5">
+                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Max Project Duration</span>
+                                    <span className="text-xl font-black text-slate-800 dark:text-slate-100">
+                                        {maxTimelineHours}h <span className="text-xs font-normal text-slate-400">({Math.ceil(maxTimelineHours / 8)}d)</span>
+                                    </span>
+                                </div>
+                                <div className="w-8 h-8 rounded-xl bg-slate-200/60 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 flex items-center justify-center">
+                                    <Calendar className="w-4 h-4" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ── AI CPA Schedule Synthesis & Executive Intelligence Card ── */}
+                        {cpaAiSynthesis && (
+                            <div className="rounded-2xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50/80 via-white to-purple-50/40 p-4 sm:p-5 dark:border-indigo-900/40 dark:bg-slate-900 dark:from-slate-900 dark:to-indigo-950/20 shadow-xs space-y-3.5">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-100 dark:border-indigo-900/40 pb-3">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                                            <Sparkles className="w-4 h-4 fill-amber-500 text-amber-500" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xs font-black uppercase tracking-wider text-indigo-950 dark:text-indigo-200 flex items-center gap-2">
+                                                AI Schedule Summary &amp; Team Focus Insights
+                                            </h3>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                Plain-English timeline analysis showing which tasks control your deadlines and where your team has breathing room.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider uppercase bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300 shrink-0 self-start sm:self-auto">
+                                        <Zap className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                                        {cpaAiSynthesis.critRatio}% Must-Do Task Ratio
+                                    </span>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                                    {/* 1. Must-Do Tasks */}
+                                    <div className="p-3.5 rounded-xl bg-white/90 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/60 space-y-1.5">
+                                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                                            <Flame className="w-3.5 h-3.5" />
+                                            <span>Must-Do On Time ({cpaAiSynthesis.criticalTasksCount} Tasks)</span>
+                                        </div>
+                                        <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-[11px]">
+                                            These tasks total <strong className="text-slate-900 dark:text-slate-100">{cpaAiSynthesis.totalCritHours}h</strong> of work with zero breathing room. Any delay here directly pushes back the final project completion date.
+                                        </p>
+                                    </div>
+
+                                    {/* 2. Flexible Tasks */}
+                                    <div className="p-3.5 rounded-xl bg-white/90 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/60 space-y-1.5">
+                                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                                            <Clock className="w-3.5 h-3.5" />
+                                            <span>Flexible Tasks ({cpaAiSynthesis.flexibleTasksCount} Tasks)</span>
+                                        </div>
+                                        <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-[11px]">
+                                            These tasks have an average of <strong className="text-slate-900 dark:text-slate-100">+{cpaAiSynthesis.avgSlack}h</strong> (about {Math.round(cpaAiSynthesis.avgSlack / 8 * 10) / 10} days) of safe buffer. They can safely wait or be paused without affecting deadlines.
+                                        </p>
+                                    </div>
+
+                                    {/* 3. Team Workload Focus */}
+                                    <div className="p-3.5 rounded-xl bg-white/90 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/60 space-y-1.5">
+                                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                            <User className="w-3.5 h-3.5" />
+                                            <span>Team Workload Focus</span>
+                                        </div>
+                                        <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-[11px]">
+                                            {cpaAiSynthesis.topBottleneckDev ? (
+                                                <>
+                                                    <strong className="text-slate-900 dark:text-slate-100">{cpaAiSynthesis.topBottleneckDev.name}</strong> is assigned to <strong className="text-amber-600 dark:text-amber-400">{cpaAiSynthesis.topBottleneckDev.count} must-do tasks</strong> ({cpaAiSynthesis.topBottleneckDev.hours}h). Protect their focus from distractions to protect your deadline.
+                                                </>
+                                            ) : (
+                                                'Must-do tasks are evenly distributed across the team with no single team member overloaded.'
+                                            )}
+                                        </p>
                                     </div>
                                 </div>
-
-                                {/* Lanes Container */}
-                                <div className="space-y-3 relative">
-                                    {scheduledTasks.length > 0 ? (
-                                        [
-                                            {
-                                                name: 'Design Division',
-                                                tasks: scheduledTasks.filter(t => {
-                                                    const cl = (t.task_classification || '').toLowerCase();
-                                                    const pos = (t.required_position || '').toLowerCase();
-                                                    const ti = (t.title || '').toLowerCase();
-                                                    return cl.includes('design') || cl.includes('frontend') || cl.includes('ui') || cl.includes('ux') ||
-                                                           pos.includes('design') || pos.includes('frontend') || pos.includes('ui') || pos.includes('ux') ||
-                                                           ti.includes('design') || ti.includes('frontend') || ti.includes('ui') || ti.includes('ux');
-                                                }),
-                                                colors: ['bg-indigo-650/90 text-white border-indigo-500', 'bg-emerald-600/90 text-white border-emerald-500']
-                                            },
-                                            {
-                                                name: 'Dev Division',
-                                                tasks: scheduledTasks.filter(t => {
-                                                    const cl = (t.task_classification || '').toLowerCase();
-                                                    const pos = (t.required_position || '').toLowerCase();
-                                                    const ti = (t.title || '').toLowerCase();
-                                                    const isDesign = cl.includes('design') || cl.includes('frontend') || cl.includes('ui') || cl.includes('ux') ||
-                                                                     pos.includes('design') || pos.includes('frontend') || pos.includes('ui') || pos.includes('ux') ||
-                                                                     ti.includes('design') || ti.includes('frontend') || ti.includes('ui') || ti.includes('ux');
-                                                    if (isDesign) return false;
-                                                    return cl.includes('dev') || cl.includes('developer') || cl.includes('engineer') || cl.includes('backend') || cl.includes('full stack') || cl.includes('ai') || cl.includes('ml') || cl.includes('database') ||
-                                                           pos.includes('dev') || pos.includes('developer') || pos.includes('engineer') || pos.includes('backend') || pos.includes('full stack') || pos.includes('ai') || pos.includes('ml') || pos.includes('database') ||
-                                                           ti.includes('dev') || ti.includes('developer') || ti.includes('engineer') || ti.includes('backend') || ti.includes('full stack') || ti.includes('ai') || ti.includes('ml') || ti.includes('database');
-                                                }),
-                                                colors: ['bg-sky-600/90 text-white border-sky-500', 'bg-amber-600/90 text-white border-amber-500']
-                                            },
-                                            {
-                                                name: 'Marketing',
-                                                tasks: scheduledTasks.filter(t => {
-                                                    const cl = (t.task_classification || '').toLowerCase();
-                                                    const pos = (t.required_position || '').toLowerCase();
-                                                    const ti = (t.title || '').toLowerCase();
-                                                    const isDesign = cl.includes('design') || cl.includes('frontend') || cl.includes('ui') || cl.includes('ux') ||
-                                                                     pos.includes('design') || pos.includes('frontend') || pos.includes('ui') || pos.includes('ux') ||
-                                                                     ti.includes('design') || ti.includes('frontend') || ti.includes('ui') || ti.includes('ux');
-                                                    const isDev = !isDesign && (cl.includes('dev') || cl.includes('developer') || cl.includes('engineer') || cl.includes('backend') || cl.includes('full stack') || cl.includes('ai') || cl.includes('ml') || cl.includes('database') ||
-                                                                   pos.includes('dev') || pos.includes('developer') || pos.includes('engineer') || pos.includes('backend') || pos.includes('full stack') || pos.includes('ai') || pos.includes('ml') || pos.includes('database') ||
-                                                                   ti.includes('dev') || ti.includes('developer') || ti.includes('engineer') || ti.includes('backend') || ti.includes('full stack') || ti.includes('ai') || ti.includes('ml') || ti.includes('database'));
-                                                    return !isDesign && !isDev;
-                                                }),
-                                                colors: ['bg-violet-600/90 text-white border-violet-500', 'bg-pink-600/90 text-white border-pink-500']
-                                            }
-                                        ].map((lane, laneIdx) => (
-                                            <div key={lane.name} className="grid grid-cols-[150px_1fr] gap-4 items-center shrink-0">
-                                                {/* Left label */}
-                                                <span className="text-xs font-bold text-gray-500 dark:text-slate-400 select-none">
-                                                    {lane.name}
-                                                </span>
-                                                {/* Grid lane body */}
-                                                <div className="relative h-14 bg-[#f8fafc]/60 dark:bg-slate-900/40 border border-gray-150/60 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
-                                                    {/* Hour divider lines */}
-                                                    <div className="absolute inset-0 grid grid-cols-9 pointer-events-none divide-x divide-gray-100/80 dark:divide-slate-800/40" />
-
-                                                    {/* Lane blocks */}
-                                                    {lane.tasks.map((task, tIdx) => {
-                                                        const scale = 9 / maxFinishTime;
-                                                        const pctLeft = (Number(task.es) * scale * 11) % 80; // beautiful distribution logic
-                                                        const pctWidth = Math.max(15, (Number(task.ef) - Number(task.es)) * scale * 12);
-                                                        const blockColor = lane.colors[tIdx % lane.colors.length];
-                                                        const initials = task.assignee ? task.assignee.name.split(' ').map(n => n[0]).join('') : 'U';
-
-                                                        return (
-                                                            <div
-                                                                key={task.id}
-                                                                className={`absolute top-2.5 h-9 rounded-xl border flex items-center justify-between px-3.5 shadow-sm transition-all hover:scale-[1.01] select-none ${blockColor}`}
-                                                                style={{ left: `${pctLeft}%`, width: `${Math.min(pctWidth, 100 - pctLeft - 2)}%` }}
-                                                            >
-                                                                <span className="text-[11px] font-bold truncate max-w-[70%]" title={task.title}>
-                                                                    {task.title}
-                                                                </span>
-                                                                {/* Assignee avatars overlapping */}
-                                                                <div className="flex -space-x-1.5 shrink-0 select-none">
-                                                                    <div className="w-5.5 h-5.5 rounded-full bg-white/20 border border-white/40 flex items-center justify-center text-[9px] font-bold text-white uppercase select-none">
-                                                                        {initials.charAt(0)}
-                                                                    </div>
-                                                                    {task.is_critical && (
-                                                                        <div className="w-5.5 h-5.5 rounded-full bg-rose-500/80 border border-white/40 flex items-center justify-center text-[8px] font-extrabold text-white select-none">
-                                                                            C
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        ))
-                                    ) : (
-                                        /* ── Empty State ── */
-                                        [
-                                            { name: 'Design Division' },
-                                            { name: 'Dev Division' },
-                                            { name: 'Marketing' }
-                                        ].map(lane => (
-                                            <div key={lane.name} className="grid grid-cols-[150px_1fr] gap-4 items-center shrink-0">
-                                                {/* Left label */}
-                                                <span className="text-xs font-bold text-gray-400 dark:text-slate-500 select-none">
-                                                    {lane.name}
-                                                </span>
-                                                {/* Empty Grid lane body */}
-                                                <div className="relative h-14 bg-[#f8fafc]/30 dark:bg-slate-900/10 border border-gray-150/40 dark:border-slate-800/60 rounded-xl overflow-hidden">
-                                                    {/* Hour divider lines */}
-                                                    <div className="absolute inset-0 grid grid-cols-9 pointer-events-none divide-x divide-gray-100/40 dark:divide-slate-850" />
-                                                    {/* No data overlay */}
-                                                    <div className="absolute inset-0 flex items-center justify-center text-[10px] text-gray-400 dark:text-slate-650 font-medium select-none">
-                                                        No schedule
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-
                             </div>
+                        )}
+
+                        {/* Legend explanation banner */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-100 dark:border-slate-800/60">
+                            <div className="flex items-center gap-4 flex-wrap">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="w-3 h-3 rounded-sm bg-gradient-to-r from-rose-500 to-red-600 inline-block shadow-2xs" />
+                                    <span className="font-bold text-rose-700 dark:text-rose-400">Critical Path:</span>
+                                    <span className="text-[11px] text-slate-500">Zero slack float. Any delay directly delays the project completion date.</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="w-3 h-3 rounded-sm bg-gradient-to-r from-indigo-500 to-indigo-600 inline-block shadow-2xs" />
+                                    <span className="font-bold text-indigo-700 dark:text-indigo-400">Flexible Task:</span>
+                                    <span className="text-[11px] text-slate-500">Scheduled duration with safe float buffer (dashed extension).</span>
+                                </div>
+                            </div>
+                            <span className="text-[11px] text-slate-400 font-mono">1 Work Day = 8 Hours</span>
                         </div>
 
-                        {scheduledTasks.length === 0 && (
-                            <div className="flex flex-col items-center justify-center py-6 text-center border border-dashed border-gray-200 dark:border-slate-800 rounded-xl">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-gray-300 dark:text-slate-700 mb-2">
-                                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
-                                    <polyline points="12 6 12 12 16 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                </svg>
-                                <p className="text-xs font-bold text-gray-500 dark:text-slate-400">No scheduled timeline tasks found</p>
-                                <p className="text-[10px] text-gray-450 dark:text-slate-500 mt-0.5">
-                                    Recalculate your project workspace with CPA to populate division timelines.
+                        {/* Timeline Gantt Grid or Sequence Table with Guaranteed Zero Overlap */}
+                        {filteredCpaTasks.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-center border border-dashed border-gray-200 dark:border-slate-800 rounded-2xl p-8 space-y-3">
+                                <Clock className="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto" />
+                                <p className="text-sm font-bold text-gray-700 dark:text-slate-300">
+                                    {scheduledTasks.length === 0 ? 'No Critical Path tasks scheduled yet' : 'No tasks match current filter'}
                                 </p>
+                                <p className="text-xs text-gray-400 dark:text-slate-500 max-w-md mx-auto leading-relaxed">
+                                    {scheduledTasks.length === 0
+                                        ? 'Calculate your project schedules with task estimated hours and dependencies to generate automatic Critical Path Gantt timelines.'
+                                        : 'Try toggling off "Critical Path Only", clearing the search, or selecting "All Projects" to view other scheduled tasks.'}
+                                </p>
+                                {scheduledTasks.length === 0 && projects.length > 0 && (
+                                    <Link
+                                        href={`/studio/${pageProps.auth?.user?.studio_slug || 'workspace'}/projects/${projects[0].id}`}
+                                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white shadow-xs hover:bg-indigo-700 transition-all"
+                                    >
+                                        <span>Open Project Workspace</span>
+                                        <ArrowRight className="w-3.5 h-3.5" />
+                                    </Link>
+                                )}
+                            </div>
+                        ) : cpaViewMode === 'table' ? (
+                            /* Sequence Table View */
+                            <div className="border border-gray-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-2xs">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-xs border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-gray-200 dark:border-slate-800 text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                                <th className="px-4 py-3">Seq</th>
+                                                <th className="px-4 py-3">Task Title</th>
+                                                <th className="px-4 py-3">Project</th>
+                                                <th className="px-4 py-3">Assignee</th>
+                                                <th className="px-4 py-3">Duration</th>
+                                                <th className="px-4 py-3">Early Start (ES)</th>
+                                                <th className="px-4 py-3">Early Finish (EF)</th>
+                                                <th className="px-4 py-3">Slack (Float)</th>
+                                                <th className="px-4 py-3">Critical Status</th>
+                                                <th className="px-4 py-3 text-right">AI Synthesis &amp; Reason</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100 dark:divide-slate-800/60">
+                                            {filteredCpaTasks.map((t, idx) => {
+                                                const ai = getTaskAiReasoning(t);
+                                                const isExpanded = expandedAiReasoningTaskId === t.id;
+
+                                                return (
+                                                    <React.Fragment key={t.id}>
+                                                        <tr className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
+                                                            <td className="px-4 py-3 font-mono text-[10px] text-slate-400 font-bold">#{idx + 1}</td>
+                                                            <td className="px-4 py-3">
+                                                                <div className="font-bold text-slate-900 dark:text-slate-100">{t.title}</div>
+                                                                <span className="text-[10px] text-slate-400 font-mono">ID: #{t.id}</span>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-slate-600 dark:text-slate-400 font-medium">{t.projectName}</td>
+                                                            <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-200">{t.assignee?.name || 'Unassigned'}</td>
+                                                            <td className="px-4 py-3 font-mono font-bold text-slate-900 dark:text-slate-100">{t.duration}h</td>
+                                                            <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-400">{t.es}h <span className="text-[10px] text-slate-400">(Day {Math.floor(t.es / 8) + 1})</span></td>
+                                                            <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-400">{t.ef}h <span className="text-[10px] text-slate-400">(Day {Math.floor(t.ef / 8) + 1})</span></td>
+                                                            <td className="px-4 py-3 font-mono">
+                                                                {t.total_float > 0 ? (
+                                                                    <span className="text-indigo-600 dark:text-indigo-400 font-bold">+{t.total_float}h slack</span>
+                                                                ) : (
+                                                                    <span className="text-rose-600 dark:text-rose-400 font-bold">0h (No slack)</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {t.is_critical ? (
+                                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300">
+                                                                        <Flame className="w-3 h-3 text-rose-500" />
+                                                                        Critical Bottleneck
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40">
+                                                                        <Clock className="w-3 h-3 text-indigo-500" />
+                                                                        Flexible Buffer
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-right">
+                                                                <div className="inline-flex items-center justify-end gap-1.5">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setSelectedTaskForAiModal(t)}
+                                                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800 transition-all shadow-2xs"
+                                                                        title="Read full AI Synthesis explanation"
+                                                                    >
+                                                                        <Sparkles className="w-3 h-3 text-amber-500 fill-amber-500" />
+                                                                        <span>AI Reason</span>
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setExpandedAiReasoningTaskId(isExpanded ? null : t.id)}
+                                                                        className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                                                        title="Toggle inline explanation"
+                                                                    >
+                                                                        {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+
+                                                        {/* Inline Expanded AI CPA Synthesis Details */}
+                                                        {isExpanded && ai && (
+                                                            <tr className="bg-indigo-50/50 dark:bg-indigo-950/30 border-y border-indigo-100 dark:border-indigo-900/40">
+                                                                <td colSpan={10} className="p-4 sm:p-5">
+                                                                    <div className="rounded-2xl bg-white dark:bg-slate-900 p-4 border border-indigo-200/70 dark:border-indigo-900/50 shadow-xs space-y-3">
+                                                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-50 dark:border-slate-800 pb-2.5">
+                                                                            <h5 className="text-xs font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                                                                                <Sparkles className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                                                                                <span>AI Synthesis Diagnosis: {ai.headline}</span>
+                                                                            </h5>
+                                                                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${ai.badgeClass} self-start sm:self-auto`}>
+                                                                                {ai.badgeText}
+                                                                            </span>
+                                                                        </div>
+
+                                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                                                            <div className="space-y-1.5">
+                                                                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                                                                                    Why It's Critical vs. Flexible
+                                                                                </span>
+                                                                                <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-[11px]">
+                                                                                    {ai.why}
+                                                                                </p>
+                                                                                <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/80 font-mono text-[10px] text-indigo-700 dark:text-indigo-300 border border-slate-100 dark:border-slate-700">
+                                                                                    {ai.proof}
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <div className="space-y-1.5">
+                                                                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                                                                                    Schedule Impact &amp; Optimization Strategy
+                                                                                </span>
+                                                                                <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-[11px]">
+                                                                                    {ai.impact}
+                                                                                </p>
+                                                                                <div className="p-2 rounded-lg bg-amber-50/70 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 border border-amber-200/60 dark:border-amber-900/50 text-[11px] font-medium">
+                                                                                    💡 <strong>AI Recommendation:</strong> {ai.strategy}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                    </React.Fragment>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        ) : (
+                            /* Gantt View */
+                            <div className="w-full overflow-x-auto border border-gray-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 shadow-2xs">
+                                <div className="min-w-[960px]">
+                                    {/* Timeline Header Row (Axis) */}
+                                    <div className="flex items-center border-b border-gray-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80 sticky top-0 z-10">
+                                        <div className="w-72 p-3 font-bold text-[11px] text-gray-500 dark:text-slate-400 uppercase tracking-wider shrink-0 border-r border-gray-200 dark:border-slate-800">
+                                            Task & Assignment
+                                        </div>
+                                        <div className="flex-1 relative h-9">
+                                            {timelineTicks.map((tick) => {
+                                                const leftPct = (tick.hour / maxTimelineHours) * 100;
+                                                return (
+                                                    <div
+                                                        key={tick.hour}
+                                                        className="absolute top-0 bottom-0 border-l border-gray-200/80 dark:border-slate-700/60 pl-1.5 pt-2 text-[10px] font-mono text-gray-500 dark:text-slate-400"
+                                                        style={{ left: `${leftPct}%` }}
+                                                    >
+                                                        <span className="font-bold text-slate-700 dark:text-slate-300">{tick.hour}h</span>
+                                                        <span className="text-gray-400 text-[9px] ml-1">(D{tick.day})</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    {/* Task Rows (Guaranteed Zero Overlap - 1 Task per Dedicated Row) */}
+                                    <div className="divide-y divide-gray-100 dark:divide-slate-800/60">
+                                        {filteredCpaTasks.map((t) => {
+                                            const maxHour = maxTimelineHours;
+                                            const leftPct = Math.min(94, (t.es / maxHour) * 100);
+                                            const rawWidthPct = (t.duration / maxHour) * 100;
+                                            const widthPct = Math.max(3.5, Math.min(100 - leftPct, rawWidthPct));
+
+                                            const remainingPct = Math.max(0, 100 - (leftPct + widthPct));
+                                            const rawFloatPct = t.total_float > 0 ? (t.total_float / maxHour) * 100 : 0;
+                                            const floatWidthPct = Math.min(remainingPct, rawFloatPct);
+                                            const assigneeName = t.assignee?.name || 'Unassigned';
+
+                                            return (
+                                                <React.Fragment key={t.id}>
+                                                    <div className="flex items-center hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors group">
+                                                    {/* Left Info Column */}
+                                                    <div className="w-72 p-3 shrink-0 border-r border-gray-100 dark:border-slate-800/60 space-y-1">
+                                                        <div className="flex items-center justify-between gap-1.5">
+                                                            <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate flex-1" title={t.title}>
+                                                                {t.title}
+                                                            </h4>
+                                                            {t.is_critical ? (
+                                                                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wide bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 shrink-0">
+                                                                    Critical
+                                                                </span>
+                                                            ) : (
+                                                                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 shrink-0">
+                                                                    +{t.total_float}h float
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center justify-between text-[10px] text-slate-400 gap-1">
+                                                            <span className="truncate max-w-[120px] text-slate-500 font-medium" title={t.projectName}>
+                                                                {t.projectName}
+                                                            </span>
+                                                            <span className="truncate max-w-[110px] text-slate-600 dark:text-slate-300 font-semibold" title={assigneeName}>
+                                                                {assigneeName}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800/60">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setSelectedTaskForAiModal(t)}
+                                                                className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors"
+                                                                title="View AI Synthesis reasoning for this CPA result"
+                                                            >
+                                                                <Sparkles className="w-3 h-3 text-amber-500 fill-amber-500" />
+                                                                <span>AI Reason</span>
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setExpandedAiReasoningTaskId(expandedAiReasoningTaskId === t.id ? null : t.id)}
+                                                                className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                                                title="Toggle inline details"
+                                                            >
+                                                                {expandedAiReasoningTaskId === t.id ? 'Hide' : 'Quick View'}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Right Gantt Track Column */}
+                                                    <div className="flex-1 relative h-12 flex items-center px-1">
+                                                        {/* Vertical grid lines */}
+                                                        {timelineTicks.map((tick) => (
+                                                            <div
+                                                                key={tick.hour}
+                                                                className="absolute top-0 bottom-0 border-l border-gray-100 dark:border-slate-800/50 pointer-events-none"
+                                                                style={{ left: `${(tick.hour / maxTimelineHours) * 100}%` }}
+                                                            />
+                                                        ))}
+
+                                                        {/* Task Scheduled Bar */}
+                                                        <div
+                                                            onClick={() => setSelectedTaskForAiModal(t)}
+                                                            className={`absolute h-8 rounded-xl flex items-center justify-between px-2.5 text-xs font-bold shadow-xs transition-all select-none cursor-pointer hover:brightness-105 group-hover:scale-[1.01] ${
+                                                                t.is_critical
+                                                                    ? 'bg-gradient-to-r from-rose-500 via-rose-600 to-red-600 text-white border border-rose-400 shadow-rose-500/20'
+                                                                    : 'bg-gradient-to-r from-indigo-500 to-indigo-600 text-white border border-indigo-400 shadow-indigo-500/20'
+                                                            }`}
+                                                            style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+                                                            title={`Task #${t.id}: ${t.title}\nClick to view complete AI Synthesis reasoning`}
+                                                        >
+                                                            {widthPct < 14 ? (
+                                                                <span className="text-[10px] font-mono mx-auto font-bold truncate">
+                                                                    {t.duration}h
+                                                                </span>
+                                                            ) : (
+                                                                <>
+                                                                    <span className="truncate text-[11px] font-bold drop-shadow-xs flex items-center gap-1">
+                                                                        <Sparkles className="w-2.5 h-2.5 text-amber-300 fill-amber-300 opacity-80 shrink-0" />
+                                                                        {t.title}
+                                                                    </span>
+                                                                    <span className="text-[10px] opacity-90 font-mono ml-2 shrink-0">
+                                                                        {t.duration}h
+                                                                    </span>
+                                                                </>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Float / Slack Buffer Bar */}
+                                                        {floatWidthPct > 0 && (
+                                                            <div
+                                                                className="absolute h-6 rounded-r-lg border-y border-r border-dashed border-indigo-300 dark:border-indigo-700 bg-indigo-50/40 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 text-[9px] font-mono flex items-center justify-center pointer-events-none select-none overflow-hidden"
+                                                                style={{ left: `${leftPct + widthPct}%`, width: `${floatWidthPct}%` }}
+                                                                title={`Slack Buffer: +${t.total_float}h float (safe buffer before project delay)`}
+                                                            >
+                                                                {floatWidthPct > 5 && <span className="truncate px-1 font-bold">+{t.total_float}h</span>}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Inline Gantt AI Reasoning Row */}
+                                                {expandedAiReasoningTaskId === t.id && (() => {
+                                                    const ai = getTaskAiReasoning(t);
+                                                    if (!ai) return null;
+                                                    return (
+                                                        <div className="bg-indigo-50/40 dark:bg-indigo-950/20 p-4 border-t border-indigo-100 dark:border-indigo-900/40">
+                                                            <div className="rounded-xl bg-white dark:bg-slate-900 p-3.5 border border-indigo-200/70 dark:border-indigo-900/50 shadow-xs space-y-2">
+                                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-50 dark:border-slate-800 pb-2">
+                                                                    <h5 className="text-xs font-black text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                                                                        <Sparkles className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                                                                        <span>AI Synthesis Diagnosis: {ai.headline}</span>
+                                                                    </h5>
+                                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${ai.badgeClass} self-start sm:self-auto`}>
+                                                                        {ai.badgeText}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                                                                    <div>
+                                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">CPA Mathematical Reason</span>
+                                                                        <p className="text-slate-600 dark:text-slate-300 text-[11px] leading-relaxed">{ai.why}</p>
+                                                                        <p className="text-[10px] font-mono text-indigo-600 dark:text-indigo-400 mt-1">{ai.proof}</p>
+                                                                    </div>
+                                                                    <div>
+                                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Schedule Impact &amp; Strategy</span>
+                                                                        <p className="text-slate-600 dark:text-slate-300 text-[11px] leading-relaxed">{ai.impact}</p>
+                                                                        <div className="mt-1.5 text-amber-900 dark:text-amber-200 text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/40 p-2 rounded-lg border border-amber-200/60 dark:border-amber-900/50">
+                                                                            💡 {ai.strategy}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </React.Fragment>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>
 
                 </div>
             </div>
+
+            {/* ── AI CPA Task Synthesis Modal ── */}
+            {/* AI Task Explanation Modal */}
+            <CpaTaskAiModal
+                task={selectedTaskForAiModal}
+                isOpen={Boolean(selectedTaskForAiModal)}
+                onClose={() => setSelectedTaskForAiModal(null)}
+            />
         </TenantLayout>
     );
 }

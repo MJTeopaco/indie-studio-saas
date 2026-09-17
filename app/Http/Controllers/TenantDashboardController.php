@@ -6,6 +6,7 @@ use App\Models\Position;
 use App\Models\Skill;
 use App\Models\Studio;
 use App\Models\Tenant\ChannelMessage;
+use App\Models\Tenant\ChannelRead;
 use App\Models\Tenant\Project;
 use App\Models\Tenant\Sprint;
 use App\Models\Tenant\Task;
@@ -646,6 +647,11 @@ class TenantDashboardController extends Controller
                 return [];
             }
 
+            $userReads = collect();
+            if (Schema::hasTable('channel_reads')) {
+                $userReads = ChannelRead::where('user_id', $user->id)->get()->keyBy('channel_id');
+            }
+
             // 1. Direct messages where the current user is a participant and not the author
             $recentDms = ChannelMessage::where(function ($q) use ($user) {
                 $q->where('channel_id', 'like', "dm-{$user->id}_%")
@@ -666,6 +672,17 @@ class TenantDashboardController extends Controller
             foreach ($recentDms as $dm) {
                 $hasAttachments = ! empty($dm->attachments);
                 $snippet = $dm->body !== '' ? Str::limit($dm->body, 90) : ($hasAttachments ? 'Sent an attachment' : 'Sent a message');
+
+                $userRead = $userReads->get($dm->channel_id);
+                $isRead = false;
+                if ($userRead) {
+                    if ($userRead->last_read_message_id && $dm->id <= $userRead->last_read_message_id) {
+                        $isRead = true;
+                    } elseif ($userRead->last_read_at && $dm->created_at <= $userRead->last_read_at) {
+                        $isRead = true;
+                    }
+                }
+
                 $notifications[] = [
                     'id' => 'msg-'.$dm->id,
                     'type' => 'direct_message',
@@ -685,7 +702,7 @@ class TenantDashboardController extends Controller
                     'epic_color' => null,
                     'priority' => 'high',
                     'days_until_deadline' => null,
-                    'read' => false,
+                    'read' => $isRead,
                     'created_at_human' => $dm->created_at?->diffForHumans() ?? 'Recent',
                 ];
             }
@@ -712,6 +729,16 @@ class TenantDashboardController extends Controller
 
                 $snippet = $chMsg->body !== '' ? Str::limit($chMsg->body, 90) : (! empty($chMsg->attachments) ? 'Sent an attachment' : 'Sent a message');
 
+                $userRead = $userReads->get($chMsg->channel_id);
+                $isRead = false;
+                if ($userRead) {
+                    if ($userRead->last_read_message_id && $chMsg->id <= $userRead->last_read_message_id) {
+                        $isRead = true;
+                    } elseif ($userRead->last_read_at && $chMsg->created_at <= $userRead->last_read_at) {
+                        $isRead = true;
+                    }
+                }
+
                 $notifications[] = [
                     'id' => ($isMention ? 'mention-' : 'channel-').$chMsg->id,
                     'type' => $isMention ? 'channel_mention' : 'channel_message',
@@ -731,7 +758,7 @@ class TenantDashboardController extends Controller
                     'epic_color' => null,
                     'priority' => $isMention ? 'high' : 'medium',
                     'days_until_deadline' => null,
-                    'read' => false,
+                    'read' => $isRead,
                     'created_at_human' => $chMsg->created_at?->diffForHumans() ?? 'Recent',
                 ];
             }
@@ -740,5 +767,63 @@ class TenantDashboardController extends Controller
         }
 
         return $notifications;
+    }
+
+    /**
+     * Mark all message notifications as read for current user.
+     */
+    public function markAllNotificationsRead(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (Schema::hasTable('channel_reads') && Schema::hasTable('channel_messages')) {
+            $activeChannels = ChannelMessage::where('created_at', '>=', now()->subDays(14))
+                ->select('channel_id', DB::raw('MAX(id) as max_id'))
+                ->groupBy('channel_id')
+                ->get();
+
+            foreach ($activeChannels as $ch) {
+                ChannelRead::updateOrCreate(
+                    [
+                        'channel_id' => $ch->channel_id,
+                        'user_id' => $user->id,
+                    ],
+                    [
+                        'last_read_message_id' => $ch->max_id,
+                        'last_read_at' => now(),
+                    ]
+                );
+            }
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Mark an individual notification as read.
+     */
+    public function markNotificationRead(Request $request, string $id): JsonResponse
+    {
+        $user = $request->user();
+
+        if (str_starts_with($id, 'msg-') || str_starts_with($id, 'channel-') || str_starts_with($id, 'mention-')) {
+            $msgId = (int) preg_replace('/^[a-z]+-/', '', $id);
+            $msg = ChannelMessage::find($msgId);
+            if ($msg && Schema::hasTable('channel_reads')) {
+                $latestId = ChannelMessage::where('channel_id', $msg->channel_id)->max('id') ?? $msg->id;
+                ChannelRead::updateOrCreate(
+                    [
+                        'channel_id' => $msg->channel_id,
+                        'user_id' => $user->id,
+                    ],
+                    [
+                        'last_read_message_id' => $latestId,
+                        'last_read_at' => now(),
+                    ]
+                );
+            }
+        }
+
+        return response()->json(['success' => true]);
     }
 }

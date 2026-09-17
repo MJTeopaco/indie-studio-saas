@@ -17,7 +17,7 @@ return new class extends Migration
             $table->unsignedTinyInteger('story_points_ai_suggested')->nullable();
             $table->boolean('needs_estimate_review')->default(false);
             $table->text('estimate_review_note')->nullable();
-            
+
             // Expected estimators (central user IDs), snapshotted at task creation
             $table->json('expected_estimators')->nullable();
 
@@ -26,7 +26,7 @@ return new class extends Migration
             $table->float('duration_likely')->nullable();
             $table->float('duration_pessimistic')->nullable();
         });
-        
+
         // Add DB-level constraint for Fibonacci values if supported
         // Note: SQLite (often used in testing) doesn't fully support ADD CONSTRAINT in table modification
         // But for standard MySQL/PostgreSQL we could add it. To be safe across drivers, we will enforce it at the application level.

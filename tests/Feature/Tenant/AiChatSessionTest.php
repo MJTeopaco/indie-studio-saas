@@ -63,7 +63,7 @@ class AiChatSessionTest extends TestCase
 
         // Update
         $updateResponse = $this->actingAs($this->otherUser)->patchJson(route('tenant.chats.update', ['tenant' => 'test', 'chatSession' => $session->id]), [
-            'title' => 'Hacked Title'
+            'title' => 'Hacked Title',
         ]);
         $updateResponse->assertStatus(403);
 
@@ -74,7 +74,7 @@ class AiChatSessionTest extends TestCase
         // Verify it still exists and wasn't changed
         $this->assertDatabaseHas('ai_chat_sessions', [
             'id' => $session->id,
-            'title' => 'My Session'
+            'title' => 'My Session',
         ]);
     }
 
@@ -90,7 +90,7 @@ class AiChatSessionTest extends TestCase
         $this->assertDatabaseHas('ai_chat_sessions', ['id' => $session->id]);
 
         $response = $this->actingAs($this->user)->deleteJson(route('tenant.chats.destroy', ['tenant' => 'test', 'chatSession' => $session->id]));
-        
+
         $response->assertStatus(204);
         $this->assertDatabaseMissing('ai_chat_sessions', ['id' => $session->id]);
     }

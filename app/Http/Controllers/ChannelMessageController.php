@@ -5,11 +5,13 @@ namespace App\Http\Controllers;
 use App\Mail\ChannelMessageNotificationMail;
 use App\Models\Studio;
 use App\Models\Tenant\ChannelMessage;
+use App\Models\Tenant\ChannelRead;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -43,11 +45,27 @@ class ChannelMessageController extends Controller
 
         $messages = $query->get()->map(fn (ChannelMessage $m) => $this->format($m, $user));
 
+        $updatedMessages = [];
+        if ($afterId) {
+            $updatedMessages = ChannelMessage::where('channel_id', $channelId)
+                ->where('id', '<=', (int) $afterId)
+                ->where('updated_at', '>=', now()->subSeconds(30))
+                ->where(function ($q) use ($user) {
+                    if ($user) {
+                        $q->whereNull('deleted_for_user_ids')
+                            ->orWhereJsonDoesntContain('deleted_for_user_ids', (int) $user->id);
+                    }
+                })
+                ->get()
+                ->map(fn (ChannelMessage $m) => $this->format($m, $user));
+        }
+
         $lastMessage = $messages->last();
         $lastId = is_array($lastMessage) ? ($lastMessage['id'] ?? null) : null;
 
         return response()->json([
             'messages' => $messages,
+            'updated_messages' => $updatedMessages,
             'last_id' => $lastId ?? ($afterId ? (int) $afterId : null),
         ]);
     }
@@ -542,15 +560,20 @@ class ChannelMessageController extends Controller
     {
         $user = $request->user();
 
-        // 1. Fetch channel messages from last 5 days not sent by this user and not deleted for this user
+        // Load current user's read receipts per channel
+        $userReads = collect();
+        if (Schema::hasTable('channel_reads')) {
+            $userReads = ChannelRead::where('user_id', $user->id)->get()->keyBy('channel_id');
+        }
+
+        // 1. Fetch channel messages from last 5 days not deleted for this user
         $recentMessages = ChannelMessage::where('created_at', '>=', now()->subDays(5))
-            ->where('user_id', '!=', $user->id)
             ->where(function ($q) use ($user) {
                 $q->whereNull('deleted_for_user_ids')
                     ->orWhereJsonDoesntContain('deleted_for_user_ids', (int) $user->id);
             })
             ->orderBy('created_at', 'desc')
-            ->limit(100)
+            ->limit(150)
             ->get();
 
         $activityByChannel = [];
@@ -581,14 +604,28 @@ class ChannelMessageController extends Controller
                         'time' => $msg->created_at?->diffForHumans(),
                         'raw_time' => $msg->created_at?->toIso8601String(),
                         'is_unsent' => (bool) $msg->is_unsent,
+                        'user_id' => $msg->user_id,
                     ],
                     'count' => 0,
                 ];
             }
 
-            if (! $msg->is_unsent) {
-                $activityByChannel[$ch]['count']++;
-                $unreadCounts[$ch] = ($unreadCounts[$ch] ?? 0) + 1;
+            // Only increment unread counts if message is from someone else, not unsent, and not yet marked as read
+            if (! $msg->is_unsent && (int) $msg->user_id !== (int) $user->id) {
+                $userRead = $userReads->get($ch);
+                $isRead = false;
+                if ($userRead) {
+                    if ($userRead->last_read_message_id && $msg->id <= $userRead->last_read_message_id) {
+                        $isRead = true;
+                    } elseif ($userRead->last_read_at && $msg->created_at <= $userRead->last_read_at) {
+                        $isRead = true;
+                    }
+                }
+
+                if (! $isRead) {
+                    $activityByChannel[$ch]['count']++;
+                    $unreadCounts[$ch] = ($unreadCounts[$ch] ?? 0) + 1;
+                }
             }
         }
 
@@ -600,6 +637,38 @@ class ChannelMessageController extends Controller
             'unread_counts' => $unreadCounts,
             'activity' => $activityByChannel,
             'notifications' => $notifications,
+        ]);
+    }
+
+    /**
+     * Mark a channel or direct message thread as read by the current user.
+     *
+     * POST /studio/{tenant}/channels/{channelId}/read
+     */
+    public function markRead(Request $request, string $channelId): JsonResponse
+    {
+        $user = $request->user();
+        $latestMessageId = null;
+
+        if (Schema::hasTable('channel_reads')) {
+            $latestMessageId = ChannelMessage::where('channel_id', $channelId)->max('id') ?? 0;
+
+            ChannelRead::updateOrCreate(
+                [
+                    'channel_id' => $channelId,
+                    'user_id' => $user->id,
+                ],
+                [
+                    'last_read_message_id' => $latestMessageId,
+                    'last_read_at' => now(),
+                ]
+            );
+        }
+
+        return response()->json([
+            'success' => true,
+            'channel_id' => $channelId,
+            'last_read_message_id' => $latestMessageId,
         ]);
     }
 

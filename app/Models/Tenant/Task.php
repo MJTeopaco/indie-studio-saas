@@ -33,6 +33,9 @@ class Task extends Model
         'assigned_user_id',
         'reviewer_user_id',
         'status',
+        'completed_at',
+        'completed_by_user_id',
+        'completion_notes',
         // CPA schedule fields
         'es',
         'ef',
@@ -65,6 +68,8 @@ class Task extends Model
             'estimated_hours' => 'float',
             'days_until_deadline' => 'integer',
             'hard_constraint_date' => 'date',
+            'completed_at' => 'datetime',
+            'completed_by_user_id' => 'integer',
             'schedule_computed_at' => 'datetime',
             'story_points' => 'integer',
             'story_points_locked' => 'boolean',
@@ -116,6 +121,14 @@ class Task extends Model
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewer_user_id');
+    }
+
+    /**
+     * Get the central user who completed this task.
+     */
+    public function completedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'completed_by_user_id');
     }
 
     /**

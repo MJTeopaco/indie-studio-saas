@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\StoreStudioRequest;
 use App\Http\Requests\JoinStudioRequest;
+use App\Http\Requests\StoreStudioRequest;
 use App\Models\Studio;
 use App\Models\StudioInvitation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class HubController extends Controller
 {
@@ -40,7 +41,7 @@ class HubController extends Controller
         // Find valid invitation
         $invitation = StudioInvitation::valid()->where('token', strtoupper($request->invitation_code))->first();
 
-        if (!$invitation) {
+        if (! $invitation) {
             return back()->withErrors([
                 'invitation_code' => 'Invalid or expired code.',
             ]);
@@ -53,7 +54,7 @@ class HubController extends Controller
 
         // Add to central members list
         $user->joinedStudios()->syncWithoutDetaching([
-            $studio->id => ['role' => 'member']
+            $studio->id => ['role' => 'member'],
         ]);
 
         // Redirect to the path-based tenant dashboard
@@ -71,7 +72,7 @@ class HubController extends Controller
         }
 
         // Generate a simple 8-character alphanumeric code
-        $token = strtoupper(\Illuminate\Support\Str::random(8));
+        $token = strtoupper(Str::random(8));
 
         $studio->invitations()->create([
             'token' => $token,

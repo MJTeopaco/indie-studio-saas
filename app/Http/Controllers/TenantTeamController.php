@@ -6,6 +6,7 @@ use App\Models\Studio;
 use App\Models\Tenant\Project;
 use App\Models\Tenant\ProjectMember;
 use App\Models\Tenant\Task;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -106,8 +107,8 @@ class TenantTeamController extends Controller
 
             $members = $studio->users->map(function ($user) use ($memberProjectRows, $memberTaskRows, $assignedTasksByUser, $assignmentTaskIdsByUser, $projectLookup) {
                 $role = $user->pivot ? $user->pivot->role : 'member';
-                $position = $user->globalProfile && $user->globalProfile->position 
-                    ? $user->globalProfile->position->name 
+                $position = $user->globalProfile && $user->globalProfile->position
+                    ? $user->globalProfile->position->name
                     : ($user->role === 'admin' ? 'Project Lead' : 'Developer');
                 $maxHoursPerWeek = (int) ($user->globalProfile->max_hours_per_week ?? 40);
                 $historicalTaskIds = collect($assignmentTaskIdsByUser->get($user->id, collect()));
@@ -210,8 +211,8 @@ class TenantTeamController extends Controller
                     'email' => $user->email,
                     'role' => $role,
                     'position' => $position,
-                    'joined_at' => $user->pivot && $user->pivot->created_at 
-                        ? $user->pivot->created_at->format('M d, Y') 
+                    'joined_at' => $user->pivot && $user->pivot->created_at
+                        ? $user->pivot->created_at->format('M d, Y')
                         : $user->created_at->format('M d, Y'),
                     'profile' => [
                         'health' => $health,
@@ -250,7 +251,7 @@ class TenantTeamController extends Controller
 
         // Set canManage true if they are owner, team leader, manager, or global platform admin
         $canManage = in_array($currentUserRole, ['owner', 'leader', 'manager'])
-            || (auth()->check() && auth()->user()->role === \App\Models\User::ROLE_ADMIN);
+            || (auth()->check() && auth()->user()->role === User::ROLE_ADMIN);
 
         return Inertia::render('Tenant/Team/Index', [
             'studio' => [

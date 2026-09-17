@@ -7,7 +7,6 @@ use App\Models\Tenant\TaskEstimateSubmission;
 use App\Models\User;
 use App\Services\EstimationService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class EstimationController extends Controller
@@ -26,7 +25,7 @@ class EstimationController extends Controller
 
         $role = $member ? $member->role : 'member';
 
-        if (!in_array($role, ['owner', 'leader', 'manager'])) {
+        if (! in_array($role, ['owner', 'leader', 'manager'])) {
             abort(403, 'Unauthorized action. Only studio managers can perform this task.');
         }
     }
@@ -37,7 +36,7 @@ class EstimationController extends Controller
     public function pendingQueue(Request $request)
     {
         $user = auth()->user();
-        
+
         // Find tasks that are not locked and where the user is an expected estimator.
         $tasks = Task::where('story_points_locked', false)
             ->where('needs_estimate_review', false)
@@ -48,6 +47,7 @@ class EstimationController extends Controller
                 if (empty($task->expected_estimators)) {
                     return $task->assigned_user_id === $user->id;
                 }
+
                 return in_array($user->id, $task->expected_estimators);
             })
             ->map(function ($task) use ($user) {
@@ -55,9 +55,11 @@ class EstimationController extends Controller
                 $hasSubmitted = TaskEstimateSubmission::where('task_id', $task->id)
                     ->where('developer_id', $user->id)
                     ->exists();
-                    
-                if ($hasSubmitted) return null;
-                
+
+                if ($hasSubmitted) {
+                    return null;
+                }
+
                 return [
                     'id' => $task->id,
                     'title' => $task->title,
@@ -79,7 +81,7 @@ class EstimationController extends Controller
     public function submitEstimate(Request $request, Task $task)
     {
         $user = auth()->user();
-        
+
         $validated = $request->validate([
             'submitted_points' => 'required|integer|in:1,2,3,5,8,13',
         ]);
@@ -101,36 +103,39 @@ class EstimationController extends Controller
 
     private function runDivergenceCheck(Task $task)
     {
-        $expectedCount = empty($task->expected_estimators) ? 
-            ($task->assigned_user_id ? 1 : 0) : 
+        $expectedCount = empty($task->expected_estimators) ?
+            ($task->assigned_user_id ? 1 : 0) :
             count($task->expected_estimators);
 
-        if ($expectedCount === 0) return;
+        if ($expectedCount === 0) {
+            return;
+        }
 
         $submissions = TaskEstimateSubmission::where('task_id', $task->id)->pluck('submitted_points')->toArray();
-        
+
         // Wait until all expected estimators have submitted before auto-locking or diverging
         if (count($submissions) < $expectedCount) {
-            return; 
+            return;
         }
 
         $this->evaluateSubmissions($task, $submissions);
     }
 
     /**
-     * Helper to evaluate submissions for divergence. 
+     * Helper to evaluate submissions for divergence.
      * Shared with the LockExpiredEstimates command.
      */
     public function evaluateSubmissions(Task $task, array $submissions)
     {
         if (empty($submissions)) {
             $task->update(['needs_estimate_review' => true]);
+
             return;
         }
 
         $fib = [1 => 0, 2 => 1, 3 => 2, 5 => 3, 8 => 4, 13 => 5];
-        
-        $indices = array_map(fn($p) => $fib[$p] ?? 0, $submissions);
+
+        $indices = array_map(fn ($p) => $fib[$p] ?? 0, $submissions);
         $maxIndex = max($indices);
         $minIndex = min($indices);
 
@@ -145,7 +150,7 @@ class EstimationController extends Controller
                 'story_points_locked' => true,
                 'needs_estimate_review' => false,
             ]);
-            
+
             app(EstimationService::class)->deriveDurationForTask($task);
         }
     }
@@ -165,6 +170,7 @@ class EstimationController extends Controller
                 // Get display names for submissions
                 $submissions = $task->estimateSubmissions->map(function ($sub) {
                     $user = User::find($sub->developer_id);
+
                     return [
                         'developer_id' => $sub->developer_id,
                         'developer_name' => $user ? $user->name : 'Unknown',

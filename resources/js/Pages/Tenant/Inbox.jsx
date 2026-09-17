@@ -40,6 +40,7 @@ import {
     ExternalLink,
     Link2,
     Grid,
+    BarChart3,
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -796,8 +797,27 @@ export default function Inbox({
 
     const unreadCount = useMemo(() => notificationsList.filter(n => !n.read).length, [notificationsList]);
 
-    const markAsRead = (id) => setNotificationsList(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-    const markAllAsRead = () => setNotificationsList(prev => prev.map(n => ({ ...n, read: true })));
+    const markAsRead = async (id) => {
+        setNotificationsList(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+        try {
+            await axios.post(`/studio/${workspaceSlug}/notifications/${id}/read`);
+            router.reload({ only: ['inboxNotificationCount'] });
+        } catch {
+            // ignore
+        }
+    };
+
+    const markAllAsRead = async () => {
+        setNotificationsList(prev => prev.map(n => ({ ...n, read: true })));
+        setUnreadCounts({});
+        try {
+            await axios.post(`/studio/${workspaceSlug}/notifications/read-all`);
+            router.reload({ only: ['inboxNotificationCount'] });
+        } catch {
+            // ignore
+        }
+    };
+
 
     const filteredNotifications = useMemo(() => notificationsList.filter(item => {
         const matchesSearch = notifSearch === '' ||
@@ -829,13 +849,58 @@ export default function Inbox({
     const [newChannelName, setNewChannelName] = useState('');
     const [newChannelDesc, setNewChannelDesc] = useState('');
     const [channelToDelete, setChannelToDelete] = useState(null);
+    const [unreadCounts, setUnreadCounts] = useState({});
 
-    const [selectedChat, setSelectedChat] = useState({
-        id: 'ch-general',
-        title: '#general',
-        subtitle: 'Studio-wide announcements & discussion',
-        type: 'channel',
+    const totalUnreadMessages = useMemo(() => {
+        return Object.values(unreadCounts || {}).reduce((acc, count) => acc + (Number(count) || 0), 0);
+    }, [unreadCounts]);
+
+    const [selectedChat, setSelectedChat] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const urlParams = new URLSearchParams(window.location.search);
+            const chParam = urlParams.get('channel');
+            const dmParam = urlParams.get('dm');
+            if (chParam) {
+                const found = DEFAULT_CHANNELS.find(c => c.id === chParam);
+                if (found) return { id: found.id, title: `#${found.name}`, subtitle: found.description, type: 'channel' };
+                return { id: chParam, title: `#${chParam.replace('ch-', '')}`, subtitle: 'Channel discussion', type: 'channel' };
+            }
+            if (dmParam) {
+                return { id: dmParam, title: 'Direct Chat', subtitle: 'Private conversation', type: 'dm' };
+            }
+        }
+        return null;
     });
+
+    const markChannelRead = useCallback(async (channelId) => {
+        if (!workspaceSlug || !channelId) return;
+
+        // 1. Immediately zero-out unread count for this channel in local state
+        setUnreadCounts(prev => ({ ...prev, [channelId]: 0 }));
+
+        // 2. Mark any notifications related to this channel as read in UI immediately
+        setNotificationsList(prev => prev.map(n => {
+            if (n.channel_id === channelId || n.id === `msg-${channelId}` || (n.channel_id && n.channel_id.replace(/^ch-/, '') === channelId.replace(/^ch-/, ''))) {
+                return { ...n, read: true };
+            }
+            return n;
+        }));
+
+        try {
+            // 3. Persist read receipt to backend
+            await axios.post(`/studio/${workspaceSlug}/channels/${channelId}/read`);
+            // 4. Reload Inertia shared props so sidebar badge updates immediately!
+            router.reload({ only: ['inboxNotificationCount'] });
+        } catch {
+            // ignore
+        }
+    }, [workspaceSlug]);
+
+    const openChat = useCallback((chat) => {
+        if (!chat) return;
+        setSelectedChat(chat);
+        markChannelRead(chat.id);
+    }, [markChannelRead]);
 
     // ── MESSAGES STATE ───────────────────────────────────────────────────────
     const [messages, setMessages] = useState([]);
@@ -860,11 +925,11 @@ export default function Inbox({
     const [assetsData, setAssetsData] = useState({ media: [], files: [], links: [] });
     const [loadingAssets, setLoadingAssets] = useState(false);
     const [showPinnedDrawer, setShowPinnedDrawer] = useState(false);
-    const [unreadCounts, setUnreadCounts] = useState({});
     const [copiedMsgId, setCopiedMsgId] = useState(null);
     const [highlightedMsgId, setHighlightedMsgId] = useState(null);
     const [channelActivity, setChannelActivity] = useState({});
     const [unsendTarget, setUnsendTarget] = useState(null);
+
 
     // Refs
     const fileInputRef = useRef(null);
@@ -907,6 +972,34 @@ export default function Inbox({
         });
     }, [teamMembers, currentUser, channelActivity, selectedChat, messages, unreadCounts]);
 
+    // Sort channels: channels with recent activity or unread messages are sorted to the top
+    const sortedChannels = useMemo(() => {
+        return [...channels].sort((a, b) => {
+            const aAct = channelActivity[a.id];
+            const bAct = channelActivity[b.id];
+
+            const aIsCurrentWithMsgs = selectedChat?.id === a.id && messages.length > 0;
+            const bIsCurrentWithMsgs = selectedChat?.id === b.id && messages.length > 0;
+
+            const aHasActivity = Boolean(aAct || aIsCurrentWithMsgs || (unreadCounts[a.id] > 0));
+            const bHasActivity = Boolean(bAct || bIsCurrentWithMsgs || (unreadCounts[b.id] > 0));
+
+            if (aHasActivity && !bHasActivity) return -1;
+            if (!aHasActivity && bHasActivity) return 1;
+
+            const aTime = aAct?.latest_message?.raw_time || 0;
+            const bTime = bAct?.latest_message?.raw_time || 0;
+
+            if (aTime && bTime) {
+                return new Date(bTime) - new Date(aTime);
+            }
+            if (aTime) return -1;
+            if (bTime) return 1;
+
+            return a.name.localeCompare(b.name);
+        });
+    }, [channels, channelActivity, selectedChat, messages, unreadCounts]);
+
     // ── Poll channel activity & unread counts across all channels & DMs ───────
     const pollActivity = useCallback(async () => {
         if (!workspaceSlug) return;
@@ -921,14 +1014,22 @@ export default function Inbox({
             if (res.data?.notifications && Array.isArray(res.data.notifications)) {
                 setNotificationsList(prev => {
                     const map = new Map(prev.map(n => [n.id, n]));
-                    res.data.notifications.forEach(n => {
-                        if (!map.has(n.id)) {
-                            map.set(n.id, n);
+                    res.data.notifications.forEach(serverN => {
+                        if (map.has(serverN.id)) {
+                            const localN = map.get(serverN.id);
+                            map.set(serverN.id, {
+                                ...localN,
+                                ...serverN,
+                                read: Boolean(localN.read || serverN.read),
+                            });
+                        } else {
+                            map.set(serverN.id, serverN);
                         }
                     });
                     return Array.from(map.values()).sort((a, b) => (b.id > a.id ? 1 : -1));
                 });
             }
+
         } catch {
             // ignore activity poll error
         }
@@ -956,48 +1057,75 @@ export default function Inbox({
         }
     }, [workspaceSlug]);
 
-    // Poll for new messages only (after_id incremental fetch)
+    // Poll for new messages & updated messages (pins, unsends, etc.)
     const pollMessages = useCallback(async () => {
-        if (!workspaceSlug || !selectedChat.id) return;
+        if (!workspaceSlug || !selectedChat?.id) return;
         try {
             const url = buildApiUrl(workspaceSlug, selectedChat.id, lastId);
             const res = await axios.get(url);
             const incoming = res.data.messages ?? [];
-            if (incoming.length > 0) {
+            const updated = res.data.updated_messages ?? [];
+
+            if (incoming.length > 0 || updated.length > 0) {
                 setMessages(prev => {
-                    const existingIds = new Set(prev.map(m => m.id));
-                    const newItems = incoming.filter(m => !existingIds.has(m.id));
-                    return newItems.length > 0 ? [...prev, ...newItems] : prev;
+                    let next = [...prev];
+
+                    // Reconcile updated messages (e.g. pinned/unpinned, unsent, edits)
+                    if (updated.length > 0) {
+                        const updatedMap = new Map(updated.map(u => [u.id, u]));
+                        next = next.map(m => updatedMap.has(m.id) ? { ...m, ...updatedMap.get(m.id) } : m);
+                    }
+
+                    // Append newly arrived messages
+                    if (incoming.length > 0) {
+                        const existingIds = new Set(next.map(m => m.id));
+                        const newItems = incoming.filter(m => !existingIds.has(m.id));
+                        if (newItems.length > 0) {
+                            next = [...next, ...newItems];
+                        }
+                    }
+
+                    return next;
                 });
-                setLastId(res.data.last_id ?? lastId);
+
+                if (res.data.last_id) {
+                    setLastId(res.data.last_id);
+                }
             }
         } catch {
             // polling failure — ignore
         }
-    }, [workspaceSlug, selectedChat.id, lastId]);
+    }, [workspaceSlug, selectedChat?.id, lastId]);
 
     // On channel switch: load fresh and reset active states
     useEffect(() => {
+        if (!selectedChat?.id) {
+            setMessages([]);
+            setLastId(null);
+            return;
+        }
         setMessages([]);
         setLastId(null);
         setReplyingTo(null);
         setShowPinnedDrawer(false);
         setShowAssetsPanel(false);
-        setUnreadCounts(prev => ({ ...prev, [selectedChat.id]: 0 }));
+        markChannelRead(selectedChat.id);
         loadMessages(selectedChat.id, true);
-    }, [selectedChat.id]);
+    }, [selectedChat?.id, markChannelRead, loadMessages]);
 
-    // Start polling (3s interval) while messages tab is open
+    // Start polling (3s interval) while messages tab is open and a chat is selected
     useEffect(() => {
-        if (activeTab !== 'messages') {
-            clearInterval(pollingRef.current);
+        if (activeTab !== 'messages' || !selectedChat?.id) {
+            if (pollingRef.current) clearInterval(pollingRef.current);
             return;
         }
         pollingRef.current = setInterval(() => {
             pollMessages();
         }, 3000);
-        return () => clearInterval(pollingRef.current);
-    }, [activeTab, pollMessages]);
+        return () => {
+            if (pollingRef.current) clearInterval(pollingRef.current);
+        };
+    }, [activeTab, selectedChat?.id, pollMessages]);
 
     // Auto-scroll to bottom on new message
     useEffect(() => {
@@ -1047,6 +1175,7 @@ export default function Inbox({
     }, [workspaceSlug, messages]);
 
     const toggleAssetsPanel = () => {
+        if (!selectedChat?.id) return;
         if (!showAssetsPanel) {
             loadAssets(selectedChat.id);
         }
@@ -1067,6 +1196,7 @@ export default function Inbox({
     };
 
     const handleTogglePin = async (msg) => {
+        if (!selectedChat?.id) return;
         try {
             const res = await axios.post(`/studio/${workspaceSlug}/channels/${selectedChat.id}/messages/${msg.id}/pin`);
             const updated = res.data?.message;
@@ -1091,7 +1221,7 @@ export default function Inbox({
     };
 
     const handleConfirmUnsend = async (scope) => {
-        if (!unsendTarget) return;
+        if (!unsendTarget || !selectedChat?.id) return;
         const targetId = unsendTarget.id;
         try {
             const res = await axios.delete(`/studio/${workspaceSlug}/channels/${selectedChat.id}/messages/${targetId}?scope=${scope}`);
@@ -1142,8 +1272,8 @@ export default function Inbox({
             const payload = {
                 body: forwardingMessage.text || '',
                 forwarded_from: {
-                    channel_id: selectedChat.id,
-                    channel_name: selectedChat.title,
+                    channel_id: selectedChat?.id || '',
+                    channel_name: selectedChat?.title || '',
                     sender: forwardingMessage.sender,
                 },
             };
@@ -1184,7 +1314,7 @@ export default function Inbox({
         if (!channelToDelete) return;
         const { id } = channelToDelete;
         setChannels(prev => prev.filter(c => c.id !== id));
-        if (selectedChat.id === id) {
+        if (selectedChat?.id === id) {
             setSelectedChat({ id: 'ch-general', title: '#general', subtitle: DEFAULT_CHANNELS[0].description, type: 'channel' });
         }
         setChannelToDelete(null);
@@ -1298,7 +1428,7 @@ export default function Inbox({
         e?.preventDefault();
         const body = inputMessage.trim();
         const hasFiles = stagedFiles.length > 0;
-        if ((!body && !hasFiles) || sending) return;
+        if ((!body && !hasFiles) || sending || !selectedChat?.id) return;
 
         setInputMessage('');
         const currentStaged = [...stagedFiles];
@@ -1348,13 +1478,14 @@ export default function Inbox({
 
     // ── Send Email Chat Notification ─────────────────────────────────────────
     const handleSendEmailNotification = async (recipientEmail, customNote) => {
+        if (!selectedChat?.id) return false;
         setSendingEmail(true);
         try {
             const url = `/studio/${workspaceSlug}/channels/${selectedChat.id}/email`;
             const latestMessage = messages.length > 0 ? messages[messages.length - 1] : null;
             await axios.post(url, {
                 recipient_email: recipientEmail,
-                message_text: customNote || latestMessage?.text || `Notification from #${selectedChat.title}`,
+                message_text: customNote || latestMessage?.text || (selectedChat?.title ? `Notification from #${selectedChat.title}` : 'Notification'),
                 message_id: latestMessage?.id ?? null,
             });
             return true;
@@ -1372,7 +1503,7 @@ export default function Inbox({
         setActiveTab('messages');
         const isDm = notif.channel_id.startsWith('dm-');
         if (isDm) {
-            setSelectedChat({
+            openChat({
                 id: notif.channel_id,
                 title: notif.sender_name || 'Direct Message',
                 subtitle: 'Direct chat conversation',
@@ -1380,7 +1511,7 @@ export default function Inbox({
             });
         } else {
             const chName = notif.channel_id.startsWith('ch-') ? notif.channel_id.replace('ch-', '') : notif.channel_id;
-            setSelectedChat({
+            openChat({
                 id: notif.channel_id,
                 title: `#${chName}`,
                 subtitle: 'Channel discussion',
@@ -1433,7 +1564,7 @@ export default function Inbox({
             <EmailChatModal
                 isOpen={emailModalOpen}
                 onClose={() => setEmailModalOpen(false)}
-                channelTitle={selectedChat.title}
+                channelTitle={selectedChat?.title || ''}
                 teamMembers={teamMembers}
                 onSendEmail={handleSendEmailNotification}
                 sendingEmail={sendingEmail}
@@ -1501,10 +1632,12 @@ export default function Inbox({
                                     <button
                                         type="button"
                                         onClick={() => setActiveTab('messages')}
-                                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'messages' ? 'bg-white dark:bg-slate-900 text-brand shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+                                        className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'messages' ? 'bg-white dark:bg-slate-900 text-brand shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
                                         <MessageSquare className="w-3.5 h-3.5" />
                                         <span>Team Messages</span>
+                                        {totalUnreadMessages > 0 && <NotifBadge count={totalUnreadMessages} size="sm" />}
                                     </button>
+
                                 </div>
 
                                 {activeTab === 'notifications' && unreadCount > 0 && (
@@ -1578,7 +1711,11 @@ export default function Inbox({
                                                 onClick={() => {
                                                     setSelectedNotifId(notif.id);
                                                     markAsRead(notif.id);
+                                                    if (notif.channel_id) {
+                                                        markChannelRead(notif.channel_id);
+                                                    }
                                                 }}
+
                                                 className={`p-4 cursor-pointer transition-all border-l-3 relative flex items-start gap-3.5 ${isSelected ? 'bg-brand/5 dark:bg-brand/10 border-l-brand' : !notif.read ? `${c.bg} border-l-rose-500 hover:brightness-95` : 'bg-white dark:bg-slate-900 border-l-transparent hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}>
                                                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-2xs mt-0.5 ${c.icon}`}>
                                                     <NIcon className="w-4 h-4" />
@@ -1790,17 +1927,17 @@ export default function Inbox({
                                         )}
 
                                         <div className="space-y-0.5">
-                                            {channels.map(ch => {
-                                                const isActive = selectedChat.id === ch.id;
+                                            {sortedChannels.map(ch => {
+                                                const isActive = selectedChat?.id === ch.id;
                                                 const isProtected = PROTECTED_IDS.has(ch.id);
                                                 return (
                                                     <div key={ch.id} className="group relative">
                                                         <button type="button"
-                                                            onClick={() => setSelectedChat({ id: ch.id, title: `#${ch.name}`, subtitle: ch.description, type: 'channel' })}
+                                                            onClick={() => openChat({ id: ch.id, title: `#${ch.name}`, subtitle: ch.description, type: 'channel' })}
                                                             className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all text-left ${isActive ? 'bg-brand text-white shadow-xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                                                             <Hash className="w-3.5 h-3.5 shrink-0 opacity-70" />
                                                             <span className="truncate flex-1">{ch.name}</span>
-                                                            {unreadCounts[ch.id] > 0 && selectedChat.id !== ch.id && (
+                                                            {unreadCounts[ch.id] > 0 && selectedChat?.id !== ch.id && (
                                                                 <NotifBadge count={unreadCounts[ch.id]} size="sm" />
                                                             )}
                                                             {isProtected && <ShieldCheck className={`w-3 h-3 shrink-0 ${isActive ? 'opacity-70' : 'opacity-30'}`} />}
@@ -1822,20 +1959,20 @@ export default function Inbox({
                                         <div className="flex items-center justify-between px-2 mb-1.5">
                                             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Direct Messages</p>
                                             <span className="text-[10px] text-slate-400 font-medium">
-                                                {sortedTeamMembers.filter(m => m.has_conversation || channelActivity[getDmChannelId(currentUser?.id, m.id)] || (selectedChat.id === getDmChannelId(currentUser?.id, m.id) && messages.length > 0)).length} active
+                                                {sortedTeamMembers.filter(m => m.has_conversation || channelActivity[getDmChannelId(currentUser?.id, m.id)] || (selectedChat?.id === getDmChannelId(currentUser?.id, m.id) && messages.length > 0)).length} active
                                             </span>
                                         </div>
                                         <div className="space-y-0.5">
                                             {sortedTeamMembers.map(member => {
                                                 const isCurrentUser = currentUser && Number(member.id) === Number(currentUser.id);
                                                 const dmId = getDmChannelId(currentUser?.id, member.id);
-                                                const isActive = selectedChat.id === dmId;
-                                                const hasConv = Boolean(member.has_conversation || channelActivity[dmId] || (selectedChat.id === dmId && messages.length > 0));
+                                                const isActive = selectedChat?.id === dmId;
+                                                const hasConv = Boolean(member.has_conversation || channelActivity[dmId] || (selectedChat?.id === dmId && messages.length > 0));
                                                 const latestSnippet = channelActivity[dmId]?.latest_message?.body;
 
                                                 return (
                                                     <button key={member.id} type="button"
-                                                        onClick={() => setSelectedChat({
+                                                        onClick={() => openChat({
                                                             id: dmId,
                                                             title: isCurrentUser ? `${member.name} (You)` : member.name,
                                                             subtitle: `${member.position || 'Developer'} • ${member.role}`,
@@ -1863,7 +2000,7 @@ export default function Inbox({
                                                                 {latestSnippet || member.position || 'Developer'}
                                                             </p>
                                                         </div>
-                                                        {unreadCounts[dmId] > 0 && selectedChat.id !== dmId && (
+                                                        {unreadCounts[dmId] > 0 && selectedChat?.id !== dmId && (
                                                             <NotifBadge count={unreadCounts[dmId]} size="sm" />
                                                         )}
                                                     </button>
@@ -1885,7 +2022,19 @@ export default function Inbox({
                                 onPaste={handlePaste}
                                 className="lg:col-span-8 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden h-[calc(100vh-180px)] relative">
 
-                                {/* Drag-and-Drop Overlay */}
+                                {!selectedChat ? (
+                                    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center select-none h-full bg-slate-50/50 dark:bg-slate-900/50">
+                                        <div className="w-16 h-16 rounded-3xl bg-brand/10 text-brand flex items-center justify-center mb-4 ring-8 ring-brand/5 shadow-xs">
+                                            <MessageSquare className="w-8 h-8" />
+                                        </div>
+                                        <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Select a conversation</h3>
+                                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-sm leading-relaxed">
+                                            Choose a channel or direct message from the left sidebar to open the chat room. Messages will only be marked as seen after being opened.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        {/* Drag-and-Drop Overlay */}
                                 {isDraggingOver && (
                                     <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-brand/10 dark:bg-brand/20 backdrop-blur-xs border-2 border-dashed border-brand rounded-2xl p-6 pointer-events-none animate-in fade-in duration-100">
                                         <div className="w-12 h-12 rounded-2xl bg-brand text-white flex items-center justify-center shadow-lg shadow-brand/30 animate-bounce">
@@ -2097,15 +2246,17 @@ export default function Inbox({
                                                             </div>
                                                         )}
 
-                                                        <div className={`flex items-baseline gap-2 ${msg.isSelf ? 'justify-end' : ''}`}>
-                                                            <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{msg.sender}</span>
-                                                            {msg.role && <span className="text-[10px] text-slate-400 font-normal">({msg.role})</span>}
-                                                            <span className="text-[10px] text-slate-400">{msg.time}</span>
+                                                        <div className={`flex items-baseline gap-2 min-w-0 ${msg.isSelf ? 'justify-end' : ''}`}>
+                                                            <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate max-w-[180px] sm:max-w-[240px]" title={msg.sender}>
+                                                                {msg.sender}
+                                                            </span>
+                                                            {msg.role && <span className="text-[10px] text-slate-400 font-normal shrink-0">({msg.role})</span>}
+                                                            <span className="text-[10px] text-slate-400 shrink-0">{msg.time}</span>
                                                         </div>
 
                                                         {/* If unsent, show elegant placeholder bubble */}
                                                         {msg.is_unsent ? (
-                                                            <div className={`flex items-center gap-2 px-3.5 py-2 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-850/60 text-slate-400 dark:text-slate-500 text-xs italic select-none shadow-2xs ${
+                                                            <div className={`flex items-center gap-2 px-3.5 py-2 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 text-xs italic select-none shadow-2xs ${
                                                                 msg.isSelf ? 'rounded-tr-xs' : 'rounded-tl-xs'
                                                             }`}>
                                                                 <Ban className="w-3.5 h-3.5 shrink-0 opacity-60 text-slate-400 dark:text-slate-500" />
@@ -2126,7 +2277,7 @@ export default function Inbox({
                                                                                 : 'bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-brand'
                                                                         }`}>
                                                                         <CornerUpLeft className="w-3 h-3 shrink-0 opacity-70" />
-                                                                        <div className="min-w-0">
+                                                                        <div className="min-w-0 flex-1 truncate">
                                                                             <span className="font-bold mr-1">{msg.reply_to.sender}:</span>
                                                                             <span className="italic truncate">{msg.reply_to.text}</span>
                                                                         </div>
@@ -2142,10 +2293,62 @@ export default function Inbox({
                                                                     </div>
                                                                 )}
 
-                                                        {/* Enhanced Attachments & Photos */}
+                                                        {/* Enhanced Attachments & Photos & Report Cards */}
                                                         {msg.attachments && msg.attachments.length > 0 && (
-                                                            <div className={`space-y-2 pt-0.5 ${msg.isSelf ? 'flex flex-col items-end' : ''}`}>
+                                                            <div className={`space-y-2 pt-0.5 w-full ${msg.isSelf ? 'flex flex-col items-end' : ''}`}>
                                                                 {msg.attachments.map((att, aIdx) => {
+                                                                    if (att.type === 'report') {
+                                                                        return (
+                                                                            <div key={aIdx} className="w-full max-w-sm rounded-2xl border border-indigo-200/90 dark:border-indigo-900/60 bg-gradient-to-br from-indigo-50/70 via-white to-slate-50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-slate-900 p-4 shadow-sm space-y-3 text-left overflow-hidden">
+                                                                                <div className="flex items-start justify-between gap-3 min-w-0">
+                                                                                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                                                                        <div className="w-8 h-8 rounded-xl bg-brand/10 dark:bg-brand/20 text-brand flex items-center justify-center shrink-0">
+                                                                                            <BarChart3 className="w-4 h-4 shrink-0" />
+                                                                                        </div>
+                                                                                        <div className="min-w-0 flex-1">
+                                                                                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-brand block truncate">
+                                                                                                {att.scope === 'sprint' ? 'Sprint Report' : 'Project Report'}
+                                                                                            </span>
+                                                                                            <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate block" title={att.report_title || att.name}>
+                                                                                                {att.report_title || att.name}
+                                                                                            </h4>
+                                                                                            {att.project_name && (
+                                                                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate block mt-0.5" title={`${att.project_name} ${att.sprint_name ? `• ${att.sprint_name}` : ''}`}>
+                                                                                                    {att.project_name} {att.sprint_name ? `• ${att.sprint_name}` : ''}
+                                                                                                </p>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 shrink-0 self-start mt-0.5">
+                                                                                        {att.completion_rate}% Done
+                                                                                    </span>
+                                                                                </div>
+
+                                                                                <div className="grid grid-cols-2 gap-2 text-[11px] p-2.5 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800/60">
+                                                                                    <div>
+                                                                                        <span className="text-[10px] text-slate-400 block">Tasks Done</span>
+                                                                                        <span className="font-bold text-slate-800 dark:text-slate-200">
+                                                                                            {att.completed_tasks} / {att.total_tasks}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <span className="text-[10px] text-slate-400 block">Story Points</span>
+                                                                                        <span className="font-bold text-slate-800 dark:text-slate-200">
+                                                                                            {att.completed_story_points} / {att.planned_story_points} pts
+                                                                                        </span>
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                <a
+                                                                                    href={att.report_url || `/studio/${workspaceSlug}/reports`}
+                                                                                    className="w-full py-2 px-3 rounded-xl bg-brand hover:bg-brand-dark text-white transition-all text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs"
+                                                                                >
+                                                                                    <span>View Full Interactive Report</span>
+                                                                                    <ExternalLink className="w-3.5 h-3.5" />
+                                                                                </a>
+                                                                            </div>
+                                                                        );
+                                                                    }
                                                                     if (att.type === 'image') {
                                                                         return (
                                                                             <div key={aIdx} className="space-y-1">
@@ -2327,11 +2530,14 @@ export default function Inbox({
                                         {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                                     </button>
                                 </form>
-                            </div>
-                        </div>
+                    </>
                     )}
                 </div>
             </div>
+        )}
+
+                </div>{/* closes max-w-7xl main view area */}
+            </div>{/* closes flex flex-col min-h-screen outer wrapper */}
 
             {selectedTask && (
                 <MemberTaskDetailModal

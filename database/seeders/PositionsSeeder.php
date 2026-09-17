@@ -60,6 +60,6 @@ class PositionsSeeder extends Seeder
             Position::firstOrCreate(['name' => $name]);
         }
 
-        $this->command->info('Positions seeded: ' . count($positions) . ' records.');
+        $this->command->info('Positions seeded: '.count($positions).' records.');
     }
 }

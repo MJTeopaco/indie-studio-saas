@@ -11,6 +11,7 @@ class AiChatSession extends Model
     use HasFactory;
 
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     protected $fillable = ['id', 'user_id', 'title', 'messages'];
