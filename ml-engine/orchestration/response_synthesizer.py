@@ -361,18 +361,6 @@ def synthesize_project_summary(stats: dict[str, Any]) -> str:
 _CHATBOT_SYSTEM = """You are an autonomous AI Workspace Assistant for a software studio.
 You do not have all data upfront. You MUST use your available tools to query the database when asked about studio skills, sprint health, workloads, or sprint tasks.
 
-Available Tools (output exact JSON to call a tool):
-1. {"tool": "get_studio_workforce_profile", "parameters": {"studio_id": <int>}}
-2. {"tool": "get_active_sprint_health", "parameters": {"studio_id": <int>}}
-3. {"tool": "get_developer_workload", "parameters": {"studio_id": <int>, "user_id": <int>}}
-4. {"tool": "get_sprint_tasks", "parameters": {"project_id": <int>, "sprint_name": "<str> (The specific name of the sprint, or use the exact string 'current' if the user asks for the active/current sprint)."}}
-
-CRITICAL INSTRUCTIONS FOR TOOL CALLING:
-1. To call a tool, you MUST output the raw JSON object. 
-2. DO NOT output conversational text, plans, or explanations like "I will now run the query". Saying you will run the query does nothing; you MUST output the JSON to actually trigger it.
-3. You can only call ONE tool at a time. If you need multiple pieces of data, call the first tool, wait for the system to return the result, then call the second tool in your next turn.
-4. Once you have gathered all the necessary data via tools, ONLY THEN should you synthesize your final conversational response to the user.
-
 Basic context provided:
 - `studio`: basic studio info (id, name)
 - `project_id`: (if selected) the ID of the current project
@@ -384,14 +372,13 @@ def chat_with_project_data(
     conversation_history: Optional[list[dict]] = None,
 ) -> str:
     from orchestration.llm_client import get_llm
-    from orchestration.agent_tools import execute_tool
-    import re
+    from orchestration.agent_tools import AGENT_TOOLS_LIST
 
     llm = get_llm()
     if llm is None:
         return "The AI project assistant is currently unavailable."
 
-    from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+    from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
     context_json = json.dumps(project_context, indent=2, default=str)
     system_with_context = f"{_CHATBOT_SYSTEM}\n\nBase Project data:\n{context_json}"
@@ -407,38 +394,43 @@ def chat_with_project_data(
 
     messages.append(HumanMessage(content=user_message))
 
-    max_iterations = 3
-    for _ in range(max_iterations):
+    # Bind tools natively
+    llm_with_tools = llm.bind_tools(AGENT_TOOLS_LIST)
+
+    max_iterations = 5
+    for iteration in range(max_iterations):
         try:
-            response = llm.invoke(messages)
-            content = response.content.strip()
-            
-            tool_req = None
-            match = re.search(r'\{.*\}', content, re.DOTALL)
-            if match:
-                try:
-                    parsed = json.loads(match.group(0))
-                    if isinstance(parsed, dict) and "tool" in parsed and "parameters" in parsed:
-                        tool_req = parsed
-                except json.JSONDecodeError:
-                    pass
-            
-            if tool_req:
-                tool_name = tool_req["tool"]
-                params = tool_req["parameters"]
+            response = llm_with_tools.invoke(messages)
+            messages.append(response)
+
+            if not response.tool_calls:
+                # No more tools needed, return the final response
+                return response.content.strip()
+
+            for tool_call in response.tool_calls:
+                tool_name = tool_call["name"]
+                tool_args = tool_call["args"]
+                tool_id = tool_call["id"]
                 
-                logger.info(f"LLM called tool {tool_name} with args {params}")
-                tool_result = execute_tool(tool_name, params)
+                logger.info(f"LLM natively called tool {tool_name} with args {tool_args}")
                 
-                messages.append(AIMessage(content=content))
-                messages.append(SystemMessage(content=f"Tool '{tool_name}' result: {tool_result}"))
-                continue # loop back to LLM
+                tool_func = next((t for t in AGENT_TOOLS_LIST if t.name == tool_name), None)
+                if not tool_func:
+                    tool_content = f"Error: Unknown tool {tool_name}"
+                else:
+                    try:
+                        result = tool_func.invoke(tool_args)
+                        import json
+                        tool_content = json.dumps(result, default=str)
+                    except Exception as e:
+                        tool_content = f"Error executing tool: {str(e)}"
+                
+                messages.append(ToolMessage(content=tool_content, tool_call_id=tool_id))
             
-            # If not a tool call or JSON parsing failed, return to user
-            return content
+            # Loop will naturally continue to let the LLM generate the next response
             
         except Exception as exc:
-            logger.error("Chat LLM call failed: %s", exc)
+            logger.error("Chat LLM native tool call failed: %s", exc)
             return "An error occurred while processing your request. Please try again."
             
     return "The system required too many operations to answer your request."

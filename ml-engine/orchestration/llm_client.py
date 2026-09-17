@@ -122,6 +122,27 @@ def _make_groq_llm(json_mode: bool = False):
         def invoke(self, *args, **kwargs):
             return _invoke_with_retry(*args, **kwargs)
 
+        def bind_tools(self, tools, **kwargs):
+            bound_llm = base_llm.bind_tools(tools, **kwargs)
+            
+            class _BoundGroqLLMWithRetry:
+                def invoke(self, *args, **kwargs):
+                    @retry(
+                        retry=retry_if_exception_type(_retry_on),
+                        wait=wait_exponential(multiplier=1, min=_RETRY_WAIT_MIN, max=_RETRY_WAIT_MAX),
+                        stop=stop_after_attempt(_MAX_RETRIES),
+                        before_sleep=before_sleep_log(logger, logging.WARNING),
+                        reraise=True,
+                    )
+                    def _bound_invoke_with_retry(*a, **kw):
+                        return bound_llm.invoke(*a, **kw)
+                    return _bound_invoke_with_retry(*args, **kwargs)
+
+                def __getattr__(self, name):
+                    return getattr(bound_llm, name)
+
+            return _BoundGroqLLMWithRetry()
+
         # Delegate everything else (e.g. streaming) to the underlying LLM.
         def __getattr__(self, name):
             return getattr(base_llm, name)
