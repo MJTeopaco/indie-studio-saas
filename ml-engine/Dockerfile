@@ -18,7 +18,7 @@ COPY requirements.txt .
 # index. This must happen BEFORE requirements.txt so pip doesn't try to pull
 # a heavy/wrong torch build from PyPI.
 RUN pip install --no-cache-dir \
-    torch --index-url https://download.pytorch.org/whl/cpu
+    torch --extra-index-url https://download.pytorch.org/whl/cpu
 
 # torch-geometric must be installed AFTER torch
 RUN pip install --no-cache-dir torch-geometric
