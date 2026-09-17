@@ -18,6 +18,7 @@ import asyncio
 import json
 import logging
 import sys
+from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, List, Optional
 
 from fastapi import FastAPI, HTTPException, Request
@@ -32,10 +33,36 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Startup hook: eagerly warm all ML models before the server starts
+    accepting connections. This prevents cold-start latency from blocking
+    the single-threaded PHP dev server during concurrent requests.
+    """
+    logger.info("[Startup] Pre-warming embedding model and semantic router cache...")
+    try:
+        # Trigger the singleton EmbeddingService to load the HuggingFace model.
+        # This runs once here so it never blocks a live request.
+        from orchestration.embedding_service import get_embedding_service
+        get_embedding_service()
+
+        # Pre-compute and cache all Golden Dataset vectors for the semantic router.
+        from orchestration.semantic_router import warmup_semantic_router
+        warmup_semantic_router()
+
+        logger.info("[Startup] ML Engine is warm and ready to accept connections.")
+    except Exception as exc:
+        logger.warning("[Startup] Warm-up failed (non-fatal): %s", exc)
+    yield  # Server runs here
+    logger.info("[Shutdown] ML Engine shutting down.")
+
+
 app = FastAPI(
     title="StudioSprint ML Engine",
     description="GNN, CPA, Cold-Start, and LLM orchestration for StudioSprint.",
     version="0.3.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(

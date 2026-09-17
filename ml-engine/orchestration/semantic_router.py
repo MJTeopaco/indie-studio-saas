@@ -113,6 +113,15 @@ def _initialize_cache():
     logger.info(f"Cached {len(_dataset_vectors)} Golden Dataset vectors.")
 
 
+def warmup_semantic_router() -> None:
+    """
+    Public entry point for the startup lifespan hook.
+    Pre-computes and caches all Golden Dataset vectors so the first
+    live request does not bear the cold-start cost.
+    """
+    _initialize_cache()
+
+
 def vector_route(text: str) -> Tuple[str, float]:
     """
     Compare the text against the Golden Dataset and return the closest intent and its confidence.
