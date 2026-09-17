@@ -30,8 +30,17 @@ else
   echo "⚠️  DATABASE_URL not set — falling back to individual DB_* env vars."
 fi
 
-# ── Run migrations ────────────────────────────────────────────────────────────
-php artisan migrate --force
+# ── Database ──────────────────────────────────────────────────────────────────
+if [ "$RUN_SEEDER" = "true" ]; then
+  echo "🌱 RUN_SEEDER=true: wiping and re-seeding database for demo..."
+  php artisan migrate:fresh --seed --force
+  php artisan tenants:migrate-fresh --force
+  php artisan tenants:run "db:seed" --option="class=TenantSeeder"
+  echo "✅ Full demo seed complete."
+else
+  # Normal deployment: run migrations only (safe to run repeatedly)
+  php artisan migrate --force
+fi
 
 # ── Finish composer post-install step (skipped in build with --no-scripts) ────
 php artisan package:discover --ansi
