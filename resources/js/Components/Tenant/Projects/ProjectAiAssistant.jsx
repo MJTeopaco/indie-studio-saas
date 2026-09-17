@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { 
     Bot, Loader2, MessageCircle, Send, X, Calendar as CalendarIcon, 
     AlertTriangle, Check, Plus, Sparkles, ShieldAlert, Clock, Edit2 
@@ -8,7 +10,7 @@ import {
     PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer, 
     BarChart, Bar, XAxis, YAxis, CartesianGrid 
 } from 'recharts';
-import SprintDecomposeModal from '@/Components/ML/SprintDecomposeModal';
+import HierarchicalDecompositionModal from '@/Components/ML/HierarchicalDecompositionModal';
 
 const quickActions = [
     { label: 'Risk scan', mode: 'risk', prompt: 'Scan this project for risks.' },
@@ -30,7 +32,7 @@ function CreateTaskActionCard({ payload, projectId, tenantId, canManage, onDismi
         estimated_hours: payload?.estimated_hours || 4,
         priority: payload?.priority || 'Medium',
         task_difficulty: payload?.task_difficulty || 'Medium',
-        task_classification: payload?.task_classification || 'Feature',
+        task_classification: payload?.task_classification || 'Feature Implementation',
         required_skills: payload?.required_skills || [],
     });
     const [isEditing, setIsEditing] = useState(false);
@@ -446,8 +448,29 @@ export default function ProjectAiAssistant({ projectId, tenantId, teamMembers = 
             <div className="flex-1 space-y-4 overflow-y-auto custom-scrollbar p-4">
                 {messages.map((message, index) => (
                     <div key={index} className={`max-w-[92%] ${message.role === 'user' ? 'ml-auto' : 'mr-auto'}`}>
-                        <div className={`whitespace-pre-wrap rounded-2xl px-3 py-2.5 text-xs leading-relaxed shadow-sm ${message.role === 'user' ? 'bg-brand text-white rounded-br-none' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-bl-none'}`}>
-                            {message.content}
+                        <div className={`rounded-2xl px-3 py-2.5 shadow-sm ${message.role === 'user' ? 'bg-brand text-white rounded-br-none whitespace-pre-wrap text-xs leading-relaxed' : 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-bl-none'}`}>
+                            {message.role === 'user' ? (
+                                message.content
+                            ) : (
+                                <div className="prose prose-sm prose-slate dark:prose-invert max-w-none text-xs leading-relaxed
+                                                prose-p:my-1 prose-headings:my-2 prose-headings:font-semibold
+                                                prose-ul:my-1 prose-ol:my-1 prose-li:my-0
+                                                prose-pre:my-2 prose-code:text-brand dark:prose-code:text-brand-light
+                                                prose-a:text-brand dark:prose-a:text-brand-light">
+                                    <ReactMarkdown 
+                                        remarkPlugins={[remarkGfm]}
+                                        components={{
+                                            table: ({node, ...props}) => (
+                                              <div className="overflow-x-auto my-4">
+                                                <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700" {...props} />
+                                              </div>
+                                            ),
+                                        }}
+                                    >
+                                        {message.content}
+                                    </ReactMarkdown>
+                                </div>
+                            )}
                         </div>
                         {message.role === 'assistant' && (
                             <>
@@ -497,7 +520,7 @@ export default function ProjectAiAssistant({ projectId, tenantId, teamMembers = 
             <form onSubmit={event => { event.preventDefault(); sendMessage(); }} className="flex gap-2 border-t border-slate-100 p-3 dark:border-slate-800"><input value={input} onChange={event => setInput(event.target.value)} placeholder="Ask a question or describe a task/sprint to create…" className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs outline-none focus:border-brand focus:ring-1 focus:ring-brand dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" /><button disabled={!input.trim() || isLoading} className="rounded-xl bg-brand p-2 text-white disabled:opacity-50 hover:bg-brand-dark transition-colors shrink-0"><Send className="h-4 w-4" /></button></form>
         </div>}
 
-        <SprintDecomposeModal
+        <HierarchicalDecompositionModal
             isOpen={decomposeModalConfig.isOpen}
             onClose={() => setDecomposeModalConfig({ isOpen: false, description: '' })}
             projectId={projectId}

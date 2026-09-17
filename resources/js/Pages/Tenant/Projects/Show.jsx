@@ -813,11 +813,15 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
     };
 
     const handleAssignmentSuccess = (taskId, newAssignees) => {
+        const updates = { 
+            assignees: newAssignees, 
+            assignee: newAssignees[0] || null, 
+            assigned_user_id: newAssignees[0]?.id || null 
+        };
         setTaskRows(rows => rows.map(task => 
-            task.id === taskId 
-                ? { ...task, assignees: newAssignees, assignee: newAssignees[0] || null, assigned_user_id: newAssignees[0]?.id || null }
-                : task
+            task.id === taskId ? { ...task, ...updates } : task
         ));
+        window.dispatchEvent(new CustomEvent('task-updated', { detail: { taskId, updates } }));
     };
 
     const handleEditTask = (task) => {
@@ -837,11 +841,11 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
     };
 
     const handleStatusSuccess = (taskId, newSprintStatus, newKanbanStatus) => {
+        const updates = { sprint_status: newSprintStatus, status: newKanbanStatus };
         setTaskRows(rows => rows.map(task => 
-            task.id === taskId 
-                ? { ...task, sprint_status: newSprintStatus, status: newKanbanStatus }
-                : task
+            task.id === taskId ? { ...task, ...updates } : task
         ));
+        window.dispatchEvent(new CustomEvent('task-updated', { detail: { taskId, updates } }));
     };
 
     const handleDropTask = async (targetStatus) => {
@@ -1030,6 +1034,7 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                 task={bestFitTask}
                 teamMembers={teamMembers}
                 tenantId={tenantId}
+                onSuccess={handleAssignmentSuccess}
             />
 
             <ProjectAiAssistant

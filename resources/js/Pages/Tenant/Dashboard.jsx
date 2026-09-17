@@ -2,9 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import TextareaAutosize from 'react-textarea-autosize';
 import TenantLayout from '@/Layouts/TenantLayout';
 import RightSidebar from '@/Components/Tenant/Projects/RightSidebar';
-import SprintDecomposeModal from '@/Components/ML/SprintDecomposeModal';
+import HierarchicalDecompositionModal from '@/Components/ML/HierarchicalDecompositionModal';
 import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
 import CreateProjectModal from '@/Components/Tenant/Projects/CreateProjectModal';
 import ConfirmationModal from '@/Components/ConfirmationModal';
@@ -59,16 +61,18 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
     const studioName = studio?.name || 'Pixel Play Studio';
 
     const [prompt, setPrompt] = useState('');
-    const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id || '');
+    const [selectedProjectId, setSelectedProjectId] = useState('');
     const [messages, setMessages] = useState([]);
     const [generation, setGeneration] = useState(null);
-    const [draftTasks, setDraftTasks] = useState(null);
+
     const [isPlanOpen, setIsPlanOpen] = useState(false);
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [isProjectCreationOpen, setIsProjectCreationOpen] = useState(false);
     const [pendingProjectPlan, setPendingProjectPlan] = useState(null);
+    const [isTextareaFlashing, setIsTextareaFlashing] = useState(false);
     const abortRef = useRef(null);
     const chatEndRef = useRef(null);
+    const promptTextareaRef = useRef(null);
     const isRestoringRef = useRef(false); // Bug 3 fix: suppresses auto-persist while loading a past session
 
     const {
@@ -105,6 +109,7 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
     };
     const [chatToDelete, setChatToDelete] = useState(null);
     const [isDeletingChat, setIsDeletingChat] = useState(false);
+    const [activeActionIntent, setActiveActionIntent] = useState(null);
 
     const handleDeleteChat = (id) => {
         setChatToDelete(id);
@@ -132,11 +137,82 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
     };
 
     const handleQuickAction = (actionTitle) => {
-        if (actionTitle === 'Create Task') {
-            setIsTaskModalOpen(true);
-        } else {
-            setPrompt(`StudioSprint AI, please help me ${actionTitle.toLowerCase()} for ${studioName}.`);
+        let template = '';
+        
+        if (actionTitle === 'Plan Sprint') {
+            setActiveActionIntent('CREATE_TASK');
+            template = `📝 Feature Breakdown Guide
+Please fill in the details below. I will break this down into a complete set of tasks and sub-tasks for your team.
+
+Create a task: [Task Title]
+
+Goal: [What are we building, and why does it matter?]
+Requirements: [Key things it must do]
+Constraints: [Any technical limits — optional]
+Done when: [Acceptance criteria — how we'll know it's finished]`;
+        } else if (actionTitle === 'Suggest Assignees') {
+            setActiveActionIntent(null);
+            template = `Goal: Recommend optimal developer assignments for the unassigned tasks in the current sprint.
+
+Context: Evaluate our team's current workload and run the Graph Neural Network (GNN) matching algorithm against our skill matrices. 
+
+Focus Area: Please prioritize finding the best fit for tasks related to [Insert specific Epic, e.g., Backend API Integration or Frontend UI]. 
+
+Expected Output: Provide the top 3 developer recommendations per task, including their matching confidence score, and highlight any resource deficits if we lack specific skills.`;
+        } else if (actionTitle === 'Analyze Critical Path') {
+            setActiveActionIntent(null);
+            template = `Goal: Analyze the health and timeline of the current active sprint.
+
+Context: Evaluate the task dependencies and estimated hours using our Critical Path logic.
+
+Requirements:
+1. Identify any bottlenecks or tasks with zero total float that could delay the sprint.
+2. Flag any developers who are over-allocated based on the earliest start/latest finish times.
+3. Suggest actionable schedule adjustments to ensure we hit our delivery deadline.`;
+        } else if (actionTitle === 'Audit Skill Coverage') {
+            setActiveActionIntent(null);
+            template = `Goal: Audit our studio's current workforce profile and tech stack capabilities.
+
+Context: We are planning to take on a new project heavily focused on [Insert Macro-Domain, e.g., Data Science / Game Dev]. 
+
+Requirements:
+1. Analyze our team's current proficiency levels in required micro-domains.
+2. Identify any critical skill gaps or low-coverage areas that will lower our GNN matching scores.
+3. Recommend specific upskilling areas or new hiring profiles needed to support this upcoming project.`;
         }
+        
+        setPrompt(template);
+        
+        setIsTextareaFlashing(true);
+        setTimeout(() => setIsTextareaFlashing(false), 800);
+
+        setTimeout(() => {
+            if (promptTextareaRef.current) {
+                promptTextareaRef.current.focus();
+                const startBracketIdx = template.indexOf('[');
+                const endBracketIdx = template.indexOf(']');
+                if (startBracketIdx !== -1 && endBracketIdx !== -1 && endBracketIdx > startBracketIdx) {
+                    promptTextareaRef.current.setSelectionRange(startBracketIdx, endBracketIdx + 1);
+                }
+            }
+        }, 50);
+    };
+
+    const isTaskPlanningRequest = (text) => {
+        const triggers = ['plan', 'break down', 'decompose', 'generate tasks', 'sprint', 'roadmap', 'schedule'];
+        return triggers.some(t => text.toLowerCase().includes(t));
+    };
+
+    const isNewProjectRequest = (text) => {
+        const triggers = ['new project', 'start a project', 'create a project', 'build a new'];
+        return triggers.some(t => text.toLowerCase().includes(t));
+    };
+
+    const suggestedProjectName = (text) => {
+        const titleMatch = text.match(/project (?:called|named|for) ["']?([^"'.]+)["']?/i);
+        if (titleMatch) return titleMatch[1].trim();
+        const firstSentence = text.split(/[.!?]/)[0];
+        return firstSentence.length < 40 ? firstSentence : firstSentence.substring(0, 37) + '...';
     };
 
     const handlePromptSubmit = async (e) => {
@@ -144,73 +220,33 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
         const trimmedPrompt = prompt.trim();
         if (!trimmedPrompt || generation) return;
 
-        const daysUntilDeadline = deadlineDaysFromPrompt(trimmedPrompt);
-        const planningPrompt = daysUntilDeadline === null
-            ? trimmedPrompt
-            : `${trimmedPrompt}\n\nPlanning rule: The stated date is the overall delivery deadline, not the amount of work. Break the work into lean, AI-assisted tasks with realistic, efficient hour estimates.`;
         setMessages(current => [...current, { id: crypto.randomUUID(), role: 'user', content: trimmedPrompt }]);
         setPrompt('');
 
         const controller = new AbortController();
         abortRef.current = controller;
 
-        const streamDecompose = async (description) => {
-            const ML_URL = 'http://127.0.0.1:8001/api/llm/decompose-project/stream';
-            setGeneration({ stage: 'plan', message: 'Analysing project description...', pct: 10 });
+        try {
+            let isPlanning = false;
+            let isNewProject = false;
 
-            const response = await fetch(ML_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ description }),
-                signal: controller.signal,
-            });
+            if (activeActionIntent === 'CREATE_TASK') {
+                isPlanning = true;
+            } else {
+                // Call backend semantic router
+                setGeneration({ stage: 'chat', message: 'Analyzing request intent…', pct: 15 });
+                const { data: intentData } = await axios.post(route('tenant.workspace.ai-router', { tenant: studio.id }), {
+                    message: trimmedPrompt,
+                }, { signal: controller.signal });
 
-            if (!response.ok) throw new Error(`ML Engine returned HTTP ${response.status}`);
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-            let finalTasks = null;
-
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-                const chunks = buffer.split('\n\n');
-                buffer = chunks.pop() ?? '';
-
-                for (const chunk of chunks) {
-                    if (!chunk.trim()) continue;
-                    const lines = chunk.split('\n');
-                    let event = 'message';
-                    let data = '';
-                    for (const line of lines) {
-                        if (line.startsWith('event:')) event = line.slice(6).trim();
-                        if (line.startsWith('data:'))  data  = line.slice(5).trim();
-                    }
-                    if (!data) continue;
-                    const payload = JSON.parse(data);
-
-                    if (event === 'progress') {
-                        setGeneration({ stage: payload.stage, message: payload.message, pct: payload.pct });
-                    } else if (event === 'done') {
-                        setGeneration(g => ({ ...g, pct: 100 }));
-                        finalTasks = payload.tasks ?? [];
-                    } else if (event === 'error') {
-                        throw new Error(payload.message || 'Unknown error from ML Engine');
-                    }
+                if (intentData.intent === 'CREATE_TASK') {
+                    isPlanning = true;
+                } else if (intentData.intent === 'NEW_PROJECT') {
+                    isNewProject = true;
                 }
             }
 
-            if (!finalTasks) throw new Error('The AI did not return any tasks to review.');
-            return finalTasks;
-        };
-
-        try {
-            const isPlanning = isTaskPlanningRequest(trimmedPrompt);
-
-            if (!isPlanning && !isNewProjectRequest(trimmedPrompt)) {
+            if (!isPlanning && !isNewProject) {
                 setGeneration({ stage: 'chat', message: 'Preparing a response…', pct: 35 });
                 const history = messages.slice(-10).map(({ role, content }) => ({ role, content }));
                 const { data } = await axios.post(route('tenant.workspace.ai-assistant', { tenant: studio.id }), {
@@ -218,39 +254,34 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                     history,
                 }, { signal: controller.signal });
                 addAssistantMessage(data.reply || 'I could not answer that right now. Please try again.');
+                setActiveActionIntent(null);
                 return;
             }
 
             if (!canManage) {
                 addAssistantMessage('Only studio managers are authorized to plan and create tasks or projects.');
+                setActiveActionIntent(null);
                 return;
             }
 
-            const rawTasks = await streamDecompose(planningPrompt);
-            if (!rawTasks.length) throw new Error('The AI did not return a project plan to review.');
-
-            if (selectedProjectId === '') {
+            if (isNewProject || selectedProjectId === '') {
                 // New Project path
                 setPendingProjectPlan({
-                    tasks: rawTasks.map(task => ({
-                        ...task,
-                        ...(daysUntilDeadline === null ? {} : { days_until_deadline: daysUntilDeadline }),
-                    })),
                     description: trimmedPrompt,
                     name: suggestedProjectName(trimmedPrompt),
                 });
                 setIsProjectCreationOpen(true);
-                addAssistantMessage('I’ve prepared a draft plan. Add a project name in the next step, then you can review every task before saving it.');
+                addAssistantMessage('I’ll help you decompose this. Add a project name first, and then I will generate the Epic and Sprint breakdown.');
+                setActiveActionIntent(null);
                 return;
             } else {
                 // Existing Project path
-                const tasks = rawTasks.map(task => ({
-                    ...task,
-                    ...(daysUntilDeadline === null ? {} : { days_until_deadline: daysUntilDeadline }),
-                }));
-                setDraftTasks(tasks);
-                addAssistantMessage(`Your draft plan is ready with ${tasks.length} tasks. Review and edit it before adding it to the project.`);
+                setPendingProjectPlan({
+                    description: trimmedPrompt,
+                });
                 setIsPlanOpen(true);
+                addAssistantMessage('Opening the AI Project Decomposer to draft your tasks...');
+                setActiveActionIntent(null);
             }
         } catch (error) {
             if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') return;
@@ -266,10 +297,8 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
     const handleProjectCreated = (project) => {
         if (!pendingProjectPlan || !project) return;
         setSelectedProjectId(String(project.id));
-        setDraftTasks(pendingProjectPlan.tasks);
-        setPendingProjectPlan(null);
         setIsPlanOpen(true);
-        addAssistantMessage(`Created “${project.name}”. Review the draft plan and save it when you’re ready.`);
+        addAssistantMessage(`Created “${project.name}”. Opening the AI Project Decomposer...`);
     };
 
     return (
@@ -308,12 +337,12 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                                     <div className={`mx-auto mt-10 grid max-w-2xl grid-cols-1 gap-4 ${canManage ? 'sm:grid-cols-2' : 'sm:grid-cols-2'}`}>
                                         {canManage && (
                                             <>
-                                                <QuickActionCard title="Create Task" description="Define task requirements and deadlines." icon={CheckSquare} badgeColor="brand" onClick={() => handleQuickAction('Create Task')} />
-                                                <QuickActionCard title="Run GNN Match" description="Recommend optimal developers based on GNN model." icon={Cpu} badgeColor="emerald" onClick={() => handleQuickAction('Run GNN Match')} />
+                                                <QuickActionCard title="Plan Sprint" description="Break down an epic into sprint tasks." icon={CheckSquare} badgeColor="brand" onClick={() => handleQuickAction('Plan Sprint')} />
+                                                <QuickActionCard title="Suggest Assignees" description="Recommend optimal developer assignments for tasks." icon={Cpu} badgeColor="emerald" onClick={() => handleQuickAction('Suggest Assignees')} />
                                             </>
                                         )}
-                                        <QuickActionCard title="View Timeline" description="Explore interactive roadmaps and sprint milestones." icon={Calendar} badgeColor="sky" onClick={() => handleQuickAction('View Timeline')} />
-                                        <QuickActionCard title="Manage Team" description="Assign developers and configure permission roles." icon={Users} badgeColor="purple" onClick={() => handleQuickAction('Manage Team')} />
+                                        <QuickActionCard title="Analyze Critical Path" description="Analyze the health and timeline of the current sprint." icon={Calendar} badgeColor="sky" onClick={() => handleQuickAction('Analyze Critical Path')} />
+                                        <QuickActionCard title="Audit Skill Coverage" description="Audit our studio's current workforce profile and tech stack." icon={Users} badgeColor="purple" onClick={() => handleQuickAction('Audit Skill Coverage')} />
                                     </div>
                                 </div>
                             )}
@@ -331,14 +360,24 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                                             {message.content}
                                         </div>
                                     ) : (
-                                        /* Assistant bubble: Bug 1 fix — render LLM Markdown with prose typography */
                                         <div className="max-w-[80%] rounded-2xl px-4 py-3 bg-white shadow-sm ring-1 ring-gray-100 dark:bg-slate-800 dark:ring-slate-700">
                                             <div className="prose prose-sm dark:prose-invert max-w-none
                                                             prose-p:my-1 prose-headings:my-2 prose-headings:font-semibold
                                                             prose-ul:my-1 prose-ol:my-1 prose-li:my-0
                                                             prose-pre:my-2 prose-code:text-brand dark:prose-code:text-brand-light
                                                             prose-a:text-brand dark:prose-a:text-brand-light">
-                                                <ReactMarkdown>{message.content}</ReactMarkdown>
+                                                <ReactMarkdown 
+                                                    remarkPlugins={[remarkGfm]}
+                                                    components={{
+                                                        table: ({node, ...props}) => (
+                                                          <div className="overflow-x-auto my-4">
+                                                            <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700" {...props} />
+                                                          </div>
+                                                        ),
+                                                    }}
+                                                >
+                                                    {message.content}
+                                                </ReactMarkdown>
                                             </div>
                                         </div>
                                     )}
@@ -384,14 +423,18 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                         </div>
                     </div>
 
-                    {isPlanOpen && draftTasks && (
-                        <SprintDecomposeModal
+                    {isPlanOpen && pendingProjectPlan && (
+                        <HierarchicalDecompositionModal
                             isOpen={isPlanOpen}
-                            onClose={() => setIsPlanOpen(false)}
+                            onClose={() => {
+                                setIsPlanOpen(false);
+                                setPendingProjectPlan(null);
+                            }}
                             projectId={selectedProjectId}
                             tenantId={studio.id}
                             teamMembers={teamMembers}
-                            initialDraftTasks={draftTasks}
+                            initialDescription={pendingProjectPlan.description}
+                            autoStart={true}
                             onSaveSuccess={() => router.visit(route('tenant.projects.show', { tenant: studio.id, project: selectedProjectId }))}
                         />
                     )}
@@ -400,7 +443,6 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                         isOpen={isProjectCreationOpen}
                         onClose={() => {
                             setIsProjectCreationOpen(false);
-                            setPendingProjectPlan(null);
                         }}
                         onCreated={handleProjectCreated}
                         initialTitle={pendingProjectPlan?.name || ''}
@@ -424,14 +466,19 @@ export default function TenantDashboard({ studio, projects = [], activeTasks = [
                     <div className="sticky bottom-0 z-20 pt-4 pb-2 w-full max-w-3xl mx-auto">
                         <form
                             onSubmit={handlePromptSubmit}
-                            className="flex flex-col gap-1.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-gray-200 dark:border-slate-800 shadow-2xl p-2.5 focus-within:border-brand dark:focus-within:border-brand/60 focus-within:ring-2 focus-within:ring-brand/20 transition-all"
+                            className={`flex flex-col gap-1.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border ${isTextareaFlashing ? 'border-brand ring-4 ring-brand/30 bg-brand/5 dark:bg-brand/10 shadow-brand/20' : 'border-gray-200 dark:border-slate-800 shadow-2xl'} p-2.5 focus-within:border-brand dark:focus-within:border-brand/60 focus-within:ring-2 focus-within:ring-brand/20 transition-all duration-300`}
                         >
                             {/* Top row: Textarea & Send button */}
                             <div className="flex items-center gap-2">
-                                <textarea
-                                    rows="1"
+                                <TextareaAutosize
+                                    minRows={1}
+                                    maxRows={10}
+                                    ref={promptTextareaRef}
                                     value={prompt}
-                                    onChange={(e) => setPrompt(e.target.value)}
+                                    onChange={(e) => {
+                                        setPrompt(e.target.value);
+                                        if (e.target.value.trim() === '') setActiveActionIntent(null);
+                                    }}
                                     placeholder="Ask a question, or describe a task to create a plan…"
                                     maxLength="3000"
                                     className="flex-1 bg-transparent border-0 px-2 py-1.5 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-slate-600 focus:outline-none focus:ring-0 resize-none min-h-[2.5rem] align-middle font-sans"

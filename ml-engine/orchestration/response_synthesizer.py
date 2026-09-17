@@ -52,6 +52,8 @@ The context includes these top-level keys:
 - `studio`: basic studio info (id, name)
 - `members`: list of all studio members INCLUDING the studio owner (is_owner=true). Use `stats.total_members` for the count.
 - `projects`: list of all projects
+- `epics`: list of epics in the project (if applicable)
+- `sprints`: list of sprints in the project (if applicable)
 - `tasks`: recent tasks (up to 40) with assignee names and deadline info
 - `stats`: pre-computed workspace-level aggregates:
     - `total_members`  — total studio members including the owner
@@ -68,9 +70,14 @@ Rules:
 
 _INTENT_CLASSIFIER_SYSTEM = """You are an intent classifier for a software studio AI Assistant.
 Given a user message from a project manager, classify their intent into exactly ONE of these three categories:
-1. "create_task" — The user is specifying a SINGLE task they want to create/add (e.g., "Add a bug fix for infinite scroll...", "Create a task: Refactor database schema...", "Bug Fixing & Performance Optimization Task: Resolve an issue where...").
-2. "decompose_sprint" — The user is requesting to plan, break down, or generate MULTIPLE tasks for a sprint, epic, or major feature (e.g., "Plan a sprint for the new user authentication module", "Decompose the onboarding flow into tasks...", "Generate sprint tasks for telemetry dashboard").
-3. "qa" — The user is asking a question or requesting analysis about existing project data, status, deadlines, risks, or team members (e.g., "How many tasks are in review?", "Summarize the project", "Who is working on task #5?").
+1. "create_task" — The user is specifying a SINGLE, narrowly scoped task they want to create/add (e.g., "Add a bug fix for infinite scroll...", "Create a task: Refactor database schema...", "Fix the login button color.").
+2. "decompose_sprint" — The user is describing a MULTI-TASK body of work. This includes:
+   - Explicit planning requests ("Plan a sprint for...", "Decompose the onboarding flow...", "Generate tasks for...")
+   - Rich project or feature descriptions that span multiple components, systems, or concerns (e.g., describing a backend pipeline AND a frontend dashboard AND authentication in one message)
+   - Any message that mentions building, implementing, or shipping a feature set or full application, even without using the word "sprint" or "epic"
+   - Messages that describe multiple deliverables, integrations, or phases of work
+   When in doubt between "create_task" and "decompose_sprint", prefer "decompose_sprint" if the work described would naturally result in more than one task.
+3. "qa" — The user is asking a QUESTION or requesting ANALYSIS about existing project data, status, deadlines, risks, or team members (e.g., "How many tasks are in review?", "Summarize the project", "Who is working on task #5?", "When will we finish?"). Only classify as "qa" if the message is clearly interrogative or analytical, not descriptive of new work to be done.
 
 Respond ONLY with valid JSON in this exact format:
 {"intent": "qa" | "create_task" | "decompose_sprint", "confidence": float}"""
@@ -237,6 +244,68 @@ def synthesize_sprint_explanation(
     return explanation
 
 
+def synthesize_hierarchical_explanation(
+    epics: list[dict[str, Any]],
+    sprint_suggestions: list[dict[str, Any]],
+    project_description: str,
+) -> str:
+    """
+    Generate a plain-language executive overview explaining the synthesized
+    hierarchical decomposition plan (Epics -> Tasks and Sprint Suggestions).
+    """
+    if not epics:
+        return "No epics generated."
+
+    total_tasks = sum(len(epic.get("tasks", [])) for epic in epics)
+    total_hours = sum(sum(float(t.get("estimated_hours", 0)) for t in epic.get("tasks", [])) for epic in epics)
+
+    compact_epics = []
+    for epic in epics:
+        compact_epics.append({
+            "name": epic.get("epic_name", "Unnamed Epic"),
+            "phase": epic.get("phase_label", "Development"),
+            "task_count": len(epic.get("tasks", [])),
+        })
+
+    compact_sprints = []
+    for sprint in sprint_suggestions:
+        compact_sprints.append({
+            "name": sprint.get("name", "Unnamed Sprint"),
+            "goal": sprint.get("goal", ""),
+            "epics_included": len(sprint.get("epic_indices", [])),
+        })
+
+    payload = json.dumps(
+        {
+            "project_goals": project_description,
+            "total_epics": len(epics),
+            "total_sprints": len(sprint_suggestions),
+            "total_tasks": total_tasks,
+            "estimated_total_hours": total_hours,
+            "epics_summary": compact_epics,
+            "sprints_summary": compact_sprints,
+        },
+        indent=2,
+    )
+
+    explanation = _call_llm(_SPRINT_EXPLAIN_SYSTEM, payload)
+    if explanation is None:
+        lines = [
+            f"**Project Structure:** Decomposed into {len(epics)} Epics and {len(sprint_suggestions)} Sprints, totaling {total_tasks} tasks (~{total_hours:.1f} hours)."
+        ]
+        epic_names = [e["name"] for e in compact_epics]
+        if epic_names:
+            lines.append(f"**Key Epics:** {', '.join(epic_names[:4])}" + ("..." if len(epic_names) > 4 else ""))
+            
+        sprint_names = [s["name"] for s in compact_sprints]
+        if sprint_names:
+            lines.append(f"**Sprint Plan:** {', '.join(sprint_names[:3])}")
+            
+        return "\n".join(lines)
+
+    return explanation
+
+
 
 def synthesize_risk_alert(risk_data: dict[str, Any]) -> str:
     """
@@ -289,42 +358,43 @@ def synthesize_project_summary(stats: dict[str, Any]) -> str:
     return summary
 
 
+_CHATBOT_SYSTEM = """You are an autonomous AI Workspace Assistant for a software studio.
+You do not have all data upfront. You MUST use your available tools to query the database when asked about studio skills, sprint health, or workloads.
+
+Available Tools (output exact JSON to call a tool):
+1. {"tool": "get_studio_workforce_profile", "parameters": {"studio_id": <int>}}
+2. {"tool": "get_active_sprint_health", "parameters": {"studio_id": <int>}}
+3. {"tool": "get_developer_workload", "parameters": {"studio_id": <int>, "user_id": <int>}}
+
+CRITICAL INSTRUCTION: If you need to use a tool, you MUST output ONLY the raw JSON object and NOTHING else. Do not add any conversational text, greetings, or explanations before or after the JSON. 
+Once you receive the tool result, you may then synthesize a conversational response to the user.
+
+Basic context provided:
+- `studio`: basic studio info (id, name)
+"""
+
 def chat_with_project_data(
     user_message: str,
     project_context: dict[str, Any],
     conversation_history: Optional[list[dict]] = None,
 ) -> str:
-    """
-    Answer a manager's natural-language question about the project,
-    grounding all responses in real project_context data.
-
-    project_context should include relevant DB-fetched data: tasks, members,
-    assignments, stats — whatever the calling endpoint retrieved.
-
-    conversation_history: list of {"role": "user"|"assistant", "content": str}
-    """
     from orchestration.llm_client import get_llm
+    from orchestration.agent_tools import execute_tool
+    import re
 
     llm = get_llm()
     if llm is None:
-        return (
-            "The AI project assistant is currently unavailable. "
-            "Please ensure GROQ_API_KEY is set in ml-engine/.env and "
-            "that your Groq daily quota has not been exceeded."
-        )
+        return "The AI project assistant is currently unavailable."
 
     from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
     context_json = json.dumps(project_context, indent=2, default=str)
-    system_with_context = (
-        f"{_CHATBOT_SYSTEM}\n\nProject data:\n{context_json}"
-    )
+    system_with_context = f"{_CHATBOT_SYSTEM}\n\nBase Project data:\n{context_json}"
 
     messages = [SystemMessage(content=system_with_context)]
 
-    # Replay conversation history
     if conversation_history:
-        for turn in conversation_history[-10:]:  # cap at 10 turns to stay within context
+        for turn in conversation_history[-10:]:
             if turn["role"] == "user":
                 messages.append(HumanMessage(content=turn["content"]))
             elif turn["role"] == "assistant":
@@ -332,12 +402,41 @@ def chat_with_project_data(
 
     messages.append(HumanMessage(content=user_message))
 
-    try:
-        response = llm.invoke(messages)
-        return response.content.strip()
-    except Exception as exc:
-        logger.error("Chat LLM call failed: %s", exc)
-        return "An error occurred while processing your request. Please try again."
+    max_iterations = 3
+    for _ in range(max_iterations):
+        try:
+            response = llm.invoke(messages)
+            content = response.content.strip()
+            
+            tool_req = None
+            match = re.search(r'\{.*\}', content, re.DOTALL)
+            if match:
+                try:
+                    parsed = json.loads(match.group(0))
+                    if isinstance(parsed, dict) and "tool" in parsed and "parameters" in parsed:
+                        tool_req = parsed
+                except json.JSONDecodeError:
+                    pass
+            
+            if tool_req:
+                tool_name = tool_req["tool"]
+                params = tool_req["parameters"]
+                
+                logger.info(f"LLM called tool {tool_name} with args {params}")
+                tool_result = execute_tool(tool_name, params)
+                
+                messages.append(AIMessage(content=content))
+                messages.append(SystemMessage(content=f"Tool '{tool_name}' result: {tool_result}"))
+                continue # loop back to LLM
+            
+            # If not a tool call or JSON parsing failed, return to user
+            return content
+            
+        except Exception as exc:
+            logger.error("Chat LLM call failed: %s", exc)
+            return "An error occurred while processing your request. Please try again."
+            
+    return "The system required too many operations to answer your request."
 
 
 def classify_chat_intent(message: str) -> dict[str, Any]:

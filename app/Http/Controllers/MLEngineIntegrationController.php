@@ -22,6 +22,20 @@ class MLEngineIntegrationController extends Controller
     }
 
     /**
+     * Categorize user input into actionable intents for the frontend routing.
+     */
+    public function routeIntent(Request $request)
+    {
+        $validated = $request->validate([
+            'message' => 'required|string',
+        ]);
+
+        $response = $this->mlService->routeIntent($validated['message']);
+
+        return response()->json($response);
+    }
+
+    /**
      * Ask the ML engine to decompose a project description into tasks.
      * The React frontend will display these before saving.
      *
@@ -54,6 +68,17 @@ class MLEngineIntegrationController extends Controller
         return response()->json($this->mlService->decomposeProject($validated['description']));
     }
 
+    /** Generate an editable hierarchical task plan before a new project exists. */
+    public function decomposeWorkspaceProjectHierarchical(Request $request)
+    {
+        set_time_limit(0);
+        $validated = $request->validate([
+            'description' => 'required|string|max:3000',
+        ]);
+
+        return response()->json($this->mlService->decomposeProjectHierarchically($validated['description']));
+    }
+
     /**
      * Handle conversational requests made from the studio workspace. Unlike
      * project planning, this route does not require a project to be selected.
@@ -76,94 +101,11 @@ class MLEngineIntegrationController extends Controller
             ]);
         }
 
-        // ── Studio members (including the studio owner) ────────────────────
-        $studio = Studio::with(['users'])->find(tenant('id'));
-
-        // Collect member IDs from studio_members pivot (owner is also listed here)
-        $memberUserIds = $studio?->users?->pluck('id')?->all() ?? [];
-
-        // Count active tasks per member for context richness
-        $activeTasksPerMember = Task::query()
-            ->whereIn('status', ['todo', 'in_progress', 'review'])
-            ->whereIn('assigned_user_id', $memberUserIds)
-            ->selectRaw('assigned_user_id, COUNT(*) as active_task_count')
-            ->groupBy('assigned_user_id')
-            ->pluck('active_task_count', 'assigned_user_id');
-
-        $members = $studio?->users?->map(function ($user) use ($activeTasksPerMember): array {
-            $pivotRole = $user->pivot?->role ?? 'member';
-
-            return [
-                'id' => $user->id,
-                'name' => $user->name,
-                'role' => $pivotRole,
-                'is_owner' => $user->role === User::ROLE_ADMIN,
-                'active_task_count' => (int) ($activeTasksPerMember[$user->id] ?? 0),
-            ];
-        })?->values()?->all() ?? [];
-
-        // ── Projects with task counts ──────────────────────────────────────
-        $projects = Project::query()
-            ->withCount('tasks')
-            ->latest()
-            ->get(['id', 'name', 'status'])
-            ->map(fn (Project $project): array => [
-                'id' => $project->id,
-                'name' => $project->name,
-                'status' => $project->status,
-                'task_count' => $project->tasks_count,
-            ])
-            ->all();
-
-        // ── All tasks with assignee eager-loaded (capped for LLM context) ─
-        $allTasks = Task::query()
-            ->with('assignee:id,name')
-            ->latest()
-            ->take(40)
-            ->get(['id', 'title', 'status', 'priority', 'estimated_hours', 'project_id',
-                'assigned_user_id', 'days_until_deadline'])
-            ->map(fn (Task $task): array => [
-                'id' => $task->id,
-                'title' => $task->title,
-                'status' => $task->status,
-                'priority' => $task->priority,
-                'estimated_hours' => $task->estimated_hours,
-                'project_id' => $task->project_id,
-                'assigned_to' => $task->assignee?->name,
-                'days_until_deadline' => $task->days_until_deadline,
-                'is_overdue' => $task->days_until_deadline !== null && $task->days_until_deadline <= 0,
-            ])
-            ->all();
-
-        // ── Workspace-level aggregate stats (computed over ALL tasks) ──────
-        $allTasksForStats = Task::query()
-            ->get(['id', 'status', 'days_until_deadline']);
-
-        $byStatus = $allTasksForStats
-            ->groupBy('status')
-            ->map(fn ($group) => $group->count())
-            ->all();
-
-        $overdueStatuses = ['todo', 'in_progress', 'review'];
-        $totalOverdue = $allTasksForStats
-            ->whereIn('status', $overdueStatuses)
-            ->filter(fn (Task $t): bool => $t->days_until_deadline !== null && $t->days_until_deadline <= 0)
-            ->count();
-
-        $stats = [
-            'total_members' => count($members),
-            'total_projects' => count($projects),
-            'total_tasks' => $allTasksForStats->count(),
-            'total_overdue' => $totalOverdue,
-            'by_status' => $byStatus,
-        ];
+        $studio = Studio::find(tenant('id'));
 
         $context = [
             'studio' => $studio?->only(['id', 'name']),
-            'members' => $members,   // includes owner; use total_members for count
-            'projects' => $projects,
-            'tasks' => $allTasks,  // capped at 40; for exact counts use stats
-            'stats' => $stats,     // pre-computed workspace-level aggregates
+            'current_user_id' => auth()->id(),
         ];
 
         $result = $this->mlService->chatAboutProject($message, $context, $validated['history'] ?? []);
@@ -486,7 +428,7 @@ class MLEngineIntegrationController extends Controller
             'history.*.content' => 'required_with:history|string|max:3000',
         ]);
 
-        $projectModel = Project::with(['tasks.assignee', 'tasks.predecessors'])->findOrFail($project);
+        $projectModel = Project::with(['tasks.assignee', 'tasks.predecessors', 'epics', 'sprints'])->findOrFail($project);
         $tasks = $projectModel->tasks;
         $taskData = $tasks->map(fn (Task $task): array => [
             'id' => $task->id,
@@ -539,6 +481,8 @@ class MLEngineIntegrationController extends Controller
 
         $context = [
             'project' => $projectModel->only(['id', 'name', 'status', 'target_end_date']),
+            'epics' => $projectModel->epics->map(fn ($e) => $e->only(['id', 'name', 'phase', 'status', 'start_date', 'target_end_date']))->all(),
+            'sprints' => $projectModel->sprints->map(fn ($s) => $s->only(['id', 'name', 'goal', 'status', 'start_date', 'end_date']))->all(),
             'tasks' => $taskData,
             'stats' => $stats,
             'studio' => $studio?->only(['id', 'name']),
@@ -607,7 +551,7 @@ class MLEngineIntegrationController extends Controller
         $this->authorizeManager();
         $project = $routeProject ?? $project;
         $validated = $request->validate([
-            'action' => 'required|string|in:create_task,decompose_sprint',
+            'action' => 'required|string|in:create_task,decompose_sprint,create_epic,create_sprint',
             'payload' => 'required|array',
         ]);
 
@@ -655,6 +599,38 @@ class MLEngineIntegrationController extends Controller
                 'status' => 'success',
                 'message' => 'Task created successfully and schedule recalculated.',
                 'task' => $task,
+            ]);
+        }
+
+        if ($validated['action'] === 'create_epic') {
+            $payload = $validated['payload'];
+            $epic = $projectModel->epics()->create([
+                'name' => $payload['name'] ?? 'New Epic',
+                'description' => $payload['description'] ?? null,
+                'phase' => $payload['phase'] ?? 'Planning',
+                'priority' => $payload['priority'] ?? 'Medium',
+                'status' => 'draft',
+            ]);
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Epic created successfully.',
+                'epic' => $epic,
+            ]);
+        }
+
+        if ($validated['action'] === 'create_sprint') {
+            $payload = $validated['payload'];
+            $sprint = $projectModel->sprints()->create([
+                'name' => $payload['name'] ?? 'New Sprint',
+                'goal' => $payload['goal'] ?? null,
+                'status' => 'planning',
+                'start_date' => $payload['start_date'] ?? null,
+                'end_date' => $payload['end_date'] ?? null,
+            ]);
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Sprint created successfully.',
+                'sprint' => $sprint,
             ]);
         }
 

@@ -269,12 +269,6 @@ export default function ScheduleIndex({ tasks = [], events = [], studio, project
                             ))}
                         </div>
 
-                        <button
-                            onClick={() => showToast('Add event — coming soon!', 'info')}
-                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-gray-900 dark:bg-indigo-600 text-white hover:bg-gray-800 dark:hover:bg-indigo-700 shadow-sm transition-all"
-                        >
-                            <PlusIcon /> Add Event
-                        </button>
                     </div>
                 </div>
 

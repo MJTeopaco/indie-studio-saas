@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/internal.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
@@ -19,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'requires.onboarding' => \App\Http\Middleware\EnsureOnboardingIsComplete::class,
+            'ml.auth' => \App\Http\Middleware\EnsureMlEngineSecret::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
