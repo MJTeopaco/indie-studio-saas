@@ -10,6 +10,16 @@ logger = logging.getLogger(__name__)
 LARAVEL_API_URL = os.environ.get("LARAVEL_API_URL", "http://127.0.0.1:8000")
 ML_ENGINE_SECRET = os.environ.get("ML_ENGINE_SECRET", "studio_sprint_internal_secret_123")
 
+# Warn loudly at import time if the URL is still the localhost default.
+# On Railway, this should be set to https://indie-studio-saas.onrender.com
+if "127.0.0.1" in LARAVEL_API_URL or "localhost" in LARAVEL_API_URL:
+    logger.warning(
+        "⚠️  LARAVEL_API_URL is set to '%s' (localhost). "
+        "Agent tools will fail to connect. "
+        "Set LARAVEL_API_URL=https://indie-studio-saas.onrender.com in Railway Variables.",
+        LARAVEL_API_URL,
+    )
+
 def _make_internal_request(endpoint: str) -> Dict[str, Any]:
     url = f"{LARAVEL_API_URL.rstrip('/')}/{endpoint.lstrip('/')}"
     headers = {
@@ -17,9 +27,19 @@ def _make_internal_request(endpoint: str) -> Dict[str, Any]:
         "Accept": "application/json"
     }
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
         return response.json()
+    except requests.exceptions.ConnectionError as e:
+        logger.error(
+            "Agent tool FAILED — cannot reach Laravel at %s. "
+            "Is LARAVEL_API_URL set correctly in Railway? Error: %s",
+            LARAVEL_API_URL, str(e)
+        )
+        raise RuntimeError(
+            f"Cannot reach the Laravel backend at {LARAVEL_API_URL}. "
+            "Set LARAVEL_API_URL in Railway Variables to https://indie-studio-saas.onrender.com"
+        )
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to fetch data from {url}: {str(e)}")
         raise RuntimeError("System Error: Could not fetch data from the database.")
