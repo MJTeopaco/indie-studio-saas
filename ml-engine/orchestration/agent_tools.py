@@ -34,11 +34,18 @@ def get_developer_workload(studio_id: int, user_id: int) -> Dict[str, Any]:
     """Fetches a specific developer's task count and allocations."""
     return _make_internal_request(f"/api/internal/studios/{studio_id}/developers/{user_id}/workload")
 
+def get_sprint_tasks(project_id: int, sprint_name: str) -> Dict[str, Any]:
+    """Fetches the unassigned tasks for a specific sprint in a project."""
+    import urllib.parse
+    encoded_sprint = urllib.parse.quote(sprint_name)
+    return _make_internal_request(f"/api/internal/projects/{project_id}/sprints/{encoded_sprint}/unassigned-tasks")
+
 # Mapping of tool names to callable functions
 AGENT_TOOLS = {
     "get_studio_workforce_profile": get_studio_workforce_profile,
     "get_active_sprint_health": get_active_sprint_health,
     "get_developer_workload": get_developer_workload,
+    "get_sprint_tasks": get_sprint_tasks,
 }
 
 def execute_tool(tool_name: str, arguments: Dict[str, Any]) -> str:

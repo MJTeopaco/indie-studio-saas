@@ -108,6 +108,10 @@ class MLEngineIntegrationController extends Controller
             'current_user_id' => auth()->id(),
         ];
 
+        if (!empty($validated['project_id'])) {
+            $context['project_id'] = $validated['project_id'];
+        }
+
         $result = $this->mlService->chatAboutProject($message, $context, $validated['history'] ?? []);
 
         return response()->json([

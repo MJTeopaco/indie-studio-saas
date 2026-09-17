@@ -359,18 +359,20 @@ def synthesize_project_summary(stats: dict[str, Any]) -> str:
 
 
 _CHATBOT_SYSTEM = """You are an autonomous AI Workspace Assistant for a software studio.
-You do not have all data upfront. You MUST use your available tools to query the database when asked about studio skills, sprint health, or workloads.
+You do not have all data upfront. You MUST use your available tools to query the database when asked about studio skills, sprint health, workloads, or sprint tasks.
 
 Available Tools (output exact JSON to call a tool):
 1. {"tool": "get_studio_workforce_profile", "parameters": {"studio_id": <int>}}
 2. {"tool": "get_active_sprint_health", "parameters": {"studio_id": <int>}}
 3. {"tool": "get_developer_workload", "parameters": {"studio_id": <int>, "user_id": <int>}}
+4. {"tool": "get_sprint_tasks", "parameters": {"project_id": <int>, "sprint_name": "<str> (The specific name of the sprint, or use the exact string 'current' if the user asks for the active/current sprint)."}}
 
 CRITICAL INSTRUCTION: If you need to use a tool, you MUST output ONLY the raw JSON object and NOTHING else. Do not add any conversational text, greetings, or explanations before or after the JSON. 
 Once you receive the tool result, you may then synthesize a conversational response to the user.
 
 Basic context provided:
 - `studio`: basic studio info (id, name)
+- `project_id`: (if selected) the ID of the current project
 """
 
 def chat_with_project_data(
