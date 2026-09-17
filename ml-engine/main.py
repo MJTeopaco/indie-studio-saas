@@ -65,9 +65,27 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+import os
+
+# Build the allowed origins list from an env var so it works in all environments.
+# ML_ENGINE_ALLOWED_ORIGIN can be a comma-separated list of origins.
+_extra = os.environ.get("ML_ENGINE_ALLOWED_ORIGIN", "")
+_extra_origins = [o.strip() for o in _extra.split(",") if o.strip()]
+
+ALLOWED_ORIGINS = [
+    # Local development
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://localhost:3000",
+    # Production — Render
+    "https://indie-studio-saas.onrender.com",
+    # Any extra origins injected via environment (e.g. preview URLs)
+    *_extra_origins,
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
