@@ -117,3 +117,32 @@ Our ML logic lives in the `ml-engine/` directory. It must be running alongside t
    cd ml-engine
    ./venv/Scripts/uvicorn main:app --host 127.0.0.1 --port 8001 --reload
    ```
+
+## 📜 Open-Source UI Theme & Component Library Attribution
+
+StudioSprint's user interface is built using open-source design systems and component foundations:
+
+- **Tailwind CSS v3.2.1**
+  - License: MIT License
+  - Copyright (c) Tailwind Labs, Inc.
+  - Repository: [https://github.com/tailwindlabs/tailwindcss](https://github.com/tailwindlabs/tailwindcss)
+  - Role: Utility-first CSS framework configured with custom design tokens for Direction D (Data-Dense Dashboard), high-contrast accessibility palettes, and responsive layouts.
+
+- **Headless UI React v2.0.0**
+  - License: MIT License
+  - Copyright (c) 2020 Tailwind Labs Inc.
+  - Repository: [https://github.com/tailwindlabs/headlessui](https://github.com/tailwindlabs/headlessui)
+  - Role: Unstyled, fully accessible UI component primitives (modals, listboxes, transitions) complying with WAI-ARIA authoring practices.
+
+- **Lucide React v1.24.0**
+  - License: ISC License
+  - Copyright (c) Lucide Contributors
+  - Repository: [https://github.com/lucide-icons/lucide](https://github.com/lucide-icons/lucide)
+  - Role: Accessible visual iconography providing non-color status dual-encoding (WCAG 2.1 AA) across Critical Path Analysis, task priorities, and sprint workflows.
+
+- **Recharts v3.9.2**
+  - License: MIT License
+  - Copyright (c) 2015-2024 Recharts Group
+  - Repository: [https://github.com/recharts/recharts](https://github.com/recharts/recharts)
+  - Role: Declarative data visualization components powering burndown charts, velocity graphs, and completion metrics.
+
