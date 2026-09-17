@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::table('team_velocity', function (Blueprint $table) {
             $table->unsignedBigInteger('sprint_id')->nullable()->after('sprint_label');
-            
+
             $table->foreign('sprint_id')->references('id')->on('sprints')->nullOnDelete();
         });
     }

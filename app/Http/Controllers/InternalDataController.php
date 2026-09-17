@@ -2,9 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Studio;
 use App\Models\User;
+use App\Models\Task;
+use Illuminate\Http\Request;
 class InternalDataController extends Controller
 {
     /**
@@ -15,10 +16,10 @@ class InternalDataController extends Controller
         tenancy()->initialize($studioId);
         $studio = Studio::with([
             'users.globalProfile.position',
-            'users.globalProfile.skills'
+            'users.globalProfile.skills',
         ])->find($studioId);
 
-        if (!$studio) {
+        if (! $studio) {
             return response()->json(['error' => 'Studio not found'], 404);
         }
 
@@ -65,7 +66,7 @@ class InternalDataController extends Controller
     {
         tenancy()->initialize($studioId);
         $studio = Studio::find($studioId);
-        if (!$studio) {
+        if (! $studio) {
             return response()->json(['error' => 'Studio not found'], 404);
         }
         
@@ -74,7 +75,7 @@ class InternalDataController extends Controller
         $tasks = \App\Models\Tenant\Task::whereIn('project_id', $projectIds)
             ->whereIn('status', ['todo', 'in_progress', 'review'])
             ->get(['id', 'title', 'status', 'assigned_user_id', 'total_float', 'is_critical', 'estimated_hours', 'days_until_deadline']);
-            
+
         $formattedTasks = $tasks->map(function ($task) {
             return [
                 'id' => $task->id,
@@ -90,7 +91,7 @@ class InternalDataController extends Controller
 
         return response()->json([
             'studio_id' => $studioId,
-            'active_tasks' => $formattedTasks
+            'active_tasks' => $formattedTasks,
         ]);
     }
 
@@ -101,7 +102,7 @@ class InternalDataController extends Controller
     {
         tenancy()->initialize($studioId);
         $studio = Studio::find($studioId);
-        if (!$studio) {
+        if (! $studio) {
             return response()->json(['error' => 'Studio not found'], 404);
         }
 
@@ -119,7 +120,7 @@ class InternalDataController extends Controller
             'user_id' => $userId,
             'active_task_count' => $tasks->count(),
             'total_estimated_hours' => $totalEstimatedHours,
-            'tasks' => $tasks
+            'tasks' => $tasks,
         ]);
     }
 

@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\CentralDashboardController;
+use App\Http\Controllers\HubController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -13,12 +15,12 @@ Route::get('/', function () {
 });
 
 Route::middleware(['auth', 'verified', 'requires.onboarding'])->group(function () {
-    Route::get('/dashboard', [\App\Http\Controllers\CentralDashboardController::class, 'index'])->name('dashboard');
-    
+    Route::get('/dashboard', [CentralDashboardController::class, 'index'])->name('dashboard');
+
     // Hub actions
-    Route::post('/hub/studio',  [\App\Http\Controllers\HubController::class, 'createStudio'])->name('hub.studio.store');
-    Route::post('/hub/join',    [\App\Http\Controllers\HubController::class, 'joinStudio'])->name('hub.join.store');
-    Route::post('/hub/studio/{studio}/invite', [\App\Http\Controllers\HubController::class, 'generateInvite'])->name('hub.studio.invite');
+    Route::post('/hub/studio', [HubController::class, 'createStudio'])->name('hub.studio.store');
+    Route::post('/hub/join', [HubController::class, 'joinStudio'])->name('hub.join.store');
+    Route::post('/hub/studio/{studio}/invite', [HubController::class, 'generateInvite'])->name('hub.studio.invite');
 });
 
 Route::middleware('auth')->group(function () {
@@ -26,7 +28,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/onboarding/fork', [OnboardingController::class, 'fork'])->name('onboarding.fork');
     Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding.show');
     Route::post('/onboarding', [OnboardingController::class, 'store'])->name('onboarding.store');
-    
+
     Route::post('/onboarding/studio', [OnboardingController::class, 'createStudio'])->name('onboarding.studio.store');
     Route::post('/onboarding/join', [OnboardingController::class, 'joinStudio'])->name('onboarding.join.store');
 

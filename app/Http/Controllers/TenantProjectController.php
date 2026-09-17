@@ -371,7 +371,7 @@ class TenantProjectController extends Controller
         $this->authorizeManager();
         $project = $routeProject ?? $project;
         $projectModel = is_string($project) ? Project::findOrFail($project) : $project;
-        
+
         $validated = $request->validate([
             'epics' => 'nullable|array',
             'epics.*.epic_name' => 'required|string|max:255',
@@ -395,7 +395,7 @@ class TenantProjectController extends Controller
             'epics.*.tasks.*.required_skills' => 'nullable|array',
             'epics.*.tasks.*.required_skills.*.name' => 'required|string',
             'epics.*.tasks.*.required_skills.*.level' => 'nullable|integer|min:1|max:5',
-            
+
             'sprints' => 'nullable|array',
             'sprints.*.name' => 'required|string|max:255',
             'sprints.*.goal' => 'nullable|string',
@@ -442,25 +442,25 @@ class TenantProjectController extends Controller
         $sprintsData = $validated['sprints'] ?? [];
         $backlogTasksData = $validated['backlog_tasks'] ?? [];
         $projectModel = Project::findOrFail($project);
-        
+
         // 1. Pre-fetch the tenant's valid phases and priorities for epics to avoid N+1 issues
         $tenantId = tenant('id') ?? 'default';
         $defaultPhase = EpicPhase::where('tenant_id', $tenantId)->first();
         $defaultPriority = EpicPriority::where('tenant_id', $tenantId)->first();
-        
-        $validPhaseLabels = EpicPhase::where('tenant_id', $tenantId)->pluck('id', 'label')->mapWithKeys(fn($id, $label) => [strtolower($label) => $id])->all();
-        $validPriorityLabels = EpicPriority::where('tenant_id', $tenantId)->pluck('id', 'label')->mapWithKeys(fn($id, $label) => [strtolower($label) => $id])->all();
+
+        $validPhaseLabels = EpicPhase::where('tenant_id', $tenantId)->pluck('id', 'label')->mapWithKeys(fn ($id, $label) => [strtolower($label) => $id])->all();
+        $validPriorityLabels = EpicPriority::where('tenant_id', $tenantId)->pluck('id', 'label')->mapWithKeys(fn ($id, $label) => [strtolower($label) => $id])->all();
 
         $defaultEpicGroup = $projectModel->epicGroups()->where('is_default', true)->first();
 
         // Data arrays for processing
-        
+
         $epicIdMapping = []; // map index in $epicsData to real DB Epic ID
         $taskIdMapping = []; // map flat index across all tasks to real DB Task ID
         $sprintIdMapping = []; // map index in $sprintsData to real DB Sprint ID
 
         DB::transaction(function () use (
-            $projectModel, $epicsData, $sprintsData, $backlogTasksData, $defaultEpicGroup, 
+            $projectModel, $epicsData, $sprintsData, $backlogTasksData, $defaultEpicGroup,
             $defaultPhase, $defaultPriority, $validPhaseLabels, $validPriorityLabels,
             &$epicIdMapping, &$taskIdMapping, &$sprintIdMapping
         ) {
@@ -468,14 +468,14 @@ class TenantProjectController extends Controller
             foreach ($epicsData as $epicIndex => $epicData) {
                 $phaseLabel = strtolower($epicData['phase_label'] ?? '');
                 $priorityLabel = strtolower($epicData['priority_label'] ?? '');
-                
+
                 $phaseId = $validPhaseLabels[$phaseLabel] ?? $defaultPhase->id ?? null;
                 $priorityId = $validPriorityLabels[$priorityLabel] ?? $defaultPriority->id ?? null;
-                
-                if (!$phaseId || !$priorityId) {
+
+                if (! $phaseId || ! $priorityId) {
                     abort(500, 'Epic Phase or Priority configuration is missing for this workspace.');
                 }
-                
+
                 $epic = $projectModel->epics()->create([
                     'name' => $epicData['epic_name'],
                     'description' => $epicData['epic_description'] ?? null,
@@ -537,7 +537,7 @@ class TenantProjectController extends Controller
                     'required_position' => $taskData['required_position'] ?? null,
                     'required_skills' => $taskData['required_skills'] ?? [],
                     'story_points_ai_suggested' => $hours > 0 ? $points : null,
-                    'expected_estimators' => !empty($taskData['assigned_user_ids']) ? $taskData['assigned_user_ids'] : null,
+                    'expected_estimators' => ! empty($taskData['assigned_user_ids']) ? $taskData['assigned_user_ids'] : null,
                     'status' => 'todo',
                     'epic_id' => $epicId,
                     'sprint_id' => $sprintId,
@@ -547,14 +547,14 @@ class TenantProjectController extends Controller
                 \Log::info("Created Task: {$task->id} for Epic ID {$epicId}, Sprint ID {$sprintId}");
 
                 $taskIdMapping[$flatTaskIndex] = $task->id;
-                
-                if (!empty($taskData['suggested_depends_on'])) {
+
+                if (! empty($taskData['suggested_depends_on'])) {
                     $tasksToProcessDependencies[$task->id] = $taskData['suggested_depends_on'];
                 }
 
                 // Create assignments for any inline-assigned users
                 $assignedUserIds = $taskData['assigned_user_ids'] ?? [];
-                if (!empty($assignedUserIds)) {
+                if (! empty($assignedUserIds)) {
                     $now = now();
                     $primaryId = $assignedUserIds[0] ?? null;
                     foreach ($assignedUserIds as $userId) {
@@ -612,8 +612,8 @@ class TenantProjectController extends Controller
                         $realDependsOnIds[] = $taskIdMapping[$depIndex];
                     }
                 }
-                
-                if (!empty($realDependsOnIds)) {
+
+                if (! empty($realDependsOnIds)) {
                     $task = Task::find($realTaskId);
                     $task->predecessors()->syncWithoutDetaching(array_unique($realDependsOnIds));
                 }
@@ -1182,6 +1182,14 @@ class TenantProjectController extends Controller
             if (isset($map[$validated['sprint_status']])) {
                 $validated['status'] = $map[$validated['sprint_status']];
             }
+        }
+
+        if (($validated['status'] ?? null) === 'completed' || ($validated['sprint_status'] ?? null) === 'done') {
+            $validated['completed_at'] = now();
+            $validated['completed_by_user_id'] = $user?->id ?? $taskModel->assigned_user_id;
+        } elseif (isset($validated['status']) && $validated['status'] !== 'completed' && $taskModel->status === 'completed') {
+            $validated['completed_at'] = null;
+            $validated['completed_by_user_id'] = null;
         }
 
         $taskModel->update($validated);

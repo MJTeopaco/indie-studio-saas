@@ -17,7 +17,7 @@ return new class extends Migration
             $table->unsignedBigInteger('developer_id'); // cross-DB reference to central users
             $table->unsignedTinyInteger('submitted_points');
             $table->timestamp('submitted_at')->useCurrent();
-            
+
             // One submission per developer per task
             $table->unique(['task_id', 'developer_id']);
         });

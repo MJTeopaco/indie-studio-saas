@@ -30,6 +30,7 @@ class MLEngineService
         } catch (\Exception $e) {
             Log::error('ML Engine Connection Error: '.$e->getMessage());
         }
+
         return ['intent' => 'GENERAL_CHAT', 'confidence' => 0.0];
     }
 

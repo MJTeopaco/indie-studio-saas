@@ -15,7 +15,7 @@ return new class extends Migration
             // Cannot use ->constrained() since users and micro_domains are on central DB
             $table->unsignedBigInteger('user_id');
             $table->unsignedBigInteger('micro_domain_id');
-            
+
             // Composite primary key, no auto-increment ID
             $table->primary(['user_id', 'micro_domain_id']);
         });

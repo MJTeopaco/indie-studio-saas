@@ -644,7 +644,7 @@ class MLEngineIntegrationController extends Controller
                 'required_position' => $payload['required_position'] ?? null,
                 'required_skills' => $payload['required_skills'] ?? [],
                 'story_points_ai_suggested' => $hours > 0 ? $points : null,
-                'expected_estimators' => !empty($payload['assigned_user_id']) ? [$payload['assigned_user_id']] : null,
+                'expected_estimators' => ! empty($payload['assigned_user_id']) ? [$payload['assigned_user_id']] : null,
                 'status' => 'todo',
             ]);
 
@@ -666,6 +666,7 @@ class MLEngineIntegrationController extends Controller
                 'priority' => $payload['priority'] ?? 'Medium',
                 'status' => 'draft',
             ]);
+
             return response()->json([
                 'status' => 'success',
                 'message' => 'Epic created successfully.',
@@ -682,6 +683,7 @@ class MLEngineIntegrationController extends Controller
                 'start_date' => $payload['start_date'] ?? null,
                 'end_date' => $payload['end_date'] ?? null,
             ]);
+
             return response()->json([
                 'status' => 'success',
                 'message' => 'Sprint created successfully.',

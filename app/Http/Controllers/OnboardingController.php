@@ -2,14 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\JoinStudioRequest;
 use App\Http\Requests\StoreGlobalProfileRequest;
 use App\Http\Requests\StoreStudioRequest;
-use App\Http\Requests\JoinStudioRequest;
 use App\Models\Position;
 use App\Models\Skill;
 use App\Models\Studio;
 use App\Models\StudioInvitation;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -31,7 +30,7 @@ class OnboardingController extends Controller
         // Inject positions and skills (grouped by category)
         return Inertia::render('Onboarding/Wizard', [
             'positions' => Position::orderBy('name')->get(['id', 'name']),
-            'skills'    => Skill::orderBy('category')->orderBy('name')
+            'skills' => Skill::orderBy('category')->orderBy('name')
                 ->get(['id', 'name', 'category'])
                 ->groupBy('category'),
         ]);
@@ -97,7 +96,7 @@ class OnboardingController extends Controller
         // Find valid invitation
         $invitation = StudioInvitation::valid()->where('token', strtoupper($request->invitation_code))->first();
 
-        if (!$invitation) {
+        if (! $invitation) {
             return back()->withErrors([
                 'invitation_code' => 'Invalid or expired code.',
             ]);
@@ -110,7 +109,7 @@ class OnboardingController extends Controller
 
         // Add to central members list
         $user->joinedStudios()->syncWithoutDetaching([
-            $studio->id => ['role' => 'member']
+            $studio->id => ['role' => 'member'],
         ]);
 
         // Redirect to the path-based tenant dashboard — same domain, no cross-domain tricks needed.

@@ -17,7 +17,7 @@ class EnsureMlEngineSecret
     {
         $secret = config('services.mlengine.secret');
 
-        if (!$secret || $request->header('X-ML-Engine-Secret') !== $secret) {
+        if (! $secret || $request->header('X-ML-Engine-Secret') !== $secret) {
             return response()->json(['message' => 'Unauthorized ML Engine request'], 401);
         }
 

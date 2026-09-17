@@ -1,7 +1,7 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\InternalDataController;
+use Illuminate\Support\Facades\Route;
 
 Route::middleware(['ml.auth'])->prefix('internal')->group(function () {
     Route::get('/studios/{studio_id}/workforce-profile', [InternalDataController::class, 'getWorkforceProfile']);

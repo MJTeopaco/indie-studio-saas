@@ -8,6 +8,7 @@ use Illuminate\Console\Command;
 class ComputeVelocity extends Command
 {
     protected $signature = 'estimates:compute-velocity';
+
     protected $description = 'Compute team velocity and derive task durations (Phase 3 & 4).';
 
     public function handle(EstimationService $estimationService)

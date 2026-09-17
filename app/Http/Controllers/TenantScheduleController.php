@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Studio;
 use App\Models\Tenant\Project;
 use App\Models\Tenant\Task;
+use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -17,7 +19,7 @@ class TenantScheduleController extends Controller
 
         $user = auth()->user();
         $isManager = false;
-        if ($user && $user->role === \App\Models\User::ROLE_ADMIN) {
+        if ($user && $user->role === User::ROLE_ADMIN) {
             $isManager = true;
         } else {
             $member = \DB::connection(config('tenancy.database.central_connection', 'central'))->table('studio_members')
@@ -40,7 +42,7 @@ class TenantScheduleController extends Controller
             ->orderBy('es')
             ->orderBy('tasks.id');
 
-        if (!$isManager) {
+        if (! $isManager) {
             $query->where('assigned_user_id', $user->id);
         }
 
@@ -67,7 +69,7 @@ class TenantScheduleController extends Controller
                 ] : null,
                 'assigned_user_id' => $t->assigned_user_id,
                 'assigned_at' => $t->assignment_assigned_at
-                    ? \Carbon\Carbon::parse($t->assignment_assigned_at)->toIso8601String()
+                    ? Carbon::parse($t->assignment_assigned_at)->toIso8601String()
                     : ($t->created_at ? $t->created_at->toIso8601String() : null),
                 'dueDate' => $t->days_until_deadline !== null
                     ? ($t->project?->start_date ? $t->project->start_date->addDays($t->days_until_deadline)->format('Y-m-d') : now()->addDays($t->days_until_deadline)->format('Y-m-d'))

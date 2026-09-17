@@ -106,6 +106,15 @@ const PremiumInboxIcon = ({ className }) => (
     </svg>
 );
 
+const PremiumReportsIcon = ({ className }) => (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M18 20V10" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M12 20V4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M6 20V14" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M3 20H21" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" strokeOpacity="0.5" />
+    </svg>
+);
+
 /**
  * Reusable NavItem sub-component handling both expanded (w-64) and collapsed (w-16) states.
  */
@@ -271,19 +280,6 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                 href: `${baseHref}/team`,
                 active: currentPath.includes('/team'),
             },
-            /* {
-                label: 'Estimates',
-                icon: PremiumEstimatesIcon,
-                href: `${baseHref}/estimates/pending`,
-                active: currentPath.includes('/estimates'),
-                badge: pendingEstimatesCount > 0 ? String(pendingEstimatesCount) : null,
-            },
-            {
-                label: 'Burndown',
-                icon: PremiumDashboardIcon,
-                href: `${baseHref}/burndown`,
-                active: currentPath.includes('/burndown'),
-            }, */
         ]
         : [
             {
@@ -292,19 +288,6 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                 href: `${baseHref}/tasks`,
                 active: currentPath.includes('/tasks'),
             },
-            /* {
-                label: 'Estimates',
-                icon: PremiumEstimatesIcon,
-                href: `${baseHref}/estimates/pending`,
-                active: currentPath.includes('/estimates'),
-                badge: pendingEstimatesCount > 0 ? String(pendingEstimatesCount) : null,
-            },
-            {
-                label: 'Burndown',
-                icon: PremiumDashboardIcon,
-                href: `${baseHref}/burndown`,
-                active: currentPath.includes('/burndown'),
-            }, */
         ];
 
     const automationLinks = isManager
