@@ -88,6 +88,7 @@ class MLEngineIntegrationController extends Controller
         set_time_limit(0);
         $validated = $request->validate([
             'message' => 'required|string|max:3000',
+            'project_id' => 'nullable|integer',
             'history' => 'nullable|array|max:10',
             'history.*.role' => 'required_with:history|string|in:user,assistant',
             'history.*.content' => 'required_with:history|string|max:3000',
