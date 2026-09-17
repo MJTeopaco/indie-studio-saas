@@ -400,7 +400,7 @@ def chat_with_project_data(
     # Bind tools natively
     llm_with_tools = llm.bind_tools(AGENT_TOOLS_LIST)
 
-    max_iterations = 5
+    max_iterations = 12  # complex CPA/multi-tool queries need more steps
     for iteration in range(max_iterations):
         try:
             response = llm_with_tools.invoke(messages)
@@ -435,7 +435,7 @@ def chat_with_project_data(
             logger.error("Chat LLM native tool call failed: %s", exc)
             return "An error occurred while processing your request. Please try again."
             
-    return "The system required too many operations to answer your request."
+    return "This query required more analysis steps than expected. Try breaking it into smaller questions, e.g. 'What tasks are on the critical path?' or 'Who is overallocated?'"
 
 
 def classify_chat_intent(message: str) -> dict[str, Any]:
