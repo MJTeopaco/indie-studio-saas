@@ -9,6 +9,9 @@ php artisan key:generate --force
 # Run migrations (the --force flag skips the production prompt)
 php artisan migrate --force
 
+# Finish the composer post-install step we skipped in the build stage
+php artisan package:discover --ansi
+
 # Optimize the application for production
 php artisan config:cache
 php artisan route:cache

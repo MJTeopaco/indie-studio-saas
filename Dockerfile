@@ -25,11 +25,12 @@ FROM composer:2.8 AS composer-builder
 
 WORKDIR /app
 
-COPY composer.json composer.lock ./
+COPY composer.json composer.lock artisan ./
 RUN composer install \
     --no-dev \
     --no-interaction \
     --no-progress \
+    --no-scripts \
     --optimize-autoloader \
     --prefer-dist
 
