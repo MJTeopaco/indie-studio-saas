@@ -420,7 +420,6 @@ def chat_with_project_data(
                 else:
                     try:
                         result = tool_func.invoke(tool_args)
-                        import json
                         tool_content = json.dumps(result, default=str)
                     except Exception as e:
                         tool_content = f"Error executing tool: {str(e)}"
