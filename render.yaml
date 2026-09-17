@@ -1,0 +1,72 @@
+# render.yaml — Infrastructure as Code for Render
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: indie-studio-saas
+    runtime: docker
+    dockerfilePath: ./Dockerfile         # path relative to repo root
+    dockerContext: .
+    branch: main
+    region: singapore                    # same region as your DB to avoid latency
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: APP_NAME
+        value: IndieStudio
+
+      - key: APP_ENV
+        value: production
+
+      - key: APP_DEBUG
+        value: "false"
+
+      # Render injects the external URL automatically — we reference it here
+      - key: APP_URL
+        fromService:
+          type: web
+          name: indie-studio-saas
+          property: host
+
+      # Laravel app key — generate locally with: php artisan key:generate --show
+      - key: APP_KEY
+        sync: false     # must be set manually in Render dashboard
+
+      # ── Database (provided by Render Postgres) ──────────────────────────
+      - key: DB_CONNECTION
+        value: pgsql
+
+      - key: DATABASE_URL
+        fromDatabase:
+          name: indie-studio-db
+          property: connectionString
+
+      # ── Cache / Queue (use database driver on free tier) ────────────────
+      - key: CACHE_STORE
+        value: database
+
+      - key: SESSION_DRIVER
+        value: database
+
+      - key: QUEUE_CONNECTION
+        value: database
+
+      # ── Logging ─────────────────────────────────────────────────────────
+      - key: LOG_CHANNEL
+        value: stderr        # Render streams stderr to its log viewer
+
+      - key: LOG_LEVEL
+        value: error
+
+      # ── ML Engine URL (update after deploying to Hugging Face) ──────────
+      - key: ML_ENGINE_URL
+        value: http://127.0.0.1:8001   # placeholder — replace with HF Space URL
+
+      - key: ML_ENGINE_SECRET
+        sync: false          # set in dashboard — must match the HF Space secret
+
+databases:
+  - name: indie-studio-db
+    databaseName: indie_studio_db
+    plan: free
+    region: singapore

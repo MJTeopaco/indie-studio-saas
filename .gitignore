@@ -43,7 +43,6 @@ database/tenanttest*
 /.continue/
 /.factory/
 /.gemini/
-/.github/
 /.kilocode/
 /.kiro/
 /.opencode/

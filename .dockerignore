@@ -1,0 +1,66 @@
+# === Version control & IDE dirs ===
+.git
+.gitignore
+.gitattributes
+.editorconfig
+
+# === AI agent / IDE config dirs (not needed in container) ===
+.agents/
+.augment/
+.claude/
+.codebuddy/
+.codewhale/
+.codex/
+.continue/
+.cursor/
+.factory/
+.gemini/
+.github/
+.kilocode/
+.kiro/
+.opencode/
+.qoder/
+.roo/
+.trae/
+.warp/
+.windsurf/
+
+# === Node ===
+node_modules/
+
+# === PHP ===
+vendor/
+
+# === ML Engine (not deployed with Laravel) ===
+ml-engine/
+
+# === Build artifacts produced by host machine ===
+public/build/
+public/hot/
+public/storage/
+
+# === Laravel storage (runtime data) ===
+storage/pail/
+storage/tenant*/
+storage/logs/
+
+# === Env files ===
+.env
+.env.backup
+.env.production
+.env.example
+
+# === Docs / markdown not needed in image ===
+docs/
+*.md
+LICENSE
+
+# === Tests ===
+tests/
+phpunit.xml
+.phpunit.result.cache
+
+# === Misc ===
+Thumbs.db
+.DS_Store
+*.log
