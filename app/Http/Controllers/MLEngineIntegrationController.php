@@ -88,6 +88,7 @@ class MLEngineIntegrationController extends Controller
         set_time_limit(0);
         $validated = $request->validate([
             'message' => 'required|string|max:3000',
+            'project_id' => 'nullable|integer',
             'history' => 'nullable|array|max:10',
             'history.*.role' => 'required_with:history|string|in:user,assistant',
             'history.*.content' => 'required_with:history|string|max:3000',
@@ -106,6 +107,60 @@ class MLEngineIntegrationController extends Controller
         $context = [
             'studio' => $studio?->only(['id', 'name']),
             'current_user_id' => auth()->id(),
+        ];
+
+        if (!empty($validated['project_id'])) {
+            $context['project_id'] = $validated['project_id'];
+            $project = Project::find($validated['project_id']);
+            if ($project) {
+                $context['project_name'] = $project->name;
+            }
+        }
+
+        // Fetch members (lean array)
+        if ($studio) {
+            $context['members'] = $studio->users()->get(['users.id', 'users.name', 'studio_members.role'])
+                ->map(function ($u) use ($studio) {
+                    return [
+                        'id' => $u->id,
+                        'name' => $u->name,
+                        'role' => $u->role,
+                        'is_owner' => ($u->id === $studio->owner_id),
+                    ];
+                })->toArray();
+        } else {
+            $context['members'] = [];
+        }
+
+        // Fetch projects
+        $projectQuery = Project::query();
+        $context['projects'] = (clone $projectQuery)->get(['id', 'name', 'status'])->toArray();
+
+        // Calculate stats via SQL aggregations
+        $taskQuery = \App\Models\Tenant\Task::query();
+        if (!empty($validated['project_id'])) {
+            $taskQuery->where('project_id', $validated['project_id']);
+        }
+
+        $totalTasks = (clone $taskQuery)->count();
+        $totalOverdue = (clone $taskQuery)
+            ->where('status', '!=', 'completed')
+            ->whereNotNull('hard_constraint_date')
+            ->whereDate('hard_constraint_date', '<', now())
+            ->count();
+            
+        $byStatus = (clone $taskQuery)
+            ->selectRaw('status, count(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status')
+            ->toArray();
+
+        $context['stats'] = [
+            'total_members' => count($context['members']),
+            'total_projects' => count($context['projects']),
+            'total_tasks' => $totalTasks,
+            'total_overdue' => $totalOverdue,
+            'by_status' => $byStatus,
         ];
 
         $result = $this->mlService->chatAboutProject($message, $context, $validated['history'] ?? []);

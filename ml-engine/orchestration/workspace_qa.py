@@ -124,6 +124,9 @@ def answer_workspace_question(
     projects = context.get("projects", [])
     studio_name = (context.get("studio") or {}).get("name", "your studio")
 
+    is_asking_count = bool(re.search(r"\bhow many\b|\bcount\b|\btotal\b|\bnumber\b", msg))
+    is_asking_list = bool(re.search(r"\blist\b|\bsummarize\b|\bwhat are\b|\bshow me\b", msg))
+
     # ── Member count ──────────────────────────────────────────────────────
     _MEMBER_PATTERNS = [
         r"how many (studio\s*)?(members?|team\s*members?|teammates?|people|users?)",
@@ -132,7 +135,7 @@ def answer_workspace_question(
         r"(total|count|number) of (members?|team)",
     ]
     for pat in _MEMBER_PATTERNS:
-        if re.search(pat, msg):
+        if re.search(pat, msg) and not is_asking_list:
             total = stats.get("total_members", len(members))
             # Identify the owner explicitly for clarity
             owner = next((m for m in members if m.get("is_owner")), None)
@@ -151,7 +154,7 @@ def answer_workspace_question(
         r"how many (are|have)\s*overdue",
     ]
     for pat in _OVERDUE_PATTERNS:
-        if re.search(pat, msg):
+        if re.search(pat, msg) and not is_asking_list:
             overdue = stats.get("total_overdue", 0)
             if overdue == 0:
                 return "Great news — there are no overdue tasks in your workspace right now."
@@ -161,16 +164,23 @@ def answer_workspace_question(
             )
 
     # ── Tasks by status ───────────────────────────────────────────────────
-    _BY_STATUS_PATTERNS = [
-        r"how many (tasks?|tickets?|items?)\s*(are\s*)?(in\s+)?{status}",
-        r"(tasks?|tickets?|items?)\s*(in|with|that are|marked as|status)\s*['\"]?{status}['\"]?",
-        r"(count|total|number) of\s*(tasks?|tickets?)\s*(in\s+)?{status}",
-    ]
-    matched_status = _extract_status(msg)
-    if matched_status and bool(re.search(r"how many|count|total|number|tasks?|tickets?", msg)):
+    explicit_status_matched = None
+    is_asking_status_count = False
+    
+    for alias, db_status in _STATUS_ALIASES.items():
+        escaped_alias = re.escape(alias)
+        pat1 = r"how many (tasks?|tickets?|items?)\s*(are\s*)?(in\s+)?" + escaped_alias + r"\b"
+        pat2 = r"(count|total|number) of\s*(all\s*)?(tasks?|tickets?)\s*(in\s+)?" + escaped_alias + r"\b"
+        
+        if re.search(pat1, msg) or re.search(pat2, msg):
+            explicit_status_matched = db_status
+            is_asking_status_count = True
+            break
+
+    if is_asking_status_count and not is_asking_list:
         by_status = stats.get("by_status", {})
-        count = by_status.get(matched_status, 0)
-        human_status = matched_status.replace("_", " ")
+        count = by_status.get(explicit_status_matched, 0)
+        human_status = explicit_status_matched.replace("_", " ")
         if count == 0:
             return f"There are currently no tasks with status '{human_status}' in your workspace."
         return f"There are {count} task(s) with status '{human_status}' in your workspace."
@@ -205,7 +215,7 @@ def answer_workspace_question(
         if re.search(pat, msg):
             # Avoid triggering on "how many tasks are overdue/in review" — those
             # are already handled above; only trigger on bare count questions.
-            if not matched_status and not re.search(r"overdue|past due|late|behind", msg):
+            if not _extract_status(msg) and not re.search(r"overdue|past due|late|behind", msg) and not is_asking_list:
                 total = stats.get("total_tasks", 0)
                 by_status = stats.get("by_status", {})
                 completed = by_status.get("completed", 0)
