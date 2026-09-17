@@ -3,8 +3,12 @@ set -e
 
 echo "▶ Running Laravel bootstrap..."
 
-# Generate app key if not set
-php artisan key:generate --force
+# In Docker, APP_KEY must be set as an environment variable in Render.
+# We do NOT run key:generate because there is no .env file to write to.
+if [ -z "$APP_KEY" ]; then
+  echo "❌ ERROR: APP_KEY environment variable is not set. Aborting."
+  exit 1
+fi
 
 # Run migrations (the --force flag skips the production prompt)
 php artisan migrate --force
