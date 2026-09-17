@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
-use Stancl\Tenancy\Database\Models\Tenant as BaseTenant;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Stancl\Tenancy\Contracts\TenantWithDatabase;
 use Stancl\Tenancy\Database\Concerns\HasDatabase;
 use Stancl\Tenancy\Database\Concerns\HasDomains;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Stancl\Tenancy\Database\Models\Tenant as BaseTenant;
 
 class Studio extends BaseTenant implements TenantWithDatabase
 {
@@ -34,14 +35,14 @@ class Studio extends BaseTenant implements TenantWithDatabase
         return $this->hasMany(StudioInvitation::class, 'studio_id');
     }
 
-    public function users(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'studio_members', 'studio_id', 'user_id')
-                    ->withPivot('role')
-                    ->withTimestamps();
+            ->withPivot('role')
+            ->withTimestamps();
     }
 
-    public function members(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    public function members(): BelongsToMany
     {
         return $this->users();
     }

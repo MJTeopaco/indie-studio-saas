@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('name', 150);
             $table->timestamps();
             $table->softDeletes();
-            
+
             $table->unique(['macro_domain_id', 'name']);
         });
     }

@@ -474,46 +474,111 @@ def decompose_project_hierarchically(project_description: str) -> dict:
     raise ValueError(f"Hierarchical decomposition failed after 2 attempts: {last_error}")
 
 # ---------------------------------------------------------------------------
-# Routing / Intent Parsing
+# Routing / Intent Parsing (Hybrid Semantic Router)
 # ---------------------------------------------------------------------------
 
+HIGH_CONFIDENCE_THRESHOLD = 0.85
+LOW_CONFIDENCE_THRESHOLD = 0.70
+
 class SemanticIntent(BaseModel):
-    intent: str = Field(description="One of: CREATE_TASK, NEW_PROJECT, or GENERAL_CHAT")
+    thinking: str = Field(description="Step 1: Identify the core action verb (e.g. analyze, recommend, create, break down)")
+    intent: str = Field(description="One of: GENERAL_CHAT, CREATE_TASK, NEW_PROJECT, or CLARIFY")
     confidence: float = Field(description="Confidence score between 0.0 and 1.0")
+    clarification_question: Optional[str] = Field(default=None, description="Only populated when intent == CLARIFY")
 
 _ROUTING_SYSTEM = """
-Categorize the following user input into one of three intents:
+Categorize the user input into one of four intents using a two-step Chain-of-Thought process.
+
+STEP 1 (Thinking): Identify the primary action verb.
+- Is the user asking to analyze, recommend, assign, audit, or query data?
+- Or is the user asking to create, plan, build, or decompose something new?
+NOTE: Nouns like "Sprint" or "Epic" are context targets, NOT intent signals. Only the verb determines the intent.
+
+STEP 2 (Classification): Based on the verb, select the intent:
 1. CREATE_TASK: The user wants to break down a feature into tasks, plan a sprint, or create tasks.
 2. NEW_PROJECT: The user wants to start, build, or create a completely new project.
-3. GENERAL_CHAT: The user is asking a general question, querying the database, or just chatting.
+3. GENERAL_CHAT: The user is asking a general question, querying the database, or requesting recommendations/assignments.
+4. CLARIFY: The verb is missing or highly ambiguous.
+
+If intent is CLARIFY, you MUST provide a friendly 'clarification_question' asking the user what they meant.
 
 Output strictly in JSON format matching this schema:
-{ "intent": "CREATE_TASK", "confidence": 0.95 }
+{ "thinking": "...", "intent": "GENERAL_CHAT", "confidence": 0.95, "clarification_question": null }
 """
 
 def parse_semantic_intent(raw_text: str) -> SemanticIntent:
     """
-    Categorize user input into an actionable routing intent.
-    Used by the frontend to decide which AI modal to open.
+    Categorize user input into an actionable routing intent using Hybrid Fusion
+    (LLM CoT + Vector Similarity).
     """
     from orchestration.llm_client import get_llm
+    from orchestration.semantic_router import vector_route
     from langchain_core.messages import HumanMessage, SystemMessage
 
-    llm = get_llm(json_mode=True)
-    if llm is None:
-        return SemanticIntent(intent="GENERAL_CHAT", confidence=0.0)
-
-    messages = [
-        SystemMessage(content=_ROUTING_SYSTEM),
-        HumanMessage(content=raw_text),
-    ]
-    
+    # Layer 2: Vector Similarity Anchor
     try:
-        response = llm.invoke(messages)
-        raw_json = _extract_json_from_response(response.content)
-        data = json.loads(raw_json)
-        return SemanticIntent(**data)
+        vec_intent, vec_confidence = vector_route(raw_text)
     except Exception as exc:
-        logger.warning("Semantic intent parse failed: %s", exc)
-        return SemanticIntent(intent="GENERAL_CHAT", confidence=0.0)
+        logger.warning("Vector routing failed: %s", exc)
+        vec_intent, vec_confidence = "GENERAL_CHAT", 0.0
 
+    # Layer 1: Chain-of-Thought LLM
+    llm = get_llm(json_mode=True)
+    llm_intent = "GENERAL_CHAT"
+    llm_confidence = 0.0
+    llm_thinking = ""
+    clarification_q = None
+
+    if llm is not None:
+        messages = [
+            SystemMessage(content=_ROUTING_SYSTEM),
+            HumanMessage(content=raw_text),
+        ]
+        try:
+            response = llm.invoke(messages)
+            raw_json = _extract_json_from_response(response.content)
+            data = json.loads(raw_json)
+            parsed = SemanticIntent(**data)
+            llm_intent = parsed.intent
+            llm_confidence = parsed.confidence
+            llm_thinking = parsed.thinking
+            clarification_q = parsed.clarification_question
+        except Exception as exc:
+            logger.warning("LLM CoT intent parse failed: %s", exc)
+    
+    # Layer 3: Hybrid Fusion Logic
+    final_intent = "GENERAL_CHAT"
+    final_confidence = 0.0
+    final_clarification = None
+
+    if llm_intent == vec_intent:
+        # Agreement
+        final_intent = llm_intent
+        final_confidence = (llm_confidence + vec_confidence) / 2.0
+        final_clarification = clarification_q
+    elif llm_confidence > HIGH_CONFIDENCE_THRESHOLD and vec_confidence < HIGH_CONFIDENCE_THRESHOLD:
+        # LLM is highly confident, vector is not
+        final_intent = llm_intent
+        final_confidence = llm_confidence
+        final_clarification = clarification_q
+    elif vec_confidence > HIGH_CONFIDENCE_THRESHOLD and llm_confidence < HIGH_CONFIDENCE_THRESHOLD:
+        # Vector is highly confident, LLM is not
+        final_intent = vec_intent
+        final_confidence = vec_confidence
+    else:
+        # Disagreement and no clear winner -> trigger CLARIFY
+        final_intent = "CLARIFY"
+        final_confidence = 1.0
+        final_clarification = clarification_q or "I'm not completely sure what you'd like to do. Could you clarify if you want to create tasks, or if you're just asking a question?"
+
+    # If it falls below the low confidence threshold, force clarify
+    if final_confidence < LOW_CONFIDENCE_THRESHOLD and final_intent != "CLARIFY":
+        final_intent = "CLARIFY"
+        final_clarification = clarification_q or "I'm not completely sure what you'd like to do. Could you clarify if you want to create tasks, or if you're just asking a question?"
+
+    return SemanticIntent(
+        thinking=llm_thinking or "Vector routed or fallback used.",
+        intent=final_intent,
+        confidence=final_confidence,
+        clarification_question=final_clarification
+    )

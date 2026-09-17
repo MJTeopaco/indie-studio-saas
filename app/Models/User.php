@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Tenant\UserDomain;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -20,7 +23,8 @@ class User extends Authenticatable
 
     /** Role constants — use these instead of magic strings throughout the app */
     const ROLE_PROGRAMMER = 'programmer';
-    const ROLE_ADMIN      = 'admin';
+
+    const ROLE_ADMIN = 'admin';
 
     /**
      * Get the attributes that should be cast.
@@ -31,7 +35,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
-            'password'          => 'hashed',
+            'password' => 'hashed',
         ];
     }
 
@@ -59,11 +63,11 @@ class User extends Authenticatable
     /**
      * Get the studios the user is a member of (including ones they own).
      */
-    public function joinedStudios(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    public function joinedStudios(): BelongsToMany
     {
         return $this->belongsToMany(Studio::class, 'studio_members', 'user_id', 'studio_id')
-                    ->withPivot('role')
-                    ->withTimestamps();
+            ->withPivot('role')
+            ->withTimestamps();
     }
 
     // -------------------------------------------------------------------------
@@ -75,12 +79,12 @@ class User extends Authenticatable
      * Retrieves the pivot records from the current tenant database,
      * then fetches the corresponding MicroDomain records from the central database.
      *
-     * @return \Illuminate\Database\Eloquent\Collection
+     * @return Collection
      */
     public function microDomains()
     {
         // Get the micro_domain_ids for this user from the tenant database
-        $microDomainIds = \App\Models\Tenant\UserDomain::where('user_id', $this->id)
+        $microDomainIds = UserDomain::where('user_id', $this->id)
             ->pluck('micro_domain_id');
 
         // Fetch the actual MicroDomain models from the central database

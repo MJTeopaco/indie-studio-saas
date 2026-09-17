@@ -2,9 +2,17 @@
 
 namespace Database\Seeders;
 
+use App\Models\GlobalProfile;
+use App\Models\MicroDomain;
+use App\Models\Position;
+use App\Models\Skill;
 use App\Models\Studio;
+use App\Models\Tenant\Project;
+use App\Models\Tenant\ProjectMember;
+use App\Models\Tenant\UserDomain;
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
 
 class StudioWithMembersSeeder extends Seeder
@@ -25,9 +33,9 @@ class StudioWithMembersSeeder extends Seeder
             ]
         );
 
-        $positionId = \App\Models\Position::firstOrCreate(['name' => 'Technical Product Manager'])->id;
+        $positionId = Position::firstOrCreate(['name' => 'Technical Product Manager'])->id;
 
-        $managerProfile = \App\Models\GlobalProfile::updateOrCreate(
+        $managerProfile = GlobalProfile::updateOrCreate(
             ['user_id' => $manager->id],
             [
                 'position_id' => $positionId,
@@ -39,7 +47,7 @@ class StudioWithMembersSeeder extends Seeder
         );
 
         // Assign some basic skills to the manager profile
-        $skills = \App\Models\Skill::whereIn('name', ['Project Management', 'Strategic Leadership', 'Agile / Scrum Sprint Planning'])->pluck('id');
+        $skills = Skill::whereIn('name', ['Project Management', 'Strategic Leadership', 'Agile / Scrum Sprint Planning'])->pluck('id');
         $syncSkills = [];
         foreach ($skills as $skillId) {
             $syncSkills[$skillId] = ['proficiency_level' => 5];
@@ -60,7 +68,7 @@ class StudioWithMembersSeeder extends Seeder
                         'owner_id' => $manager->id,
                     ]);
                 });
-                \Illuminate\Support\Facades\Artisan::call('tenants:migrate-fresh', [
+                Artisan::call('tenants:migrate-fresh', [
                     '--tenants' => [$studio->getTenantKey()],
                 ]);
             } else {
@@ -76,7 +84,7 @@ class StudioWithMembersSeeder extends Seeder
 
         // 3. Attach Manager as owner in studio_members
         $manager->joinedStudios()->syncWithoutDetaching([
-            $studio->id => ['role' => 'owner']
+            $studio->id => ['role' => 'owner'],
         ]);
 
         // 4. Populate Studio with members from the developer pool
@@ -88,7 +96,7 @@ class StudioWithMembersSeeder extends Seeder
 
         foreach ($developers as $developer) {
             $developer->joinedStudios()->syncWithoutDetaching([
-                $studio->id => ['role' => 'member']
+                $studio->id => ['role' => 'member'],
             ]);
         }
 
@@ -110,7 +118,7 @@ class StudioWithMembersSeeder extends Seeder
             'Data Scientist' => ['Machine Learning (Supervised & Unsupervised)', 'Data Pipeline Engineering', 'Natural Language Processing & Computer Vision'],
         ];
 
-        $microDomainsLookup = \App\Models\MicroDomain::pluck('id', 'name');
+        $microDomainsLookup = MicroDomain::pluck('id', 'name');
 
         foreach ($developers as $developer) {
             $positionName = $developer->globalProfile?->position?->name ?? 'Full Stack Developer';
@@ -119,7 +127,7 @@ class StudioWithMembersSeeder extends Seeder
             foreach ($domainNames as $domainName) {
                 $microDomainId = $microDomainsLookup->get($domainName);
                 if ($microDomainId) {
-                    \App\Models\Tenant\UserDomain::firstOrCreate([
+                    UserDomain::firstOrCreate([
                         'user_id' => $developer->id,
                         'micro_domain_id' => $microDomainId,
                     ]);
@@ -128,19 +136,19 @@ class StudioWithMembersSeeder extends Seeder
         }
 
         // 6. Seed initial projects and assign members
-        $projects = \App\Models\Tenant\Project::factory(3)->create();
-        
+        $projects = Project::factory(3)->create();
+
         foreach ($projects as $project) {
-            \App\Models\Tenant\ProjectMember::create([
+            ProjectMember::create([
                 'project_id' => $project->id,
                 'user_id' => $manager->id,
                 'project_role' => 'Project Manager',
             ]);
-            
+
             // Randomly assign 3 developers to each project
             $projectDevs = $developers->random(min(3, $developers->count()));
             foreach ($projectDevs as $dev) {
-                \App\Models\Tenant\ProjectMember::create([
+                ProjectMember::create([
                     'project_id' => $project->id,
                     'user_id' => $dev->id,
                     'project_role' => 'Developer',
@@ -150,6 +158,6 @@ class StudioWithMembersSeeder extends Seeder
 
         tenancy()->end();
 
-        $this->command->info('StudioWithMembersSeeder: Seeded studio "' . $studio->name . '" (ID: ' . $studio->id . ') with 1 manager, ' . $developers->count() . ' members, and tenant domain mappings.');
+        $this->command->info('StudioWithMembersSeeder: Seeded studio "'.$studio->name.'" (ID: '.$studio->id.') with 1 manager, '.$developers->count().' members, and tenant domain mappings.');
     }
 }

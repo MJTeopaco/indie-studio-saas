@@ -200,6 +200,14 @@ class TenantTaskController extends Controller
             }
         }
 
+        if ($newStatus === 'completed') {
+            $validated['completed_at'] = now();
+            $validated['completed_by_user_id'] = $user?->id ?? $taskModel->assigned_user_id;
+        } elseif ($newStatus !== null && $newStatus !== 'completed' && $taskModel->status === 'completed') {
+            $validated['completed_at'] = null;
+            $validated['completed_by_user_id'] = null;
+        }
+
         $taskModel->update($validated);
 
         if ($request->wantsJson() || $request->ajax()) {

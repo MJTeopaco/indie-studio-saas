@@ -16,10 +16,10 @@ return new class extends Migration
 
         // 1. Add nullable columns first so we can backfill
         Schema::table('epics', function (Blueprint $table) {
-            if (!Schema::hasColumn('epics', 'phase_id')) {
+            if (! Schema::hasColumn('epics', 'phase_id')) {
                 $table->unsignedBigInteger('phase_id')->nullable()->after('color');
             }
-            if (!Schema::hasColumn('epics', 'priority_id')) {
+            if (! Schema::hasColumn('epics', 'priority_id')) {
                 $table->unsignedBigInteger('priority_id')->nullable()->after('phase_id');
             }
         });

@@ -9,7 +9,9 @@ class UserDomain extends Model
     protected $table = 'user_domains';
 
     public $incrementing = false;
+
     public $timestamps = false;
+
     protected $primaryKey = null;
 
     protected $fillable = [

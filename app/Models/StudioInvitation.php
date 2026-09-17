@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Stancl\Tenancy\Database\Concerns\CentralConnection;
 
 class StudioInvitation extends Model
 {
-    use \Stancl\Tenancy\Database\Concerns\CentralConnection;
+    use CentralConnection;
 
     protected $fillable = [
         'studio_id',

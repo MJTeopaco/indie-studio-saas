@@ -333,6 +333,6 @@ class DeveloperPoolSeeder extends Seeder
             $profile->skills()->sync($syncSkills);
         }
 
-        $this->command->info('DeveloperPoolSeeder: Seeded ' . count($developers) . ' developer profiles with skills.');
+        $this->command->info('DeveloperPoolSeeder: Seeded '.count($developers).' developer profiles with skills.');
     }
 }

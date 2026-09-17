@@ -239,7 +239,11 @@ Requirements:
                     message: trimmedPrompt,
                 }, { signal: controller.signal });
 
-                if (intentData.intent === 'CREATE_TASK') {
+                if (intentData.intent === 'CLARIFY') {
+                    addAssistantMessage(intentData.clarification_question || "I'm not sure what you'd like to do. Could you clarify?");
+                    setActiveActionIntent(null);
+                    return;
+                } else if (intentData.intent === 'CREATE_TASK') {
                     isPlanning = true;
                 } else if (intentData.intent === 'NEW_PROJECT') {
                     isNewProject = true;

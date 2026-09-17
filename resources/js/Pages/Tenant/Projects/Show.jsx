@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Head, usePage } from '@inertiajs/react';
 import ProjectLayout from '@/Layouts/ProjectLayout';
-import { BarChart3, CalendarDays, Clock, Columns3, Cpu, Plus, Search, TableProperties, AlertTriangle, Flame, CheckCircle2, Edit2, Flag, IterationCcw, IterationCw, ListTodo, Layers } from 'lucide-react';
+import { BarChart3, CalendarDays, Clock, Columns3, Cpu, Plus, Search, TableProperties, AlertTriangle, Flame, CheckCircle2, Edit2, Flag, IterationCcw, IterationCw, ListTodo, Layers, Sparkles, ChevronDown, ChevronUp, Zap, X as LucideX } from 'lucide-react';
 import axios from 'axios';
 import BestFitModal from '@/Components/ML/BestFitModal';
 import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
@@ -11,6 +11,7 @@ import EpicBreakdown from '@/Components/Tenant/Projects/EpicBreakdown';
 import SprintBreakdown from '@/Components/Tenant/Projects/SprintBreakdown';
 import UpdateTaskStatusModal from '@/Components/Tenant/Projects/UpdateTaskStatusModal';
 import ManageAssignmentModal from '@/Components/Tenant/Projects/ManageAssignmentModal';
+import { CpaAiSummaryCard, CpaTaskAiModal, CpaTaskAiButton } from '@/Components/Tenant/CpaAiSynthesizer';
 
 function getContrastColor(hexColor) {
     if (!hexColor) return '#111827';
@@ -597,6 +598,7 @@ function MyTasksList({ groups, onFindFit, onEditStatus, projectStartDate }) {
 
 function Timeline({ tasks, project, onEdit }) {
     const { canManage, auth } = usePage().props;
+    const [aiModalTask, setAiModalTask] = useState(null);
     const scheduled = sortByPriorityAndCriticality(tasks.filter(task => task.es !== null && task.ef !== null));
     const maxFinish = Math.max(1, ...scheduled.map(task => Number(task.ef)));
     const formatHours = hours => `${Number(hours).toFixed(1)}h (${(Number(hours) / 8).toFixed(1)} days)`;
@@ -607,6 +609,11 @@ function Timeline({ tasks, project, onEdit }) {
 
     return (
         <div className="overflow-auto p-6 space-y-6">
+            {/* ── AI CPA Schedule Synthesis & Executive Intelligence ── */}
+            {scheduled.length > 0 && (
+                <CpaAiSummaryCard tasks={tasks} project={project} />
+            )}
+
             {/* Summary Bar */}
             <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
                 <div>
@@ -624,14 +631,14 @@ function Timeline({ tasks, project, onEdit }) {
                 <div>
                     <span className="block text-[11px] font-bold uppercase tracking-wider text-gray-400">Total Scheduled Tasks</span>
                     <span className="mt-1 block text-sm font-bold text-gray-900 dark:text-slate-100">
-                        {scheduled.length} of {tasks.length} ({criticalCount} Critical Path)
+                        {scheduled.length} of {tasks.length} ({criticalCount} Must-Do Tasks)
                     </span>
                 </div>
                 <div className="flex items-center justify-start md:justify-end">
                     {hasDelayed ? (
                         <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-400 text-xs font-bold animate-pulse">
                             <AlertTriangle className="w-4 h-4 text-rose-600" />
-                            Project Schedule Breached
+                            Schedule Delay Detected
                         </div>
                     ) : (
                         <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-xs font-bold">
@@ -646,20 +653,26 @@ function Timeline({ tasks, project, onEdit }) {
             <div className="min-w-[850px] rounded-2xl border border-gray-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
                 <div className="mb-5 flex items-center justify-between border-b border-gray-100 pb-4 dark:border-slate-800">
                     <div>
-                        <h2 className="text-sm font-bold text-gray-900 dark:text-slate-100">Dynamic Critical Path Analysis (CPA) Gantt</h2>
-                        <p className="mt-1 text-xs text-gray-500">
-                            Auto-derived early start (ES), early finish (EF), and float slack based on project network dependencies.
+                        <h2 className="text-sm font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2">
+                            <span>Project Timeline &amp; Schedule Schedule</span>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                Live CPA Gantt
+                            </span>
+                        </h2>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
+                            Shows which tasks directly control your delivery date and which tasks have flexible breathing room.
                         </p>
                     </div>
-                    <div className="flex items-center gap-4 text-xs font-medium text-gray-600 dark:text-slate-400">
-                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-500 inline-block" /> Completed</span>
+                    <div className="flex items-center gap-4 text-xs font-medium text-gray-600 dark:text-slate-400 flex-wrap">
+                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-500 inline-block" /> Must-Do (Zero Buffer)</span>
                         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-indigo-500 inline-block" /> In Progress</span>
-                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-rose-500 inline-block" /> Delayed / Critical</span>
+                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-500 inline-block" /> Completed</span>
+                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-rose-500 inline-block" /> Behind Schedule</span>
                     </div>
                 </div>
 
                 {scheduled.length ? (
-                    <div className="space-y-5">
+                    <div className="space-y-4">
                         {scheduled.map(task => {
                             const isClickable = canManage || isUserAssignedToTask(task, auth?.user);
                             const isDelayed = task.total_float !== null && task.total_float !== undefined && Number(task.total_float) < 0;
@@ -673,7 +686,7 @@ function Timeline({ tasks, project, onEdit }) {
                                 <div
                                     key={task.id}
                                     onClick={() => isClickable && onEdit(task)}
-                                    className={`grid grid-cols-[240px_1fr_180px] items-center gap-4 p-3 rounded-xl border transition-all ${isClickable
+                                    className={`grid grid-cols-[250px_1fr_240px] items-center gap-4 p-3.5 rounded-xl border transition-all ${isClickable
                                         ? 'cursor-pointer hover:border-gray-200 hover:bg-gray-50/50 dark:hover:border-slate-800 dark:hover:bg-slate-800/30'
                                         : 'cursor-default'
                                         } ${isDelayed
@@ -696,7 +709,7 @@ function Timeline({ tasks, project, onEdit }) {
                                     {/* Bar visualizer */}
                                     <div className="relative h-8 rounded-lg bg-slate-100 dark:bg-slate-800/80 overflow-hidden px-1 flex items-center">
                                         <div
-                                            title={`ES ${task.es} - EF ${task.ef} (${task.estimated_hours}h)`}
+                                            title={`${task.title} • ${task.estimated_hours}h • ${isCrit ? 'Must finish on time (Zero delay buffer)' : `Safe buffer: +${task.total_float}h breathing room`}`}
                                             className={`absolute top-1.5 h-5 rounded-md shadow-sm flex items-center justify-between px-2 text-[10px] font-bold text-white transition-all ${isCompleted ? 'bg-emerald-500' : isDelayed ? 'bg-rose-600 animate-pulse' : isCrit ? 'bg-amber-500' : task.status === 'in_progress' ? 'bg-indigo-500' : 'bg-brand'
                                                 }`}
                                             style={{
@@ -708,9 +721,13 @@ function Timeline({ tasks, project, onEdit }) {
                                         </div>
                                     </div>
 
-                                    {/* Status Badge & Actions */}
-                                    <div className="flex items-center justify-end gap-2">
-                                        <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${isCompleted
+                                    {/* Status Badge, Actions & AI Reason Button */}
+                                    <div className="flex items-center justify-end gap-2 shrink-0">
+                                        <CpaTaskAiButton
+                                            task={task}
+                                            onClick={(t) => setAiModalTask(t)}
+                                        />
+                                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${isCompleted
                                             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
                                             : task.status === 'in_progress'
                                                 ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300'
@@ -730,6 +747,13 @@ function Timeline({ tasks, project, onEdit }) {
                     </div>
                 )}
             </div>
+
+            {/* Task-Level AI Explanation Modal */}
+            <CpaTaskAiModal
+                task={aiModalTask}
+                isOpen={Boolean(aiModalTask)}
+                onClose={() => setAiModalTask(null)}
+            />
         </div>
     );
 }

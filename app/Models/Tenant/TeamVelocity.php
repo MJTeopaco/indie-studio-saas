@@ -8,9 +8,9 @@ use Illuminate\Database\Eloquent\Model;
 class TeamVelocity extends Model
 {
     use HasFactory;
-    
+
     protected $table = 'team_velocity';
-    
+
     protected $fillable = [
         'team_id',
         'sprint_id',
@@ -18,7 +18,7 @@ class TeamVelocity extends Model
         'points_completed',
         'computed_at',
     ];
-    
+
     protected $casts = [
         'computed_at' => 'datetime',
         'points_committed' => 'integer',

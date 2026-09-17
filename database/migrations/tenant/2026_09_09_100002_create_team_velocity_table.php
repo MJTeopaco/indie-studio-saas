@@ -15,10 +15,10 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('team_id'); // Mapping to project id for Phase 3 MVP
             $table->string('sprint_label'); // e.g. "2026-W37"
-            
+
             $table->unsignedInteger('points_committed')->default(0);
             $table->unsignedInteger('points_completed')->default(0);
-            
+
             $table->timestamp('computed_at')->useCurrent();
             $table->timestamps();
         });
