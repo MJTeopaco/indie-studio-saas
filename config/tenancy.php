@@ -205,6 +205,6 @@ return [
      */
     'seeder_parameters' => [
         '--class' => 'TenantSeeder', // root seeder class
-        // '--force' => true, // This needs to be true to seed tenant databases in production
+        '--force' => true, // Required to bypass production confirmation prompt
     ],
 ];
