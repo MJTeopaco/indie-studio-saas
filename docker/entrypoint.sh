@@ -34,7 +34,7 @@ fi
 if [ "$RUN_SEEDER" = "true" ]; then
   echo "🌱 RUN_SEEDER=true: wiping and re-seeding database for demo..."
   php artisan migrate:fresh --seed --force
-  php artisan tenants:migrate-fresh --force
+  php artisan tenants:migrate-fresh
   php artisan tenants:run "db:seed" --option="class=TenantSeeder"
   echo "✅ Full demo seed complete."
 else
