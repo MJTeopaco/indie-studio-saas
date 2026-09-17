@@ -5,8 +5,8 @@
     "scripts": {
         "build": "vite build",
         "dev": "vite",
-        "php:serve": "cross-env PHP_CLI_SERVER_WORKERS=4 php artisan serve --host=127.0.0.1 --port=8000",
-        "ml:serve": "cd ml-engine && .\\venv\\Scripts\\uvicorn main:app --host 127.0.0.1 --port 8001 --reload"
+        "php:serve": "concurrently \"php artisan serve --host=127.0.0.1 --port=8000\" \"php artisan serve --host=127.0.0.1 --port=8002\"",
+        "ml:serve": "cd ml-engine && cross-env LARAVEL_API_URL=http://127.0.0.1:8002 .\\venv\\Scripts\\uvicorn main:app --host 127.0.0.1 --port 8001 --reload"
     },
     "devDependencies": {
         "@headlessui/react": "^2.0.0",

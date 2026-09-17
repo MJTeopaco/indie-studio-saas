@@ -364,6 +364,9 @@ You do not have all data upfront. You MUST use your available tools to query the
 Basic context provided:
 - `studio`: basic studio info (id, name)
 - `project_id`: (if selected) the ID of the current project
+- `project_name`: (if selected) the name of the current project
+
+You are provided with the active workspace context (Project ID, Name, etc.). NEVER ask the user for database IDs (like project_id). Always use the context provided to you automatically.
 """
 
 def chat_with_project_data(

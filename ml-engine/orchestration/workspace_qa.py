@@ -164,12 +164,23 @@ def answer_workspace_question(
             )
 
     # ── Tasks by status ───────────────────────────────────────────────────
-    matched_status = _extract_status(msg)
+    explicit_status_matched = None
+    is_asking_status_count = False
+    
+    for alias, db_status in _STATUS_ALIASES.items():
+        escaped_alias = re.escape(alias)
+        pat1 = r"how many (tasks?|tickets?|items?)\s*(are\s*)?(in\s+)?" + escaped_alias + r"\b"
+        pat2 = r"(count|total|number) of\s*(all\s*)?(tasks?|tickets?)\s*(in\s+)?" + escaped_alias + r"\b"
+        
+        if re.search(pat1, msg) or re.search(pat2, msg):
+            explicit_status_matched = db_status
+            is_asking_status_count = True
+            break
 
-    if matched_status and is_asking_count and not is_asking_list:
+    if is_asking_status_count and not is_asking_list:
         by_status = stats.get("by_status", {})
-        count = by_status.get(matched_status, 0)
-        human_status = matched_status.replace("_", " ")
+        count = by_status.get(explicit_status_matched, 0)
+        human_status = explicit_status_matched.replace("_", " ")
         if count == 0:
             return f"There are currently no tasks with status '{human_status}' in your workspace."
         return f"There are {count} task(s) with status '{human_status}' in your workspace."
@@ -204,7 +215,7 @@ def answer_workspace_question(
         if re.search(pat, msg):
             # Avoid triggering on "how many tasks are overdue/in review" — those
             # are already handled above; only trigger on bare count questions.
-            if not matched_status and not re.search(r"overdue|past due|late|behind", msg) and not is_asking_list:
+            if not _extract_status(msg) and not re.search(r"overdue|past due|late|behind", msg) and not is_asking_list:
                 total = stats.get("total_tasks", 0)
                 by_status = stats.get("by_status", {})
                 completed = by_status.get("completed", 0)
