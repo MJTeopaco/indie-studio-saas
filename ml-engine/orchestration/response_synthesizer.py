@@ -367,8 +367,11 @@ Available Tools (output exact JSON to call a tool):
 3. {"tool": "get_developer_workload", "parameters": {"studio_id": <int>, "user_id": <int>}}
 4. {"tool": "get_sprint_tasks", "parameters": {"project_id": <int>, "sprint_name": "<str> (The specific name of the sprint, or use the exact string 'current' if the user asks for the active/current sprint)."}}
 
-CRITICAL INSTRUCTION: If you need to use a tool, you MUST output ONLY the raw JSON object and NOTHING else. Do not add any conversational text, greetings, or explanations before or after the JSON. 
-Once you receive the tool result, you may then synthesize a conversational response to the user.
+CRITICAL INSTRUCTIONS FOR TOOL CALLING:
+1. To call a tool, you MUST output the raw JSON object. 
+2. DO NOT output conversational text, plans, or explanations like "I will now run the query". Saying you will run the query does nothing; you MUST output the JSON to actually trigger it.
+3. You can only call ONE tool at a time. If you need multiple pieces of data, call the first tool, wait for the system to return the result, then call the second tool in your next turn.
+4. Once you have gathered all the necessary data via tools, ONLY THEN should you synthesize your final conversational response to the user.
 
 Basic context provided:
 - `studio`: basic studio info (id, name)
