@@ -6,5 +6,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Hugging Face routes traffic to port 7860 by default
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]
+# Railway dynamically assigns a PORT env var — bind to it.
+# Falls back to 8000 for local development.
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
