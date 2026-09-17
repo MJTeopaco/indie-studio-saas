@@ -12,12 +12,12 @@ class TenantOverviewController extends Controller
     {
         $studio = Studio::find(tenant('id'));
         $projects = Project::withCount([
-                'projectMembers as members_count',
-                'tasks',
-                'tasks as tasks_done' => fn ($query) => $query->where('status', 'completed'),
-                'tasks as tasks_under_review' => fn ($query) => $query->where('status', 'review'),
-                'tasks as tasks_active' => fn ($query) => $query->whereIn('status', ['todo', 'in_progress']),
-            ])
+            'projectMembers as members_count',
+            'tasks',
+            'tasks as tasks_done' => fn ($query) => $query->where('status', 'completed'),
+            'tasks as tasks_under_review' => fn ($query) => $query->where('status', 'review'),
+            'tasks as tasks_active' => fn ($query) => $query->whereIn('status', ['todo', 'in_progress']),
+        ])
             ->with(['tasks.assignee'])
             ->latest()
             ->get()
@@ -34,7 +34,7 @@ class TenantOverviewController extends Controller
                 'tasks_done' => $project->tasks_done,
                 'tasks_under_review' => $project->tasks_under_review,
                 'tasks_active' => $project->tasks_active,
-                'tasks' => $project->tasks->map(fn($t) => [
+                'tasks' => $project->tasks->map(fn ($t) => [
                     'id' => $t->id,
                     'title' => $t->title,
                     'status' => $t->status,

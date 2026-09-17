@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Tenant\ChannelMessage;
+use App\Models\Tenant\ChannelRead;
 use App\Models\Tenant\Project;
 use App\Models\Tenant\Task;
 use App\Models\Tenant\TaskEstimateSubmission;
@@ -136,7 +137,13 @@ class HandleInertiaRequests extends Middleware
 
                     $messageNotifCount = 0;
                     if (Schema::hasTable('channel_messages')) {
-                        $messageNotifCount = ChannelMessage::where('user_id', '!=', $user->id)
+                        $userReads = collect();
+                        if (Schema::hasTable('channel_reads')) {
+                            $userReads = ChannelRead::where('user_id', $user->id)->get()->keyBy('channel_id');
+                        }
+
+                        $messages = ChannelMessage::where('user_id', '!=', $user->id)
+                            ->where('is_unsent', false)
                             ->where(function ($q) use ($user) {
                                 $q->where(function ($sq) use ($user) {
                                     $sq->where('channel_id', 'like', "dm-{$user->id}_%")
@@ -145,8 +152,23 @@ class HandleInertiaRequests extends Middleware
                                         ->orWhere('channel_id', 'like', "dm-%-{$user->id}");
                                 })->orWhere('channel_id', 'not like', 'dm-%');
                             })
-                            ->where('created_at', '>=', now()->subDays(3))
-                            ->count();
+                            ->where('created_at', '>=', now()->subDays(5))
+                            ->get();
+
+                        $messageNotifCount = $messages->filter(function ($msg) use ($userReads) {
+                            $userRead = $userReads->get($msg->channel_id);
+                            if (! $userRead) {
+                                return true;
+                            }
+                            if ($userRead->last_read_message_id && $msg->id <= $userRead->last_read_message_id) {
+                                return false;
+                            }
+                            if ($userRead->last_read_at && $msg->created_at <= $userRead->last_read_at) {
+                                return false;
+                            }
+
+                            return true;
+                        })->count();
                     }
 
                     return $reviewTasksCount + $unstartedTasksCount + $messageNotifCount;

@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Tenant\Project;
 use App\Models\Tenant\Task;
 use App\Models\Tenant\TeamVelocity;
-use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class BurndownController extends Controller
@@ -13,13 +12,13 @@ class BurndownController extends Controller
     public function index()
     {
         $projects = Project::whereIn('status', ['active', 'planning'])->get();
-        
+
         $burndownData = $projects->map(function ($project) {
             $velocities = TeamVelocity::with('sprint')
                 ->where('team_id', $project->id)
                 ->orderBy('computed_at', 'asc')
                 ->get()
-                ->map(fn($v) => [
+                ->map(fn ($v) => [
                     'sprint' => $v->sprint ? $v->sprint->name : 'Unknown Sprint',
                     'velocity' => $v->points_completed,
                 ]);

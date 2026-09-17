@@ -116,7 +116,7 @@ class TenantSeeder extends Seeder
         // 1a. Create Epic Groups (Horizons)
         // -------------------------------------------------------------------
         $tenantId = tenant('id') ?? 'default';
-        
+
         $groupBacklogId = DB::table('epic_groups')->insertGetId([
             'project_id' => $project,
             'name' => 'Epics Backlog',
@@ -236,7 +236,7 @@ class TenantSeeder extends Seeder
 
             $isSprint1 = $template['sprint'] === 1;
             $status = $isSprint1 ? 'completed' : $this->statusForPriority($template['priority']);
-            
+
             // Generate fibonacci closest to hours
             $points = $this->closestFibonacci($template['hours']);
 
@@ -385,6 +385,7 @@ class TenantSeeder extends Seeder
                 $closest = $f;
             }
         }
+
         return $closest;
     }
 

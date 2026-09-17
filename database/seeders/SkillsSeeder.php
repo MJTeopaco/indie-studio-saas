@@ -38,7 +38,7 @@ class SkillsSeeder extends Seeder
             ['name' => 'Ruby',       'category' => 'Language'],
             ['name' => 'Dart',       'category' => 'Language'],
             ['name' => 'Lua',        'category' => 'Language'],
-            ['name' => 'R',          'category' => 'Language'], 
+            ['name' => 'R',          'category' => 'Language'],
 
             // ── Web Frameworks ────────────────────────────────────────────────
             ['name' => 'Laravel',       'category' => 'Framework'],
@@ -49,7 +49,7 @@ class SkillsSeeder extends Seeder
             ['name' => 'Angular',       'category' => 'Framework'],
             ['name' => 'Svelte',        'category' => 'Framework'],
             ['name' => 'Django',        'category' => 'Framework'],
-            ['name' => 'FastAPI',       'category' => 'Framework'], 
+            ['name' => 'FastAPI',       'category' => 'Framework'],
             ['name' => 'Flask',         'category' => 'Framework'],
             ['name' => 'Spring Boot',   'category' => 'Framework'],
             ['name' => 'Ruby on Rails', 'category' => 'Framework'],
@@ -71,7 +71,7 @@ class SkillsSeeder extends Seeder
             ['name' => 'Elasticsearch', 'category' => 'Database'],
             ['name' => 'Firebase',      'category' => 'Database'],
             ['name' => 'Supabase',      'category' => 'Database'],
-            ['name' => 'Pinecone',      'category' => 'Database'], 
+            ['name' => 'Pinecone',      'category' => 'Database'],
             ['name' => 'Milvus',        'category' => 'Database'],
             ['name' => 'ChromaDB',      'category' => 'Database'],
 
@@ -86,7 +86,7 @@ class SkillsSeeder extends Seeder
             ['name' => 'Terraform',       'category' => 'DevOps'],
             ['name' => 'Nginx',           'category' => 'DevOps'],
             ['name' => 'Linux',           'category' => 'DevOps'],
-            ['name' => 'MLflow',          'category' => 'DevOps'], 
+            ['name' => 'MLflow',          'category' => 'DevOps'],
             ['name' => 'Ollama',          'category' => 'DevOps'],
 
             // ── Game Engines ──────────────────────────────────────────────────
@@ -134,13 +134,13 @@ class SkillsSeeder extends Seeder
             ['name' => 'GraphQL',            'category' => 'API & Integration'],
             ['name' => 'gRPC',               'category' => 'API & Integration'],
             ['name' => 'WebSockets',         'category' => 'API & Integration'],
-            
+
             // AI & LLM APIs (Crucial for R&D)
             ['name' => 'OpenAI API',         'category' => 'API & Integration'],
             ['name' => 'Anthropic API',      'category' => 'API & Integration'],
             ['name' => 'ElevenLabs API',     'category' => 'API & Integration'],
             ['name' => 'Hugging Face APIs',  'category' => 'API & Integration'],
-            
+
             // SaaS & Business Integrations
             ['name' => 'Stripe API',         'category' => 'API & Integration'],
             ['name' => 'Twilio API',         'category' => 'API & Integration'],
@@ -154,6 +154,6 @@ class SkillsSeeder extends Seeder
             );
         }
 
-        $this->command->info('Skills seeded: ' . count($skills) . ' records across all categories.');
+        $this->command->info('Skills seeded: '.count($skills).' records across all categories.');
     }
 }

@@ -2,11 +2,11 @@
 
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Illuminate\Support\Facades\Schedule::command('estimates:lock-expired')->daily();
-Illuminate\Support\Facades\Schedule::command('estimates:compute-velocity')->daily();
-
+Schedule::command('estimates:lock-expired')->daily();
+Schedule::command('estimates:compute-velocity')->daily();

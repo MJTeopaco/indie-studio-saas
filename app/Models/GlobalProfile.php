@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Database\Factories\GlobalProfileFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class GlobalProfile extends Model
 {
-    /** @use HasFactory<\Database\Factories\GlobalProfileFactory> */
+    /** @use HasFactory<GlobalProfileFactory> */
     use HasFactory, \Stancl\Tenancy\Database\Concerns\CentralConnection;
 
     protected $fillable = [
@@ -22,7 +23,7 @@ class GlobalProfile extends Model
     protected function casts(): array
     {
         return [
-            'experience_years'    => 'decimal:2',
+            'experience_years' => 'decimal:2',
             'open_to_invitations' => 'boolean',
         ];
     }

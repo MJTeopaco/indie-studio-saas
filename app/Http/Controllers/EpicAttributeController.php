@@ -15,12 +15,12 @@ class EpicAttributeController extends Controller
     public function store(Request $request, $project)
     {
         $projectModel = Project::findOrFail($project);
-        
+
         // Ownership check: Ensure project belongs to current tenant
         if ($projectModel->tenant_id && $projectModel->tenant_id !== tenant('id')) {
             abort(403, 'Unauthorized. Project does not belong to the current tenant.');
         }
-        
+
         // Note: Tenancy for Laravel usually scopes queries automatically, but explicit check adds defense in depth.
 
         $validated = $request->validate([

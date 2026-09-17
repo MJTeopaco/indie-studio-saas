@@ -1,11 +1,9 @@
 <?php
 
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-use App\Models\Tenant\Project;
-use App\Models\Tenant\EpicGroup;
 use App\Models\Tenant\Epic;
+use App\Models\Tenant\EpicGroup;
+use App\Models\Tenant\Project;
+use Illuminate\Database\Migrations\Migration;
 
 return new class extends Migration
 {
@@ -38,7 +36,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // No down migration as we don't want to accidentally delete epics or group assignment 
+        // No down migration as we don't want to accidentally delete epics or group assignment
         // without knowing exactly if it's safe.
     }
 };

@@ -24,7 +24,7 @@ return new class extends Migration
             // Index for faster withCount / withSum
             try {
                 $table->index('epic_id');
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 // Index might already exist
             }
         });
@@ -43,7 +43,7 @@ return new class extends Migration
             $table->dropForeign(['phase_id']);
             $table->dropForeign(['priority_id']);
 
-            if (!Schema::hasColumn('epics', 'status')) {
+            if (! Schema::hasColumn('epics', 'status')) {
                 $table->string('status')->default('open')->after('color');
             }
         });

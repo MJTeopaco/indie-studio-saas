@@ -13,6 +13,7 @@ use App\Http\Controllers\TenantDocsController;
 use App\Http\Controllers\TenantEpicGroupController;
 use App\Http\Controllers\TenantOverviewController;
 use App\Http\Controllers\TenantProjectController;
+use App\Http\Controllers\TenantReportController;
 use App\Http\Controllers\TenantScheduleController;
 use App\Http\Controllers\TenantTaskController;
 use App\Http\Controllers\TenantTeamController;
@@ -46,6 +47,10 @@ Route::prefix('/studio/{tenant}')->middleware([
 
     Route::get('/inbox', [TenantDashboardController::class, 'inbox'])
         ->name('tenant.inbox');
+    Route::post('/notifications/read-all', [TenantDashboardController::class, 'markAllNotificationsRead'])
+        ->name('tenant.notifications.read-all');
+    Route::post('/notifications/{id}/read', [TenantDashboardController::class, 'markNotificationRead'])
+        ->name('tenant.notifications.read');
 
     Route::get('/overview', [TenantOverviewController::class, 'index'])
         ->name('tenant.overview');
@@ -105,6 +110,13 @@ Route::prefix('/studio/{tenant}')->middleware([
     Route::get('/docs', [TenantDocsController::class, 'index'])->name('tenant.docs');
     Route::post('/docs/archive', [TenantDocsController::class, 'archive'])->name('tenant.docs.archive');
     Route::delete('/docs/archive/{report}', [TenantDocsController::class, 'deleteReport'])->name('tenant.docs.archive.delete');
+
+    // Reports & Analytics Hub
+    Route::get('/reports', [TenantReportController::class, 'index'])->name('tenant.reports');
+    Route::get('/reports/data', [TenantReportController::class, 'getReportData'])->name('tenant.reports.data');
+    Route::post('/reports/share-email', [TenantReportController::class, 'shareEmail'])->name('tenant.reports.share-email');
+    Route::post('/reports/share-chat', [TenantReportController::class, 'shareChat'])->name('tenant.reports.share-chat');
+    Route::get('/reports/export-csv', [TenantReportController::class, 'exportCsv'])->name('tenant.reports.export-csv');
 
     // Project Task Bulk Save Route
     Route::post('/projects/{project}/tasks/bulk', [TenantProjectController::class, 'storeBulkTasks'])
@@ -196,6 +208,9 @@ Route::prefix('/studio/{tenant}')->middleware([
         ->where('channelId', '[\w-]+');
     Route::post('/channels/{channelId}/email', [ChannelMessageController::class, 'emailMessage'])
         ->name('tenant.channels.messages.email')
+        ->where('channelId', '[\w-]+');
+    Route::post('/channels/{channelId}/read', [ChannelMessageController::class, 'markRead'])
+        ->name('tenant.channels.read')
         ->where('channelId', '[\w-]+');
 
     // Secure tenant attachments serving (photos, files, documents)
