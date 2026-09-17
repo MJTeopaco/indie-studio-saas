@@ -33,6 +33,11 @@ fi
 # ── Run migrations ────────────────────────────────────────────────────────────
 php artisan migrate --force
 
+if [ "$RUN_SEEDER" = "true" ]; then
+  echo "🌱 RUN_SEEDER is true. Running database seeder..."
+  php artisan db:seed --force
+fi
+
 # ── Finish composer post-install step (skipped in build with --no-scripts) ────
 php artisan package:discover --ansi
 
