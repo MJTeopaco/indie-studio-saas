@@ -80,6 +80,72 @@ class MLEngineIntegrationController extends Controller
     }
 
     /**
+     * SSE streaming proxy — flat decomposition.
+     *
+     * The browser cannot reach Railway's ML Engine directly, so this Laravel
+     * route acts as a transparent HTTP proxy: it opens a cURL connection to
+     * the ML Engine's SSE endpoint and forwards every chunk to the browser in
+     * real time.
+     */
+    public function streamDecomposeSprint(Request $request)
+    {
+        set_time_limit(0);
+        $validated = $request->validate([
+            'description' => 'required|string|max:3000',
+        ]);
+
+        $description = $validated['description'];
+        $generator   = $this->mlService->streamDecomposeProject($description);
+
+        return response()->stream(function () use ($generator) {
+            foreach ($generator as $chunk) {
+                echo $chunk;
+                if (ob_get_level() > 0) {
+                    ob_flush();
+                }
+                flush();
+            }
+        }, 200, [
+            'Content-Type'      => 'text/event-stream',
+            'Cache-Control'     => 'no-cache',
+            'X-Accel-Buffering' => 'no',
+            'Connection'        => 'keep-alive',
+        ]);
+    }
+
+    /**
+     * SSE streaming proxy — hierarchical decomposition.
+     *
+     * Same as streamDecomposeSprint but targets the /hierarchical/stream
+     * ML Engine endpoint.
+     */
+    public function streamDecomposeSprintHierarchical(Request $request)
+    {
+        set_time_limit(0);
+        $validated = $request->validate([
+            'description' => 'required|string|max:3000',
+        ]);
+
+        $description = $validated['description'];
+        $generator   = $this->mlService->streamDecomposeProjectHierarchically($description);
+
+        return response()->stream(function () use ($generator) {
+            foreach ($generator as $chunk) {
+                echo $chunk;
+                if (ob_get_level() > 0) {
+                    ob_flush();
+                }
+                flush();
+            }
+        }, 200, [
+            'Content-Type'      => 'text/event-stream',
+            'Cache-Control'     => 'no-cache',
+            'X-Accel-Buffering' => 'no',
+            'Connection'        => 'keep-alive',
+        ]);
+    }
+
+    /**
      * Handle conversational requests made from the studio workspace. Unlike
      * project planning, this route does not require a project to be selected.
      */

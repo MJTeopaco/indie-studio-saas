@@ -79,6 +79,85 @@ class MLEngineService
     }
 
     /**
+     * Open a raw SSE (text/event-stream) connection to the ML Engine for
+     * the flat decompose-project/stream endpoint and yield chunks to the caller.
+     *
+     * @return \Generator<string>
+     */
+    public function streamDecomposeProject(string $description): \Generator
+    {
+        yield from $this->streamFromMlEngine('/api/llm/decompose-project/stream', $description);
+    }
+
+    /**
+     * Open a raw SSE connection to the ML Engine for the hierarchical
+     * decompose-project/hierarchical/stream endpoint and yield chunks.
+     *
+     * @return \Generator<string>
+     */
+    public function streamDecomposeProjectHierarchically(string $description): \Generator
+    {
+        yield from $this->streamFromMlEngine('/api/llm/decompose-project/hierarchical/stream', $description);
+    }
+
+    /**
+     * Generic SSE proxy: opens a cURL connection to the ML Engine and yields
+     * raw response chunks so the caller can stream them straight to the browser.
+     *
+     * @return \Generator<string>
+     */
+    private function streamFromMlEngine(string $path, string $description): \Generator
+    {
+        $url  = $this->baseUrl.$path;
+        $body = json_encode(['description' => $description]);
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $body,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: text/event-stream'],
+            CURLOPT_RETURNTRANSFER => false,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT        => 600,
+            // Stream chunks back via the write callback
+            CURLOPT_WRITEFUNCTION  => function ($ch, $chunk) use (&$chunks) {
+                $chunks[] = $chunk;
+                return strlen($chunk);
+            },
+        ]);
+
+        $chunks = [];
+        $index  = 0;
+
+        // We need to drive the cURL transfer in small steps so we can yield
+        // individual SSE frames as they arrive. Use a multi-handle for this.
+        $mh = curl_multi_init();
+        curl_multi_add_handle($mh, $ch);
+
+        do {
+            $status = curl_multi_exec($mh, $active);
+            // Yield any chunks that have accumulated
+            while (isset($chunks[$index])) {
+                yield $chunks[$index];
+                $index++;
+            }
+            if ($active) {
+                curl_multi_select($mh, 0.1);
+            }
+        } while ($active && $status === CURLM_OK);
+
+        // Yield any remaining buffered chunks
+        while (isset($chunks[$index])) {
+            yield $chunks[$index];
+            $index++;
+        }
+
+        curl_multi_remove_handle($mh, $ch);
+        curl_multi_close($mh);
+        curl_close($ch);
+    }
+
+    /**
      * Get the best fit developers for a given task using the GNN.
      */
     public function getBestFit(array $taskData): array

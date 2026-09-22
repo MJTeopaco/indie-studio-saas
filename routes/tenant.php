@@ -157,6 +157,11 @@ Route::prefix('/studio/{tenant}')->middleware([
         ->name('tenant.workspace.decompose');
     Route::post('/ai/decompose-project/hierarchical', [MLEngineIntegrationController::class, 'decomposeWorkspaceProjectHierarchical'])
         ->name('tenant.workspace.decompose-hierarchical');
+    // SSE streaming proxies — forward real-time decompose progress from Railway to the browser
+    Route::post('/ai/decompose-project/stream', [MLEngineIntegrationController::class, 'streamDecomposeSprint'])
+        ->name('tenant.workspace.decompose-stream');
+    Route::post('/ai/decompose-project/hierarchical/stream', [MLEngineIntegrationController::class, 'streamDecomposeSprintHierarchical'])
+        ->name('tenant.workspace.decompose-hierarchical-stream');
     Route::post('/tasks/{task}/ml/best-fit', [MLEngineIntegrationController::class, 'bestFit'])
         ->name('tenant.ml.best-fit');
     Route::post('/tasks/{task}/assign', [MLEngineIntegrationController::class, 'assignTask'])

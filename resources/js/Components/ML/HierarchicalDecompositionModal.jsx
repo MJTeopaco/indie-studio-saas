@@ -811,16 +811,22 @@ export default function HierarchicalDecompositionModal({
         setProgress({ stage: 'intent', message: 'Analysing project description...', pct: 10 });
 
         const ML_URL = outputMode === 'hierarchical'
-            ? 'http://127.0.0.1:8001/api/llm/decompose-project/hierarchical/stream'
-            : 'http://127.0.0.1:8001/api/llm/decompose-project/stream';
+            ? route('tenant.workspace.decompose-hierarchical-stream', { tenant: tenantId })
+            : route('tenant.workspace.decompose-stream', { tenant: tenantId });
 
         try {
             const controller = new AbortController();
             abortRef.current = controller;
 
+            const csrfToken = document.head.querySelector('meta[name="csrf-token"]')?.content ?? '';
+
             const response = await fetch(ML_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'text/event-stream',
+                },
                 body: JSON.stringify({ description: promptText }),
                 signal: controller.signal,
             });
