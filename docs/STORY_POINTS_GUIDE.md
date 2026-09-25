@@ -80,6 +80,23 @@ This provides clear visibility into:
 *   Scope creep and estimation errors (if `actual_story_points` frequently exceeds planned `story_points`).
 *   Overall project health and burndown rates.
 
-## Summary
+## The Hybrid Approach: Combining AI, Agile, and Traditional Scheduling
 
+To understand the core innovation of how this system handles project planning, it is helpful to look at it from two perspectives: a simple, high-level view (Layman's Terms) and a deep dive into the code (Technical Details).
+
+### Layman's Terms (The "Easy to Understand" Explanation)
+Imagine you are building a house. 
+*   **The AI Anchor:** Instead of forcing your builders to guess how long everything will take from scratch, you have an AI assistant that looks at the blueprints and says, "Based on past houses, laying these bricks usually feels like a size 5 task." This gives the team a quick starting point so they don't waste hours arguing over a blank slate. They just review the AI's guess, agree on it, and lock it in.
+*   **The Hybrid Schedule:** Builders love working flexibly (Agile), but the bank funding the house wants a strict, mathematical deadline (Traditional Scheduling). Our system bridges this gap. It takes the abstract "size 5 task" and looks at how fast the team usually works (their "Velocity"). If the team usually finishes 10 sizes worth of work a week, the system mathematically converts that "size 5 task" into an exact number of hours. It then calculates a best-case, worst-case, and most-likely scenario (PERT) to give the bank the concrete schedule they need without taking away the builders' flexibility.
+
+### Technical Details (How the Code Works)
+From a technical implementation standpoint, the hybrid approach operates in a sequential pipeline bridging AI inference, Agile metrics, and deterministic scheduling logic:
+
+1.  **AI Anchoring (`story_points_ai_suggested`):** During task ingestion (e.g., in `TenantProjectController`), the AI evaluates the natural language task and estimates raw hours. The backend uses a mapping algorithm to convert these hours into Fibonacci-style Story Points (e.g., $\le$ 32 hours $\rightarrow$ 5 SP). This value populates the `story_points_ai_suggested` database column, providing a computationally derived baseline.
+2.  **Human Validation (`story_points_locked`):** The team reviews the AI suggestion in the UI. Once consensus is reached, the manager saves the final `story_points` integer and flips the `story_points_locked` boolean to `true`. This guarantees human oversight over the AI baseline.
+3.  **Velocity Calculation:** As sprints conclude, the `EstimationService` queries the database for all tasks where `status = 'completed'` and `story_points_locked = true` within the sprint window. It sums the `story_points` to calculate the team's historical `TeamVelocity` (points completed per sprint).
+4.  **PERT Duration Derivation:** To satisfy traditional Critical Path Analysis (CPA) algorithms, Agile points must become hours. The `EstimationService` divides standard working hours (e.g., 80 hours/sprint) by the average `TeamVelocity` to determine `hoursPerPoint`. 
+5.  **Deterministic Scheduling:** Finally, the system sets the task's `duration_likely` (Points $\times$ hoursPerPoint). It then mathematically applies variance factors to generate `duration_optimistic` (Likely $\times$ 0.8) and `duration_pessimistic` (Likely $\times$ 1.5). These hard time values are fed into the system's PERT scheduling algorithms, satisfying executive governance requirements.
+
+## Summary
 In Indie Studio SaaS, Story Points act as the critical bridge between agile effort estimation and concrete project scheduling. By tracking velocity and automating PERT calculations based on points, the system reduces the cognitive load of estimation while increasing the accuracy of project timelines and critical path analyses.
