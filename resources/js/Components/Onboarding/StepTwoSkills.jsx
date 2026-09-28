@@ -1,37 +1,80 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import InputError from '@/Components/InputError';
+import { 
+    Search, 
+    X, 
+    Check, 
+    ChevronDown, 
+    ChevronUp, 
+    Sparkles, 
+    Layers, 
+    Code2, 
+    Palette, 
+    Gamepad2, 
+    Volume2, 
+    Cpu,
+    CheckCircle2
+} from 'lucide-react';
 
-export default function StepTwoSkills({ data, setData, errors, skills }) {
+export default function StepTwoSkills({ data, setData, errors, skills = {} }) {
     const [searchTerm, setSearchTerm] = useState('');
+    const [openCategories, setOpenCategories] = useState(() => {
+        // By default open the first category
+        const firstCat = Object.keys(skills)[0];
+        return firstCat ? [firstCat] : [];
+    });
+    const [showSelectedOnly, setShowSelectedOnly] = useState(false);
+
+    // Category Icon Mapper
+    const getCategoryIcon = (category) => {
+        const cat = category.toLowerCase();
+        if (cat.includes('program') || cat.includes('code') || cat.includes('engine')) return Code2;
+        if (cat.includes('art') || cat.includes('animation') || cat.includes('visual')) return Palette;
+        if (cat.includes('design') || cat.includes('mechanic')) return Gamepad2;
+        if (cat.includes('sound') || cat.includes('audio') || cat.includes('music')) return Volume2;
+        return Layers;
+    };
+
+    // Category names
+    const categoryNames = useMemo(() => Object.keys(skills), [skills]);
 
     // Flat list of all skills for searching
     const allSkills = useMemo(() => {
         let flat = [];
-        Object.values(skills).forEach(categorySkills => {
-            flat = [...flat, ...categorySkills];
+        Object.entries(skills).forEach(([category, categorySkills]) => {
+            if (Array.isArray(categorySkills)) {
+                categorySkills.forEach(s => {
+                    flat.push({ ...s, category });
+                });
+            }
         });
         return flat;
     }, [skills]);
 
-    // Filtered skills grouped by category
-    const filteredCategories = useMemo(() => {
-        if (!searchTerm) return skills;
-        
-        const filtered = {};
-        Object.entries(skills).forEach(([category, categorySkills]) => {
-            const matches = categorySkills.filter(skill => 
-                skill.name.toLowerCase().includes(searchTerm.toLowerCase())
-            );
-            if (matches.length > 0) {
-                filtered[category] = matches;
-            }
-        });
-        return filtered;
-    }, [skills, searchTerm]);
+    // Search filtered skills
+    const searchResults = useMemo(() => {
+        if (!searchTerm.trim()) return [];
+        const term = searchTerm.toLowerCase();
+        return allSkills.filter(skill => 
+            skill.name.toLowerCase().includes(term) || 
+            skill.category.toLowerCase().includes(term)
+        );
+    }, [allSkills, searchTerm]);
 
+    // Toggle category accordion open/closed
+    const toggleCategory = (cat) => {
+        setOpenCategories(prev => 
+            prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+        );
+    };
+
+    // Expand all / Collapse all categories
+    const expandAll = () => setOpenCategories(categoryNames);
+    const collapseAll = () => setOpenCategories([]);
+
+    // Skill toggle handler (defaults to level 3)
     const handleToggleSkill = (skill) => {
         const isSelected = data.skills.some(s => s.id === skill.id);
-        
         if (isSelected) {
             setData('skills', data.skills.filter(s => s.id !== skill.id));
         } else {
@@ -39,132 +82,423 @@ export default function StepTwoSkills({ data, setData, errors, skills }) {
                 id: skill.id, 
                 name: skill.name, 
                 category: skill.category,
-                proficiency_level: 3 // Default intermediate
+                proficiency_level: 3 // Default Intermediate
             }]);
         }
     };
 
+    // Inline proficiency rating change
     const handleProficiencyChange = (skillId, level) => {
         setData('skills', data.skills.map(s => 
-            s.id === skillId ? { ...s, proficiency_level: parseInt(level) } : s
+            s.id === skillId ? { ...s, proficiency_level: parseInt(level, 10) } : s
         ));
     };
 
+    // Calculate count of selected skills per category
+    const selectedCountByCategory = useMemo(() => {
+        const counts = {};
+        data.skills.forEach(s => {
+            counts[s.category] = (counts[s.category] || 0) + 1;
+        });
+        return counts;
+    }, [data.skills]);
+
+    // Average rating
+    const avgProficiency = useMemo(() => {
+        if (!data.skills.length) return '0.0';
+        const sum = data.skills.reduce((acc, s) => acc + (s.proficiency_level || 3), 0);
+        return (sum / data.skills.length).toFixed(1);
+    }, [data.skills]);
+
+    // Proficiency level definitions for tooltips
+    const proficiencyLabels = {
+        1: 'Novice (Foundational knowledge)',
+        2: 'Beginner (Working practical basics)',
+        3: 'Intermediate (Autonomous competency)',
+        4: 'Advanced (Specialized production skill)',
+        5: 'Master (Domain authority & architectural lead)'
+    };
+
     return (
-        <div className="space-y-6">
-            <div>
-                <h2 className="text-2xl font-bold text-text-primary">The Vector Skill Matrix</h2>
-                <p className="mt-1 text-text-muted">Select your skills and set your proficiency to help us match you.</p>
+        <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Global Search Bar with Live Match Counter */}
+            <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Search className="w-4 h-4" />
+                </div>
+                <input
+                    type="text"
+                    placeholder="Search 96 skills (e.g. Unity, C#, Vulkan, Blender, PyTorch)..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-24 py-3 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-medium placeholder-slate-400 dark:placeholder-slate-500 focus:border-brand focus:ring-2 focus:ring-brand/20 shadow-xs transition-all"
+                />
+                {searchTerm ? (
+                    <button
+                        type="button"
+                        onClick={() => setSearchTerm('')}
+                        className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                        title="Clear search"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                ) : (
+                    <span className="absolute inset-y-0 right-3 flex items-center text-[11px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 my-auto h-6 rounded-md">
+                        {allSkills.length} total
+                    </span>
+                )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 h-[500px]">
-                {/* Left Column: Discovery */}
-                <div className="flex flex-col border border-surface-border rounded-xl bg-surface overflow-hidden">
-                    <div className="p-4 border-b border-surface-border">
-                        <div className="relative">
-                            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                                <svg className="h-5 w-5 text-text-muted" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                  <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
-                                </svg>
-                            </div>
-                            <input
-                                type="text"
-                                className="block w-full rounded-md border-surface-border bg-surface-elevated py-2 pl-10 pr-3 text-text-primary focus:border-brand focus:ring-brand sm:text-sm"
-                                placeholder="Search skills..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </div>
+            {/* Selected Skills Summary Banner & Quick Review Switch */}
+            {data.skills.length > 0 && (
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/90 dark:border-slate-800 flex items-center justify-between transition-all">
+                    <div className="flex items-center gap-2">
+                        <span className="flex h-2 w-2 relative">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-brand" />
+                        </span>
+                        <span className="text-xs font-bold text-slate-900 dark:text-white">
+                            {data.skills.length} {data.skills.length === 1 ? 'Skill' : 'Skills'} Selected
+                        </span>
+                        <span className="text-xs text-slate-400">·</span>
+                        <span className="text-xs font-mono text-amber-500 font-semibold">
+                            Avg {avgProficiency} ★
+                        </span>
                     </div>
-                    
-                    <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                        {Object.entries(filteredCategories).map(([category, categorySkills]) => (
-                            <div key={category}>
-                                <h3 className="text-sm font-semibold text-text-muted uppercase tracking-wider mb-3 sticky top-0 bg-surface py-1">
-                                    {category}
-                                </h3>
-                                <div className="space-y-2">
-                                    {categorySkills.map(skill => {
-                                        const isSelected = data.skills.some(s => s.id === skill.id);
-                                        return (
-                                            <label key={skill.id} className="flex items-center space-x-3 cursor-pointer group">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isSelected}
-                                                    onChange={() => handleToggleSkill(skill)}
-                                                    className="h-4 w-4 rounded border-surface-border bg-surface text-brand focus:ring-brand focus:ring-offset-surface"
-                                                />
-                                                <span className={`text-sm transition-colors ${isSelected ? 'text-text-primary font-medium' : 'text-text-muted group-hover:text-text-primary'}`}>
-                                                    {skill.name}
-                                                </span>
-                                            </label>
-                                        );
-                                    })}
+
+                    <button
+                        type="button"
+                        onClick={() => setShowSelectedOnly(prev => !prev)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                            showSelectedOnly
+                                ? 'bg-brand text-white shadow-xs'
+                                : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:text-brand'
+                        }`}
+                    >
+                        {showSelectedOnly ? 'Show All Skills' : 'Review Selected'}
+                    </button>
+                </div>
+            )}
+
+            {/* Mode A: Selected Skills Only View */}
+            {showSelectedOnly ? (
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Your Selected Stack ({data.skills.length})
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => setData('skills', [])}
+                            className="text-xs text-rose-500 hover:text-rose-600 font-medium transition-colors"
+                        >
+                            Clear all
+                        </button>
+                    </div>
+
+                    <div className="max-h-96 overflow-y-auto space-y-2 pr-1">
+                        {data.skills.map((skill) => (
+                            <div
+                                key={skill.id}
+                                className="p-3 rounded-xl bg-white dark:bg-slate-900/90 border border-brand/40 dark:border-brand/30 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <div className="w-5 h-5 rounded-md bg-brand/10 text-brand flex items-center justify-center shrink-0">
+                                        <Check className="w-3.5 h-3.5" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                                            {skill.name}
+                                        </p>
+                                        <span className="text-[10px] text-slate-400 font-mono">
+                                            {skill.category}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Inline 1-5 Segmented Rating */}
+                                <div className="flex items-center gap-2 self-end sm:self-auto">
+                                    <span className="text-[10px] text-slate-400 font-medium hidden sm:inline">
+                                        Level:
+                                    </span>
+                                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+                                        {[1, 2, 3, 4, 5].map((lvl) => (
+                                            <button
+                                                key={lvl}
+                                                type="button"
+                                                onClick={() => handleProficiencyChange(skill.id, lvl)}
+                                                title={proficiencyLabels[lvl]}
+                                                className={`w-6 h-6 flex items-center justify-center rounded text-[11px] font-bold transition-all ${
+                                                    skill.proficiency_level >= lvl
+                                                        ? 'bg-brand text-white shadow-xs'
+                                                        : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                                                }`}
+                                            >
+                                                {lvl}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => handleToggleSkill(skill)}
+                                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                        title="Remove skill"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
                                 </div>
                             </div>
                         ))}
-                        {Object.keys(filteredCategories).length === 0 && (
-                            <div className="text-center py-8 text-text-muted text-sm">
-                                No skills found matching "{searchTerm}"
-                            </div>
-                        )}
                     </div>
                 </div>
-
-                {/* Right Column: The Matrix (Selected Skills) */}
-                <div className="flex flex-col border border-surface-border rounded-xl bg-surface-elevated overflow-hidden">
-                    <div className="p-4 border-b border-surface-border bg-surface">
-                        <h3 className="font-semibold text-text-primary">Selected Skills ({data.skills.length})</h3>
+            ) : searchTerm ? (
+                /* Mode B: Instant Search Filter Results */
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Search Results ({searchResults.length})
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => setSearchTerm('')}
+                            className="text-xs text-brand hover:underline font-medium"
+                        >
+                            Reset filter
+                        </button>
                     </div>
-                    
-                    <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                        {data.skills.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center text-text-muted text-sm text-center px-4">
-                                <svg className="w-12 h-12 mb-4 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                                </svg>
-                                Select skills from the left to set your proficiency levels.
-                            </div>
-                        ) : (
-                            data.skills.map(skill => (
-                                <div key={skill.id} className="bg-surface p-4 rounded-lg border border-surface-border">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <div className="font-medium text-text-primary">{skill.name}</div>
-                                        <button 
-                                            type="button" 
-                                            onClick={() => handleToggleSkill(skill)}
-                                            className="text-text-muted hover:text-red-400 transition-colors"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                    
-                                    <div>
-                                        <input
-                                            type="range"
-                                            min="1"
-                                            max="5"
-                                            step="1"
-                                            value={skill.proficiency_level}
-                                            onChange={(e) => handleProficiencyChange(skill.id, e.target.value)}
-                                            className="w-full accent-brand"
-                                        />
-                                        <div className="flex justify-between text-xs text-text-muted mt-2">
-                                            <span>1 - Beginner</span>
-                                            <span className="font-medium text-brand">{skill.proficiency_level}</span>
-                                            <span>5 - Expert</span>
+
+                    <div className="max-h-96 overflow-y-auto space-y-2 pr-1">
+                        {searchResults.map((skill) => {
+                            const selectedEntry = data.skills.find(s => s.id === skill.id);
+                            const isSelected = !!selectedEntry;
+                            const level = selectedEntry ? selectedEntry.proficiency_level : 3;
+
+                            return (
+                                <div
+                                    key={skill.id}
+                                    className={`p-3 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                                        isSelected
+                                            ? 'bg-brand/5 dark:bg-brand/10 border-brand/40 dark:border-brand/40 shadow-xs'
+                                            : 'bg-white dark:bg-slate-900/80 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                                    }`}
+                                >
+                                    <div 
+                                        className="flex items-center gap-2.5 cursor-pointer select-none"
+                                        onClick={() => handleToggleSkill(skill)}
+                                    >
+                                        <div className={`w-5 h-5 rounded-md flex items-center justify-center transition-all ${
+                                            isSelected 
+                                                ? 'bg-brand text-white shadow-2xs' 
+                                                : 'border border-slate-300 dark:border-slate-600 text-transparent'
+                                        }`}>
+                                            <Check className="w-3.5 h-3.5" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                                                {skill.name}
+                                            </p>
+                                            <span className="text-[10px] text-slate-400 font-mono">
+                                                {skill.category}
+                                            </span>
                                         </div>
                                     </div>
+
+                                    {/* Inline Proficiency Pill (Revealed when selected) */}
+                                    {isSelected && (
+                                        <div className="flex items-center gap-2 self-end sm:self-auto animate-in fade-in zoom-in-95 duration-150">
+                                            <span className="text-[10px] text-slate-400 font-medium hidden sm:inline">
+                                                Level:
+                                            </span>
+                                            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+                                                {[1, 2, 3, 4, 5].map((lvl) => (
+                                                    <button
+                                                        key={lvl}
+                                                        type="button"
+                                                        onClick={() => handleProficiencyChange(skill.id, lvl)}
+                                                        title={proficiencyLabels[lvl]}
+                                                        className={`w-6 h-6 flex items-center justify-center rounded text-[11px] font-bold transition-all ${
+                                                            level >= lvl
+                                                                ? 'bg-brand text-white shadow-xs'
+                                                                : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                                                        }`}
+                                                    >
+                                                        {lvl}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                            ))
+                            );
+                        })}
+
+                        {searchResults.length === 0 && (
+                            <div className="py-12 text-center rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-800">
+                                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                    No skills matching "{searchTerm}"
+                                </p>
+                                <p className="text-xs text-slate-400 mt-1">
+                                    Check for typos or try searching another game engine, language, or tool.
+                                </p>
+                            </div>
                         )}
                     </div>
                 </div>
+            ) : (
+                /* Mode C: Clean Vertical Category Accordion (NO horizontal scrolling) */
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                        <span className="font-semibold uppercase tracking-wider">
+                            Skill Categories ({categoryNames.length})
+                        </span>
+                        <div className="flex items-center gap-3">
+                            <button
+                                type="button"
+                                onClick={expandAll}
+                                className="hover:text-brand transition-colors"
+                            >
+                                Expand all
+                            </button>
+                            <span>·</span>
+                            <button
+                                type="button"
+                                onClick={collapseAll}
+                                className="hover:text-brand transition-colors"
+                            >
+                                Collapse all
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
+                        {categoryNames.map((category) => {
+                            const catSkills = skills[category] || [];
+                            const isOpen = openCategories.includes(category);
+                            const selectedInCat = selectedCountByCategory[category] || 0;
+                            const IconComponent = getCategoryIcon(category);
+
+                            return (
+                                <div
+                                    key={category}
+                                    className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 overflow-hidden shadow-xs transition-all"
+                                >
+                                    {/* Vertical Category Header Button */}
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleCategory(category)}
+                                        className="w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                                    >
+                                        <div className="flex items-center gap-2.5">
+                                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                                                selectedInCat > 0
+                                                    ? 'bg-brand/10 text-brand'
+                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                                            }`}>
+                                                <IconComponent className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <span className="text-xs font-bold text-slate-900 dark:text-white">
+                                                    {category}
+                                                </span>
+                                                <span className="text-[10px] text-slate-400 ml-2 font-mono">
+                                                    {catSkills.length} skills
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            {selectedInCat > 0 && (
+                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-brand text-white shadow-2xs">
+                                                    {selectedInCat} selected
+                                                </span>
+                                            )}
+                                            {isOpen ? (
+                                                <ChevronUp className="w-4 h-4 text-slate-400" />
+                                            ) : (
+                                                <ChevronDown className="w-4 h-4 text-slate-400" />
+                                            )}
+                                        </div>
+                                    </button>
+
+                                    {/* Expanded Category Skills Grid */}
+                                    {isOpen && (
+                                        <div className="p-3 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950/30 space-y-2">
+                                            {catSkills.map((skill) => {
+                                                const selectedEntry = data.skills.find(s => s.id === skill.id);
+                                                const isSelected = !!selectedEntry;
+                                                const level = selectedEntry ? selectedEntry.proficiency_level : 3;
+
+                                                return (
+                                                    <div
+                                                        key={skill.id}
+                                                        className={`p-2.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                                                            isSelected
+                                                                ? 'bg-white dark:bg-slate-900 border-brand/50 dark:border-brand/40 shadow-xs'
+                                                                : 'bg-white dark:bg-slate-900/60 border-slate-200/80 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700'
+                                                        }`}
+                                                    >
+                                                        {/* Skill Toggle Checkbox & Label */}
+                                                        <div
+                                                            className="flex items-center gap-2.5 cursor-pointer select-none grow"
+                                                            onClick={() => handleToggleSkill(skill)}
+                                                        >
+                                                            <div className={`w-4 h-4 rounded-md flex items-center justify-center transition-all ${
+                                                                isSelected
+                                                                    ? 'bg-brand text-white shadow-2xs'
+                                                                    : 'border border-slate-300 dark:border-slate-600 text-transparent'
+                                                            }`}>
+                                                                <Check className="w-3 h-3" />
+                                                            </div>
+                                                            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                                                                {skill.name}
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Inline Tactile 1-5 Rating Selector */}
+                                                        {isSelected && (
+                                                            <div className="flex items-center gap-1.5 self-end sm:self-auto animate-in fade-in duration-150">
+                                                                <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">
+                                                                    Lvl:
+                                                                </span>
+                                                                <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
+                                                                    {[1, 2, 3, 4, 5].map((lvl) => (
+                                                                        <button
+                                                                            key={lvl}
+                                                                            type="button"
+                                                                            onClick={() => handleProficiencyChange(skill.id, lvl)}
+                                                                            title={proficiencyLabels[lvl]}
+                                                                            className={`w-5 h-5 flex items-center justify-center rounded text-[10px] font-bold transition-all ${
+                                                                                level >= lvl
+                                                                                    ? 'bg-brand text-white shadow-2xs'
+                                                                                    : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                                                                            }`}
+                                                                        >
+                                                                            {lvl}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* Proficiency Levels Legend Guide */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500">
+                <span>Rating Scale: 1 Novice → 3 Intermediate → 5 Master</span>
+                <span className="font-mono text-[10px]">HeteroGNN Ready</span>
             </div>
-            
-            <InputError message={errors.skills} className="mt-2" />
+
+            <InputError message={errors.skills} className="mt-1" />
         </div>
     );
 }
