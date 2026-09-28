@@ -4,26 +4,23 @@ import {
     Search, 
     X, 
     Check, 
-    ChevronDown, 
-    ChevronUp, 
-    Sparkles, 
+    ArrowLeft, 
+    ChevronRight, 
     Layers, 
     Code2, 
     Palette, 
     Gamepad2, 
     Volume2, 
-    Cpu,
-    CheckCircle2
+    Sparkles
 } from 'lucide-react';
 
 export default function StepTwoSkills({ data, setData, errors, skills = {} }) {
     const [searchTerm, setSearchTerm] = useState('');
-    const [openCategories, setOpenCategories] = useState(() => {
-        // By default open the first category
-        const firstCat = Object.keys(skills)[0];
-        return firstCat ? [firstCat] : [];
-    });
+    const [selectedCategory, setSelectedCategory] = useState(null);
     const [showSelectedOnly, setShowSelectedOnly] = useState(false);
+
+    // Available category names
+    const categoryNames = useMemo(() => Object.keys(skills), [skills]);
 
     // Category Icon Mapper
     const getCategoryIcon = (category) => {
@@ -34,9 +31,6 @@ export default function StepTwoSkills({ data, setData, errors, skills = {} }) {
         if (cat.includes('sound') || cat.includes('audio') || cat.includes('music')) return Volume2;
         return Layers;
     };
-
-    // Category names
-    const categoryNames = useMemo(() => Object.keys(skills), [skills]);
 
     // Flat list of all skills for searching
     const allSkills = useMemo(() => {
@@ -60,17 +54,6 @@ export default function StepTwoSkills({ data, setData, errors, skills = {} }) {
             skill.category.toLowerCase().includes(term)
         );
     }, [allSkills, searchTerm]);
-
-    // Toggle category accordion open/closed
-    const toggleCategory = (cat) => {
-        setOpenCategories(prev => 
-            prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
-        );
-    };
-
-    // Expand all / Collapse all categories
-    const expandAll = () => setOpenCategories(categoryNames);
-    const collapseAll = () => setOpenCategories([]);
 
     // Skill toggle handler (defaults to level 3)
     const handleToggleSkill = (skill) => {
@@ -110,17 +93,26 @@ export default function StepTwoSkills({ data, setData, errors, skills = {} }) {
         return (sum / data.skills.length).toFixed(1);
     }, [data.skills]);
 
-    // Proficiency level definitions for tooltips
+    // Proficiency level definitions
     const proficiencyLabels = {
-        1: 'Novice (Foundational knowledge)',
-        2: 'Beginner (Working practical basics)',
-        3: 'Intermediate (Autonomous competency)',
-        4: 'Advanced (Specialized production skill)',
-        5: 'Master (Domain authority & architectural lead)'
+        1: 'Novice (Foundational)',
+        2: 'Beginner (Practical basics)',
+        3: 'Intermediate (Autonomous)',
+        4: 'Advanced (Specialized)',
+        5: 'Master (Domain authority)'
     };
 
+    // Skills in the currently selected category drill-down
+    const activeCategorySkills = useMemo(() => {
+        if (!selectedCategory) return [];
+        return skills[selectedCategory] || [];
+    }, [skills, selectedCategory]);
+
+    const activeSelectedCount = selectedCategory ? (selectedCountByCategory[selectedCategory] || 0) : 0;
+    const ActiveCategoryIcon = selectedCategory ? getCategoryIcon(selectedCategory) : Layers;
+
     return (
-        <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="space-y-5 animate-in fade-in duration-300">
             {/* Global Search Bar with Live Match Counter */}
             <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -175,14 +167,14 @@ export default function StepTwoSkills({ data, setData, errors, skills = {} }) {
                                 : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:text-brand'
                         }`}
                     >
-                        {showSelectedOnly ? 'Show All Skills' : 'Review Selected'}
+                        {showSelectedOnly ? 'Back to Selection' : 'Review Selected'}
                     </button>
                 </div>
             )}
 
-            {/* Mode A: Selected Skills Only View */}
+            {/* Mode A: Selected Skills Review View */}
             {showSelectedOnly ? (
-                <div className="space-y-3">
+                <div className="space-y-3 animate-in fade-in duration-200">
                     <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                             Your Selected Stack ({data.skills.length})
@@ -196,7 +188,7 @@ export default function StepTwoSkills({ data, setData, errors, skills = {} }) {
                         </button>
                     </div>
 
-                    <div className="max-h-96 overflow-y-auto space-y-2 pr-1">
+                    <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
                         {data.skills.map((skill) => (
                             <div
                                 key={skill.id}
@@ -253,8 +245,8 @@ export default function StepTwoSkills({ data, setData, errors, skills = {} }) {
                     </div>
                 </div>
             ) : searchTerm ? (
-                /* Mode B: Instant Search Filter Results */
-                <div className="space-y-3">
+                /* Mode B: Instant Search Filter Results Across All Categories */
+                <div className="space-y-3 animate-in fade-in duration-200">
                     <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                             Search Results ({searchResults.length})
@@ -264,11 +256,11 @@ export default function StepTwoSkills({ data, setData, errors, skills = {} }) {
                             onClick={() => setSearchTerm('')}
                             className="text-xs text-brand hover:underline font-medium"
                         >
-                            Reset filter
+                            Reset search
                         </button>
                     </div>
 
-                    <div className="max-h-96 overflow-y-auto space-y-2 pr-1">
+                    <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
                         {searchResults.map((skill) => {
                             const selectedEntry = data.skills.find(s => s.id === skill.id);
                             const isSelected = !!selectedEntry;
@@ -304,7 +296,7 @@ export default function StepTwoSkills({ data, setData, errors, skills = {} }) {
                                         </div>
                                     </div>
 
-                                    {/* Inline Proficiency Pill (Revealed when selected) */}
+                                    {/* Inline Proficiency Pill */}
                                     {isSelected && (
                                         <div className="flex items-center gap-2 self-end sm:self-auto animate-in fade-in zoom-in-95 duration-150">
                                             <span className="text-[10px] text-slate-400 font-medium hidden sm:inline">
@@ -345,147 +337,168 @@ export default function StepTwoSkills({ data, setData, errors, skills = {} }) {
                         )}
                     </div>
                 </div>
-            ) : (
-                /* Mode C: Clean Vertical Category Accordion (NO horizontal scrolling) */
-                <div className="space-y-3">
-                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                        <span className="font-semibold uppercase tracking-wider">
-                            Skill Categories ({categoryNames.length})
-                        </span>
-                        <div className="flex items-center gap-3">
-                            <button
-                                type="button"
-                                onClick={expandAll}
-                                className="hover:text-brand transition-colors"
-                            >
-                                Expand all
-                            </button>
-                            <span>·</span>
-                            <button
-                                type="button"
-                                onClick={collapseAll}
-                                className="hover:text-brand transition-colors"
-                            >
-                                Collapse all
-                            </button>
+            ) : selectedCategory ? (
+                /* Mode C-2: Category Skills Drill-Down View (Inside the SAME Container) */
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 shadow-xs overflow-hidden animate-in fade-in slide-in-from-right-2 duration-200">
+                    {/* Top Navigation Bar with Back Option */}
+                    <div className="p-3.5 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-950/40 flex items-center justify-between">
+                        <button
+                            type="button"
+                            onClick={() => setSelectedCategory(null)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-all cursor-pointer group"
+                        >
+                            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+                            <span>Back to Categories</span>
+                        </button>
+
+                        <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                                {activeCategorySkills.length} skills
+                            </span>
+                            {activeSelectedCount > 0 && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-brand text-white shadow-2xs">
+                                    {activeSelectedCount} selected
+                                </span>
+                            )}
                         </div>
                     </div>
 
-                    <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
-                        {categoryNames.map((category) => {
-                            const catSkills = skills[category] || [];
-                            const isOpen = openCategories.includes(category);
-                            const selectedInCat = selectedCountByCategory[category] || 0;
-                            const IconComponent = getCategoryIcon(category);
+                    {/* Active Category Header */}
+                    <div className="px-4 pt-3.5 pb-2 flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-brand/10 text-brand flex items-center justify-center shrink-0">
+                            <ActiveCategoryIcon className="w-4 h-4" />
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                                {selectedCategory}
+                            </h4>
+                            <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                                Select skills that match your experience and rate proficiency (1–5)
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Skill List with Instant Selection & Inline 1-5 Rating */}
+                    <div className="p-3.5 pt-1 space-y-2 max-h-72 overflow-y-auto pr-1">
+                        {activeCategorySkills.map((skill) => {
+                            const selectedEntry = data.skills.find(s => s.id === skill.id);
+                            const isSelected = !!selectedEntry;
+                            const level = selectedEntry ? selectedEntry.proficiency_level : 3;
 
                             return (
                                 <div
-                                    key={category}
-                                    className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 overflow-hidden shadow-xs transition-all"
+                                    key={skill.id}
+                                    className={`p-2.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                                        isSelected
+                                            ? 'bg-brand/5 dark:bg-brand/10 border-brand/50 dark:border-brand/40 shadow-xs'
+                                            : 'bg-white dark:bg-slate-900/60 border-slate-200/80 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700'
+                                    }`}
                                 >
-                                    {/* Vertical Category Header Button */}
-                                    <button
-                                        type="button"
-                                        onClick={() => toggleCategory(category)}
-                                        className="w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                                    {/* Skill Click Toggle */}
+                                    <div
+                                        className="flex items-center gap-2.5 cursor-pointer select-none grow"
+                                        onClick={() => handleToggleSkill(skill)}
                                     >
-                                        <div className="flex items-center gap-2.5">
-                                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                                                selectedInCat > 0
-                                                    ? 'bg-brand/10 text-brand'
-                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
-                                            }`}>
-                                                <IconComponent className="w-4 h-4" />
-                                            </div>
-                                            <div>
-                                                <span className="text-xs font-bold text-slate-900 dark:text-white">
-                                                    {category}
-                                                </span>
-                                                <span className="text-[10px] text-slate-400 ml-2 font-mono">
-                                                    {catSkills.length} skills
-                                                </span>
-                                            </div>
+                                        <div className={`w-4 h-4 rounded-md flex items-center justify-center transition-all ${
+                                            isSelected
+                                                ? 'bg-brand text-white shadow-2xs'
+                                                : 'border border-slate-300 dark:border-slate-600 text-transparent'
+                                        }`}>
+                                            <Check className="w-3 h-3" />
                                         </div>
+                                        <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                                            {skill.name}
+                                        </span>
+                                    </div>
 
-                                        <div className="flex items-center gap-2">
-                                            {selectedInCat > 0 && (
-                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-brand text-white shadow-2xs">
-                                                    {selectedInCat} selected
-                                                </span>
-                                            )}
-                                            {isOpen ? (
-                                                <ChevronUp className="w-4 h-4 text-slate-400" />
-                                            ) : (
-                                                <ChevronDown className="w-4 h-4 text-slate-400" />
-                                            )}
-                                        </div>
-                                    </button>
-
-                                    {/* Expanded Category Skills Grid */}
-                                    {isOpen && (
-                                        <div className="p-3 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950/30 space-y-2">
-                                            {catSkills.map((skill) => {
-                                                const selectedEntry = data.skills.find(s => s.id === skill.id);
-                                                const isSelected = !!selectedEntry;
-                                                const level = selectedEntry ? selectedEntry.proficiency_level : 3;
-
-                                                return (
-                                                    <div
-                                                        key={skill.id}
-                                                        className={`p-2.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
-                                                            isSelected
-                                                                ? 'bg-white dark:bg-slate-900 border-brand/50 dark:border-brand/40 shadow-xs'
-                                                                : 'bg-white dark:bg-slate-900/60 border-slate-200/80 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700'
+                                    {/* Inline Tactile 1-5 Rating Selector */}
+                                    {isSelected && (
+                                        <div className="flex items-center gap-1.5 self-end sm:self-auto animate-in fade-in duration-150">
+                                            <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">
+                                                Lvl:
+                                            </span>
+                                            <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
+                                                {[1, 2, 3, 4, 5].map((lvl) => (
+                                                    <button
+                                                        key={lvl}
+                                                        type="button"
+                                                        onClick={() => handleProficiencyChange(skill.id, lvl)}
+                                                        title={proficiencyLabels[lvl]}
+                                                        className={`w-5 h-5 flex items-center justify-center rounded text-[10px] font-bold transition-all ${
+                                                            level >= lvl
+                                                                ? 'bg-brand text-white shadow-2xs'
+                                                                : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                                                         }`}
                                                     >
-                                                        {/* Skill Toggle Checkbox & Label */}
-                                                        <div
-                                                            className="flex items-center gap-2.5 cursor-pointer select-none grow"
-                                                            onClick={() => handleToggleSkill(skill)}
-                                                        >
-                                                            <div className={`w-4 h-4 rounded-md flex items-center justify-center transition-all ${
-                                                                isSelected
-                                                                    ? 'bg-brand text-white shadow-2xs'
-                                                                    : 'border border-slate-300 dark:border-slate-600 text-transparent'
-                                                            }`}>
-                                                                <Check className="w-3 h-3" />
-                                                            </div>
-                                                            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                                                                {skill.name}
-                                                            </span>
-                                                        </div>
-
-                                                        {/* Inline Tactile 1-5 Rating Selector */}
-                                                        {isSelected && (
-                                                            <div className="flex items-center gap-1.5 self-end sm:self-auto animate-in fade-in duration-150">
-                                                                <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">
-                                                                    Lvl:
-                                                                </span>
-                                                                <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
-                                                                    {[1, 2, 3, 4, 5].map((lvl) => (
-                                                                        <button
-                                                                            key={lvl}
-                                                                            type="button"
-                                                                            onClick={() => handleProficiencyChange(skill.id, lvl)}
-                                                                            title={proficiencyLabels[lvl]}
-                                                                            className={`w-5 h-5 flex items-center justify-center rounded text-[10px] font-bold transition-all ${
-                                                                                level >= lvl
-                                                                                    ? 'bg-brand text-white shadow-2xs'
-                                                                                    : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                                                                            }`}
-                                                                        >
-                                                                            {lvl}
-                                                                        </button>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
+                                                        {lvl}
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            ) : (
+                /* Mode C-1: Category Directory View (First Display - Uses the ENTIRE Container) */
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 shadow-xs overflow-hidden animate-in fade-in slide-in-from-left-2 duration-200">
+                    <div className="p-3.5 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-950/40 flex items-center justify-between">
+                        <div>
+                            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 font-heading">
+                                Skill Categories
+                            </span>
+                            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                                Click a category below to configure your technical skills
+                            </p>
+                        </div>
+                        <span className="text-[11px] font-mono text-slate-400">
+                            {categoryNames.length} categories
+                        </span>
+                    </div>
+
+                    {/* Full Container Category Cards List */}
+                    <div className="p-3 space-y-2 max-h-80 overflow-y-auto pr-1">
+                        {categoryNames.map((cat) => {
+                            const IconComponent = getCategoryIcon(cat);
+                            const catSkills = skills[cat] || [];
+                            const selectedInThisCat = selectedCountByCategory[cat] || 0;
+
+                            return (
+                                <button
+                                    key={cat}
+                                    type="button"
+                                    onClick={() => setSelectedCategory(cat)}
+                                    className="w-full p-3 rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900/60 hover:bg-slate-50 dark:hover:bg-slate-800/80 hover:border-brand/50 dark:hover:border-brand/40 flex items-center justify-between text-left transition-all duration-150 cursor-pointer group shadow-2xs"
+                                >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                                            selectedInThisCat > 0 
+                                                ? 'bg-brand/10 text-brand' 
+                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 group-hover:bg-brand/10 group-hover:text-brand'
+                                        }`}>
+                                            <IconComponent className="w-4 h-4" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-brand transition-colors truncate">
+                                                {cat}
+                                            </p>
+                                            <span className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">
+                                                {catSkills.length} skills available
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        {selectedInThisCat > 0 && (
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-brand text-white shadow-2xs">
+                                                {selectedInThisCat} selected
+                                            </span>
+                                        )}
+                                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-brand group-hover:translate-x-0.5 transition-all" />
+                                    </div>
+                                </button>
                             );
                         })}
                     </div>

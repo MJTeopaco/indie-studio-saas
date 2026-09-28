@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, useForm, usePage } from '@inertiajs/react';
 import OnboardingSplitLayout from '@/Components/Onboarding/OnboardingSplitLayout';
 import OnboardingPreviewShowcase from '@/Components/Onboarding/OnboardingPreviewShowcase';
 import StepOneIdentity from '@/Components/Onboarding/StepOneIdentity';
@@ -8,6 +8,9 @@ import StepThreeLogistics from '@/Components/Onboarding/StepThreeLogistics';
 import WizardNavigation from '@/Components/Onboarding/WizardNavigation';
 
 export default function Wizard({ positions = [], skills = {} }) {
+    const { auth } = usePage().props;
+    const userName = auth?.user?.name || 'Developer';
+
     const [currentStep, setCurrentStep] = useState(1);
 
     const { data, setData, post, processing, errors, clearErrors, setError } = useForm({
@@ -15,8 +18,8 @@ export default function Wizard({ positions = [], skills = {} }) {
         experience_years: '',
         open_to_invitations: true,
         skills: [],
-        max_hours_per_week: 40,
-        timezone: 'Asia/Manila',
+        max_hours_per_week: '',
+        timezone: '',
     });
 
     const handleNext = () => {
@@ -79,8 +82,17 @@ export default function Wizard({ positions = [], skills = {} }) {
 
     const stepHeadings = {
         1: {
-            title: "Core Professional Identity",
-            subtitle: "Set up your developer passport for AI capacity matching and team coordination."
+            title: `Welcome, ${userName}!`,
+            subtitle: (
+                <div className="space-y-1">
+                    <p className="text-xs sm:text-sm font-bold text-brand uppercase tracking-wider font-mono">
+                        Core Professional Identity
+                    </p>
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                        Set up your developer passport for AI capacity matching and team coordination.
+                    </p>
+                </div>
+            )
         },
         2: {
             title: "The Vector Skill Matrix",
@@ -142,6 +154,7 @@ export default function Wizard({ positions = [], skills = {} }) {
                     onNext={handleNext}
                     onBack={handleBack}
                     processing={processing}
+                    canSubmit={Boolean(data.max_hours_per_week && data.timezone)}
                 />
             </form>
         </OnboardingSplitLayout>

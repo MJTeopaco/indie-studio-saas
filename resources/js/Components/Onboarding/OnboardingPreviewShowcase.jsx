@@ -1,7 +1,32 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import DriftWall, { STUDIOSPRINT_DEFAULT_TILES } from './DriftWall';
 
-export default function OnboardingPreviewShowcase({ step = 1, data = {}, positions = [], forkMode = 'create', isDark }) {
+function areShowcasePropsEqual(prevProps, nextProps) {
+    if (prevProps.isDark !== nextProps.isDark) return false;
+    if (prevProps.forkMode !== nextProps.forkMode) return false;
+    if (prevProps.step !== nextProps.step) return false;
+
+    // Compare studio_name
+    if (prevProps.data?.studio_name !== nextProps.data?.studio_name) return false;
+
+    // Compare skills
+    const prevSkills = prevProps.data?.skills || [];
+    const nextSkills = nextProps.data?.skills || [];
+    if (prevSkills.length !== nextSkills.length) return false;
+    for (let i = 0; i < prevSkills.length; i++) {
+        if (
+            prevSkills[i]?.id !== nextSkills[i]?.id ||
+            prevSkills[i]?.name !== nextSkills[i]?.name ||
+            prevSkills[i]?.proficiency_level !== nextSkills[i]?.proficiency_level
+        ) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function OnboardingPreviewShowcase({ step = 1, data = {}, positions = [], forkMode = 'create', isDark }) {
     // Theme state observer
     const [darkMode, setDarkMode] = useState(() => {
         if (typeof isDark === 'boolean') return isDark;
@@ -24,28 +49,34 @@ export default function OnboardingPreviewShowcase({ step = 1, data = {}, positio
         return () => observer.disconnect();
     }, [isDark]);
 
-    // Generate context-aware tiles if data is present, or fallback to default StudioSprint tiles
+    const studioName = data?.studio_name || '';
+    const skillsList = data?.skills || [];
+    const skillsKey = useMemo(() => {
+        return skillsList.map(s => `${s.id || s.name}-${s.proficiency_level || 3}`).join('|');
+    }, [skillsList]);
+
+    // Generate context-aware tiles only when studio_name or selected skills actually change
     const dynamicTiles = useMemo(() => {
         const tiles = [...STUDIOSPRINT_DEFAULT_TILES];
 
         // If user entered a studio name in fork, customize tenancy tile
-        if (data?.studio_name) {
+        if (studioName) {
             tiles[8] = {
                 type: 'tenancy',
                 idKey: '#TEN-NEW',
-                title: data.studio_name,
+                title: studioName,
                 sub: 'Isolated Tenant DB Partition',
                 tag: 'Provisioning',
                 dot: 'emerald',
-                assignee: data.studio_name.slice(0, 2).toUpperCase(),
-                assigneeName: data.studio_name,
+                assignee: studioName.slice(0, 2).toUpperCase(),
+                assigneeName: studioName,
                 date: 'Live',
             };
         }
 
         // If user has selected skills in wizard, personalize the first few tiles
-        if (data?.skills && data.skills.length > 0) {
-            data.skills.slice(0, 4).forEach((s, idx) => {
+        if (skillsList.length > 0) {
+            skillsList.slice(0, 4).forEach((s, idx) => {
                 tiles[idx] = {
                     type: 'skill',
                     idKey: `#SKL-0${idx + 1}`,
@@ -61,7 +92,7 @@ export default function OnboardingPreviewShowcase({ step = 1, data = {}, positio
         }
 
         return tiles;
-    }, [data, step]);
+    }, [studioName, skillsKey]);
 
     return (
         <div className="relative w-full h-full min-h-[600px] flex items-center justify-center bg-slate-100/70 dark:bg-[#070A10] transition-colors duration-300 overflow-hidden select-none">
@@ -98,3 +129,5 @@ export default function OnboardingPreviewShowcase({ step = 1, data = {}, positio
         </div>
     );
 }
+
+export default React.memo(OnboardingPreviewShowcase, areShowcasePropsEqual);

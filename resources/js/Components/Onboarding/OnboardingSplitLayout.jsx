@@ -70,9 +70,13 @@ export default function OnboardingSplitLayout({
                             {title}
                         </h1>
                         {subtitle && (
-                            <p className="font-sans text-sm text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
-                                {subtitle}
-                            </p>
+                            typeof subtitle === 'string' ? (
+                                <p className="font-sans text-sm text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+                                    {subtitle}
+                                </p>
+                            ) : (
+                                <div className="mt-2">{subtitle}</div>
+                            )
                         )}
                     </div>
 

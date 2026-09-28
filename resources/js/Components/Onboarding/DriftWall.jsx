@@ -167,7 +167,7 @@ const columnFactor = (index, variance) => {
 };
 
 // StudioSprint UI Tile Component
-function StudioSprintTileContent({ item }) {
+const StudioSprintTileContent = React.memo(function StudioSprintTileContent({ item }) {
     const dotColors = {
         rose: 'bg-rose-500 shadow-rose-500/60',
         emerald: 'bg-emerald-500 shadow-emerald-500/60 dark:bg-emerald-400 dark:shadow-emerald-400/60',
@@ -228,7 +228,7 @@ function StudioSprintTileContent({ item }) {
             </div>
         </div>
     );
-}
+});
 
 const DriftWall = ({
     items = STUDIOSPRINT_DEFAULT_TILES,
@@ -313,10 +313,17 @@ const DriftWall = ({
         });
     }, [columnItems, speed, direction, variance]);
 
-    useEffect(() => {
-        offsetsRef.current = columnMeta.map((meta, c) => meta.copyHeight * ((c * 0.37) % 1));
-        velocitiesRef.current = columnItems.map(() => 0);
-    }, [columnMeta, columnItems]);
+    const columnMetaRef = useRef(columnMeta);
+    columnMetaRef.current = columnMeta;
+
+    const baseVelocitiesRef = useRef(baseVelocities);
+    baseVelocitiesRef.current = baseVelocities;
+
+    const pauseOnHoverRef = useRef(pauseOnHover);
+    pauseOnHoverRef.current = pauseOnHover;
+
+    const parallaxRef = useRef(parallax);
+    parallaxRef.current = parallax;
 
     const applyPlaneTransform = useCallback(
         (px, py) => {
@@ -330,30 +337,56 @@ const DriftWall = ({
         [tilt, turn, roll, depth]
     );
 
+    const applyPlaneTransformRef = useRef(applyPlaneTransform);
+    applyPlaneTransformRef.current = applyPlaneTransform;
+
+    useEffect(() => {
+        if (!offsetsRef.current || offsetsRef.current.length !== columnMeta.length) {
+            offsetsRef.current = columnMeta.map((meta, c) => meta.copyHeight * ((c * 0.37) % 1));
+        } else {
+            // Preserve running offset position across re-renders/prop updates
+            offsetsRef.current = columnMeta.map((meta, c) => {
+                const prev = offsetsRef.current[c] ?? 0;
+                return meta.copyHeight > 0 ? ((prev % meta.copyHeight) + meta.copyHeight) % meta.copyHeight : 0;
+            });
+        }
+
+        if (!velocitiesRef.current || velocitiesRef.current.length !== columnItems.length) {
+            velocitiesRef.current = columnItems.map((_, c) => velocitiesRef.current?.[c] ?? 0);
+        }
+    }, [columnMeta, columnItems]);
+
     useEffect(() => {
         const animate = ts => {
             if (lastTsRef.current === null) lastTsRef.current = ts;
             const dt = Math.min(0.05, Math.max(0, ts - lastTsRef.current) / 1000);
             lastTsRef.current = ts;
 
-            const maxTilt = parallax * 8;
+            const currentParallax = parallaxRef.current ?? 0;
+            const maxTilt = currentParallax * 8;
             const targetX = pointerRef.current.x * maxTilt;
             const targetY = -pointerRef.current.y * maxTilt;
             const damp = 1 - Math.exp(-dt / 0.12);
             pointerDampedRef.current.x += (targetX - pointerDampedRef.current.x) * damp;
             pointerDampedRef.current.y += (targetY - pointerDampedRef.current.y) * damp;
-            applyPlaneTransform(pointerDampedRef.current.x, pointerDampedRef.current.y);
+            if (applyPlaneTransformRef.current) {
+                applyPlaneTransformRef.current(pointerDampedRef.current.x, pointerDampedRef.current.y);
+            }
 
             if (!reduced) {
+                const currentMeta = columnMetaRef.current;
+                const currentVelocities = baseVelocitiesRef.current;
+                const isPausedOnHover = pauseOnHoverRef.current;
+
                 for (let c = 0; c < trackRefs.current.length; c++) {
-                    const meta = columnMeta[c];
+                    const meta = currentMeta[c];
                     if (!meta) continue;
-                    const paused = wallHoveredRef.current && pauseOnHover;
+                    const paused = wallHoveredRef.current && isPausedOnHover;
                     const factor = paused || hoveredColRef.current === c ? 0 : 1;
-                    const target = baseVelocities[c] * factor;
+                    const target = (currentVelocities[c] ?? 0) * factor;
 
                     const ease = 1 - Math.exp(-dt / (target === 0 ? 0.16 : 0.28));
-                    velocitiesRef.current[c] += (target - velocitiesRef.current[c]) * ease;
+                    velocitiesRef.current[c] = (velocitiesRef.current[c] ?? 0) + (target - (velocitiesRef.current[c] ?? 0)) * ease;
                     let next = (offsetsRef.current[c] ?? 0) + velocitiesRef.current[c] * dt;
                     next = ((next % meta.copyHeight) + meta.copyHeight) % meta.copyHeight;
                     offsetsRef.current[c] = next;
@@ -362,9 +395,10 @@ const DriftWall = ({
                     if (el) el.style.transform = `translate3d(0, ${-next}px, 0)`;
                 }
             } else {
+                const currentMeta = columnMetaRef.current;
                 for (let c = 0; c < trackRefs.current.length; c++) {
                     const el = trackRefs.current[c];
-                    const meta = columnMeta[c];
+                    const meta = currentMeta[c];
                     if (el && meta) el.style.transform = `translate3d(0, ${-(offsetsRef.current[c] ?? 0)}px, 0)`;
                 }
             }
@@ -378,7 +412,7 @@ const DriftWall = ({
             rafRef.current = null;
             lastTsRef.current = null;
         };
-    }, [baseVelocities, columnMeta, pauseOnHover, parallax, reduced, applyPlaneTransform]);
+    }, [reduced]);
 
     const activate = useCallback((id, index) => {
         activeIdRef.current = id;
@@ -507,4 +541,4 @@ const DriftWall = ({
     );
 };
 
-export default DriftWall;
+export default React.memo(DriftWall);
