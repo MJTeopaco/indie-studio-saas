@@ -16,6 +16,7 @@ import {
     Building2 
 } from 'lucide-react';
 import InputError from '@/Components/InputError';
+import { showToast } from '@/Components/SystemToast';
 import SkillMatrixModal from './SkillMatrixModal';
 import AvatarCropModal from './AvatarCropModal';
 import DeleteAvatarModal from './DeleteAvatarModal';
@@ -81,6 +82,13 @@ export default function PersonalInfoForm({
         router.post(route('profile.avatar.update'), formData, {
             preserveScroll: true,
             forceFormData: true,
+            onSuccess: () => {
+                showToast('Profile picture uploaded successfully!', 'success');
+            },
+            onError: (errs) => {
+                const firstErr = Object.values(errs)[0] || 'Failed to upload profile picture. Please try again.';
+                showToast(firstErr, 'error');
+            },
             onFinish: () => {
                 setIsUploadingAvatar(false);
                 if (fileInputRef.current) fileInputRef.current.value = '';
@@ -92,6 +100,12 @@ export default function PersonalInfoForm({
         setIsDeletingAvatar(true);
         router.delete(route('profile.avatar.destroy'), {
             preserveScroll: true,
+            onSuccess: () => {
+                showToast('Profile picture removed successfully.', 'info');
+            },
+            onError: () => {
+                showToast('Failed to remove profile picture. Please try again.', 'error');
+            },
             onFinish: () => {
                 setIsDeletingAvatar(false);
                 setIsDeleteAvatarModalOpen(false);
@@ -111,6 +125,11 @@ export default function PersonalInfoForm({
     const handleSaveProfile = (e) => {
         e.preventDefault();
 
+        if (data.working_status === 'on_leave' && !data.leave_end_date) {
+            showToast('Please specify a return date for your leave.', 'warning');
+            return;
+        }
+
         // 1. Update personal information
         patch(route('profile.update'), {
             preserveScroll: true,
@@ -126,7 +145,18 @@ export default function PersonalInfoForm({
                     leave_end_date: data.working_status === 'on_leave' ? data.leave_end_date : null,
                 }, {
                     preserveScroll: true,
+                    onSuccess: () => {
+                        showToast('Personal information & working status updated successfully!', 'success');
+                    },
+                    onError: (statusErrs) => {
+                        const firstErr = Object.values(statusErrs)[0] || 'Failed to update working status.';
+                        showToast(firstErr, 'error');
+                    },
                 });
+            },
+            onError: (errs) => {
+                const firstErr = Object.values(errs)[0] || 'Failed to update personal information. Please check your inputs.';
+                showToast(firstErr, 'error');
             },
         });
     };
@@ -523,16 +553,7 @@ export default function PersonalInfoForm({
                 </div>
 
                 {/* Save Row Footer */}
-                <div className="p-6 bg-slate-50/50 dark:bg-slate-900/30 flex items-center justify-between">
-                    <div>
-                        {recentlySuccessful && (
-                            <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                                <Check className="w-3.5 h-3.5" />
-                                Changes saved successfully.
-                            </p>
-                        )}
-                    </div>
-
+                <div className="p-6 bg-slate-50/50 dark:bg-slate-900/30 flex items-center justify-end">
                     <button
                         type="submit"
                         disabled={processing}

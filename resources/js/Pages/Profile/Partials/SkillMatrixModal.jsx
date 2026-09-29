@@ -16,6 +16,7 @@ import {
     Sparkles, 
     Loader2 
 } from 'lucide-react';
+import { showToast } from '@/Components/SystemToast';
 
 export default function SkillMatrixModal({ 
     isOpen, 
@@ -116,7 +117,12 @@ export default function SkillMatrixModal({
             preserveScroll: true,
             onFinish: () => setSaving(false),
             onSuccess: () => {
+                showToast('Member developer skill matrix saved successfully!', 'success');
                 onClose();
+            },
+            onError: (errs) => {
+                const firstErr = Object.values(errs)[0] || 'Failed to save skill matrix. Please try again.';
+                showToast(firstErr, 'error');
             },
         });
     };

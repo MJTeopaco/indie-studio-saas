@@ -14,6 +14,7 @@ import {
     X 
 } from 'lucide-react';
 import InputError from '@/Components/InputError';
+import { showToast } from '@/Components/SystemToast';
 
 export default function PrivacySecurityForm() {
     const passwordInput = useRef();
@@ -59,7 +60,10 @@ export default function PrivacySecurityForm() {
 
         updatePasswordPut(route('password.update'), {
             preserveScroll: true,
-            onSuccess: () => resetPw(),
+            onSuccess: () => {
+                resetPw();
+                showToast('Password updated successfully!', 'success');
+            },
             onError: (errs) => {
                 if (errs.password) {
                     resetPw('password', 'password_confirmation');
@@ -69,6 +73,8 @@ export default function PrivacySecurityForm() {
                     resetPw('current_password');
                     currentPasswordInput.current?.focus();
                 }
+                const firstErr = Object.values(errs)[0] || 'Failed to update password. Please check your credentials.';
+                showToast(firstErr, 'error');
             },
         });
     };
@@ -78,8 +84,15 @@ export default function PrivacySecurityForm() {
 
         destroyAccount(route('profile.destroy'), {
             preserveScroll: true,
-            onSuccess: () => closeDeleteModal(),
-            onError: () => deletePasswordInput.current?.focus(),
+            onSuccess: () => {
+                closeDeleteModal();
+                showToast('Account deleted successfully.', 'info');
+            },
+            onError: (errs) => {
+                deletePasswordInput.current?.focus();
+                const firstErr = errs?.password || 'Failed to delete account. Incorrect password.';
+                showToast(firstErr, 'error');
+            },
             onFinish: () => resetDel(),
         });
     };
@@ -260,16 +273,7 @@ export default function PrivacySecurityForm() {
                 </div>
 
                 {/* Footer Save Row */}
-                <div className="p-6 bg-slate-50/50 dark:bg-slate-900/30 flex items-center justify-between">
-                    <div>
-                        {pwRecentlySuccessful && (
-                            <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                                <Check className="w-3.5 h-3.5" />
-                                Password updated successfully.
-                            </p>
-                        )}
-                    </div>
-
+                <div className="p-6 bg-slate-50/50 dark:bg-slate-900/30 flex items-center justify-end">
                     <button
                         type="submit"
                         disabled={pwProcessing}
