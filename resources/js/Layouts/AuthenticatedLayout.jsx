@@ -4,7 +4,7 @@ import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import SystemToast from '@/Components/SystemToast';
 import { Link, usePage } from '@inertiajs/react';
 import { useState } from 'react';
-import { User, LogOut } from 'lucide-react';
+import { User, LogOut, ChevronDown } from 'lucide-react';
 
 export default function AuthenticatedLayout({ header, children }) {
     const user = usePage().props.auth.user;
@@ -18,7 +18,7 @@ export default function AuthenticatedLayout({ header, children }) {
 
     return (
         <div className="min-h-screen bg-surface text-text-primary">
-            <nav className="border-b border-surface-border bg-surface-elevated">
+            <nav className="sticky top-0 z-40 border-b border-surface-border bg-surface-elevated/95 backdrop-blur-md transition-colors">
                 <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                     <div className="flex h-16 justify-between">
                         <div className="flex items-center">
@@ -35,20 +35,23 @@ export default function AuthenticatedLayout({ header, children }) {
                                     <Dropdown.Trigger>
                                         <button
                                             type="button"
-                                            className="relative flex items-center justify-center w-9 h-9 rounded-full ring-1 ring-slate-300 dark:ring-slate-700/80 hover:ring-2 hover:ring-brand/70 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 transition-all duration-200 overflow-hidden cursor-pointer shadow-xs focus:outline-none focus:ring-2 focus:ring-brand"
+                                            className="group flex items-center gap-2 p-1 pl-1 pr-2.5 rounded-full hover:bg-surface border border-transparent hover:border-surface-border transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 cursor-pointer shadow-2xs"
                                             aria-label="User profile menu"
                                         >
-                                            {user.avatar ? (
-                                                <img
-                                                    src={user.avatar}
-                                                    alt={user.name}
-                                                    className="w-full h-full object-cover rounded-full"
-                                                />
-                                            ) : (
-                                                <span className="font-heading font-bold text-xs uppercase tracking-tight">
-                                                    {userInitials}
-                                                </span>
-                                            )}
+                                            <div className="relative flex items-center justify-center w-8 h-8 rounded-full ring-1 ring-slate-300 dark:ring-slate-700/80 group-hover:ring-brand/70 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 transition-all duration-200 overflow-hidden shrink-0 shadow-xs">
+                                                {user.avatar ? (
+                                                    <img
+                                                        src={user.avatar}
+                                                        alt={user.name}
+                                                        className="w-full h-full object-cover rounded-full"
+                                                    />
+                                                ) : (
+                                                    <span className="font-heading font-bold text-xs uppercase tracking-tight">
+                                                        {userInitials}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <ChevronDown className="w-3.5 h-3.5 text-text-muted group-hover:text-text-primary transition-colors" />
                                         </button>
                                     </Dropdown.Trigger>
 
