@@ -3,10 +3,13 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     PanelLeftClose,
     PanelLeftOpen,
-    Search,
     Sun,
     Moon,
     LogOut,
+    ChevronDown,
+    LayoutGrid,
+    ArrowLeft,
+    User as UserIcon,
 } from 'lucide-react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import { showToast } from '@/Components/SystemToast';
@@ -192,6 +195,30 @@ function NavItem({ icon: Icon, label, href = '#', active = false, badge = null, 
     );
 }
 
+function CategoryHeader({ label, isOpen, onToggle, isCollapsed }) {
+    if (isCollapsed) {
+        return <div className="my-2 h-px bg-gray-200 dark:bg-slate-800 mx-2" />;
+    }
+    return (
+        <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={isOpen}
+            className="w-full flex items-center justify-between px-3 py-1.5 text-left group focus:outline-none rounded-lg hover:bg-gray-100/70 dark:hover:bg-slate-800/50 transition-colors"
+        >
+            <span className="font-heading text-[11px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider group-hover:text-gray-700 dark:group-hover:text-slate-300 transition-colors">
+                {label}
+            </span>
+            <ChevronDown
+                className={`w-3.5 h-3.5 text-gray-400 dark:text-slate-500 transition-transform duration-200 ${
+                    isOpen ? 'rotate-0' : '-rotate-90'
+                }`}
+                aria-hidden="true"
+            />
+        </button>
+    );
+}
+
 export default function Sidebar({ user: propUser, studioName: propStudioName }) {
     const pageProps = usePage().props || {};
     const { auth, activeWorkspace, workspaceProjects = [], currentUserRole, canManage = false, pendingEstimatesCount, inboxNotificationCount = 0 } = pageProps;
@@ -211,6 +238,37 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
         }
         return false;
     });
+
+    // Accordion categories collapse state (persisted in localStorage)
+    const [openCategories, setOpenCategories] = useState(() => {
+        if (typeof window !== 'undefined') {
+            try {
+                const saved = localStorage.getItem('studio_sidebar_categories');
+                if (saved) return JSON.parse(saved);
+            } catch (e) {}
+        }
+        return {
+            workspace: true,
+            core: true,
+            intelligence: true,
+            projects: true,
+            utilities: true,
+        };
+    });
+
+    const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+
+    const toggleCategory = (key) => {
+        setOpenCategories((prev) => {
+            const next = { ...prev, [key]: !prev[key] };
+            if (typeof window !== 'undefined') {
+                try {
+                    localStorage.setItem('studio_sidebar_categories', JSON.stringify(next));
+                } catch (e) {}
+            }
+            return next;
+        });
+    };
 
     useEffect(() => {
         if (typeof document !== 'undefined') {
@@ -295,8 +353,8 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
             {
                 label: 'AI Workspace',
                 icon: PremiumAutomationIcon,
-                href: `${baseHref}/dashboard`,
-                active: currentPath.includes('/dashboard') || currentPath === baseHref || currentPath === '',
+                href: `${baseHref}/ai-workspace`,
+                active: currentPath.includes('/ai-workspace') || (currentPath.includes('/dashboard') && isManager && !currentPath.includes('/overview')),
             },
         ]
         : [];
@@ -312,16 +370,16 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
 
     const utilityLinks = [
         {
+            label: 'Documentation & Reports',
+            icon: PremiumDocsIcon,
+            href: `${baseHref}/docs`,
+            active: currentPath.includes('/docs') || currentPath.includes('/reports'),
+        },
+        {
             label: 'Settings',
             icon: PremiumSettingsIcon,
             href: `${baseHref}/settings`,
             active: currentPath.includes('/settings'),
-        },
-        {
-            label: 'Documentation',
-            icon: PremiumDocsIcon,
-            href: `${baseHref}/docs`,
-            active: currentPath.includes('/docs'),
         },
     ];
 
@@ -331,238 +389,204 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                 isCollapsed ? 'w-16' : 'w-64'
             }`}
         >
-            {/* 1. Brand Header & Quick Search */}
-            <div className="p-4 flex flex-col gap-3 border-b border-gray-100 dark:border-slate-800/50">
-                {/* Brand Row */}
-                <div className="flex items-center justify-between">
-                    <Link
-                        href={`${baseHref}/dashboard`}
-                        className="flex items-center gap-2.5 overflow-hidden focus:outline-none"
-                        title={studioName}
-                    >
-                        {/* Vaultera Labs symbol logo — collapses to symbol only */}
-                        <ApplicationLogo
-                            variant="symbol"
-                            className="w-8 h-8 shrink-0"
-                        />
-                        {!isCollapsed && (
-                            <span className="font-heading font-bold text-base tracking-tight text-gray-900 dark:text-slate-100 truncate">
-                                StudioSprint
-                            </span>
-                        )}
-                    </Link>
-
-                    <button
-                        type="button"
-                        onClick={() => setIsCollapsed(!isCollapsed)}
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/60 transition-colors"
-                        title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-                    >
-                        {isCollapsed ? (
-                            <PanelLeftOpen className="w-5 h-5" />
-                        ) : (
-                            <PanelLeftClose className="w-5 h-5" />
-                        )}
-                    </button>
-                </div>
-
-                {/* Search Bar */}
-                {isCollapsed ? (
-                    <button
-                        type="button"
-                        onClick={() => showToast('Quick Search (⌘K)', 'info')}
-                        className="w-full flex items-center justify-center py-2 rounded-xl bg-gray-100 dark:bg-slate-800/50 text-gray-400 dark:text-slate-500 hover:text-brand dark:hover:text-brand hover:bg-gray-200 dark:hover:bg-slate-800 transition-colors"
-                        title="Search (⌘K)"
-                    >
-                        <Search className="w-4 h-4" />
-                    </button>
-                ) : (
-                    <div className="relative flex items-center">
-                        <Search className="w-4 h-4 absolute left-3 text-gray-400 dark:text-slate-500 pointer-events-none" />
-                        <input
-                            type="text"
-                            placeholder="Search..."
-                            readOnly
-                            onClick={() => showToast('Quick Search (⌘K)', 'info')}
-                            className="w-full pl-9 pr-12 py-2 rounded-xl bg-gray-100 dark:bg-slate-800/50 border border-transparent focus:border-brand dark:focus:border-brand text-xs text-gray-800 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none cursor-pointer transition-all"
-                        />
-                        <span className="absolute right-2.5 text-[10px] font-mono text-gray-500 dark:text-slate-400 bg-gray-200 dark:bg-slate-700/80 rounded px-1.5 py-0.5 pointer-events-none">
-                            ⌘K
+            {/* 1. Brand Header (Search removed for streamlined vertical height) */}
+            <div className="p-4 flex items-center justify-between border-b border-gray-100 dark:border-slate-800/50">
+                <Link
+                    href={`${baseHref}/overview`}
+                    className="flex items-center gap-2.5 overflow-hidden focus:outline-none"
+                    title={studioName}
+                >
+                    <ApplicationLogo
+                        variant="symbol"
+                        className="w-8 h-8 shrink-0"
+                    />
+                    {!isCollapsed && (
+                        <span className="font-heading font-bold text-base tracking-tight text-gray-900 dark:text-slate-100 truncate">
+                            {studioName}
                         </span>
-                    </div>
-                )}
+                    )}
+                </Link>
+
+                <button
+                    type="button"
+                    onClick={() => setIsCollapsed(!isCollapsed)}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/60 transition-colors"
+                    title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+                >
+                    {isCollapsed ? (
+                        <PanelLeftOpen className="w-5 h-5" />
+                    ) : (
+                        <PanelLeftClose className="w-5 h-5" />
+                    )}
+                </button>
             </div>
 
-            {/* 2. Primary Navigation (Middle, Scrollable) */}
-            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                {/* Dashboard / Home Group */}
-                <div className="pb-1">
-                    {!isCollapsed ? (
-                        <p className="font-heading text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-3 uppercase tracking-wider">
-                            {isManager ? 'Dashboard' : 'Workspace'}
-                        </p>
-                    ) : (
-                        <div className="my-2 h-px bg-gray-200 dark:bg-slate-800 mx-2" />
-                    )}
-                </div>
-
-                {dashboardLinks.map((item) => (
-                    <NavItem
-                        key={item.label}
-                        icon={item.icon}
-                        label={item.label}
-                        href={item.href}
-                        active={item.active}
-                        badge={item.badge}
+            {/* 2. Primary Navigation with Collapsible Accordion Categories */}
+            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                {/* 1. Workspace Category */}
+                <div className="space-y-0.5">
+                    <CategoryHeader
+                        label="Workspace"
+                        isOpen={openCategories.workspace}
+                        onToggle={() => toggleCategory('workspace')}
                         isCollapsed={isCollapsed}
                     />
-                ))}
-
-                {/* Inbox — standalone section, separate from My Work */}
-                <div className="pt-4 pb-1">
-                    {!isCollapsed ? (
-                        <p className="font-heading text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-3 uppercase tracking-wider">
-                            Inbox
-                        </p>
-                    ) : (
-                        <div className="my-2 h-px bg-gray-200 dark:bg-slate-800 mx-2" />
-                    )}
-                </div>
-                <NavItem
-                    key="inbox"
-                    icon={inboxLink.icon}
-                    label={inboxLink.label}
-                    href={inboxLink.href}
-                    active={inboxLink.active}
-                    badge={inboxLink.badge}
-                    badgeVariant={inboxLink.badgeVariant}
-                    isCollapsed={isCollapsed}
-                />
-
-                {/* Core Workspace / Work Group */}
-                <div className="pt-4 pb-1">
-                    {!isCollapsed ? (
-                        <p className="font-heading text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-3 uppercase tracking-wider">
-                            {isManager ? 'Core Workspace' : 'My Work'}
-                        </p>
-                    ) : (
-                        <div className="my-2 h-px bg-gray-200 dark:bg-slate-800 mx-2" />
-                    )}
-                </div>
-
-                {primaryLinks.map((item) => (
-                    <NavItem
-                        key={item.label}
-                        icon={item.icon}
-                        label={item.label}
-                        href={item.href}
-                        active={item.active}
-                        badge={item.badge}
-                        isCollapsed={isCollapsed}
-                    />
-                ))}
-
-                {/* Automation Group (Manager only) */}
-                {automationLinks.length > 0 && (
-                    <>
-                        <div className="pt-4 pb-1">
-                            {!isCollapsed ? (
-                                <p className="font-heading text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-3 uppercase tracking-wider">
-                                    Automation
-                                </p>
-                            ) : (
-                                <div className="my-2 h-px bg-gray-200 dark:bg-slate-800 mx-2" />
-                            )}
-                        </div>
-
-                        {automationLinks.map((item) => (
+                    {(openCategories.workspace || isCollapsed) && (
+                        <div className="space-y-0.5 animate-in fade-in-50 duration-150">
+                            {dashboardLinks.map((item) => (
+                                <NavItem
+                                    key={item.label}
+                                    icon={item.icon}
+                                    label={item.label}
+                                    href={item.href}
+                                    active={item.active}
+                                    badge={item.badge}
+                                    isCollapsed={isCollapsed}
+                                />
+                            ))}
                             <NavItem
-                                key={item.label}
-                                icon={item.icon}
-                                label={item.label}
-                                href={item.href}
-                                active={item.active}
-                                badge={item.badge}
+                                key="inbox"
+                                icon={inboxLink.icon}
+                                label={inboxLink.label}
+                                href={inboxLink.href}
+                                active={inboxLink.active}
+                                badge={inboxLink.badge}
+                                badgeVariant={inboxLink.badgeVariant}
                                 isCollapsed={isCollapsed}
                             />
-                        ))}
-                    </>
-                )}
-
-                {/* Projects Group */}
-                <div className="pt-4 pb-1">
-                    {!isCollapsed ? (
-                        <p className="font-heading text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-3 uppercase tracking-wider">
-                            Projects
-                        </p>
-                    ) : (
-                        <div className="my-2 h-px bg-gray-200 dark:bg-slate-800 mx-2" />
+                        </div>
                     )}
                 </div>
 
-                {projectLinks.map((item) => (
-                    <div key={item.label} className="space-y-1">
-                        <NavItem
-                            icon={item.icon}
-                            label={item.label}
-                            href={item.href}
-                            active={item.active}
+                {/* 2. Core Management Category */}
+                <div className="space-y-0.5 pt-1">
+                    <CategoryHeader
+                        label={isManager ? 'Core Management' : 'My Work'}
+                        isOpen={openCategories.core}
+                        onToggle={() => toggleCategory('core')}
+                        isCollapsed={isCollapsed}
+                    />
+                    {(openCategories.core || isCollapsed) && (
+                        <div className="space-y-0.5 animate-in fade-in-50 duration-150">
+                            {primaryLinks.map((item) => (
+                                <NavItem
+                                    key={item.label}
+                                    icon={item.icon}
+                                    label={item.label}
+                                    href={item.href}
+                                    active={item.active}
+                                    badge={item.badge}
+                                    isCollapsed={isCollapsed}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* 3. Intelligence / AI Workspace Category */}
+                {automationLinks.length > 0 && (
+                    <div className="space-y-0.5 pt-1">
+                        <CategoryHeader
+                            label="Intelligence"
+                            isOpen={openCategories.intelligence}
+                            onToggle={() => toggleCategory('intelligence')}
                             isCollapsed={isCollapsed}
                         />
-                        
-                        {/* Sub-projects list */}
-                        {!isCollapsed && workspaceProjects && workspaceProjects.length > 0 && (
-                            <div className="mt-1 space-y-1">
-                                {workspaceProjects.map((p) => {
-                                    const projectHref = `${baseHref}/projects/${p.id}`;
-                                    const isProjectActive = currentPath === projectHref;
-                                    return (
-                                        <Link
-                                            key={p.id}
-                                            href={projectHref}
-                                            className={`flex items-center gap-2 pl-9 pr-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-200 border-l-2 ${
-                                                isProjectActive
-                                                    ? 'border-brand text-brand bg-brand-10/40 font-semibold'
-                                                    : 'border-transparent text-gray-500 dark:text-slate-400 hover:bg-gray-50 hover:dark:bg-slate-800/30 hover:text-gray-900 hover:dark:text-slate-200'
-                                            }`}
-                                        >
-                                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                                p.status === 'active'
-                                                    ? 'bg-emerald-500'
-                                                    : p.status === 'planning'
-                                                    ? 'bg-amber-500'
-                                                    : 'bg-gray-400'
-                                            }`} />
-                                            <span className="truncate">{p.name}</span>
-                                        </Link>
-                                    );
-                                })}
+                        {(openCategories.intelligence || isCollapsed) && (
+                            <div className="space-y-0.5 animate-in fade-in-50 duration-150">
+                                {automationLinks.map((item) => (
+                                    <NavItem
+                                        key={item.label}
+                                        icon={item.icon}
+                                        label={item.label}
+                                        href={item.href}
+                                        active={item.active}
+                                        badge={item.badge}
+                                        isCollapsed={isCollapsed}
+                                    />
+                                ))}
                             </div>
                         )}
                     </div>
-                ))}
+                )}
 
-                {/* Settings & Help Group */}
-                <div className="pt-4 pb-1">
-                    {!isCollapsed ? (
-                        <p className="font-heading text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-3 uppercase tracking-wider">
-                            Settings & Help
-                        </p>
-                    ) : (
-                        <div className="my-2 h-px bg-gray-200 dark:bg-slate-800 mx-2" />
+                {/* 4. Projects Category */}
+                <div className="space-y-0.5 pt-1">
+                    <CategoryHeader
+                        label="Projects"
+                        isOpen={openCategories.projects}
+                        onToggle={() => toggleCategory('projects')}
+                        isCollapsed={isCollapsed}
+                    />
+                    {(openCategories.projects || isCollapsed) && (
+                        <div className="space-y-0.5 animate-in fade-in-50 duration-150">
+                            {projectLinks.map((item) => (
+                                <div key={item.label} className="space-y-1">
+                                    <NavItem
+                                        icon={item.icon}
+                                        label={item.label}
+                                        href={item.href}
+                                        active={item.active}
+                                        isCollapsed={isCollapsed}
+                                    />
+                                    {/* Sub-projects list */}
+                                    {!isCollapsed && workspaceProjects && workspaceProjects.length > 0 && (
+                                        <div className="mt-1 space-y-1">
+                                            {workspaceProjects.map((p) => {
+                                                const projectHref = `${baseHref}/projects/${p.id}`;
+                                                const isProjectActive = currentPath === projectHref;
+                                                return (
+                                                    <Link
+                                                        key={p.id}
+                                                        href={projectHref}
+                                                        className={`flex items-center gap-2 pl-9 pr-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-200 border-l-2 ${
+                                                            isProjectActive
+                                                                ? 'border-brand text-brand bg-brand-10/40 font-semibold'
+                                                                : 'border-transparent text-gray-500 dark:text-slate-400 hover:bg-gray-50 hover:dark:bg-slate-800/30 hover:text-gray-900 hover:dark:text-slate-200'
+                                                        }`}
+                                                    >
+                                                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                                            p.status === 'active'
+                                                                ? 'bg-emerald-500'
+                                                                : p.status === 'planning'
+                                                                ? 'bg-amber-500'
+                                                                : 'bg-gray-400'
+                                                        }`} />
+                                                        <span className="truncate">{p.name}</span>
+                                                    </Link>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
                     )}
                 </div>
 
-                {utilityLinks.map((item) => (
-                    <NavItem
-                        key={item.label}
-                        icon={item.icon}
-                        label={item.label}
-                        href={item.href}
-                        active={item.active}
+                {/* 5. Utilities Category */}
+                <div className="space-y-0.5 pt-1">
+                    <CategoryHeader
+                        label="Utilities"
+                        isOpen={openCategories.utilities}
+                        onToggle={() => toggleCategory('utilities')}
                         isCollapsed={isCollapsed}
                     />
-                ))}
+                    {(openCategories.utilities || isCollapsed) && (
+                        <div className="space-y-0.5 animate-in fade-in-50 duration-150">
+                            {utilityLinks.map((item) => (
+                                <NavItem
+                                    key={item.label}
+                                    icon={item.icon}
+                                    label={item.label}
+                                    href={item.href}
+                                    active={item.active}
+                                    isCollapsed={isCollapsed}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* 4. Pinned Footer (Theme Toggle & User Profile Card) */}
@@ -606,48 +630,88 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                     </div>
                 )}
 
-                {/* User Profile Card & Log Out */}
-                {isCollapsed ? (
-                    <div className="flex flex-col gap-3 items-center">
-                        <div
-                            title={`${user?.name || 'User'} (${currentUserRole || user?.role || 'Member'})`}
-                            className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-sm"
-                        >
-                            {(user?.name || 'U').charAt(0).toUpperCase()}
+                {/* Profile Popover Menu (if open) */}
+                {profileMenuOpen && (
+                    <div className="absolute bottom-full mb-2 left-2 right-2 bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-xl p-2 z-50 animate-in fade-in-0 slide-in-from-bottom-2 duration-150">
+                        <div className="px-3 py-2 border-b border-gray-100 dark:border-slate-800/80 mb-1">
+                            <p className="font-heading text-xs font-bold text-gray-900 dark:text-slate-100 truncate">{user?.name || 'Studio Member'}</p>
+                            <p className="text-[10px] text-gray-500 dark:text-slate-400 truncate uppercase tracking-wider">{currentUserRole || user?.role || 'Member'}</p>
                         </div>
+                        <Link
+                            href="/profile"
+                            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/70 transition-colors"
+                            onClick={() => setProfileMenuOpen(false)}
+                        >
+                            <UserIcon className="w-3.5 h-3.5 text-gray-400" />
+                            <span>Profile Settings</span>
+                        </Link>
+                        <Link
+                            href={route('dashboard')}
+                            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/70 transition-colors"
+                            onClick={() => setProfileMenuOpen(false)}
+                        >
+                            <LayoutGrid className="w-3.5 h-3.5 text-brand" />
+                            <span>Switch Studio (Hub)</span>
+                        </Link>
+                        <div className="my-1 border-t border-gray-100 dark:border-slate-800/80" />
                         <Link
                             href={route('logout')}
                             method="post"
                             as="button"
-                            className="w-8 h-8 flex items-center justify-center rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all duration-200 border border-red-500/20"
-                            title="Log Out"
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                            onClick={() => setProfileMenuOpen(false)}
                         >
-                            <LogOut className="w-4 h-4" />
+                            <LogOut className="w-3.5 h-3.5" />
+                            <span>Log Out</span>
+                        </Link>
+                    </div>
+                )}
+
+                {/* User Profile Card & Return to Central Hub Action */}
+                {isCollapsed ? (
+                    <div className="flex flex-col gap-2 items-center">
+                        <button
+                            type="button"
+                            onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                            title={`${user?.name || 'User'} (${currentUserRole || user?.role || 'Member'}) — Click for options`}
+                            className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand cursor-pointer hover:opacity-90 transition-opacity"
+                        >
+                            {(user?.name || 'U').charAt(0).toUpperCase()}
+                        </button>
+                        <Link
+                            href={route('dashboard')}
+                            className="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-slate-800/70 hover:bg-brand/10 hover:border-brand/30 border border-transparent text-gray-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-light transition-all duration-150 cursor-pointer"
+                            title="Return to Central Hub"
+                        >
+                            <LayoutGrid className="w-4 h-4" />
                         </Link>
                     </div>
                 ) : (
-                    <div className="flex items-center justify-between p-2 rounded-xl bg-gray-50/50 dark:bg-slate-800/20 border border-gray-100 dark:border-slate-800/40">
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-gray-50/80 dark:bg-slate-800/40 border border-gray-100 dark:border-slate-800/60">
+                        <button
+                            type="button"
+                            onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                            className="flex items-center gap-2.5 min-w-0 flex-1 text-left focus:outline-none rounded-lg p-1 hover:bg-white/60 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
+                            title="Click for account options"
+                        >
                             <div className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-sm">
                                 {(user?.name || 'U').charAt(0).toUpperCase()}
                             </div>
                             <div className="min-w-0 flex-1">
-                                <p className="font-heading text-sm font-semibold text-gray-900 dark:text-slate-200 truncate">
+                                <p className="font-heading text-xs font-bold text-gray-900 dark:text-slate-200 truncate">
                                     {user?.name || 'Studio Member'}
                                 </p>
-                                <p className="text-xs text-gray-500 dark:text-slate-500 truncate uppercase">
+                                <p className="text-[10px] text-gray-500 dark:text-slate-400 truncate uppercase tracking-wider">
                                     {currentUserRole || user?.role || 'Member'}
                                 </p>
                             </div>
-                        </div>
+                        </button>
                         <Link
-                            href={route('logout')}
-                            method="post"
-                            as="button"
-                            className="p-2 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all duration-200 shrink-0 ml-2 border border-red-500/20"
-                            title="Log Out"
+                            href={route('dashboard')}
+                            className="p-2 rounded-xl bg-white dark:bg-slate-700/60 hover:bg-brand/10 dark:hover:bg-brand/20 hover:border-brand/30 border border-gray-200/80 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-light transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] shadow-2xs hover:shadow-xs shrink-0 ml-1.5 cursor-pointer"
+                            title="Return to Central Hub"
                         >
-                            <LogOut className="w-4 h-4" />
+                            <LayoutGrid className="w-4 h-4" />
                         </Link>
                     </div>
                 )}

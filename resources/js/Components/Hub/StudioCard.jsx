@@ -42,7 +42,7 @@ export default function StudioCard({ studio, role = 'Member' }) {
 
     return (
         <Link
-            href={`/studio/${studio.id}/dashboard`}
+            href={`/studio/${studio.id}/overview`}
             className="group relative flex flex-col justify-between rounded-2xl border border-surface-border bg-surface-elevated/85 hover:bg-surface-elevated shadow-xs hover:shadow-md hover:border-brand/40 transition-all duration-200 ease-out hover:-translate-y-0.5 overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 p-5 sm:p-6 cursor-pointer"
         >
             <div>

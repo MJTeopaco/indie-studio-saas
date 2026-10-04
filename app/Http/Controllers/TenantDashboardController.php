@@ -48,6 +48,13 @@ class TenantDashboardController extends Controller
         return $this->managerDashboard($studio);
     }
 
+    public function aiWorkspace()
+    {
+        $studio = Studio::find(tenant('id'));
+
+        return $this->managerDashboard($studio);
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
 
     private function resolveIsManager(?object $user, ?string $studioId): bool

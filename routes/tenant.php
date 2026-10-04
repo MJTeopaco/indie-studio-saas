@@ -41,6 +41,9 @@ Route::prefix('/studio/{tenant}')->middleware([
     Route::get('/dashboard', [TenantDashboardController::class, 'index'])
         ->name('tenant.dashboard');
 
+    Route::get('/ai-workspace', [TenantDashboardController::class, 'aiWorkspace'])
+        ->name('tenant.ai-workspace');
+
     // Alias: members can bookmark /my-work and land on their member dashboard
     Route::get('/my-work', [TenantDashboardController::class, 'index'])
         ->name('tenant.my-work');

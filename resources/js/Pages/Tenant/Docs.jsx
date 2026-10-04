@@ -234,15 +234,22 @@ export default function Docs({
     const handleSendEmail = async (e) => {
         e.preventDefault();
         setEmailError(null);
-        if (!recipientEmail.trim() || !recipientEmail.includes('@')) {
-            setEmailError('Please enter a valid email address.');
+        const emailTrimmed = recipientEmail.trim();
+        const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!emailTrimmed) {
+            setEmailError('Please enter a recipient email address.');
+            return;
+        }
+        if (!EMAIL_REGEX.test(emailTrimmed)) {
+            setEmailError('Please enter a valid email address (e.g. name@company.com).');
             return;
         }
 
         setSendingEmail(true);
         try {
             const payload = {
-                recipient_email: recipientEmail.trim(),
+                recipient_email: emailTrimmed,
                 personal_note: emailNote.trim(),
             };
 
@@ -263,12 +270,12 @@ export default function Docs({
                 setRecipientEmail('');
                 setEmailNote('');
             } else {
-                setEmailError(res.data?.message || 'Failed to send email.');
+                setEmailError(res.data?.message || 'Failed to send email. Please verify the address and try again.');
             }
         } catch (err) {
             const rawError = err.response?.data?.message || err.response?.data?.errors?.recipient_email?.[0] || '';
             const isTechnicalError = !rawError || rawError.includes('scheme') || rawError.includes('log mode') || rawError.includes('MAIL_') || rawError.includes('Exception') || rawError.includes('Symfony');
-            const userFriendlyMsg = isTechnicalError ? 'Unable to send email right now. Please check the recipient address and try again.' : rawError;
+            const userFriendlyMsg = isTechnicalError ? 'Unable to deliver email right now. Please ensure mail transport services are running.' : rawError;
             setEmailError(userFriendlyMsg);
         } finally {
             setSendingEmail(false);
@@ -576,30 +583,30 @@ export default function Docs({
                         </div>
 
                         {/* Top navigation tabs (Handbook vs Report Archiving) */}
-                        <div className="flex rounded-xl bg-slate-100 dark:bg-slate-800 p-1 shrink-0 self-start">
+                        <div className="flex rounded-xl bg-slate-100 dark:bg-slate-800/80 p-1 shrink-0 self-start border border-slate-200/80 dark:border-slate-700/60 shadow-xs">
                             <button
                                 type="button"
                                 onClick={() => setActiveTab('handbook')}
-                                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all ${
+                                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all duration-200 active:scale-95 ${
                                     activeTab === 'handbook'
-                                        ? 'bg-white dark:bg-slate-900 text-brand shadow-xs'
-                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                                        ? 'bg-white dark:bg-slate-900 text-brand shadow-sm ring-1 ring-slate-900/5 dark:ring-white/10'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/50 dark:hover:bg-slate-800/50'
                                 }`}
                             >
-                                <FileText className="w-3.5 h-3.5" />
-                                Handbook & Specs
+                                <FileText className={`w-3.5 h-3.5 transition-colors ${activeTab === 'handbook' ? 'text-brand' : 'text-slate-400'}`} />
+                                <span>Handbook & Specs</span>
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setActiveTab('archive')}
-                                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all ${
+                                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all duration-200 active:scale-95 ${
                                     activeTab === 'archive'
-                                        ? 'bg-white dark:bg-slate-900 text-brand shadow-xs'
-                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                                        ? 'bg-white dark:bg-slate-900 text-brand shadow-sm ring-1 ring-slate-900/5 dark:ring-white/10'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/50 dark:hover:bg-slate-800/50'
                                 }`}
                             >
-                                <Archive className="w-3.5 h-3.5" />
-                                Report Archiving
+                                <Archive className={`w-3.5 h-3.5 transition-colors ${activeTab === 'archive' ? 'text-brand' : 'text-slate-400'}`} />
+                                <span>Report Archiving</span>
                             </button>
                         </div>
                     </div>
@@ -677,15 +684,15 @@ export default function Docs({
                         <div className="space-y-6">
 
                             {/* Sub-Tabs Selector inside Report Archiving */}
-                            <div className="flex items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-2 print:hidden">
-                                <div className="flex items-center gap-2">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-3 print:hidden">
+                                <div className="flex items-center gap-2 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 shadow-xs">
                                     <button
                                         type="button"
                                         onClick={() => setArchiveSubTab('generator')}
-                                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 active:scale-95 ${
                                             archiveSubTab === 'generator'
-                                                ? 'bg-brand text-white shadow-xs'
-                                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800'
+                                                ? 'bg-brand text-white shadow-sm ring-1 ring-brand/50'
+                                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-800'
                                         }`}
                                     >
                                         <BarChart3 className="w-3.5 h-3.5" />
@@ -695,15 +702,15 @@ export default function Docs({
                                     <button
                                         type="button"
                                         onClick={() => setArchiveSubTab('gallery')}
-                                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 active:scale-95 ${
                                             archiveSubTab === 'gallery'
-                                                ? 'bg-brand text-white shadow-xs'
-                                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800'
+                                                ? 'bg-brand text-white shadow-sm ring-1 ring-brand/50'
+                                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-800'
                                         }`}
                                     >
                                         <Archive className="w-3.5 h-3.5" />
                                         <span>Archived Reports Registry</span>
-                                        <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${archiveSubTab === 'gallery' ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'}`}>
                                             {reports.length}
                                         </span>
                                     </button>
@@ -714,7 +721,7 @@ export default function Docs({
                                         type="button"
                                         onClick={handleArchiveCurrentReport}
                                         disabled={isArchiving}
-                                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all disabled:opacity-50"
+                                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                                         title="Save and permanently archive this report snapshot"
                                     >
                                         {isArchiving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Archive className="w-3.5 h-3.5" />}
@@ -1459,18 +1466,18 @@ export default function Docs({
 
             {/* ── EMAIL MODAL ── */}
             {emailModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
                     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl p-6 w-full max-w-md space-y-4">
                         <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
                                     <Mail className="w-4 h-4" />
                                 </div>
-                                <div>
+                                <div className="min-w-0">
                                     <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                                         {emailTargetReport ? 'Email Archived Report' : 'Email Report'}
                                     </h3>
-                                    <p className="text-[11px] text-slate-400 truncate max-w-xs">
+                                    <p className="text-[11px] text-slate-400 truncate max-w-xs block mt-0.5">
                                         {emailTargetReport ? (emailTargetReport.name || emailTargetReport.title) : (report?.title || 'Report')}
                                     </p>
                                 </div>
@@ -1480,16 +1487,30 @@ export default function Docs({
                                 onClick={() => {
                                     setEmailModalOpen(false);
                                     setEmailTargetReport(null);
+                                    setEmailError(null);
                                 }}
-                                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                                aria-label="Close modal"
                             >
                                 <X className="w-4 h-4" />
                             </button>
                         </div>
 
                         {emailError && (
-                            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-xs font-semibold">
-                                {emailError}
+                            <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-300 text-xs font-medium flex items-start gap-2.5" role="alert">
+                                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" />
+                                <div className="flex-1 min-w-0">
+                                    <span className="font-bold block">Delivery Issue</span>
+                                    <span className="text-[11px] leading-relaxed block mt-0.5">{emailError}</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setEmailError(null)}
+                                    className="text-rose-400 hover:text-rose-600 dark:hover:text-rose-200 shrink-0 p-0.5"
+                                    title="Dismiss notice"
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                </button>
                             </div>
                         )}
 
@@ -1511,10 +1532,14 @@ export default function Docs({
                                 <input
                                     type="email"
                                     value={recipientEmail}
-                                    onChange={(e) => setRecipientEmail(e.target.value)}
+                                    onChange={(e) => {
+                                        setRecipientEmail(e.target.value);
+                                        if (emailError) setEmailError(null);
+                                    }}
                                     placeholder="client@company.com or stakeholder@test.io"
                                     required
-                                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-brand"
+                                    disabled={sendingEmail}
+                                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand transition-all disabled:opacity-50"
                                 />
                             </div>
 
@@ -1527,7 +1552,8 @@ export default function Docs({
                                     onChange={(e) => setEmailNote(e.target.value)}
                                     placeholder="Add executive commentary or sprint notes..."
                                     rows={3}
-                                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-brand"
+                                    disabled={sendingEmail}
+                                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand transition-all disabled:opacity-50"
                                 />
                             </div>
 
@@ -1537,18 +1563,29 @@ export default function Docs({
                                     onClick={() => {
                                         setEmailModalOpen(false);
                                         setEmailTargetReport(null);
+                                        setEmailError(null);
                                     }}
-                                    className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                    disabled={sendingEmail}
+                                    className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={sendingEmail}
-                                    className="px-4 py-2 rounded-xl text-xs font-bold bg-brand text-white hover:bg-brand-dark transition-all shadow-xs flex items-center gap-1.5 disabled:opacity-50"
+                                    disabled={sendingEmail || !recipientEmail.trim()}
+                                    className="px-4 py-2 rounded-xl text-xs font-bold bg-brand text-white hover:bg-brand-dark transition-all duration-200 shadow-sm shadow-brand/20 flex items-center gap-1.5 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-none"
                                 >
-                                    {sendingEmail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                                    <span>Send Email</span>
+                                    {sendingEmail ? (
+                                        <>
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                            <span>Sending Report…</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Send className="w-3.5 h-3.5" />
+                                            <span>Send Email</span>
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </form>
@@ -1744,6 +1781,8 @@ export default function Docs({
                                         background: #ffffff !important;
                                         color: #0f172a !important;
                                         box-sizing: border-box !important;
+                                        -webkit-print-color-adjust: exact !important;
+                                        print-color-adjust: exact !important;
                                     }
                                     .print\\:hidden { display: none !important; }
                                 }
