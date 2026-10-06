@@ -1,0 +1,28 @@
+name: Sync ML Engine to Hugging Face
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ml-engine/**' # Only trigger when ML files change
+
+jobs:
+  sync-to-hub:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Push to hub
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          # Configure git
+          git config --global user.email "bot@example.com"
+          git config --global user.name "GitHub Action"
+
+          # Extract the ml-engine folder into its own temporary branch
+          git subtree split --prefix=ml-engine -b hf-deploy
+
+          # Push ONLY that folder to the Hugging Face Space repository
+          git push https://user:$HF_TOKEN@huggingface.co/spaces/YOUR_HF_USERNAME/YOUR_SPACE_NAME hf-deploy:main --force
