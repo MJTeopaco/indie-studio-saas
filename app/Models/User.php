@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password', 'role'])]
+#[Fillable(['name', 'email', 'password', 'role', 'avatar', 'working_status', 'leave_start_date', 'leave_end_date'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -36,6 +36,8 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'leave_start_date' => 'date',
+            'leave_end_date' => 'date',
         ];
     }
 
@@ -66,8 +68,21 @@ class User extends Authenticatable
     public function joinedStudios(): BelongsToMany
     {
         return $this->belongsToMany(Studio::class, 'studio_members', 'user_id', 'studio_id')
-            ->withPivot('role')
+            ->withPivot(['role', 'working_status', 'leave_start_date', 'leave_end_date'])
             ->withTimestamps();
+    }
+
+    /**
+     * Check and sync working status if leave timeline has expired.
+     */
+    public function checkAndResolveLeaveStatus(): void
+    {
+        if ($this->working_status === 'on_leave' && $this->leave_end_date && now()->startOfDay()->gt(\Carbon\Carbon::parse($this->leave_end_date)->endOfDay())) {
+            $this->working_status = 'active';
+            $this->leave_start_date = null;
+            $this->leave_end_date = null;
+            $this->save();
+        }
     }
 
     // -------------------------------------------------------------------------
