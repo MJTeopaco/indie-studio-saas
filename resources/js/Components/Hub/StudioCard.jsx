@@ -43,7 +43,7 @@ export default function StudioCard({ studio, role = 'Member' }) {
     return (
         <Link
             href={`/studio/${studio.id}/overview`}
-            className="group relative flex flex-col justify-between rounded-2xl border border-surface-border bg-surface-elevated/85 hover:bg-surface-elevated shadow-xs hover:shadow-md hover:border-brand/40 transition-all duration-200 ease-out hover:-translate-y-0.5 overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 p-5 sm:p-6 cursor-pointer"
+            className="group relative flex flex-col justify-between rounded-2xl border border-surface-border bg-surface-elevated/85 hover:bg-surface-elevated shadow-xs hover:shadow-md hover:border-brand/40 transition-all duration-200 ease-out hover:-translate-y-0.5 overflow-hidden focus-ring p-5 sm:p-6 cursor-pointer"
         >
             <div>
                 {/* Row 1: Studio avatar tile on left, kebab menu on right */}
@@ -69,7 +69,7 @@ export default function StudioCard({ studio, role = 'Member' }) {
                                 <Dropdown.Trigger>
                                     <button
                                         type="button"
-                                        className="min-w-[44px] min-h-[44px] sm:min-w-[32px] sm:min-h-[32px] w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-surface border border-transparent hover:border-surface-border transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand cursor-pointer"
+                                        className="min-w-[44px] min-h-[44px] sm:min-w-[32px] sm:min-h-[32px] w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-surface border border-transparent hover:border-surface-border transition-colors duration-150 focus-ring cursor-pointer"
                                         aria-label={`Actions for ${studio.name}`}
                                     >
                                         <MoreVertical className="w-4 h-4" />

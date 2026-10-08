@@ -39,6 +39,14 @@ export default function TenantLayout({ children, studioName }) {
 
     return (
         <div className="h-screen w-full overflow-hidden bg-surface text-text-primary flex">
+            {/* Skip to Content for Keyboard/Screen-Reader Users */}
+            <a
+                href="#main-content"
+                className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:px-4 focus:py-2 focus:bg-brand focus:text-white focus:rounded-xl focus:shadow-lg focus:font-heading focus:text-xs focus:font-bold focus-ring"
+            >
+                Skip to main content
+            </a>
+
             {/* Left Navigation Sidebar */}
             <Sidebar user={user} studioName={currentStudioName} />
 
@@ -53,7 +61,7 @@ export default function TenantLayout({ children, studioName }) {
                     <nav aria-label="Breadcrumbs" className="flex items-center gap-2 min-w-0 text-xs sm:text-sm">
                         <Link
                             href="/dashboard"
-                            className="group flex items-center gap-1.5 text-text-muted hover:text-text-primary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand rounded-md p-1"
+                            className="group flex items-center gap-1.5 text-text-muted hover:text-text-primary transition-colors rounded-md p-1 focus-ring"
                             title="Return to Central Hub"
                         >
                             <LayoutGrid className="w-3.5 h-3.5 text-text-muted group-hover:text-brand transition-colors" />
@@ -64,7 +72,7 @@ export default function TenantLayout({ children, studioName }) {
 
                         <Link
                             href={`/studio/${studioSlug}/overview`}
-                            className="font-heading font-medium text-text-secondary hover:text-text-primary transition-colors truncate max-w-[120px] sm:max-w-[200px] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand rounded-md p-1"
+                            className="font-heading font-medium text-text-secondary hover:text-text-primary transition-colors truncate max-w-[120px] sm:max-w-[200px] rounded-md p-1 focus-ring"
                             title={`Studio: ${currentStudioName}`}
                         >
                             {currentStudioName}
@@ -81,7 +89,7 @@ export default function TenantLayout({ children, studioName }) {
                     <div className="flex items-center gap-2 shrink-0">
                         <Link
                             href="/dashboard"
-                            className="group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-surface-border bg-surface hover:bg-surface-elevated hover:border-brand/40 text-xs font-heading font-medium text-text-secondary hover:text-text-primary transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] shadow-2xs hover:shadow-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-brand cursor-pointer"
+                            className="group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-surface-border bg-surface hover:bg-surface-elevated hover:border-brand/40 text-xs font-heading font-medium text-text-secondary hover:text-text-primary transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] shadow-2xs hover:shadow-xs focus-ring cursor-pointer"
                             title="Back to Central Hub"
                         >
                             <ArrowLeft className="w-3.5 h-3.5 text-text-muted group-hover:text-brand transition-colors" />
@@ -92,7 +100,7 @@ export default function TenantLayout({ children, studioName }) {
                 </header>
 
                 {/* Main Page Content */}
-                <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <main id="main-content" className="flex-1 flex flex-col min-h-0 overflow-hidden">
                     {children}
                 </main>
             </div>

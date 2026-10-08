@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import axios from 'axios';
+import { FolderPlus, X, Loader2 } from 'lucide-react';
+
+const MAX_DESCRIPTION_LENGTH = 500;
 
 export default function CreateProjectModal({ isOpen, onClose, onCreate, onCreated, initialTitle = '', initialDescription = '', planCount = 0 }) {
     const { activeWorkspace } = usePage().props;
@@ -21,7 +24,27 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate, onCreate
         }
     }, [isOpen, initialTitle, initialDescription]);
 
+    // Handle Escape key to dismiss dialog
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape' && !isSubmitting) {
+                handleClose();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, isSubmitting]);
+
     if (!isOpen) return null;
+
+    const handleClose = () => {
+        if (isSubmitting) return;
+        setError('');
+        setTitle('');
+        setDescription('');
+        onClose();
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -29,6 +52,12 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate, onCreate
 
         if (!trimmedTitle) {
             setError('Project title is required.');
+            return;
+        }
+
+        // Chronological validation
+        if (targetEndDate && startDate && targetEndDate < startDate) {
+            setError('Target deadline cannot be earlier than start date.');
             return;
         }
 
@@ -83,47 +112,37 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate, onCreate
         }
     };
 
-    const handleClose = () => {
-        if (isSubmitting) return;
-        setError('');
-        setTitle('');
-        setDescription('');
-        onClose();
-    };
+    const descLength = description.length;
+    const descPct = (descLength / MAX_DESCRIPTION_LENGTH) * 100;
+    const descCounterColor = descPct >= 95 ? 'text-rose-500 font-bold' : descPct >= 80 ? 'text-amber-500 font-semibold' : 'text-text-muted';
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div 
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-project-title"
+        >
             {/* Glassmorphic Backdrop */}
             <div
-                className="fixed inset-0 backdrop-blur-md bg-black/50 transition-opacity"
+                className="fixed inset-0 backdrop-blur-md bg-black/60 transition-opacity"
                 onClick={handleClose}
+                aria-hidden="true"
             />
 
             {/* Modal Dialog Content */}
-            <div className="relative w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 shadow-2xl overflow-hidden z-10 transform transition-all">
+            <div className="relative w-full max-w-lg rounded-2xl bg-surface-elevated border border-surface-border shadow-2xl overflow-hidden z-10 transform transition-all my-8 animate-in fade-in-50 zoom-in-95 duration-150">
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200 dark:border-gray-800">
+                <div className="flex items-center justify-between px-6 py-5 border-b border-surface-border">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-brand-10 dark:bg-brand-20 flex items-center justify-center text-brand dark:text-brand-light">
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="w-5 h-5"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                            >
-                                <line x1="12" y1="5" x2="12" y2="19" />
-                                <line x1="5" y1="12" x2="19" y2="12" />
-                            </svg>
+                        <div className="w-10 h-10 rounded-xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand">
+                            <FolderPlus className="w-5 h-5" />
                         </div>
                         <div>
-                            <h2 className="font-heading text-lg font-bold text-gray-900 dark:text-gray-100">
+                            <h2 id="create-project-title" className="font-heading text-lg font-bold text-text-primary">
                                 Create New Project
                             </h2>
-                            <p className="text-xs text-gray-600 dark:text-gray-400">
+                            <p className="text-xs text-text-muted mt-0.5">
                                 Launch a new workspace to organize tasks and anchor CPA schedules.
                             </p>
                         </div>
@@ -132,28 +151,21 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate, onCreate
                     <button
                         type="button"
                         onClick={handleClose}
-                        className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors p-1 rounded-lg"
+                        aria-label="Close dialog"
+                        className="text-text-muted hover:text-text-primary transition-colors p-1.5 rounded-lg hover:bg-surface focus-ring cursor-pointer"
                     >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="w-5 h-5"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        >
-                            <line x1="18" y1="6" x2="6" y2="18" />
-                            <line x1="6" y1="6" x2="18" y2="18" />
-                        </svg>
+                        <X className="w-5 h-5" />
                     </button>
                 </div>
 
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="p-6 space-y-5">
                     {error && (
-                        <div className="rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 p-3.5 text-xs text-red-700 dark:text-red-400 font-medium">
+                        <div 
+                            role="alert"
+                            aria-live="polite"
+                            className="rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 p-3.5 text-xs text-rose-700 dark:text-rose-400 font-medium"
+                        >
                             {error}
                         </div>
                     )}
@@ -162,9 +174,9 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate, onCreate
                     <div>
                         <label
                             htmlFor="project-title"
-                            className="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-200 mb-2"
+                            className="block text-xs font-semibold uppercase tracking-wider text-text-primary mb-2"
                         >
-                            Title <span className="text-brand dark:text-brand-light">*</span>
+                            Title <span className="text-brand">*</span>
                         </label>
                         <input
                             id="project-title"
@@ -174,16 +186,16 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate, onCreate
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
                             placeholder="e.g. Autonomous NPC AI Agent Engine"
-                            className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 px-4 py-3 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30 transition-colors"
+                            className="w-full rounded-xl border border-surface-border bg-surface px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/60 focus-ring transition-colors"
                         />
                     </div>
 
                     {/* Dates Grid */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label
                                 htmlFor="project-start-date"
-                                className="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-200 mb-2"
+                                className="block text-xs font-semibold uppercase tracking-wider text-text-primary mb-2"
                             >
                                 Start Date
                             </label>
@@ -192,16 +204,16 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate, onCreate
                                 type="date"
                                 value={startDate}
                                 onChange={(e) => setStartDate(e.target.value)}
-                                className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 px-3.5 py-2.5 text-sm text-gray-900 dark:text-gray-100 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30 transition-colors"
+                                className="w-full rounded-xl border border-surface-border bg-surface px-3.5 py-2.5 text-sm text-text-primary focus-ring transition-colors"
                             />
                         </div>
 
                         <div>
                             <label
                                 htmlFor="project-target-end-date"
-                                className="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-200 mb-2"
+                                className="block text-xs font-semibold uppercase tracking-wider text-text-primary mb-2"
                             >
-                                Target Deadline <span className="text-gray-400 dark:text-gray-500 font-normal">(CPA Anchor)</span>
+                                Target Deadline <span className="text-text-muted font-normal">(CPA Anchor)</span>
                             </label>
                             <input
                                 id="project-target-end-date"
@@ -209,41 +221,48 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate, onCreate
                                 min={startDate}
                                 value={targetEndDate}
                                 onChange={(e) => setTargetEndDate(e.target.value)}
-                                className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 px-3.5 py-2.5 text-sm text-gray-900 dark:text-gray-100 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30 transition-colors"
+                                className="w-full rounded-xl border border-surface-border bg-surface px-3.5 py-2.5 text-sm text-text-primary focus-ring transition-colors"
                             />
                         </div>
                     </div>
 
-                    {/* Description Textarea */}
+                    {/* Description Textarea with Live Counter */}
                     <div>
-                        <label
-                            htmlFor="project-description"
-                            className="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-200 mb-2"
-                        >
-                            Description <span className="text-gray-400 dark:text-gray-500 font-normal">(Optional)</span>
-                        </label>
+                        <div className="flex items-center justify-between mb-2">
+                            <label
+                                htmlFor="project-description"
+                                className="block text-xs font-semibold uppercase tracking-wider text-text-primary"
+                            >
+                                Description <span className="text-text-muted font-normal">(Optional)</span>
+                            </label>
+                            <span className={`text-[10px] font-mono ${descCounterColor}`}>
+                                {descLength} / {MAX_DESCRIPTION_LENGTH}
+                            </span>
+                        </div>
                         <textarea
                             id="project-description"
                             rows={3}
+                            maxLength={MAX_DESCRIPTION_LENGTH}
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             placeholder="Briefly describe the project goals, target domains, and scope..."
-                            className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 px-4 py-3 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30 transition-colors resize-none"
+                            className="w-full rounded-xl border border-surface-border bg-surface px-4 py-2.5 text-sm text-text-primary placeholder-text-muted/60 focus-ring transition-colors resize-none"
                         />
                     </div>
 
                     {planCount > 0 && (
-                        <div className="rounded-xl border border-brand-30 bg-brand-10 px-4 py-3 text-sm text-brand dark:text-brand-light">
+                        <div className="rounded-xl border border-brand/30 bg-brand/10 px-4 py-3 text-sm text-brand font-medium">
                             Your AI draft is ready with {planCount} tasks. Give this project a name to continue to the plan review.
                         </div>
                     )}
 
                     {/* Footer Actions */}
-                    <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-200 dark:border-gray-800">
+                    <div className="flex items-center justify-end gap-3 pt-3 border-t border-surface-border">
                         <button
                             type="button"
                             onClick={handleClose}
-                            className="px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+                            disabled={isSubmitting}
+                            className="px-4 py-2 rounded-xl text-xs font-semibold text-text-muted hover:text-text-primary hover:bg-surface transition-colors focus-ring disabled:opacity-50 cursor-pointer"
                         >
                             Cancel
                         </button>
@@ -251,9 +270,16 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate, onCreate
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-brand hover:bg-brand-light shadow-md shadow-brand/20 disabled:opacity-50 transition-all"
+                            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white bg-brand hover:bg-brand-light shadow-2xs hover:shadow-xs disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer focus-ring"
                         >
-                            {isSubmitting ? 'Creating...' : 'Create Project'}
+                            {isSubmitting ? (
+                                <>
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Creating...</span>
+                                </>
+                            ) : (
+                                <span>Create Project</span>
+                            )}
                         </button>
                     </div>
                 </form>

@@ -79,7 +79,7 @@ export default function Dashboard({ ownedStudios = [], joinedStudios = [], ...pr
                                 <button
                                     type="button"
                                     onClick={() => setIsCreateModalOpen(true)}
-                                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-transparent bg-brand hover:bg-brand-light active:bg-brand-dark px-4 py-2.5 text-xs sm:text-sm font-heading font-semibold text-white shadow-xs hover:shadow-md transition-all duration-150 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 cursor-pointer w-full sm:w-auto"
+                                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-transparent bg-brand hover:bg-brand-light active:bg-brand-dark px-4 py-2.5 text-xs sm:text-sm font-heading font-semibold text-white shadow-xs hover:shadow-md transition-all duration-150 active:scale-[0.98] focus-ring cursor-pointer w-full sm:w-auto"
                                 >
                                     <Plus className="w-4 h-4" />
                                     <span>New studio</span>
@@ -118,7 +118,7 @@ export default function Dashboard({ ownedStudios = [], joinedStudios = [], ...pr
                                     <button
                                         type="button"
                                         onClick={() => setIsCreateModalOpen(true)}
-                                        className="group relative flex flex-col items-center justify-center p-6 min-h-[190px] rounded-2xl border-2 border-dashed border-surface-border/90 hover:border-brand/60 bg-surface/30 hover:bg-surface-elevated/70 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md cursor-pointer text-center focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2"
+                                        className="group relative flex flex-col items-center justify-center p-6 min-h-[190px] rounded-2xl border-2 border-dashed border-surface-border/90 hover:border-brand/60 bg-surface/30 hover:bg-surface-elevated/70 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md cursor-pointer text-center focus-ring"
                                         aria-label="Create a new studio"
                                     >
                                         <div className="w-11 h-11 rounded-xl bg-brand/10 border border-brand/20 group-hover:bg-brand/20 group-hover:border-brand/40 group-hover:scale-105 flex items-center justify-center text-brand mb-3.5 transition-all duration-200 shadow-2xs">

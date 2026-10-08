@@ -6,7 +6,7 @@ import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
 import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
-import { KeyRound } from 'lucide-react';
+import { KeyRound, Loader2 } from 'lucide-react';
 
 export default function JoinStudioModal({
     triggerText = 'Join via code',
@@ -39,8 +39,8 @@ export default function JoinStudioModal({
                 onClick={openModal}
                 className={
                     variant === 'primary'
-                        ? `inline-flex items-center justify-center gap-2 rounded-xl border border-transparent bg-brand hover:bg-brand-light active:bg-brand-dark px-4 py-2.5 text-xs sm:text-sm font-heading font-semibold text-white shadow-xs hover:shadow-md transition-all duration-150 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 cursor-pointer ${className}`
-                        : `inline-flex items-center justify-center gap-2 rounded-xl border border-surface-border bg-surface-elevated/80 hover:bg-surface-elevated hover:border-slate-400/50 dark:hover:border-slate-600 px-4 py-2.5 text-xs sm:text-sm font-heading font-semibold text-text-primary shadow-xs hover:shadow-sm transition-all duration-150 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 cursor-pointer ${className}`
+                        ? `inline-flex items-center justify-center gap-2 rounded-xl border border-transparent bg-brand hover:bg-brand-light active:bg-brand-dark px-4 py-2.5 text-xs sm:text-sm font-heading font-semibold text-white shadow-xs hover:shadow-md transition-all duration-150 active:scale-[0.98] focus-ring cursor-pointer ${className}`
+                        : `inline-flex items-center justify-center gap-2 rounded-xl border border-surface-border bg-surface-elevated/80 hover:bg-surface-elevated hover:border-slate-400/50 dark:hover:border-slate-600 px-4 py-2.5 text-xs sm:text-sm font-heading font-semibold text-text-primary shadow-xs hover:shadow-sm transition-all duration-150 active:scale-[0.98] focus-ring cursor-pointer ${className}`
                 }
             >
                 <KeyRound className="w-4 h-4 opacity-75" />
@@ -65,7 +65,7 @@ export default function JoinStudioModal({
                             type="text"
                             name="invitation_code"
                             value={data.invitation_code}
-                            className="mt-1 block w-full rounded-xl border-surface-border bg-surface text-text-primary uppercase tracking-widest font-mono text-center text-base focus:border-brand focus:ring-brand shadow-2xs"
+                            className="mt-1 block w-full rounded-xl border-surface-border bg-surface text-text-primary uppercase tracking-widest font-mono text-center text-base focus-ring shadow-2xs"
                             isFocused={true}
                             onChange={(e) => setData('invitation_code', e.target.value.toUpperCase())}
                             placeholder="ABC-123"
@@ -78,15 +78,22 @@ export default function JoinStudioModal({
                         <SecondaryButton
                             onClick={closeModal}
                             disabled={processing}
-                            className="rounded-xl px-4 py-2 text-xs font-heading font-semibold normal-case tracking-normal hover:bg-surface active:scale-[0.98]"
+                            className="rounded-xl px-4 py-2 text-xs font-heading font-semibold normal-case tracking-normal hover:bg-surface active:scale-[0.98] focus-ring"
                         >
                             Cancel
                         </SecondaryButton>
                         <PrimaryButton
                             disabled={processing || !data.invitation_code.trim()}
-                            className="rounded-xl px-4 py-2 text-xs font-heading font-semibold normal-case tracking-normal active:scale-[0.98]"
+                            className="rounded-xl px-4 py-2 text-xs font-heading font-semibold normal-case tracking-normal active:scale-[0.98] focus-ring inline-flex items-center gap-2"
                         >
-                            Join studio
+                            {processing ? (
+                                <>
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Joining...</span>
+                                </>
+                            ) : (
+                                <span>Join studio</span>
+                            )}
                         </PrimaryButton>
                     </div>
                 </form>

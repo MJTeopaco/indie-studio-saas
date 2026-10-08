@@ -7,39 +7,7 @@ import TimelineView from '@/Components/Tenant/Tasks/TimelineView';
 import DueView      from '@/Components/Tenant/Tasks/DueView';
 import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
 import MemberTaskDetailModal from '@/Components/Tenant/Tasks/MemberTaskDetailModal';
-
-// ── Inline Icons ──────────────────────────────────────────────────────────────
-const PlusIcon = () => (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-        <line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-        <line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-    </svg>
-);
-const ImportIcon = () => (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <polyline points="7 10 12 15 17 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-);
-const SearchIcon = () => (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-        <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2"/>
-        <line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-    </svg>
-);
-const ChevronDownIcon = () => (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-        <polyline points="6 9 12 15 18 9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-);
-const EmptyBoxIcon = () => (
-    <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-        <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        <polyline points="3.27 6.96 12 12.01 20.73 6.96" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        <line x1="12" y1="22.08" x2="12" y2="12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-);
+import { Plus, Search, ChevronDown, PackageX, SlidersHorizontal } from 'lucide-react';
 
 // ── View Tab Config ───────────────────────────────────────────────────────────
 const VIEWS = [
@@ -60,108 +28,128 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
     const [selectedProjectId, setSelectedProjectId] = useState(null);
     const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
 
-    // Search query
+    // Search query for tasks within selected project
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Modal states for updating task status
+    // Local task modal state
     const [selectedTask, setSelectedTask] = useState(null);
     const [taskModalOpen, setTaskModalOpen] = useState(false);
 
-    // Local tasks map state for optimistic UI updates
+    // Keep an internal mutable copy of tasks for immediate optimistic status changes
     const [localTasksMap, setLocalTasksMap] = useState(tasks);
 
     useEffect(() => {
         setLocalTasksMap(tasks);
     }, [tasks]);
 
+    // Default to the first available project
+    useEffect(() => {
+        if (!selectedProjectId && projects.length > 0) {
+            setSelectedProjectId(projects[0].id);
+        }
+    }, [projects, selectedProjectId]);
+
+    const selectedProject = projects.find(p => p.id === selectedProjectId) || projects[0] || null;
+
+    // Filter tasks for the selected project
+    const rawProjectTasks = selectedProjectId ? (localTasksMap[selectedProjectId] || []) : [];
+    const projectTasks = rawProjectTasks.filter(t => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        return (
+            (t.title && t.title.toLowerCase().includes(q)) ||
+            (t.description && t.description.toLowerCase().includes(q)) ||
+            (t.assignee && t.assignee.name && t.assignee.name.toLowerCase().includes(q))
+        );
+    });
+
+    // Callback when clicking a card/row to view details or edit
     const handleTaskClick = (task) => {
         setSelectedTask(task);
         setTaskModalOpen(true);
     };
 
+    // Callback when moving cards in BoardView
     const handleStatusChange = (task, newStatus) => {
-        // Optimistically update status locally
+        const sprintStatusMap = {
+            todo: 'ready_to_start',
+            in_progress: 'in_progress',
+            review: 'waiting_for_review',
+            completed: 'done',
+            stuck: 'stuck',
+        };
+        const newSprintStatus = sprintStatusMap[newStatus] || newStatus;
+
+        // Optimistic UI update
         setLocalTasksMap(prev => {
             const copy = { ...prev };
             const projectList = copy[task.project_id] || [];
-            copy[task.project_id] = projectList.map(t => t.id === task.id ? { ...t, status: newStatus } : t);
+            copy[task.project_id] = projectList.map(t =>
+                t.id === task.id ? { ...t, status: newStatus, sprint_status: newSprintStatus } : t
+            );
             return copy;
         });
 
+        // Backend PATCH request
         router.patch(
             route('tenant.projects.tasks.update', {
                 tenant: activeWorkspace,
                 project: task.project_id,
-                task: task.id
+                task: task.id,
             }),
-            { status: newStatus },
+            {
+                status: newStatus,
+                sprint_status: newSprintStatus,
+            },
             {
                 preserveScroll: true,
-                onError: (errors) => {
-                    console.error('Failed to update status', errors);
-                    // Rollback on error
+                preserveState: true,
+                onError: () => {
                     setLocalTasksMap(tasks);
-                }
+                },
             }
         );
     };
 
-    // Initialize selected project ID on mount or projects prop change
-    useEffect(() => {
-        if (projects.length > 0 && selectedProjectId === null) {
-            setSelectedProjectId(projects[0].id);
-        }
-    }, [projects]);
-
-    const selectedProject = projects.find(p => p.id === selectedProjectId) || projects[0];
-
-    // Filter tasks for the selected project
-    const rawProjectTasks = selectedProjectId ? (localTasksMap[selectedProjectId] || []) : [];
-    const projectTasks = rawProjectTasks.filter(task =>
-        searchQuery
-            ? task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-              (task.assignee && task.assignee.toLowerCase().includes(searchQuery.toLowerCase())) ||
-              (task.task_classification && task.task_classification.toLowerCase().includes(searchQuery.toLowerCase()))
-            : true
-    );
-
     return (
-        <TenantLayout>
+        <TenantLayout studioName={studio?.name || 'Studio'}>
             <Head title={selectedProject ? `Tasks — ${selectedProject.name}` : "Tasks"} />
 
-            <div className="flex-1 flex flex-col overflow-hidden bg-gray-50 dark:bg-slate-950">
+            <div className="flex-1 flex flex-col overflow-hidden bg-surface text-text-primary">
 
                 {/* ── Top Bar ── */}
-                <div className="px-6 py-4 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800/80 shrink-0">
+                <div className="px-6 py-4 bg-surface-elevated border-b border-surface-border shrink-0">
                     <div className="flex items-center justify-between gap-4 flex-wrap">
                         {/* Left: Project selector + Title */}
                         <div className="flex items-center gap-3">
                             {projects.length > 0 ? (
                                 <div className="relative">
                                     <button
+                                        type="button"
                                         onClick={() => setProjectDropdownOpen(p => !p)}
-                                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-800 dark:text-slate-200 hover:border-indigo-400 dark:hover:border-indigo-500/60 transition-all max-w-[280px]"
+                                        className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-surface border border-surface-border text-sm font-bold text-text-primary hover:border-brand/50 transition-all max-w-[280px] focus-ring cursor-pointer"
                                     >
                                         <span className="truncate">{selectedProject?.name}</span>
-                                        <ChevronDownIcon />
+                                        <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
                                     </button>
                                     {projectDropdownOpen && (
-                                        <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden min-w-[260px]">
+                                        <div className="absolute left-0 top-full mt-1.5 z-50 bg-surface-elevated border border-surface-border rounded-xl shadow-xl overflow-hidden min-w-[260px] animate-in fade-in-50 zoom-in-95 duration-150">
                                             {projects.map(p => (
                                                 <button
+                                                    type="button"
                                                     key={p.id}
                                                     onClick={() => { setSelectedProjectId(p.id); setProjectDropdownOpen(false); }}
-                                                    className={`w-full text-left px-4 py-3 text-sm transition-colors ${p.id === selectedProjectId ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 font-semibold' : 'text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800'}`}
+                                                    className={`w-full text-left px-4 py-3 text-sm transition-colors cursor-pointer ${p.id === selectedProjectId ? 'bg-brand/10 text-brand font-semibold' : 'text-text-primary hover:bg-surface'}`}
                                                 >
                                                     <span className="block font-medium truncate">{p.name}</span>
-                                                    <span className="text-[10px] text-gray-400 dark:text-slate-500 capitalize">{p.status}</span>
+                                                    <span className="text-[10px] text-text-muted capitalize">{p.status}</span>
                                                 </button>
                                             ))}
                                         </div>
                                     )}
                                 </div>
                             ) : (
-                                <h1 className="text-base font-bold text-gray-400 dark:text-slate-500">No Projects</h1>
+                                <h1 className="text-base font-bold text-text-muted">No Projects</h1>
                             )}
                         </div>
 
@@ -170,15 +158,15 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
                             {/* Search */}
                             {projects.length > 0 && (
                                 <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 pointer-events-none">
-                                        <SearchIcon />
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none">
+                                        <Search className="w-3.5 h-3.5" />
                                     </span>
                                     <input
                                         type="text"
                                         value={searchQuery}
                                         onChange={e => setSearchQuery(e.target.value)}
                                         placeholder="Search tasks..."
-                                        className="pl-9 pr-4 py-2 w-48 rounded-xl bg-gray-100 dark:bg-slate-800 border border-transparent focus:border-indigo-400 text-xs text-gray-800 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none transition-all"
+                                        className="pl-9 pr-4 py-1.5 w-48 sm:w-60 rounded-xl bg-surface border border-surface-border focus-ring text-xs text-text-primary placeholder-text-muted transition-all"
                                     />
                                 </div>
                             )}
@@ -186,11 +174,11 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
                             {selectedProjectId && (
                                 <Link
                                     href={route('tenant.projects.show', { tenant: activeWorkspace, project: selectedProjectId })}
-                                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm transition-all"
+                                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-brand text-white hover:bg-brand-light shadow-2xs hover:shadow-xs transition-all active:scale-[0.98] focus-ring"
                                 >
                                     {hasManagerRights ? (
                                         <>
-                                            <PlusIcon />
+                                            <Plus className="w-3.5 h-3.5" />
                                             <span>Manage Tasks</span>
                                         </>
                                     ) : (
@@ -204,35 +192,36 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
 
                 {/* ── Empty State for Projects ── */}
                 {projects.length === 0 ? (
-                    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-gray-50 dark:bg-slate-950">
-                        <div className="text-gray-300 dark:text-slate-700 mb-4">
-                            <EmptyBoxIcon />
+                    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-surface">
+                        <div className="text-text-muted mb-4 opacity-40">
+                            <PackageX className="w-12 h-12" />
                         </div>
-                        <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">No Projects Found</h2>
-                        <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 max-w-sm">
+                        <h2 className="text-lg font-bold text-text-primary">No Projects Found</h2>
+                        <p className="text-sm text-text-muted mt-1 max-w-sm">
                             Create your first project to organize tasks, assign developers, and start planning sprints.
                         </p>
                         <Link
                             href={route('tenant.projects.index', { tenant: activeWorkspace })}
-                            className="mt-5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-colors shadow-md"
+                            className="mt-5 px-4 py-2 rounded-xl bg-brand text-white text-xs font-bold hover:bg-brand-light transition-all shadow-2xs focus-ring"
                         >
                             Go to Projects
                         </Link>
                     </div>
                 ) : (
                     <div className="flex-1 flex flex-col overflow-hidden">
-                        {/* ── Inline Viewing Options & Control Area (Outside navbar, in components area) ── */}
-                        <div className="px-6 py-3 border-b border-gray-100 dark:border-slate-800/50 bg-gray-50/50 dark:bg-slate-900/10 flex items-center justify-between shrink-0">
+                        {/* ── Inline Viewing Options ── */}
+                        <div className="px-6 py-3 border-b border-surface-border bg-surface-elevated/50 flex items-center justify-between shrink-0">
                             {/* View Tabs */}
-                            <div className="flex items-center bg-gray-200/60 dark:bg-slate-800 rounded-xl p-1 gap-0.5">
+                            <div className="flex items-center bg-surface rounded-xl p-1 gap-1 border border-surface-border">
                                 {VIEWS.map(v => (
                                     <button
+                                        type="button"
                                         key={v.key}
                                         onClick={() => setActiveView(v.key)}
-                                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 ${
+                                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer focus-ring ${
                                             activeView === v.key
-                                                ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 shadow-sm'
-                                                : 'text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200'
+                                                ? 'bg-brand text-white shadow-2xs'
+                                                : 'text-text-muted hover:text-text-primary'
                                         }`}
                                     >
                                         {v.label}
@@ -240,7 +229,7 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
                                 ))}
                             </div>
 
-                            <span className="text-xs text-gray-400 dark:text-slate-500 font-medium">
+                            <span className="text-xs text-text-muted font-medium font-mono">
                                 Showing {projectTasks.length} task{projectTasks.length !== 1 ? 's' : ''}
                             </span>
                         </div>
@@ -249,11 +238,11 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
                         <div className="flex-1 overflow-y-auto">
                             {projectTasks.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center py-20 text-center">
-                                    <div className="text-gray-300 dark:text-slate-800 mb-3">
-                                        <EmptyBoxIcon />
+                                    <div className="text-text-muted mb-3 opacity-40">
+                                        <PackageX className="w-10 h-10" />
                                     </div>
-                                    <h3 className="text-sm font-bold text-gray-800 dark:text-slate-200">No Tasks Available</h3>
-                                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-1 max-w-xs">
+                                    <h3 className="text-sm font-bold text-text-primary">No Tasks Available</h3>
+                                    <p className="text-xs text-text-muted mt-1 max-w-xs">
                                         {searchQuery ? "No tasks match your search query." : "There are currently no tasks defined for this project workspace."}
                                     </p>
                                 </div>
@@ -272,7 +261,7 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
 
             {/* Close project dropdown on outside click */}
             {projectDropdownOpen && (
-                <div className="fixed inset-0 z-40" onClick={() => setProjectDropdownOpen(false)} />
+                <div className="fixed inset-0 z-40" onClick={() => setProjectDropdownOpen(false)} aria-hidden="true" />
             )}
 
             {/* Modal for updating task */}

@@ -280,6 +280,18 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
         .finally(() => setAssigningId(null));
     };
 
+    // Escape key dismissal
+    React.useEffect(() => {
+        if (!isOpen) return;
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape' && !isSaving && assigningId === null) {
+                handleClose();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, isSaving, assigningId]);
+
     const handleClose = () => {
         setForm(defaultForm);
         setActiveTab('general');
@@ -291,13 +303,23 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm select-none">
+        <div 
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm select-none"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="manual-task-modal-title"
+            onClick={(e) => {
+                if (e.target === e.currentTarget && !isSaving && assigningId === null) {
+                    handleClose();
+                }
+            }}
+        >
             <div className="w-full max-w-2xl rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900 flex flex-col max-h-[90vh] overflow-hidden">
                 
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-slate-800 shrink-0">
                     <div>
-                        <h2 className="font-heading text-base font-bold text-gray-900 dark:text-slate-100 flex items-center gap-1.5">
+                        <h2 id="manual-task-modal-title" className="font-heading text-base font-bold text-gray-900 dark:text-slate-100 flex items-center gap-1.5">
                             <Cpu className="w-4 h-4 text-brand animate-pulse" /> 
                             {step === 'form' ? (editingTask ? 'Edit Task Requirements & CPA Anchor' : 'Create Task Requirements') : 'GNN Developer Recommendation Routing'}
                         </h2>
@@ -307,10 +329,16 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
                                 : `Routing optimal matches for: ${createdTask?.title}.`}
                         </p>
                     </div>
-                    <button type="button" onClick={handleClose} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-slate-800 transition-colors">
+                    <button 
+                        type="button" 
+                        onClick={handleClose} 
+                        aria-label="Close dialog"
+                        className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-slate-800 transition-colors focus-ring"
+                    >
                         <X className="h-4 w-4" />
                     </button>
                 </div>
+
 
                 {/* Sub-tabs (Form Step only) */}
                 {step === 'form' && canManage && (
@@ -349,42 +377,68 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
                                  <div className="space-y-4">
                                      {canManage ? (
                                          <>
-                                             <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Task title *
-                                                 <input autoFocus value={form.title} onChange={event => updateField('title', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950" placeholder="e.g. Implement user authentication endpoints" />
+                                             <div>
+                                                 <div className="flex items-center justify-between mb-1">
+                                                     <label htmlFor="task-title-input" className="text-xs font-semibold text-gray-700 dark:text-slate-300">
+                                                         Task title <span className="text-rose-500">*</span>
+                                                     </label>
+                                                     <span className={`text-[10px] font-mono ${form.title.length > 100 ? 'text-amber-500 font-bold' : 'text-gray-400 dark:text-slate-500'}`}>
+                                                         {form.title.length}/120
+                                                     </span>
+                                                 </div>
+                                                 <input 
+                                                     id="task-title-input"
+                                                     autoFocus 
+                                                     maxLength={120}
+                                                     value={form.title} 
+                                                     onChange={event => updateField('title', event.target.value)} 
+                                                     className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus-ring dark:border-slate-700 dark:bg-slate-950" 
+                                                     placeholder="e.g. Implement user authentication endpoints" 
+                                                 />
                                                  {errors.title && <span className="mt-1 block text-xs text-rose-500">{errors.title}</span>}
-                                             </label>
+                                             </div>
                                              
-                                             <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Description
-                                                 <textarea value={form.description} onChange={event => updateField('description', event.target.value)} rows="3" className="mt-1.5 w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950" placeholder="Fully describe details and objective of the task..." />
-                                             </label>
+                                             <div>
+                                                 <label htmlFor="task-desc-input" className="block text-xs font-semibold text-gray-700 dark:text-slate-300 mb-1">
+                                                     Description
+                                                 </label>
+                                                 <textarea 
+                                                     id="task-desc-input"
+                                                     value={form.description} 
+                                                     onChange={event => updateField('description', event.target.value)} 
+                                                     rows="3" 
+                                                     className="w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus-ring dark:border-slate-700 dark:bg-slate-950" 
+                                                     placeholder="Fully describe details and objective of the task..." 
+                                                 />
+                                             </div>
 
                                              <div className="grid grid-cols-2 gap-4">
                                                  <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Estimated hours *
-                                                     <input type="number" min="0.5" step="0.5" value={form.estimated_hours} onChange={event => updateField('estimated_hours', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950" />
+                                                     <input type="number" min="0.5" step="0.5" value={form.estimated_hours} onChange={event => updateField('estimated_hours', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus-ring dark:border-slate-700 dark:bg-slate-950" />
                                                  </label>
                                                  <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Priority *
-                                                     <select value={form.priority} onChange={event => updateField('priority', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950">{['Low', 'Medium', 'High', 'Critical'].map(priority => <option key={priority}>{priority}</option>)}</select>
+                                                     <select value={form.priority} onChange={event => updateField('priority', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus-ring dark:border-slate-700 dark:bg-slate-950">{['Low', 'Medium', 'High', 'Critical'].map(priority => <option key={priority}>{priority}</option>)}</select>
                                                  </label>
                                              </div>
 
                                              <div className="grid grid-cols-2 gap-4">
                                                  <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Hard Constraint Date <span className="font-normal text-gray-400 dark:text-gray-500">(Fixed Deadline)</span>
-                                                     <input type="date" value={form.hard_constraint_date} onChange={event => updateField('hard_constraint_date', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950" />
+                                                     <input type="date" value={form.hard_constraint_date} onChange={event => updateField('hard_constraint_date', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus-ring dark:border-slate-700 dark:bg-slate-950" />
                                                  </label>
                                                  <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Status *
-                                                     <select value={form.status} onChange={event => updateField('status', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950">{STATUSES.map(status => <option key={status.value} value={status.value}>{status.label}</option>)}</select>
+                                                     <select value={form.status} onChange={event => updateField('status', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus-ring dark:border-slate-700 dark:bg-slate-950">{STATUSES.map(status => <option key={status.value} value={status.value}>{status.label}</option>)}</select>
                                                  </label>
                                              </div>
                                              
                                              <div className="grid grid-cols-2 gap-4">
                                                  <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Sprint
-                                                     <select value={form.sprint_id || ''} onChange={event => updateField('sprint_id', event.target.value ? Number(event.target.value) : null)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950">
+                                                     <select value={form.sprint_id || ''} onChange={event => updateField('sprint_id', event.target.value ? Number(event.target.value) : null)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus-ring dark:border-slate-700 dark:bg-slate-950">
                                                          <option value="">Backlog (No Sprint)</option>
                                                          {sprints.map(sprint => <option key={sprint.id} value={sprint.id}>{sprint.name}</option>)}
                                                      </select>
                                                  </label>
                                                  <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Assignee (Doer)
-                                                     <select value={form.assigned_user_id} onChange={event => updateField('assigned_user_id', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950"><option value="">Unassigned</option>{safeTeamMembers.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}</select>
+                                                     <select value={form.assigned_user_id} onChange={event => updateField('assigned_user_id', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus-ring dark:border-slate-700 dark:bg-slate-950"><option value="">Unassigned</option>{safeTeamMembers.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}</select>
                                                  </label>
                                              </div>
 
@@ -397,9 +451,10 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
                                                  <select
                                                      value={form.reviewer_user_id}
                                                      onChange={event => updateField('reviewer_user_id', event.target.value)}
-                                                     className="mt-1 w-full rounded-xl border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm outline-none focus:border-brand dark:focus:border-brand"
+                                                     className="mt-1 w-full rounded-xl border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm focus-ring"
                                                  >
                                                      <option value="">No reviewer — member marks done directly</option>
+
                                                      {safeTeamMembers
                                                          .filter(m => String(m.id) !== String(form.assigned_user_id))
                                                          .map(member => (
@@ -437,7 +492,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-2 gap-4">
                                         <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Task Classification
-                                            <select value={form.task_classification} onChange={event => updateField('task_classification', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950">
+                                            <select value={form.task_classification} onChange={event => updateField('task_classification', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus-ring dark:border-slate-700 dark:bg-slate-950">
                                                 {TASK_CLASSIFICATIONS_GROUPED.map(group => (
                                                     <optgroup key={group.category} label={group.category}>
                                                         {group.options.map(classification => (
@@ -449,7 +504,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
                                         </label>
                                         
                                         <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Required Position
-                                            <select value={form.required_position} onChange={event => updateField('required_position', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950">
+                                            <select value={form.required_position} onChange={event => updateField('required_position', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus-ring dark:border-slate-700 dark:bg-slate-950">
                                                 {positionsList.map(pos => (
                                                     <option key={pos} value={pos}>{pos}</option>
                                                 ))}
@@ -459,10 +514,10 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
 
                                     <div className="grid grid-cols-2 gap-4">
                                         <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Min Experience (Years)
-                                            <input type="number" min="0" max="20" step="0.5" value={form.minimum_experience_years} onChange={event => updateField('minimum_experience_years', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950" />
+                                            <input type="number" min="0" max="20" step="0.5" value={form.minimum_experience_years} onChange={event => updateField('minimum_experience_years', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus-ring dark:border-slate-700 dark:bg-slate-950" />
                                         </label>
                                         <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">Task Difficulty
-                                            <select value={form.task_difficulty} onChange={event => updateField('task_difficulty', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950">{['Easy', 'Medium', 'Hard'].map(diff => <option key={diff}>{diff}</option>)}</select>
+                                            <select value={form.task_difficulty} onChange={event => updateField('task_difficulty', event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus-ring dark:border-slate-700 dark:bg-slate-950">{['Easy', 'Medium', 'Hard'].map(diff => <option key={diff}>{diff}</option>)}</select>
                                         </label>
                                     </div>
 
@@ -476,7 +531,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
                                                         type="checkbox"
                                                         checked={form.macro_domains[index] === 1}
                                                         onChange={e => handleMacroDomainChange(index, e.target.checked)}
-                                                        className="rounded border-gray-300 text-brand focus:ring-brand"
+                                                        className="rounded border-gray-300 text-brand focus-ring"
                                                     />
                                                     <span className="truncate">{domain}</span>
                                                 </label>
@@ -495,10 +550,11 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
                                                 type="text" 
                                                 value={skillSearch}
                                                 onChange={e => setSkillSearch(e.target.value)}
-                                                className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950" 
+                                                className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus-ring dark:border-slate-700 dark:bg-slate-950" 
                                                 placeholder="Type to search e.g. React, Python..."
                                             />
                                         </label>
+
                                         
                                         {filteredSkills.length > 0 && (
                                             <div className="absolute z-10 w-full max-w-[500px] bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 mt-1 rounded-xl shadow-lg overflow-hidden">
@@ -566,7 +622,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
                                                         type="checkbox"
                                                         checked={form.depends_on.includes(task.id)}
                                                         onChange={e => handlePredecessorToggle(task.id, e.target.checked)}
-                                                        className="rounded border-gray-300 text-brand focus:ring-brand"
+                                                        className="rounded border-gray-300 text-brand focus-ring"
                                                     />
                                                     <div className="min-w-0">
                                                         <span className="block text-xs font-bold text-gray-800 dark:text-slate-200 truncate">{task.title}</span>
@@ -670,14 +726,14 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
                 <div className="flex justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-slate-800 shrink-0 bg-gray-50/50 dark:bg-slate-900/50">
                     {step === 'form' ? (
                         <>
-                            <button type="button" onClick={handleClose} className="rounded-xl px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-850">
+                            <button type="button" onClick={handleClose} className="rounded-xl px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800 focus-ring">
                                 Cancel
                             </button>
                             <button 
                                 type="button"
                                 onClick={submitTask}
                                 disabled={isSaving || !form.title || (!canManage && Number(editingTask?.assigned_user_id) !== Number(currentUserId))} 
-                                className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50 hover:bg-brand-dark transition-all shadow-md"
+                                className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50 hover:bg-brand-dark transition-all shadow-md focus-ring"
                             >
                                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
                                 <span>{editingTask ? (canManage ? 'Update Task Specifications' : 'Update Task Status') : 'Create Task'}</span>
@@ -690,7 +746,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
                                 router.reload();
                                 handleClose();
                             }} 
-                            className="rounded-xl bg-gray-200 hover:bg-gray-300 text-gray-800 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 px-4 py-2 text-sm font-bold transition-colors"
+                            className="rounded-xl bg-gray-200 hover:bg-gray-300 text-gray-800 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 px-4 py-2 text-sm font-bold transition-colors focus-ring"
                         >
                             Skip &amp; Finish
                         </button>

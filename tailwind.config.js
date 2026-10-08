@@ -40,6 +40,7 @@ export default {
                 },
                 text: {
                     primary: 'var(--color-text-primary)',
+                    secondary: 'var(--color-text-muted)',
                     muted: 'var(--color-text-muted)',
                 },
             },
