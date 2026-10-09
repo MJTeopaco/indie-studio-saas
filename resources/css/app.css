@@ -30,6 +30,12 @@ html {
   }
 }
 
+@layer utilities {
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900;
+  }
+}
+
 /* Premium Keyframe Animations */
 @keyframes float {
   0%, 100% { transform: translateY(0); }
@@ -107,3 +113,25 @@ html {
 .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: #475569;
 }
+
+/* Tactile diagonal micro-hatch pattern for wireframe sparklines and focus containers */
+.bg-hatched-pattern {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 6px,
+    rgba(148, 163, 184, 0.14) 6px,
+    rgba(148, 163, 184, 0.14) 12px
+  );
+}
+
+.dark .bg-hatched-pattern {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 6px,
+    rgba(255, 255, 255, 0.045) 6px,
+    rgba(255, 255, 255, 0.045) 12px
+  );
+}
+

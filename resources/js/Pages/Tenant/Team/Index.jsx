@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import axios from 'axios';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import TenantLayout from '@/Layouts/TenantLayout';
 import {
     Users,
@@ -16,6 +16,14 @@ import {
     List,
     X,
     Copy,
+    Clock,
+    Check,
+    AlertTriangle,
+    Crown,
+    UserCheck,
+    FileText,
+    Loader2,
+    AlertCircle,
 } from 'lucide-react';
 import TeamMemberCard from '@/Components/Tenant/TeamMemberCard';
 import TeamTimeline from '@/Components/Tenant/TeamTimeline';
@@ -45,9 +53,17 @@ const statusStyles = {
     Active: 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50',
     Remote: 'bg-orange-50 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800/50',
     'Part-time': 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800/50',
+    'On Leave': 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800/50',
+    'Leave Pending': 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800/50',
+    Emergency: 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800/50',
 };
 
-export default function TeamIndex({ studio, members = [], canManage = false }) {
+export default function TeamIndex({ 
+    studio, 
+    members = [], 
+    canManage = false, 
+    isOwner = false, 
+}) {
     const studioName = studio?.name || 'Studio';
 
     // UI state
@@ -86,16 +102,33 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
     }, [searchQuery, selectedDepartment, selectedStatus]);
 
 
-    // Map each member's status and department based on their index/data
+    // Map each member's status and department based on their real working status
     const enrichedMembers = useMemo(() => {
         return members.map((m, idx) => {
-            const status = STATUSES[idx % STATUSES.length];
+            let status = 'Active';
+            let badgeClass = statusStyles.Active;
+
+            if (m.working_status === 'on_leave') {
+                status = 'On Leave';
+                badgeClass = statusStyles['On Leave'];
+            } else if (m.leave_request_status === 'pending') {
+                status = 'Leave Pending';
+                badgeClass = statusStyles['Leave Pending'];
+            } else if (m.working_status === 'emergency') {
+                status = 'Emergency';
+                badgeClass = statusStyles.Emergency;
+            } else {
+                const fallback = STATUSES[idx % STATUSES.length];
+                status = fallback;
+                badgeClass = statusStyles[fallback] || statusStyles.Active;
+            }
+
             const dept = getDepartment(m.position);
             return {
                 ...m,
                 status,
                 department: dept,
-                badgeClass: statusStyles[status],
+                badgeClass,
             };
         });
     }, [members]);
@@ -212,7 +245,7 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
                     )}
                 </div>
 
-                {/* 2. Sub-navigation tabs (Removed 'All tasks') */}
+                {/* 2. Sub-navigation tabs */}
                 <div className="flex items-center gap-6 mt-8 border-b border-surface-border">
                     {['Department Board', 'Team Overview'].map((tab) => {
                         const isActive = activeTab === tab;
@@ -220,13 +253,13 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
-                                className={`pb-3 text-sm font-heading font-semibold transition-all relative ${
+                                className={`pb-3 text-sm font-heading font-semibold transition-all relative flex items-center gap-2 ${
                                     isActive
                                         ? 'text-brand dark:text-brand-light font-bold'
                                         : 'text-text-muted hover:text-text-primary'
                                 }`}
                             >
-                                {tab}
+                                <span>{tab}</span>
                                 {isActive && (
                                     <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand dark:bg-brand-light rounded-full" />
                                 )}
@@ -259,7 +292,7 @@ export default function TeamIndex({ studio, members = [], canManage = false }) {
                         )}
                     </div>
                 ) : (
-                    /* CASE B: Display State */
+                    /* CASE B: Display State for Board & Overview */
                     <div className="mt-8 space-y-12">
                         {/* Subsection Title and Control Bar */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

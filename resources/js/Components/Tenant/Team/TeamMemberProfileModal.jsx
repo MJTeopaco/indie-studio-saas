@@ -45,13 +45,28 @@ export default function TeamMemberProfileModal({ isOpen, onClose, member, canMan
                             {member.name.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                                 <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{member.name}</h2>
                                 <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${healthStyles[health.tone] || healthStyles.success}`}>
                                     {health.label}
                                 </span>
+                                {member.working_status === 'on_leave' && (
+                                    <span className="rounded-full border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                                        On Leave {member.leave_end_date ? `(Until ${member.leave_end_date})` : ''}
+                                    </span>
+                                )}
+                                {member.leave_request_status === 'pending' && (
+                                    <span className="rounded-full border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                                        Leave Pending Review
+                                    </span>
+                                )}
+                                {member.working_status === 'emergency' && (
+                                    <span className="rounded-full border border-rose-300 dark:border-rose-500/40 bg-rose-50 dark:bg-rose-500/10 px-2.5 py-0.5 text-xs font-semibold text-rose-700 dark:text-rose-300">
+                                        Emergency Absence
+                                    </span>
+                                )}
                             </div>
-                            <p className="text-sm text-gray-500 dark:text-slate-400">{member.position}</p>
+                            <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">{member.position}</p>
                         </div>
                     </div>
                     <button

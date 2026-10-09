@@ -131,7 +131,7 @@ function NavItem({ icon: Icon, label, href = '#', active = false, badge = null, 
             title={isCollapsed ? (badge ? `${label} (${badge})` : label) : undefined}
             className={`group relative flex items-center ${
                 isCollapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2.25'
-            } rounded-xl text-sm font-medium transition-all duration-200 ${
+            } rounded-xl text-sm font-medium transition-all duration-200 focus-ring ${
                 active
                     ? 'bg-brand-10 text-brand font-semibold shadow-xs'
                     : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 hover:dark:bg-slate-800/50 hover:text-gray-900 hover:dark:text-slate-200'
@@ -204,7 +204,7 @@ function CategoryHeader({ label, isOpen, onToggle, isCollapsed }) {
             type="button"
             onClick={onToggle}
             aria-expanded={isOpen}
-            className="w-full flex items-center justify-between px-3 py-1.5 text-left group focus:outline-none rounded-lg hover:bg-gray-100/70 dark:hover:bg-slate-800/50 transition-colors"
+            className="w-full flex items-center justify-between px-3 py-1.5 text-left group rounded-lg hover:bg-gray-100/70 dark:hover:bg-slate-800/50 transition-colors focus-ring"
         >
             <span className="font-heading text-[11px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider group-hover:text-gray-700 dark:group-hover:text-slate-300 transition-colors">
                 {label}
@@ -234,9 +234,9 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
     // Interactive theme state synced with document.documentElement and localStorage
     const [isDark, setIsDark] = useState(() => {
         if (typeof window !== 'undefined') {
-            return localStorage.getItem('theme') === 'dark';
+            return localStorage.getItem('theme') !== 'light';
         }
-        return false;
+        return true;
     });
 
     // Accordion categories collapse state (persisted in localStorage)
@@ -410,7 +410,8 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                 <button
                     type="button"
                     onClick={() => setIsCollapsed(!isCollapsed)}
-                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/60 transition-colors"
+                    aria-label={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/60 transition-colors focus-ring"
                     title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
                 >
                     {isCollapsed ? (

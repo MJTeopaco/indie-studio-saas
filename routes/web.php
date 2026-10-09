@@ -38,6 +38,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile/avatar', [ProfileController::class, 'destroyAvatar'])->name('profile.avatar.destroy');
     Route::post('/profile/skills', [ProfileController::class, 'updateSkills'])->name('profile.skills.update');
     Route::post('/profile/working-status', [ProfileController::class, 'updateWorkingStatus'])->name('profile.working-status.update');
+    Route::delete('/profile/leave-requests/{id}', [ProfileController::class, 'cancelLeaveRequest'])->name('profile.leave-requests.cancel');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 

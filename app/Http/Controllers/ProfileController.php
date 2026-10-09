@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\LeaveRequest;
 use App\Models\Position;
 use App\Models\Skill;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -35,6 +36,7 @@ class ProfileController extends Controller
                 'working_status' => 'active',
                 'leave_start_date' => null,
                 'leave_end_date' => null,
+                'leave_request_status' => 'none',
                 'updated_at' => now(),
             ]);
 
@@ -42,9 +44,15 @@ class ProfileController extends Controller
             ->with(['position', 'skills'])
             ->first();
 
+        $pendingLeaveRequests = LeaveRequest::where('user_id', $user->id)
+            ->where('status', 'pending')
+            ->get()
+            ->keyBy('studio_id');
+
         $joinedStudios = $user->joinedStudios()
             ->get(['tenants.id', 'tenants.name', 'tenants.owner_id'])
-            ->map(function ($studio) {
+            ->map(function ($studio) use ($pendingLeaveRequests) {
+                $pendingReq = $pendingLeaveRequests->get($studio->id);
                 return [
                     'id' => $studio->id,
                     'name' => $studio->name,
@@ -53,6 +61,15 @@ class ProfileController extends Controller
                     'working_status' => $studio->pivot->working_status ?? 'active',
                     'leave_start_date' => $studio->pivot->leave_start_date,
                     'leave_end_date' => $studio->pivot->leave_end_date,
+                    'leave_request_status' => $pendingReq ? 'pending' : ($studio->pivot->leave_request_status ?? 'none'),
+                    'pending_leave_request' => $pendingReq ? [
+                        'id' => $pendingReq->id,
+                        'leave_start_date' => $pendingReq->leave_start_date ? $pendingReq->leave_start_date->format('Y-m-d') : null,
+                        'leave_end_date' => $pendingReq->leave_end_date ? $pendingReq->leave_end_date->format('Y-m-d') : null,
+                        'reason' => $pendingReq->reason,
+                        'requester_role' => $pendingReq->requester_role,
+                        'created_at' => $pendingReq->created_at ? $pendingReq->created_at->diffForHumans() : null,
+                    ] : null,
                 ];
             });
 
@@ -184,6 +201,10 @@ class ProfileController extends Controller
 
     /**
      * Update user working status (active, on_leave, emergency) globally or per studio.
+     * Enforces governance:
+     * - Member: 'On Leave' is subject to approval by Team Leader or Studio Owner.
+     * - Team Leader: 'On Leave' is subject to approval by Studio Owner ONLY.
+     * - Studio Owner: Applies immediately.
      */
     public function updateWorkingStatus(Request $request): RedirectResponse
     {
@@ -193,43 +214,221 @@ class ProfileController extends Controller
             'studio_id' => ['nullable', 'string', 'required_if:scope,specific'],
             'leave_start_date' => ['nullable', 'date'],
             'leave_end_date' => ['nullable', 'date', 'after_or_equal:leave_start_date'],
+            'leave_reason' => ['nullable', 'string', 'max:500'],
         ]);
 
         $user = $request->user();
         $status = $request->status;
         $leaveStart = $status === 'on_leave' ? ($request->leave_start_date ?: now()->toDateString()) : null;
         $leaveEnd = $status === 'on_leave' ? $request->leave_end_date : null;
+        $leaveReason = $request->leave_reason;
 
-        if ($request->scope === 'all') {
-            // Update user global status
-            $user->working_status = $status;
-            $user->leave_start_date = $leaveStart;
-            $user->leave_end_date = $leaveEnd;
-            $user->save();
-
-            // Update all joined studios for this user
-            DB::table('studio_members')
+        if ($request->scope === 'specific') {
+            $member = DB::table('studio_members')
                 ->where('user_id', $user->id)
-                ->update([
-                    'working_status' => $status,
+                ->where('studio_id', $request->studio_id)
+                ->first();
+
+            if (! $member) {
+                return back()->withErrors(['studio_id' => 'You are not a member of this studio.']);
+            }
+
+            $role = $member->role ?? 'member';
+            $isOwner = $role === 'owner';
+            $isLeader = in_array($role, ['leader', 'manager']);
+
+            if ($status === 'on_leave') {
+                if ($isOwner) {
+                    // Owner direct update: no approval required
+                    LeaveRequest::where('user_id', $user->id)
+                        ->where('studio_id', $request->studio_id)
+                        ->where('status', 'pending')
+                        ->update(['status' => 'cancelled']);
+
+                    DB::table('studio_members')
+                        ->where('user_id', $user->id)
+                        ->where('studio_id', $request->studio_id)
+                        ->update([
+                            'working_status' => 'on_leave',
+                            'leave_start_date' => $leaveStart,
+                            'leave_end_date' => $leaveEnd,
+                            'leave_request_status' => 'none',
+                            'updated_at' => now(),
+                        ]);
+
+                    $user->working_status = 'on_leave';
+                    $user->leave_start_date = $leaveStart;
+                    $user->leave_end_date = $leaveEnd;
+                    $user->save();
+
+                    return Redirect::route('profile.edit')->with('status', 'working-status-updated:Working status updated to On Leave.');
+                }
+
+                // Member or Leader: submit leave request for approval
+                LeaveRequest::where('user_id', $user->id)
+                    ->where('studio_id', $request->studio_id)
+                    ->where('status', 'pending')
+                    ->update(['status' => 'cancelled']);
+
+                LeaveRequest::create([
+                    'studio_id' => $request->studio_id,
+                    'user_id' => $user->id,
+                    'requester_role' => $isLeader ? 'leader' : 'member',
                     'leave_start_date' => $leaveStart,
                     'leave_end_date' => $leaveEnd,
-                    'updated_at' => now(),
+                    'reason' => $leaveReason,
+                    'status' => 'pending',
                 ]);
-        } else {
-            // Update specific studio status for this user
+
+                DB::table('studio_members')
+                    ->where('user_id', $user->id)
+                    ->where('studio_id', $request->studio_id)
+                    ->update([
+                        'leave_request_status' => 'pending',
+                        'updated_at' => now(),
+                    ]);
+
+                $approverText = $isLeader ? 'Studio Owner' : 'Team Lead or Studio Owner';
+
+                return Redirect::route('profile.edit')->with('status', "leave-request-submitted:Your leave request has been submitted for approval by your {$approverText}.");
+            }
+
+            // Status is active or emergency: direct update, cancel any pending requests
+            LeaveRequest::where('user_id', $user->id)
+                ->where('studio_id', $request->studio_id)
+                ->where('status', 'pending')
+                ->update(['status' => 'cancelled']);
+
             DB::table('studio_members')
                 ->where('user_id', $user->id)
                 ->where('studio_id', $request->studio_id)
                 ->update([
                     'working_status' => $status,
-                    'leave_start_date' => $leaveStart,
-                    'leave_end_date' => $leaveEnd,
+                    'leave_start_date' => null,
+                    'leave_end_date' => null,
+                    'leave_request_status' => 'none',
                     'updated_at' => now(),
                 ]);
+
+            $user->working_status = $status;
+            $user->leave_start_date = null;
+            $user->leave_end_date = null;
+            $user->save();
+
+            return Redirect::route('profile.edit')->with('status', 'working-status-updated:Working status updated successfully.');
         }
 
-        return Redirect::route('profile.edit')->with('status', 'working-status-updated');
+        // Scope: ALL workspaces
+        $joined = DB::table('studio_members')
+            ->where('user_id', $user->id)
+            ->get();
+
+        $submittedForApprovalCount = 0;
+        $directUpdatedCount = 0;
+
+        foreach ($joined as $membership) {
+            $role = $membership->role ?? 'member';
+            $isOwner = $role === 'owner';
+            $isLeader = in_array($role, ['leader', 'manager']);
+
+            if ($status === 'on_leave') {
+                if ($isOwner) {
+                    LeaveRequest::where('user_id', $user->id)
+                        ->where('studio_id', $membership->studio_id)
+                        ->where('status', 'pending')
+                        ->update(['status' => 'cancelled']);
+
+                    DB::table('studio_members')
+                        ->where('id', $membership->id)
+                        ->update([
+                            'working_status' => 'on_leave',
+                            'leave_start_date' => $leaveStart,
+                            'leave_end_date' => $leaveEnd,
+                            'leave_request_status' => 'none',
+                            'updated_at' => now(),
+                        ]);
+                    $directUpdatedCount++;
+                } else {
+                    LeaveRequest::where('user_id', $user->id)
+                        ->where('studio_id', $membership->studio_id)
+                        ->where('status', 'pending')
+                        ->update(['status' => 'cancelled']);
+
+                    LeaveRequest::create([
+                        'studio_id' => $membership->studio_id,
+                        'user_id' => $user->id,
+                        'requester_role' => $isLeader ? 'leader' : 'member',
+                        'leave_start_date' => $leaveStart,
+                        'leave_end_date' => $leaveEnd,
+                        'reason' => $leaveReason,
+                        'status' => 'pending',
+                    ]);
+
+                    DB::table('studio_members')
+                        ->where('id', $membership->id)
+                        ->update([
+                            'leave_request_status' => 'pending',
+                            'updated_at' => now(),
+                        ]);
+                    $submittedForApprovalCount++;
+                }
+            } else {
+                LeaveRequest::where('user_id', $user->id)
+                    ->where('studio_id', $membership->studio_id)
+                    ->where('status', 'pending')
+                    ->update(['status' => 'cancelled']);
+
+                DB::table('studio_members')
+                    ->where('id', $membership->id)
+                    ->update([
+                        'working_status' => $status,
+                        'leave_start_date' => null,
+                        'leave_end_date' => null,
+                        'leave_request_status' => 'none',
+                        'updated_at' => now(),
+                    ]);
+                $directUpdatedCount++;
+            }
+        }
+
+        if ($status !== 'on_leave' || $directUpdatedCount > 0) {
+            $user->working_status = $status;
+            $user->leave_start_date = $status === 'on_leave' ? $leaveStart : null;
+            $user->leave_end_date = $status === 'on_leave' ? $leaveEnd : null;
+            $user->save();
+        }
+
+        if ($submittedForApprovalCount > 0) {
+            return Redirect::route('profile.edit')->with(
+                'status',
+                "leave-request-submitted:Leave request submitted for approval across {$submittedForApprovalCount} workspace(s)."
+            );
+        }
+
+        return Redirect::route('profile.edit')->with('status', 'working-status-updated:Working status updated across all workspaces.');
+    }
+
+    /**
+     * Cancel an active pending leave request.
+     */
+    public function cancelLeaveRequest(Request $request, int $id): RedirectResponse
+    {
+        $leaveReq = LeaveRequest::where('id', $id)
+            ->where('user_id', $request->user()->id)
+            ->where('status', 'pending')
+            ->firstOrFail();
+
+        $leaveReq->update(['status' => 'cancelled']);
+
+        DB::table('studio_members')
+            ->where('user_id', $request->user()->id)
+            ->where('studio_id', $leaveReq->studio_id)
+            ->update([
+                'leave_request_status' => 'none',
+                'updated_at' => now(),
+            ]);
+
+        return Redirect::route('profile.edit')->with('status', 'leave-request-cancelled:Leave request has been withdrawn.');
     }
 
     /**
