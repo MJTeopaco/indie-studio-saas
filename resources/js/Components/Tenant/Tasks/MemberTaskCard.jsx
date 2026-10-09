@@ -255,7 +255,7 @@ export default function MemberTaskCard({ task, currentUserId, onClick, onStatusC
                     )}
 
                     {/* 3. Waiting for Review: Only the assigned reviewer (or manager) can mark done */}
-                    {(task.sprint_status === 'waiting_for_review' || task.sprint_status === 'pending_deploy' || task.status === 'review') && (
+                    {(task.sprint_status === 'waiting_for_review' || task.status === 'review') && (
                         isReviewer ? (
                             <button
                                 type="button"

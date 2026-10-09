@@ -138,7 +138,7 @@ export default function MemberDashboard({
         return {
             ready: targetTasks.filter(t => !t.sprint_status || t.sprint_status === 'ready_to_start' || t.status === 'todo'),
             in_progress: targetTasks.filter(t => t.sprint_status === 'in_progress'),
-            review: targetTasks.filter(t => t.sprint_status === 'waiting_for_review' || t.sprint_status === 'pending_deploy' || t.status === 'review'),
+            review: targetTasks.filter(t => t.sprint_status === 'waiting_for_review' || t.status === 'review'),
             done: targetTasks.filter(t => t.sprint_status === 'done' || t.status === 'completed'),
             stuck: targetTasks.filter(t => t.sprint_status === 'stuck'),
         };

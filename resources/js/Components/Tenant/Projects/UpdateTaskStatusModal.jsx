@@ -17,7 +17,6 @@ const SPRINT_STATUSES = [
     { value: 'ready_to_start', label: 'Ready to start', color: '#3b82f6', kanban: 'todo' },
     { value: 'in_progress', label: 'In progress', color: '#f97316', kanban: 'in_progress' },
     { value: 'waiting_for_review', label: 'Waiting for review', color: '#d97706', kanban: 'review' },
-    { value: 'pending_deploy', label: 'Pending deploy', color: '#eab308', kanban: 'in_progress' },
     { value: 'done', label: 'Done', color: '#10b981', kanban: 'completed' },
     { value: 'stuck', label: 'Stuck', color: '#ef4444', kanban: 'in_progress' },
 ];

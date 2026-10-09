@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Head, usePage } from '@inertiajs/react';
+import { Head, usePage, router } from '@inertiajs/react';
 import ProjectLayout from '@/Layouts/ProjectLayout';
-import { BarChart3, CalendarDays, Clock, Columns3, Cpu, Plus, Search, TableProperties, AlertTriangle, Flame, CheckCircle2, Edit2, Flag, IterationCcw, IterationCw, ListTodo, Layers, Sparkles, ChevronDown, ChevronUp, Zap, X as LucideX } from 'lucide-react';
+import { BarChart3, CalendarDays, Clock, Columns3, Cpu, Plus, Search, TableProperties, AlertTriangle, Flame, CheckCircle2, Edit2, Flag, IterationCcw, IterationCw, ListTodo, Layers, Sparkles, ChevronDown, ChevronUp, Zap, X as LucideX, Circle, CircleDot, AlertCircle, ArrowUp, Minus, ChevronsUp } from 'lucide-react';
 import axios from 'axios';
 import BestFitModal from '@/Components/ML/BestFitModal';
 import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
@@ -27,7 +27,6 @@ const SPRINT_STATUSES = [
     { value: 'ready_to_start', label: 'Ready to start', color: '#3b82f6' },
     { value: 'in_progress', label: 'In progress', color: '#f97316' },
     { value: 'waiting_for_review', label: 'Waiting for review', color: '#d97706' },
-    { value: 'pending_deploy', label: 'Pending deploy', color: '#eab308' },
     { value: 'done', label: 'Done', color: '#10b981' },
     { value: 'stuck', label: 'Stuck', color: '#ef4444' },
 ];
@@ -496,6 +495,27 @@ function DependencyPills({ predecessors }) {
     );
 }
 
+const StatusChip = ({ status }) => {
+    switch(status) {
+        case 'ready_to_start': return <><Circle className="w-3.5 h-3.5 text-slate-400" /> Ready</>;
+        case 'in_progress': return <><CircleDot className="w-3.5 h-3.5 text-blue-500" /> In Progress</>;
+        case 'waiting_for_review': return <><CircleDot className="w-3.5 h-3.5 text-amber-500" /> In Review</>;
+        case 'done': return <><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Done</>;
+        case 'stuck': return <><AlertCircle className="w-3.5 h-3.5 text-rose-500" /> Stuck</>;
+        default: return <><Circle className="w-3.5 h-3.5 text-slate-400" /> {status}</>;
+    }
+};
+
+const PriorityChip = ({ priority }) => {
+    switch(priority) {
+        case 'critical': return <><ChevronsUp className="w-3.5 h-3.5 text-rose-500" /> Critical</>;
+        case 'high': return <><ChevronUp className="w-3.5 h-3.5 text-amber-500" /> High</>;
+        case 'medium': return <><Minus className="w-3.5 h-3.5 text-slate-400" /> Medium</>;
+        case 'low': return <><ChevronDown className="w-3.5 h-3.5 text-slate-400" /> Low</>;
+        default: return <><Minus className="w-3.5 h-3.5 text-slate-400" /> {priority}</>;
+    }
+};
+
 function MyTasksList({ groups, onFindFit, onEditStatus, projectStartDate }) {
     const { canManage, auth } = usePage().props;
     return (
@@ -509,13 +529,12 @@ function MyTasksList({ groups, onFindFit, onEditStatus, projectStartDate }) {
                     </div>
 
                     <div className="min-w-[1100px]">
-                        <div className="grid grid-cols-[2fr_1.5fr_1.2fr_1.2fr_1fr_1.2fr_.8fr] gap-4 border-b border-gray-100 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:border-slate-800">
+                        <div className="grid grid-cols-[2.5fr_1fr_1fr_1.2fr_2fr_.8fr] gap-4 border-b border-gray-100 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:border-slate-800">
                             <span>Task</span>
-                            <span>Depends On</span>
-                            <span>Assignee</span>
-                            <span>Target Finish</span>
                             <span>Priority</span>
                             <span>Status</span>
+                            <span>Target Finish</span>
+                            <span>Depends On</span>
                             <span className="text-right">Actions</span>
                         </div>
 
@@ -538,12 +557,16 @@ function MyTasksList({ groups, onFindFit, onEditStatus, projectStartDate }) {
                                         <span className="block text-[11px] text-gray-500 dark:text-slate-400 truncate">{task.description || '—'}</span>
                                     </div>
 
-                                    <div onClick={(e) => e.stopPropagation()}>
-                                        <DependencyPills predecessors={task.predecessors} />
+                                    <div>
+                                        <div className="flex items-center gap-1.5 w-full rounded px-2 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 cursor-default">
+                                            <PriorityChip priority={sPriority.value} />
+                                        </div>
                                     </div>
 
                                     <div>
-                                        <TaskAssignee task={task} onFindFit={onFindFit} />
+                                        <div className="flex items-center gap-1.5 w-full rounded px-2 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 cursor-default">
+                                            <StatusChip status={sStatus.value} />
+                                        </div>
                                     </div>
 
                                     <div className="text-xs text-gray-700 dark:text-slate-300">
@@ -553,22 +576,8 @@ function MyTasksList({ groups, onFindFit, onEditStatus, projectStartDate }) {
                                         )}
                                     </div>
 
-                                    <div>
-                                        <button
-                                            className="w-full truncate rounded px-2 py-1.5 text-[10px] font-bold text-center cursor-default uppercase tracking-wider"
-                                            style={{ backgroundColor: sPriority.color, color: getContrastColor(sPriority.color) }}
-                                        >
-                                            {sPriority.label}
-                                        </button>
-                                    </div>
-
-                                    <div>
-                                        <button
-                                            className="w-full truncate rounded px-2 py-1.5 text-[10px] font-bold text-center cursor-default uppercase tracking-wider"
-                                            style={{ backgroundColor: sStatus.color, color: getContrastColor(sStatus.color) }}
-                                        >
-                                            {sStatus.label}
-                                        </button>
+                                    <div onClick={(e) => e.stopPropagation()}>
+                                        <DependencyPills predecessors={task.predecessors} />
                                     </div>
 
                                     <div className="text-right">
@@ -803,7 +812,7 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                 if (status.id === 'todo') return sprintStatus === 'ready_to_start';
                 if (status.id === 'completed') return sprintStatus === 'done';
                 if (status.id === 'review') return sprintStatus === 'waiting_for_review';
-                if (status.id === 'in_progress') return ['in_progress', 'pending_deploy'].includes(sprintStatus);
+                if (status.id === 'in_progress') return sprintStatus === 'in_progress';
                 if (status.id === 'stuck') return sprintStatus === 'stuck';
                 return false;
             }))
@@ -870,6 +879,7 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
             task.id === taskId ? { ...task, ...updates } : task
         ));
         window.dispatchEvent(new CustomEvent('task-updated', { detail: { taskId, updates } }));
+        router.reload({ only: ['project', 'sprints', 'backlogTasks'] });
     };
 
     const handleDropTask = async (targetStatus) => {

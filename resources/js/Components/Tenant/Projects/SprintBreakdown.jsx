@@ -21,7 +21,6 @@ const SPRINT_STATUSES = [
     { value: 'ready_to_start', label: 'Ready to start', color: '#3b82f6' }, // Blue
     { value: 'in_progress', label: 'In progress', color: '#f97316' },      // Orange
     { value: 'waiting_for_review', label: 'Waiting for review', color: '#d97706' }, // Light brown
-    { value: 'pending_deploy', label: 'Pending deploy', color: '#eab308' },// Yellow
     { value: 'done', label: 'Done', color: '#10b981' },                    // Bright green
     { value: 'stuck', label: 'Stuck', color: '#ef4444' },                  // Red
 ];
@@ -350,7 +349,6 @@ function TaskRow({ task, epics, onUpdateTask, onFindFit, canManage, currentUserI
             case 'ready_to_start': return <><Circle className="w-3.5 h-3.5 text-slate-400" /> Ready</>;
             case 'in_progress': return <><CircleDot className="w-3.5 h-3.5 text-blue-500" /> In Progress</>;
             case 'waiting_for_review': return <><CircleDot className="w-3.5 h-3.5 text-amber-500" /> In Review</>;
-            case 'pending_deploy': return <><ArrowUp className="w-3.5 h-3.5 text-violet-500" /> Deploy</>;
             case 'done': return <><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Done</>;
             case 'stuck': return <><AlertCircle className="w-3.5 h-3.5 text-rose-500" /> Stuck</>;
             default: return <><Circle className="w-3.5 h-3.5 text-slate-400" /> {status}</>;
@@ -944,6 +942,15 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
     const [sprints, setSprints] = useState(initialSprints || []);
     const [backlogTasks, setBacklogTasks] = useState(initialBacklog || []);
     const { auth } = usePage().props;
+
+    useEffect(() => {
+        setSprints(initialSprints || []);
+    }, [initialSprints]);
+
+    useEffect(() => {
+        setBacklogTasks(initialBacklog || []);
+    }, [initialBacklog]);
+
     const currentUserId = auth?.user?.id;
 
     const [closureModal, setClosureModal] = useState({
