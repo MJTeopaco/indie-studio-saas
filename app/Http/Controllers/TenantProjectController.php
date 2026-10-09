@@ -143,7 +143,7 @@ class TenantProjectController extends Controller
                         $q->select([
                             'id', 'sprint_id', 'project_id', 'epic_id',
                             'title', 'status', 'sprint_status', 'sprint_priority',
-                            'task_classification', 'story_points', 'actual_story_points',
+                            'task_classification', 'story_points',
                             'github_link', 'assigned_user_id', 'priority',
                         ])->with('epic:id,name,color');
                     }])->get()->map(function ($sprint) use (&$assignmentIdsByTask, &$membersById) {
@@ -1120,18 +1120,10 @@ class TenantProjectController extends Controller
             ], 403);
         }
 
-        if ($request->has('actual_story_points') && $taskModel->sprint_status !== 'done' && $request->input('sprint_status') !== 'done') {
-            return response()->json([
-                'message' => 'Actual SP can only be set when the task status is Done.',
-                'errors' => ['actual_story_points' => ['Task must be Done before setting Actual SP.']],
-            ], 422);
-        }
-
         $rules = [
             'sprint_status' => 'nullable|string|in:ready_to_start,in_progress,waiting_for_review,pending_deploy,done,stuck',
             'sprint_priority' => 'nullable|string|in:critical,high,medium,low',
             'task_classification' => 'nullable|string|max:100',
-            'actual_story_points' => 'nullable|integer|min:0|max:100',
             'github_link' => 'nullable|url|max:500',
         ];
 
@@ -1235,7 +1227,15 @@ class TenantProjectController extends Controller
                 'done_count' => $done->count(),
                 'incomplete_count' => $incomplete->count(),
                 'estimated_sp_total' => $tasks->sum('story_points'),
-                'actual_sp_burned' => $done->sum('actual_story_points'),
+                'actual_sp_burned' => DB::table('activity_logs')
+                    ->where('subject_type', Task::class)
+                    ->whereIn('subject_id', $done->pluck('id'))
+                    ->where('field', 'story_points')
+                    ->where('created_at', '<=', $sprint->start_date ?? now())
+                    ->get()
+                    ->groupBy('subject_id')
+                    ->map(fn ($logs) => $logs->sortByDesc('created_at')->first()->new_value)
+                    ->sum() ?: $done->sum('story_points'),
                 'completion_rate_pct' => $tasks->count()
                     ? round(($done->count() / $tasks->count()) * 100)
                     : 0,

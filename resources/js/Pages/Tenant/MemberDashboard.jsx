@@ -163,7 +163,7 @@ export default function MemberDashboard({
         const total = pool.reduce((acc, t) => acc + (t.story_points || 0), 0);
         const completed = pool
             .filter(t => t.sprint_status === 'done' || t.status === 'completed')
-            .reduce((acc, t) => acc + (t.actual_story_points ?? t.story_points ?? 0), 0);
+            .reduce((acc, t) => acc + (t.story_points ?? 0), 0);
         return { total, completed };
     }, [activeSprint, currentSprintTasks, tasksList]);
 

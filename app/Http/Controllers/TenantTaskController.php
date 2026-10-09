@@ -65,7 +65,6 @@ class TenantTaskController extends Controller
                     'sprint_status' => $task->sprint_status,
                     'sprint_priority' => $task->sprint_priority,
                     'story_points' => $task->story_points,
-                    'actual_story_points' => $task->actual_story_points,
                     'github_link' => $task->github_link,
                     'is_critical' => (bool) $task->is_critical,
                     'assignee' => $task->assignee ? $task->assignee->name : null,
@@ -148,7 +147,7 @@ class TenantTaskController extends Controller
         $validated = $request->validate([
             'status' => 'sometimes|required|string|in:todo,in_progress,review,completed,stuck',
             'sprint_status' => 'sometimes|nullable|string|in:ready_to_start,in_progress,waiting_for_review,pending_deploy,done,stuck',
-            'actual_story_points' => 'sometimes|nullable|integer|min:0|max:100',
+            'story_points' => 'sometimes|nullable|integer|min:0|max:100',
             'github_link' => 'sometimes|nullable|url|max:500',
         ]);
 

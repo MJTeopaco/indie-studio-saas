@@ -418,20 +418,7 @@ function TaskRow({ task, epics, onUpdateTask, onFindFit, canManage, currentUserI
                 )}
             </div>
 
-            <div className="text-center">
-                <button
-                    ref={actSpRef}
-                    onClick={(e) => { e.stopPropagation(); isEditable && isDone && setOpenPopover('actual_sp'); }}
-                    disabled={!isDone}
-                    className={`w-full rounded px-2 py-1 font-mono text-xs ${!isDone ? 'opacity-30 cursor-not-allowed' : (isEditable ? 'hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-900 dark:text-slate-100 font-bold' : 'text-gray-700 dark:text-slate-300')}`}
-                    title={!isDone ? "Task must be 'Done' to set Actual SP" : ""}
-                >
-                    {task.actual_story_points ? `${task.actual_story_points} SP` : '-'}
-                </button>
-                {openPopover === 'actual_sp' && (
-                    <InlineTextEditor type="number" initialValue={task.actual_story_points} onSave={(val) => onUpdateTask(task.id, { actual_story_points: val ? parseInt(val) : null })} onClose={() => setOpenPopover(null)} triggerRef={actSpRef} />
-                )}
-            </div>
+
 
             <div className="flex justify-center items-center group relative">
                 {task.hard_constraint_date ? (
@@ -496,14 +483,14 @@ function SprintTable({ tasks, epics, onUpdateTask, onFindFit, canManage, project
 
     return (
         <div className="min-w-[1400px] border-t border-gray-100 dark:border-slate-800">
-            <div className="grid grid-cols-[minmax(250px,1.5fr)_140px_130px_130px_240px_90px_90px_100px_80px_140px] gap-4 border-b border-gray-100 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:border-slate-800">
+            <div className="grid grid-cols-[minmax(250px,1.5fr)_140px_130px_130px_240px_90px_100px_80px_140px] gap-4 border-b border-gray-100 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:border-slate-800">
                 <span>Task</span>
                 <span>Owner</span>
                 <span>Status</span>
                 <span>Priority</span>
                 <span>Type</span>
                 <span>Estimate SP</span>
-                <span>Actual SP</span>
+
                 <span>Due Date</span>
                 <span>Task ID</span>
                 <span>Epic</span>
