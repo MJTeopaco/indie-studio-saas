@@ -77,6 +77,10 @@ Route::prefix('/studio/{tenant}')->middleware([
 
     Route::get('/team', [TenantTeamController::class, 'index'])
         ->name('tenant.team');
+    Route::post('/team/leave-requests/{id}/approve', [TenantTeamController::class, 'approveLeaveRequest'])
+        ->name('tenant.team.leave-requests.approve');
+    Route::post('/team/leave-requests/{id}/reject', [TenantTeamController::class, 'rejectLeaveRequest'])
+        ->name('tenant.team.leave-requests.reject');
 
     Route::get('/projects', [TenantProjectController::class, 'index'])
         ->name('tenant.projects.index');

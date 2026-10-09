@@ -13,7 +13,12 @@ import {
     Clock, 
     ShieldAlert, 
     Calendar, 
-    Building2 
+    Building2,
+    Crown,
+    UserCheck,
+    FileText,
+    Send,
+    AlertCircle
 } from 'lucide-react';
 import InputError from '@/Components/InputError';
 import { showToast } from '@/Components/SystemToast';
@@ -37,6 +42,7 @@ export default function PersonalInfoForm({
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
     const [isDeleteAvatarModalOpen, setIsDeleteAvatarModalOpen] = useState(false);
     const [isDeletingAvatar, setIsDeletingAvatar] = useState(false);
+    const [isCancellingLeave, setIsCancellingLeave] = useState(false);
 
     // Modal & editing states
     const [isEditingEmail, setIsEditingEmail] = useState(false);
@@ -50,6 +56,7 @@ export default function PersonalInfoForm({
         working_status: user.working_status || 'active',
         leave_start_date: user.leave_start_date || new Date().toISOString().split('T')[0],
         leave_end_date: user.leave_end_date || '',
+        leave_reason: '',
         status_scope: 'all', // 'all' | 'specific'
         status_studio_id: joinedStudios.length > 0 ? joinedStudios[0].id : '',
     });
@@ -121,6 +128,25 @@ export default function PersonalInfoForm({
         setData('leave_end_date', end.toISOString().split('T')[0]);
     };
 
+    // ── Working Status Cancel & Submit Handlers ──
+    const handleCancelLeaveRequest = (requestId) => {
+        if (!confirm('Are you sure you want to cancel this pending leave request?')) return;
+        setIsCancellingLeave(true);
+        router.delete(route('profile.leave-requests.cancel', requestId), {
+            preserveScroll: true,
+            onSuccess: () => {
+                showToast('Leave request cancelled successfully.', 'info');
+            },
+            onError: (errs) => {
+                const msg = Object.values(errs)[0] || 'Failed to cancel leave request.';
+                showToast(msg, 'error');
+            },
+            onFinish: () => {
+                setIsCancellingLeave(false);
+            }
+        });
+    };
+
     // ── Profile Save Handler ──
     const handleSaveProfile = (e) => {
         e.preventDefault();
@@ -129,6 +155,13 @@ export default function PersonalInfoForm({
             showToast('Please specify a return date for your leave.', 'warning');
             return;
         }
+
+        // Active role check for contextual feedback
+        const activeStudio = data.status_scope === 'specific'
+            ? (joinedStudios.find(s => String(s.id) === String(data.status_studio_id)) || joinedStudios[0])
+            : joinedStudios[0];
+        const isOwner = Boolean(activeStudio?.is_owner || activeStudio?.role === 'owner');
+        const isLeader = !isOwner && ['leader', 'manager'].includes(activeStudio?.role);
 
         // 1. Update personal information
         patch(route('profile.update'), {
@@ -143,10 +176,20 @@ export default function PersonalInfoForm({
                     studio_id: data.status_scope === 'specific' ? data.status_studio_id : null,
                     leave_start_date: data.working_status === 'on_leave' ? data.leave_start_date : null,
                     leave_end_date: data.working_status === 'on_leave' ? data.leave_end_date : null,
+                    leave_reason: data.working_status === 'on_leave' ? data.leave_reason : null,
                 }, {
                     preserveScroll: true,
                     onSuccess: () => {
-                        showToast('Personal information & working status updated successfully!', 'success');
+                        if (data.working_status === 'on_leave' && !isOwner) {
+                            showToast(
+                                isLeader
+                                    ? 'Leave request submitted to Studio Owner for authorization.'
+                                    : 'Leave request submitted to Team Lead or Studio Owner for review.',
+                                'info'
+                            );
+                        } else {
+                            showToast('Personal information & working status updated successfully!', 'success');
+                        }
                     },
                     onError: (statusErrs) => {
                         const firstErr = Object.values(statusErrs)[0] || 'Failed to update working status.';
@@ -410,159 +453,340 @@ export default function PersonalInfoForm({
                 </div>
 
                 {/* 6. Merged Working Status Section (Directly below Edit Skill Matrix) */}
-                <div className="p-6 sm:p-7 space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <div>
-                            <label className="text-sm font-semibold text-slate-900 dark:text-slate-100 block">
-                                Working status & availability
-                            </label>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                Set real-time availability to keep sprint task allocations synchronized.
-                            </p>
-                        </div>
+                {(() => {
+                    const activeStudio = data.status_scope === 'specific'
+                        ? (joinedStudios.find(s => String(s.id) === String(data.status_studio_id)) || joinedStudios[0])
+                        : joinedStudios[0];
+                    const isOwner = Boolean(activeStudio?.is_owner || activeStudio?.role === 'owner');
+                    const isLeader = !isOwner && ['leader', 'manager'].includes(activeStudio?.role);
+                    const isMember = !isOwner && !isLeader;
 
-                        {/* Optional Scope Selector if user belongs to studios */}
-                        {joinedStudios.length > 0 && (
-                            <div className="flex items-center gap-2">
-                                <span className="text-[11px] font-mono text-slate-400">Scope:</span>
-                                <select
-                                    value={data.status_scope}
-                                    onChange={(e) => setData('status_scope', e.target.value)}
-                                    className="text-xs py-1.5 pl-2.5 pr-7 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium cursor-pointer"
-                                >
-                                    <option value="all">All Workspaces</option>
-                                    <option value="specific">Specific Studio</option>
-                                </select>
+                    const pendingLeaveRequests = joinedStudios
+                        .filter(s => s.pending_leave_request)
+                        .map(s => ({
+                            ...s.pending_leave_request,
+                            studioName: s.name,
+                            studioId: s.id,
+                        }));
 
-                                {data.status_scope === 'specific' && (
-                                    <select
-                                        value={data.status_studio_id}
-                                        onChange={(e) => setData('status_studio_id', e.target.value)}
-                                        className="text-xs py-1.5 pl-2.5 pr-7 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium cursor-pointer max-w-[140px] truncate"
-                                    >
-                                        {joinedStudios.map(s => (
-                                            <option key={s.id} value={s.id}>{s.name}</option>
-                                        ))}
-                                    </select>
+                    return (
+                        <div className="p-6 sm:p-7 space-y-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div>
+                                    <label className="text-sm font-semibold text-slate-900 dark:text-slate-100 block">
+                                        Working status & availability
+                                    </label>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                        Set real-time availability to keep sprint task allocations synchronized.
+                                    </p>
+                                </div>
+
+                                {/* Optional Scope Selector if user belongs to studios */}
+                                {joinedStudios.length > 0 && (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[11px] font-mono text-slate-400">Scope:</span>
+                                        <select
+                                            value={data.status_scope}
+                                            onChange={(e) => setData('status_scope', e.target.value)}
+                                            className="text-xs py-1.5 pl-2.5 pr-7 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium cursor-pointer"
+                                        >
+                                            <option value="all">All Workspaces</option>
+                                            <option value="specific">Specific Studio</option>
+                                        </select>
+
+                                        {data.status_scope === 'specific' && (
+                                            <select
+                                                value={data.status_studio_id}
+                                                onChange={(e) => setData('status_studio_id', e.target.value)}
+                                                className="text-xs py-1.5 pl-2.5 pr-7 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium cursor-pointer max-w-[140px] truncate"
+                                            >
+                                                {joinedStudios.map(s => (
+                                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                                ))}
+                                            </select>
+                                        )}
+                                    </div>
                                 )}
                             </div>
-                        )}
-                    </div>
 
-                    {/* Clean 3-Option Segmented Selection */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        {workingStatusOptions.map((opt) => {
-                            const isSelected = data.working_status === opt.id;
-                            const IconComponent = opt.icon;
+                            {/* Pending Leave Request Banner */}
+                            {pendingLeaveRequests.length > 0 && (
+                                <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 dark:bg-amber-500/10 space-y-3">
+                                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                                                <Clock className="w-4 h-4 animate-pulse" />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <h4 className="text-xs font-heading font-bold text-amber-900 dark:text-amber-200">
+                                                        Leave Request Pending Review
+                                                    </h4>
+                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold uppercase bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                                                        Pending
+                                                    </span>
+                                                </div>
+                                                <p className="text-[11px] text-amber-700/90 dark:text-amber-300/80 mt-0.5">
+                                                    Your sprint availability remains active until your request is reviewed by leadership.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
 
-                            return (
-                                <button
-                                    key={opt.id}
-                                    type="button"
-                                    onClick={() => setData('working_status', opt.id)}
-                                    className={`p-3.5 rounded-xl border text-left transition-all duration-200 cursor-pointer flex flex-col justify-between ${
-                                        isSelected
-                                            ? opt.activeClass
-                                            : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300'
-                                    }`}
-                                >
-                                    <div>
-                                        <div className="flex items-center justify-between gap-2 mb-1.5">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`w-2 h-2 rounded-full ${opt.dotClass} shrink-0`} />
-                                                <span className="font-heading font-bold text-xs">
-                                                    {opt.title}
+                                    <div className="space-y-2">
+                                        {pendingLeaveRequests.map(req => (
+                                            <div 
+                                                key={req.id} 
+                                                className="p-3 rounded-lg bg-white/70 dark:bg-slate-900/60 border border-amber-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                                            >
+                                                <div className="space-y-1 min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <span className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1">
+                                                            <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                                                            {req.studioName}
+                                                        </span>
+                                                        <span className="text-slate-400">•</span>
+                                                        <span className="font-mono text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                                                            <Calendar className="w-3.5 h-3.5 text-amber-500" />
+                                                            {req.leave_start_date} → {req.leave_end_date}
+                                                        </span>
+                                                        {req.created_at && (
+                                                            <span className="text-[11px] text-slate-400">
+                                                                ({req.created_at})
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                                                        <span>Routing:</span>
+                                                        <span className="font-medium text-slate-700 dark:text-slate-300">
+                                                            {req.requester_role === 'leader' ? 'Studio Owner Approval' : 'Team Leader or Studio Owner'}
+                                                        </span>
+                                                    </div>
+                                                    {req.reason && (
+                                                        <p className="text-[11px] text-slate-600 dark:text-slate-400 italic bg-amber-500/5 px-2.5 py-1 rounded-md border border-amber-500/10 inline-block">
+                                                            "{req.reason}"
+                                                        </p>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <button
+                                                        type="button"
+                                                        disabled={isCancellingLeave}
+                                                        onClick={() => handleCancelLeaveRequest(req.id)}
+                                                        className="px-3 py-1.5 rounded-lg border border-rose-300/60 dark:border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                                    >
+                                                        {isCancellingLeave ? (
+                                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                        ) : (
+                                                            <X className="w-3.5 h-3.5" />
+                                                        )}
+                                                        <span>Cancel Request</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Clean 3-Option Segmented Selection */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {workingStatusOptions.map((opt) => {
+                                    const isSelected = data.working_status === opt.id;
+                                    const IconComponent = opt.icon;
+
+                                    return (
+                                        <button
+                                            key={opt.id}
+                                            type="button"
+                                            onClick={() => setData('working_status', opt.id)}
+                                            className={`p-3.5 rounded-xl border text-left transition-all duration-200 cursor-pointer flex flex-col justify-between ${
+                                                isSelected
+                                                    ? opt.activeClass
+                                                    : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300'
+                                            }`}
+                                        >
+                                            <div>
+                                                <div className="flex items-center justify-between gap-2 mb-1.5">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`w-2 h-2 rounded-full ${opt.dotClass} shrink-0`} />
+                                                        <span className="font-heading font-bold text-xs">
+                                                            {opt.title}
+                                                        </span>
+                                                    </div>
+                                                    <IconComponent className={`w-3.5 h-3.5 ${opt.iconClass} shrink-0`} />
+                                                </div>
+
+                                                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
+                                                    {opt.desc}
+                                                </p>
+
+                                                {opt.id === 'on_leave' && !isOwner && (
+                                                    <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                                                        <span className="inline-flex items-center gap-1 text-[10px] font-mono font-medium text-amber-600 dark:text-amber-400">
+                                                            <ShieldAlert className="w-3 h-3" />
+                                                            {isLeader ? 'Owner Approval Required' : 'Approval Required'}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* On Leave Timeline Expander (Only visible when On Leave is selected) */}
+                            {data.working_status === 'on_leave' && (
+                                <div className="mt-4 p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 dark:bg-amber-500/10 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                                    
+                                    {/* Role Governance Banner */}
+                                    <div className="p-3 rounded-xl bg-white/70 dark:bg-slate-900/70 border border-amber-500/20 flex items-start gap-3">
+                                        <div className="p-1.5 rounded-lg bg-amber-500/10 shrink-0 mt-0.5">
+                                            {isOwner ? (
+                                                <Crown className="w-4 h-4 text-emerald-500" />
+                                            ) : isLeader ? (
+                                                <Crown className="w-4 h-4 text-purple-500" />
+                                            ) : (
+                                                <UserCheck className="w-4 h-4 text-brand" />
+                                            )}
+                                        </div>
+                                        <div className="text-xs space-y-0.5 flex-1">
+                                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                <span className="font-semibold text-slate-900 dark:text-slate-100">
+                                                    {isOwner 
+                                                        ? 'Studio Owner Direct Authority' 
+                                                        : isLeader 
+                                                            ? 'Team Leader Leave Governance' 
+                                                            : 'Team Member Leave Governance'}
+                                                </span>
+                                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md font-bold uppercase tracking-wider ${
+                                                    isOwner 
+                                                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20' 
+                                                        : isLeader 
+                                                            ? 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20' 
+                                                            : 'bg-brand/10 text-brand dark:text-cyan-400 border border-brand/20'
+                                                }`}>
+                                                    {isOwner ? 'Direct Authority' : isLeader ? 'Owner Approval Required' : 'Leader / Owner Approval'}
                                                 </span>
                                             </div>
-                                            <IconComponent className={`w-3.5 h-3.5 ${opt.iconClass} shrink-0`} />
+                                            <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
+                                                {isOwner
+                                                    ? 'Your leave takes effect immediately across all project schedules and sprint pipelines.'
+                                                    : isLeader
+                                                        ? 'As a Team Leader, submitting "On Leave" creates a request routed directly to the Studio Owner. Your status remains Active until approved.'
+                                                        : 'Selecting "On Leave" creates a formal request sent to your Team Leader and Studio Owner. Your status remains Active until approved.'
+                                                }
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Dates & Timeline */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                                                Leave Start Date
+                                            </label>
+                                            <input
+                                                type="date"
+                                                value={data.leave_start_date}
+                                                onChange={(e) => setData('leave_start_date', e.target.value)}
+                                                className="w-full px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-slate-900 border border-amber-300/60 dark:border-amber-500/40 text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-amber-500"
+                                            />
                                         </div>
 
-                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
-                                            {opt.desc}
-                                        </p>
+                                        <div>
+                                            <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                                                Return to Active Date (End Date)
+                                            </label>
+                                            <input
+                                                type="date"
+                                                min={data.leave_start_date || new Date().toISOString().split('T')[0]}
+                                                value={data.leave_end_date}
+                                                onChange={(e) => setData('leave_end_date', e.target.value)}
+                                                className="w-full px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-slate-900 border border-amber-300/60 dark:border-amber-500/40 text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-amber-500"
+                                                required={data.working_status === 'on_leave'}
+                                            />
+                                        </div>
                                     </div>
+
+                                    {/* Quick Presets */}
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-[10px] uppercase font-mono text-amber-600 dark:text-amber-400 mr-1">
+                                            Quick presets:
+                                        </span>
+                                        {[
+                                            { label: '3 Days', days: 3 },
+                                            { label: '1 Week', days: 7 },
+                                            { label: '2 Weeks', days: 14 },
+                                            { label: '1 Month', days: 30 },
+                                        ].map(preset => (
+                                            <button
+                                                key={preset.days}
+                                                type="button"
+                                                onClick={() => handleApplyLeavePreset(preset.days)}
+                                                className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/20 transition-colors cursor-pointer"
+                                            >
+                                                +{preset.label}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {/* Reason & Handover Note */}
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                                            Reason & Handover Note (Optional)
+                                        </label>
+                                        <textarea
+                                            rows={2}
+                                            value={data.leave_reason}
+                                            onChange={(e) => setData('leave_reason', e.target.value)}
+                                            placeholder="e.g., Annual family leave, handed over sprint tasks to @Sarah..."
+                                            className="w-full px-3 py-2 text-xs rounded-xl bg-white dark:bg-slate-900 border border-amber-300/60 dark:border-amber-500/40 text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-amber-500 placeholder:text-slate-400"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Save Row Footer */}
+                            <div className="p-4 bg-slate-50/50 dark:bg-slate-900/30 rounded-xl border border-slate-100 dark:border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-6">
+                                <div className="text-xs text-slate-500 dark:text-slate-400">
+                                    {data.working_status === 'on_leave' && !isOwner ? (
+                                        <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-medium">
+                                            <Clock className="w-3.5 h-3.5" />
+                                            Leave request will be submitted for review upon saving
+                                        </span>
+                                    ) : (
+                                        <span>Ensure all changes are saved before navigating away.</span>
+                                    )}
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={processing}
+                                    className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-white text-xs font-semibold shadow-xs disabled:opacity-50 transition-all cursor-pointer ${
+                                        data.working_status === 'on_leave' && !isOwner
+                                            ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-500/20'
+                                            : 'bg-brand hover:bg-brand-dark'
+                                    }`}
+                                >
+                                    {processing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                    {data.working_status === 'on_leave' ? (
+                                        isOwner ? (
+                                            <span>Save Changes & Set Leave</span>
+                                        ) : isLeader ? (
+                                            <span>Submit Leave Request to Owner</span>
+                                        ) : (
+                                            <span>Submit Leave Request for Approval</span>
+                                        )
+                                    ) : (
+                                        <span>Save Personal Information</span>
+                                    )}
                                 </button>
-                            );
-                        })}
-                    </div>
-
-                    {/* On Leave Timeline Expander (Only visible when On Leave is selected) */}
-                    {data.working_status === 'on_leave' && (
-                        <div className="mt-4 p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 dark:bg-amber-500/10 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                                    <Calendar className="w-4 h-4 text-amber-500" />
-                                    <span>Specified Leave Timeline (Auto-Returns to Active)</span>
-                                </div>
-                                <span className="text-[11px] font-mono text-amber-600 dark:text-amber-400">
-                                    {data.leave_end_date ? `Ends on ${data.leave_end_date}` : 'End date required'}
-                                </span>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                                        Leave Start Date
-                                    </label>
-                                    <input
-                                        type="date"
-                                        value={data.leave_start_date}
-                                        onChange={(e) => setData('leave_start_date', e.target.value)}
-                                        className="w-full px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-slate-900 border border-amber-300/60 dark:border-amber-500/40 text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-amber-500"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                                        Return to Active Date (End Date)
-                                    </label>
-                                    <input
-                                        type="date"
-                                        min={data.leave_start_date || new Date().toISOString().split('T')[0]}
-                                        value={data.leave_end_date}
-                                        onChange={(e) => setData('leave_end_date', e.target.value)}
-                                        className="w-full px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-slate-900 border border-amber-300/60 dark:border-amber-500/40 text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-amber-500"
-                                        required={data.working_status === 'on_leave'}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Quick Presets */}
-                            <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                                <span className="text-[10px] uppercase font-mono text-amber-600 dark:text-amber-400 mr-1">
-                                    Quick presets:
-                                </span>
-                                {[
-                                    { label: '3 Days', days: 3 },
-                                    { label: '1 Week', days: 7 },
-                                    { label: '2 Weeks', days: 14 },
-                                    { label: '1 Month', days: 30 },
-                                ].map(preset => (
-                                    <button
-                                        key={preset.days}
-                                        type="button"
-                                        onClick={() => handleApplyLeavePreset(preset.days)}
-                                        className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/20 transition-colors"
-                                    >
-                                        +{preset.label}
-                                    </button>
-                                ))}
                             </div>
                         </div>
-                    )}
-                </div>
-
-                {/* Save Row Footer */}
-                <div className="p-6 bg-slate-50/50 dark:bg-slate-900/30 flex items-center justify-end">
-                    <button
-                        type="submit"
-                        disabled={processing}
-                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-semibold shadow-xs disabled:opacity-50 transition-all cursor-pointer"
-                    >
-                        {processing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                        <span>Save Personal Information</span>
-                    </button>
-                </div>
+                    );
+                })()}
 
             </form>
 

@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, usePage, router } from '@inertiajs/react';
 import TenantLayout from '@/Layouts/TenantLayout';
 import MemberTaskDetailModal from '@/Components/Tenant/Tasks/MemberTaskDetailModal';
+import { showToast } from '@/Components/SystemToast';
 import {
     Bell,
     MailOpen,
@@ -41,6 +42,9 @@ import {
     Link2,
     Grid,
     BarChart3,
+    Calendar,
+    Crown,
+    UserCheck,
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -68,6 +72,79 @@ function NotifBadge({ count, size = 'md' }) {
             </span>
             {label}
         </span>
+    );
+}
+
+// ── Decline Leave Request Modal ──────────────────────────────────────────────
+function DeclineLeaveModal({ isOpen, onClose, leaveRequest, onConfirm, isProcessing }) {
+    const [reason, setReason] = useState('');
+
+    useEffect(() => {
+        if (isOpen) setReason('');
+    }, [isOpen]);
+
+    if (!isOpen || !leaveRequest) return null;
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onConfirm(leaveRequest.id, reason);
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 w-full max-w-lg space-y-4">
+                <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                            <AlertCircle className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                                Decline Leave Request
+                            </h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                For <span className="font-semibold text-slate-700 dark:text-slate-200">{leaveRequest.user_name}</span> ({leaveRequest.leave_start_formatted || leaveRequest.leave_start_date} → {leaveRequest.leave_end_formatted || leaveRequest.leave_end_date})
+                            </p>
+                        </div>
+                    </div>
+                    <button type="button" onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1.5">
+                            Reason or Rejection Guidance (Optional)
+                        </label>
+                        <textarea
+                            rows={3}
+                            value={reason}
+                            onChange={(e) => setReason(e.target.value)}
+                            placeholder="Explain the reason for declining or recommend alternative dates..."
+                            className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-rose-500 placeholder:text-slate-400 resize-none"
+                        />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            disabled={isProcessing}
+                            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={isProcessing}
+                            className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs disabled:opacity-50 transition-all flex items-center gap-1.5">
+                            {isProcessing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                            <span>Confirm Decline</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     );
 }
 
@@ -795,7 +872,55 @@ export default function Inbox({
     const [quickReplyText, setQuickReplyText] = useState('');
     const [quickReplySuccess, setQuickReplySuccess] = useState(false);
 
+    // Leave approval states
+    const [leaveActionProcessingId, setLeaveActionProcessingId] = useState(null);
+    const [declineModalReq, setDeclineModalReq] = useState(null);
+
     const unreadCount = useMemo(() => notificationsList.filter(n => !n.read).length, [notificationsList]);
+    const leaveRequestsCount = useMemo(() => notificationsList.filter(n => n.type === 'leave_request').length, [notificationsList]);
+
+    const handleApproveLeave = (leaveReq) => {
+        if (!leaveReq) return;
+        if (!confirm(`Are you sure you want to approve ${leaveReq.user_name}'s leave request for ${leaveReq.leave_start_formatted || leaveReq.leave_start_date} to ${leaveReq.leave_end_formatted || leaveReq.leave_end_date}?`)) {
+            return;
+        }
+        setLeaveActionProcessingId(leaveReq.id);
+        router.post(route('tenant.team.leave-requests.approve', leaveReq.id), {}, {
+            preserveScroll: true,
+            onSuccess: () => {
+                showToast(`Leave request approved for ${leaveReq.user_name}.`, 'success');
+                setNotificationsList(prev => prev.filter(n => n.id !== `leave-req-${leaveReq.id}`));
+            },
+            onError: (errs) => {
+                const msg = Object.values(errs)[0] || 'Failed to approve leave request.';
+                showToast(msg, 'error');
+            },
+            onFinish: () => {
+                setLeaveActionProcessingId(null);
+            }
+        });
+    };
+
+    const handleConfirmDeclineLeave = (leaveReqId, reason) => {
+        setLeaveActionProcessingId(leaveReqId);
+        router.post(route('tenant.team.leave-requests.reject', leaveReqId), {
+            rejection_reason: reason,
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                showToast(`Leave request declined.`, 'info');
+                setDeclineModalReq(null);
+                setNotificationsList(prev => prev.filter(n => n.id !== `leave-req-${leaveReqId}`));
+            },
+            onError: (errs) => {
+                const msg = Object.values(errs)[0] || 'Failed to decline leave request.';
+                showToast(msg, 'error');
+            },
+            onFinish: () => {
+                setLeaveActionProcessingId(null);
+            }
+        });
+    };
 
     const markAsRead = async (id) => {
         setNotificationsList(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
@@ -826,6 +951,7 @@ export default function Inbox({
             (item.project_name && item.project_name.toLowerCase().includes(notifSearch.toLowerCase()));
         let matchesFilter = true;
         if (notifFilter === 'unread') matchesFilter = !item.read;
+        else if (notifFilter === 'leaves') matchesFilter = item.type === 'leave_request';
         else if (notifFilter === 'messages') matchesFilter = item.type === 'direct_message' || item.type === 'channel_mention';
         else if (notifFilter === 'reviews') matchesFilter = item.type === 'review_request';
         else if (notifFilter === 'assignments') matchesFilter = item.type === 'task_assigned';
@@ -1540,6 +1666,7 @@ export default function Inbox({
         message: MessageSquare,
         'message-square': MessageSquare,
         mail: Mail,
+        calendar: Calendar,
     };
     const colorMap = {
         blue: { bg: 'bg-blue-50/80 dark:bg-blue-950/30', border: 'border-blue-200 dark:border-blue-900/50', icon: 'bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400', badge: 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' },
@@ -1595,13 +1722,8 @@ export default function Inbox({
                     <div className="max-w-7xl mx-auto px-6 py-4">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <div className="flex items-center gap-3.5">
-                                <div className="relative flex items-center justify-center w-10 h-10 rounded-2xl bg-gradient-to-tr from-brand to-indigo-600 text-white shadow-md shadow-brand/20">
+                                <div className="flex items-center justify-center w-10 h-10 rounded-2xl bg-gradient-to-tr from-brand to-indigo-600 text-white shadow-md shadow-brand/20">
                                     <Bell className="w-5 h-5" />
-                                    {unreadCount > 0 && (
-                                        <span className="absolute -top-1.5 -right-1.5">
-                                            <NotifBadge count={unreadCount} size="sm" />
-                                        </span>
-                                    )}
                                 </div>
                                 <div>
                                     <div className="flex items-center gap-2">
@@ -1678,6 +1800,7 @@ export default function Inbox({
                                         {[
                                             { id: 'all', label: 'All' },
                                             { id: 'unread', label: `Unread (${unreadCount})` },
+                                            ...(leaveRequestsCount > 0 ? [{ id: 'leaves', label: `Leave Requests (${leaveRequestsCount})` }] : []),
                                             { id: 'messages', label: 'Messages & Mentions' },
                                             { id: 'reviews', label: 'Reviews' },
                                             { id: 'assignments', label: 'Assigned' },
@@ -1729,7 +1852,13 @@ export default function Inbox({
                                                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">{notif.body}</p>
                                                     <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                                                         {notif.project_name && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"><FolderGit2 className="w-2.5 h-2.5" />{notif.project_name}</span>}
-                                                        {notif.priority && <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${c.badge}`}>{notif.priority}</span>}
+                                                        {notif.priority && notif.type !== 'leave_request' && <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${c.badge}`}>{notif.priority}</span>}
+                                                        {notif.type === 'leave_request' && notif.leave_request && (
+                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                                                                <Calendar className="w-2.5 h-2.5" />
+                                                                {notif.leave_request.calendar_days}d ({notif.leave_request.leave_start_formatted || notif.leave_request.leave_start_date} → {notif.leave_request.leave_end_formatted || notif.leave_request.leave_end_date})
+                                                            </span>
+                                                        )}
                                                         {isChatNotif && (
                                                             <button type="button"
                                                                 onClick={(e) => {
@@ -1758,9 +1887,11 @@ export default function Inbox({
                                             <div className="flex items-start justify-between gap-4">
                                                 <div className="space-y-1.5">
                                                     <div className="flex items-center gap-2 flex-wrap">
-                                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider bg-brand/10 text-brand">{activeNotification.type.replace('_', ' ')}</span>
+                                                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider ${activeNotification.type === 'leave_request' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300' : 'bg-brand/10 text-brand'}`}>
+                                                            {activeNotification.type.replace('_', ' ')}
+                                                        </span>
                                                         {activeNotification.project_name && <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">{activeNotification.project_name}</span>}
-                                                        {activeNotification.priority && <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400">{activeNotification.priority}</span>}
+                                                        {activeNotification.priority && activeNotification.type !== 'leave_request' && <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400">{activeNotification.priority}</span>}
                                                     </div>
                                                     <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 leading-tight">{activeNotification.title}</h2>
                                                     <p className="text-xs text-slate-400 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" />Received {activeNotification.created_at_human}</p>
@@ -1782,10 +1913,159 @@ export default function Inbox({
                                                     )}
                                                 </div>
                                             </div>
-                                            <div className="mt-4 p-4 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed shadow-2xs">
-                                                {activeNotification.body}
-                                            </div>
+                                            {activeNotification.type !== 'leave_request' && (
+                                                <div className="mt-4 p-4 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed shadow-2xs">
+                                                    {activeNotification.body}
+                                                </div>
+                                            )}
                                         </div>
+
+                                        {activeNotification.type === 'leave_request' && activeNotification.leave_request && (() => {
+                                            const req = activeNotification.leave_request;
+                                            const isLeaderReq = req.requester_role === 'leader';
+                                            const isProcessing = leaveActionProcessingId === req.id;
+                                            const hasConflicts = req.conflicting_tasks && req.conflicting_tasks.length > 0;
+
+                                            return (
+                                                <div className="p-6 space-y-5">
+                                                    {/* Requester Identity & Governance Authority Card */}
+                                                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="relative">
+                                                                {req.avatar ? (
+                                                                    <img src={req.avatar} alt={req.user_name} className="w-12 h-12 rounded-xl object-cover ring-2 ring-slate-200 dark:ring-slate-700" />
+                                                                ) : (
+                                                                    <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-brand to-indigo-600 text-white font-black text-sm flex items-center justify-center ring-2 ring-slate-200 dark:ring-slate-700">
+                                                                        {req.user_name.slice(0, 2).toUpperCase()}
+                                                                    </div>
+                                                                )}
+                                                                {isLeaderReq && (
+                                                                    <span title="Team Leader request — Requires Owner Approval"
+                                                                        className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white flex items-center justify-center ring-2 ring-white dark:ring-slate-900">
+                                                                        <Crown className="w-2.5 h-2.5" />
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div>
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <h4 className="text-sm font-extrabold text-slate-900 dark:text-slate-100">{req.user_name}</h4>
+                                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase ${
+                                                                        isLeaderReq
+                                                                            ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
+                                                                            : 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30'
+                                                                    }`}>
+                                                                        {isLeaderReq ? 'Team Leader' : 'Member'}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                                                    {req.position} • {req.user_email}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-200/80 dark:border-slate-800 flex items-center gap-1.5">
+                                                                {isLeaderReq ? <Crown className="w-3.5 h-3.5 text-amber-500" /> : <UserCheck className="w-3.5 h-3.5 text-brand" />}
+                                                                <span>{isLeaderReq ? 'Studio Owner Approval Authority' : 'Leader & Owner Review Scope'}</span>
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Leave Duration & Handover Details */}
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                                        <div className="p-4 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 space-y-2">
+                                                            <div className="flex items-center justify-between text-xs font-semibold text-amber-900 dark:text-amber-200">
+                                                                <span className="flex items-center gap-1.5">
+                                                                    <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                                                    Absence Window
+                                                                </span>
+                                                                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-200/80 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200">
+                                                                    {req.calendar_days} Calendar Day{req.calendar_days === 1 ? '' : 's'}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+                                                                <span>{req.leave_start_formatted || req.leave_start_date}</span>
+                                                                <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+                                                                <span>{req.leave_end_formatted || req.leave_end_date}</span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 space-y-1.5">
+                                                            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                                                                Handover Note & Details
+                                                            </span>
+                                                            <p className="text-xs text-slate-700 dark:text-slate-300 italic line-clamp-3 leading-relaxed">
+                                                                "{req.reason || 'No handover note provided.'}"
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Sprint Task Conflict Intelligence */}
+                                                    <div className="space-y-2">
+                                                        <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                                                            <span className="flex items-center gap-1.5">
+                                                                <FileText className="w-3.5 h-3.5" />
+                                                                Sprint Task Conflict Intelligence
+                                                            </span>
+                                                        </div>
+
+                                                        {hasConflicts ? (
+                                                            <div className="p-4 rounded-2xl bg-rose-500/5 dark:bg-rose-500/10 border border-rose-500/20 space-y-2.5">
+                                                                <div className="flex items-center gap-2 text-xs font-bold text-rose-700 dark:text-rose-400">
+                                                                    <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                                                                    <span>
+                                                                        Sprint Conflict Alert: {req.conflicting_tasks.length} task{req.conflicting_tasks.length === 1 ? '' : 's'} assigned to this member have deadlines during this leave window!
+                                                                    </span>
+                                                                </div>
+                                                                <div className="space-y-1.5 pl-6">
+                                                                    {req.conflicting_tasks.map((task) => (
+                                                                        <div key={task.id} className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-rose-500/20 flex items-center justify-between gap-2 text-xs">
+                                                                            <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">{task.title}</span>
+                                                                            <div className="flex items-center gap-2 shrink-0">
+                                                                                <span className="text-[10px] font-mono px-2 py-0.5 rounded uppercase font-bold bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300">
+                                                                                    Due {task.due_date}
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="p-4 rounded-2xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2.5 text-xs text-emerald-700 dark:text-emerald-300 font-medium">
+                                                                <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                                                                <span>
+                                                                    No sprint conflicts detected. ({req.active_tasks_count} active assigned task{req.active_tasks_count === 1 ? '' : 's'} safely outside this leave window).
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Approval Action Footer Bar */}
+                                                    <div className="pt-4 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-end gap-3">
+                                                        <button
+                                                            type="button"
+                                                            disabled={isProcessing}
+                                                            onClick={() => setDeclineModalReq(req)}
+                                                            className="px-4 py-2.5 rounded-xl border border-rose-300 dark:border-rose-800/80 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-xs font-bold transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5">
+                                                            <X className="w-3.5 h-3.5" />
+                                                            <span>Decline Request</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            disabled={isProcessing}
+                                                            onClick={() => handleApproveLeave(req)}
+                                                            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5">
+                                                            {isProcessing ? (
+                                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                            ) : (
+                                                                <Check className="w-3.5 h-3.5" />
+                                                            )}
+                                                            <span>Approve Leave Request</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
 
                                         {activeNotification.channel_id && (
                                             <div className="p-6 space-y-4">
@@ -2558,6 +2838,15 @@ export default function Inbox({
                 onConfirmUnsend={handleConfirmUnsend}
                 currentUserId={currentUser?.id}
                 isAdmin={isLeader}
+            />
+
+            {/* Decline Leave Request Modal */}
+            <DeclineLeaveModal
+                isOpen={Boolean(declineModalReq)}
+                onClose={() => setDeclineModalReq(null)}
+                leaveRequest={declineModalReq}
+                onConfirm={handleConfirmDeclineLeave}
+                isProcessing={Boolean(leaveActionProcessingId)}
             />
         </TenantLayout>
     );

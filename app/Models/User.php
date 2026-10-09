@@ -68,8 +68,16 @@ class User extends Authenticatable
     public function joinedStudios(): BelongsToMany
     {
         return $this->belongsToMany(Studio::class, 'studio_members', 'user_id', 'studio_id')
-            ->withPivot(['role', 'working_status', 'leave_start_date', 'leave_end_date'])
+            ->withPivot(['role', 'working_status', 'leave_start_date', 'leave_end_date', 'leave_request_status'])
             ->withTimestamps();
+    }
+
+    /**
+     * Get all leave requests submitted by this user.
+     */
+    public function leaveRequests(): HasMany
+    {
+        return $this->hasMany(LeaveRequest::class, 'user_id');
     }
 
     /**

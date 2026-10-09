@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\LeaveRequest;
 use App\Models\Position;
 use App\Models\Skill;
 use App\Models\Studio;
@@ -405,6 +406,106 @@ class TenantDashboardController extends Controller
         }
 
         $notifications = array_merge($notifications, $this->getMessageNotifications($user));
+
+        // Leave Requests for Authorized Reviewers (Team Leaders & Studio Owners)
+        try {
+            $currentUserMember = DB::connection(config('tenancy.database.central_connection', 'central'))
+                ->table('studio_members')
+                ->where('studio_id', tenant('id'))
+                ->where('user_id', $user->id)
+                ->first();
+
+            $currentUserRole = $currentUserMember ? $currentUserMember->role : 'member';
+            $isOwner = $currentUserRole === 'owner' || (auth()->check() && auth()->user()->role === User::ROLE_ADMIN);
+            $isLeader = in_array($currentUserRole, ['leader', 'manager']);
+            $canManage = $isOwner || $isLeader;
+
+            if ($canManage) {
+                $leaveQuery = LeaveRequest::with(['user.globalProfile.position'])
+                    ->where('studio_id', tenant('id'))
+                    ->where('status', 'pending');
+
+                // If caller is Team Leader: can review Member requests ONLY (NOT leader requests, NOT self)
+                // If caller is Studio Owner: can review BOTH Member and Team Leader requests
+                if (! $isOwner) {
+                    $leaveQuery->where('requester_role', 'member')
+                        ->where('user_id', '!=', $user->id);
+                }
+
+                $rawRequests = $leaveQuery->latest()->get();
+
+                $leaveNotifications = $rawRequests->map(function ($req) {
+                    $reqUser = $req->user;
+                    $reqPos = $reqUser && $reqUser->globalProfile && $reqUser->globalProfile->position
+                        ? $reqUser->globalProfile->position->name
+                        : ($reqUser && $reqUser->role === 'admin' ? 'Project Lead' : 'Developer');
+
+                    // Check active tasks assigned to this member with deadlines falling in the leave window
+                    $assignedTasks = Task::query()
+                        ->where('assigned_user_id', $req->user_id)
+                        ->where('status', '!=', 'completed')
+                        ->get(['id', 'title', 'status', 'priority', 'hard_constraint_date', 'estimated_hours']);
+
+                    $start = $req->leave_start_date ? Carbon::parse($req->leave_start_date) : null;
+                    $end = $req->leave_end_date ? Carbon::parse($req->leave_end_date) : null;
+
+                    $conflicts = $assignedTasks->filter(function ($task) use ($start, $end) {
+                        if (! $task->hard_constraint_date || ! $start || ! $end) return false;
+                        $due = Carbon::parse($task->hard_constraint_date);
+                        return $due->betweenIncluded($start, $end);
+                    })->values();
+
+                    $calendarDays = $start && $end ? $start->diffInDays($end) + 1 : 0;
+                    $roleLabel = $req->requester_role === 'leader' ? 'Team Leader' : 'Team Member';
+
+                    return [
+                        'id' => 'leave-req-'.$req->id,
+                        'type' => 'leave_request',
+                        'title' => "Leave Request: {$reqUser->name}",
+                        'body' => "{$reqUser->name} ({$roleLabel}) requested absence from ".($start ? $start->format('M d, Y') : '').' to '.($end ? $end->format('M d, Y') : '')." ({$calendarDays} calendar day".($calendarDays === 1 ? '' : 's').").".($req->reason ? " Handover: {$req->reason}" : ''),
+                        'icon' => 'calendar',
+                        'color' => 'amber',
+                        'priority' => null,
+                        'task_id' => null,
+                        'task_title' => null,
+                        'task' => null,
+                        'project_name' => null,
+                        'epic_name' => null,
+                        'epic_color' => null,
+                        'days_until_deadline' => null,
+                        'leave_request' => [
+                            'id' => $req->id,
+                            'user_id' => $req->user_id,
+                            'user_name' => $reqUser ? $reqUser->name : 'Studio Member',
+                            'user_email' => $reqUser ? $reqUser->email : '',
+                            'avatar' => $reqUser ? $reqUser->avatar : null,
+                            'position' => $reqPos,
+                            'requester_role' => $req->requester_role,
+                            'leave_start_date' => $start ? $start->format('Y-m-d') : null,
+                            'leave_end_date' => $end ? $end->format('Y-m-d') : null,
+                            'leave_start_formatted' => $start ? $start->format('M d, Y') : '',
+                            'leave_end_formatted' => $end ? $end->format('M d, Y') : '',
+                            'calendar_days' => $calendarDays,
+                            'reason' => $req->reason,
+                            'created_at' => $req->created_at ? $req->created_at->diffForHumans() : 'Recently',
+                            'active_tasks_count' => $assignedTasks->count(),
+                            'conflicting_tasks' => $conflicts->map(fn ($t) => [
+                                'id' => $t->id,
+                                'title' => $t->title,
+                                'status' => $t->status,
+                                'priority' => $t->priority,
+                                'due_date' => $t->hard_constraint_date ? Carbon::parse($t->hard_constraint_date)->format('M d, Y') : 'No deadline',
+                            ])->all(),
+                        ],
+                        'read' => false,
+                        'created_at_human' => $req->created_at ? $req->created_at->diffForHumans() : 'Pending',
+                    ];
+                })->all();
+
+                $notifications = array_merge($leaveNotifications, $notifications);
+            }
+        } catch (\Exception $e) {
+        }
 
         $teamMembers = [];
         try {

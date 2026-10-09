@@ -38,12 +38,17 @@ class Studio extends BaseTenant implements TenantWithDatabase
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'studio_members', 'studio_id', 'user_id')
-            ->withPivot('role')
+            ->withPivot(['role', 'working_status', 'leave_start_date', 'leave_end_date', 'leave_request_status'])
             ->withTimestamps();
     }
 
     public function members(): BelongsToMany
     {
         return $this->users();
+    }
+
+    public function leaveRequests(): HasMany
+    {
+        return $this->hasMany(LeaveRequest::class, 'studio_id');
     }
 }

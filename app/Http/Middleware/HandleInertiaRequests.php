@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\LeaveRequest;
 use App\Models\Tenant\ChannelMessage;
 use App\Models\Tenant\ChannelRead;
 use App\Models\Tenant\Project;
@@ -9,6 +10,7 @@ use App\Models\Tenant\Task;
 use App\Models\Tenant\TaskEstimateSubmission;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Middleware;
 
@@ -171,7 +173,35 @@ class HandleInertiaRequests extends Middleware
                         })->count();
                     }
 
-                    return $reviewTasksCount + $unstartedTasksCount + $messageNotifCount;
+                    $pendingLeaveCount = 0;
+                    if (Schema::hasTable('tasks')) {
+                        try {
+                            $currentUserMember = DB::connection(config('tenancy.database.central_connection', 'central'))
+                                ->table('studio_members')
+                                ->where('studio_id', tenant('id'))
+                                ->where('user_id', $user->id)
+                                ->first();
+
+                            $currentUserRole = $currentUserMember ? $currentUserMember->role : 'member';
+                            $isOwner = $currentUserRole === 'owner' || $user->role === User::ROLE_ADMIN;
+                            $isLeader = in_array($currentUserRole, ['leader', 'manager']);
+
+                            if ($isOwner || $isLeader) {
+                                $leaveQuery = LeaveRequest::where('studio_id', tenant('id'))
+                                    ->where('status', 'pending');
+
+                                if (! $isOwner) {
+                                    $leaveQuery->where('requester_role', 'member')
+                                        ->where('user_id', '!=', $user->id);
+                                }
+
+                                $pendingLeaveCount = $leaveQuery->count();
+                            }
+                        } catch (\Exception $e) {
+                        }
+                    }
+
+                    return $reviewTasksCount + $unstartedTasksCount + $messageNotifCount + $pendingLeaveCount;
                 } catch (\Exception $e) {
                     return 0;
                 }
