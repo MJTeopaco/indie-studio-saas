@@ -65,7 +65,6 @@ class TenantTaskController extends Controller
                     'sprint_status' => $task->sprint_status,
                     'sprint_priority' => $task->sprint_priority,
                     'story_points' => $task->story_points,
-                    'actual_story_points' => $task->actual_story_points,
                     'github_link' => $task->github_link,
                     'is_critical' => (bool) $task->is_critical,
                     'assignee' => $task->assignee ? $task->assignee->name : null,
@@ -147,8 +146,8 @@ class TenantTaskController extends Controller
 
         $validated = $request->validate([
             'status' => 'sometimes|required|string|in:todo,in_progress,review,completed,stuck',
-            'sprint_status' => 'sometimes|nullable|string|in:ready_to_start,in_progress,waiting_for_review,pending_deploy,done,stuck',
-            'actual_story_points' => 'sometimes|nullable|integer|min:0|max:100',
+            'sprint_status' => 'sometimes|nullable|string|in:ready_to_start,in_progress,waiting_for_review,done,stuck',
+            'story_points' => 'sometimes|nullable|integer|min:0|max:100',
             'github_link' => 'sometimes|nullable|url|max:500',
         ]);
 
@@ -158,7 +157,6 @@ class TenantTaskController extends Controller
                 'ready_to_start' => 'todo',
                 'in_progress' => 'in_progress',
                 'waiting_for_review' => 'review',
-                'pending_deploy' => 'review',
                 'done' => 'completed',
                 'stuck' => 'stuck',
             ];
@@ -194,10 +192,6 @@ class TenantTaskController extends Controller
                 abort(403, 'This task requires reviewer approval. Move it to "In Review" first.');
             }
 
-            // Prevent going back to "todo" from "in_progress" or beyond
-            if (in_array($currentStatus, ['in_progress', 'review', 'completed']) && $newStatus === 'todo') {
-                abort(422, 'You cannot move a task back to "To Do" once started.');
-            }
         }
 
         if ($newStatus === 'completed') {

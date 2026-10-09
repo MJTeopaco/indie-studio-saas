@@ -254,7 +254,6 @@ class TenantSeeder extends Seeder
                 'estimated_hours' => $template['hours'],
                 'story_points' => $points,
                 'story_points_locked' => $isSprint1,
-                'actual_story_points' => $isSprint1 ? $points : null,
                 'days_until_deadline' => (int) round($template['hours'] * 1.5),
                 'target_macro_domains' => json_encode($macroDomains),
                 'required_skills' => json_encode($requiredSkills),

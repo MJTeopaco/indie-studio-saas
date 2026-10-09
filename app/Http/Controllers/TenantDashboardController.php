@@ -167,8 +167,7 @@ class TenantDashboardController extends Controller
                 $isNewAssignment = ! empty($t['is_doer']) && (in_array($t['sprint_status'] ?? '', ['ready_to_start', '']) || ($t['sprint_status'] === null && $t['status'] === 'todo'));
                 $isOverdue = isset($t['days_until_deadline']) && $t['days_until_deadline'] !== null && $t['days_until_deadline'] < 0;
                 $isStuck = ($t['sprint_status'] ?? $t['status'] ?? '') === 'stuck';
-                $sentBackToDoer = ! empty($t['is_doer']) && ($t['sprint_status'] ?? $t['status'] ?? '') === 'in_progress' && ($t['actual_story_points'] ?? null) === null;
-
+                $sentBackToDoer = ! empty($t['is_doer']) && ($t['sprint_status'] ?? $t['status'] ?? '') === 'in_progress';
                 if ($isReviewForMe) {
                     $type = 'review_request';
                     $title = 'Review Requested';
@@ -612,7 +611,6 @@ class TenantDashboardController extends Controller
             'sprint_priority' => $task->sprint_priority,
             'priority' => $task->priority,
             'story_points' => $task->story_points,
-            'actual_story_points' => $task->actual_story_points,
             'estimated_hours' => $task->estimated_hours,
             'task_classification' => $task->task_classification,
             'hard_constraint_date' => $task->hard_constraint_date?->format('Y-m-d'),

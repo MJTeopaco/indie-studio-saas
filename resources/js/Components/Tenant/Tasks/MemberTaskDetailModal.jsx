@@ -121,10 +121,6 @@ export default function MemberTaskDetailModal({ isOpen, onClose, task, tenantId,
             ...extraPayload,
         };
 
-        if (newStatus === 'completed' && actualSp !== '') {
-            payload.actual_story_points = parseInt(actualSp, 10);
-        }
-
         try {
             const url = route('tenant.tasks.update-status', {
                 tenant: tenantId,
@@ -146,7 +142,6 @@ export default function MemberTaskDetailModal({ isOpen, onClose, task, tenantId,
                         completed: 'done',
                         stuck: 'stuck',
                     }[newStatus] ?? task.sprint_status,
-                    actual_story_points: payload.actual_story_points ?? task.actual_story_points,
                     github_link: payload.github_link,
                 });
             }
@@ -424,26 +419,23 @@ export default function MemberTaskDetailModal({ isOpen, onClose, task, tenantId,
                             </div>
                         </div>
 
-                        {/* Actual SP (shown when completing) */}
-                        {(currentStatus === 'in_progress' || currentStatus === 'review') && (
-                            <div className="p-4 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 space-y-1.5">
-                                <label className="block text-xs font-bold text-emerald-800 dark:text-emerald-300">
-                                    Actual Story Points (optional)
+                        {/* Flag Complexity (UX Escape Hatch) */}
+                        <div className="p-4 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 space-y-1.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                            <div>
+                                <label className="block text-xs font-bold text-amber-800 dark:text-amber-300">
+                                    Flag Complexity Issue
                                 </label>
-                                <p className="text-[11px] text-emerald-600 dark:text-emerald-400">
-                                    Record actual SP for velocity tracking when completing.
+                                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">
+                                    Is this task harder than {task.story_points} SP?
                                 </p>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    value={actualSp}
-                                    onChange={(e) => setActualSp(e.target.value)}
-                                    placeholder={`Estimated: ${task.story_points ?? '0'} SP`}
-                                    className="w-full sm:w-48 px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-800 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                                />
                             </div>
-                        )}
+                            <Link
+                                href={`/studio/${tenantId}/inbox?channel=ch-sprint&message=${encodeURIComponent(`Hi, I'm flagging complexity for task #${task.id} "${task.title}". The original estimate of ${task.story_points} SP seems too low because `)}`}
+                                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors shrink-0 whitespace-nowrap"
+                            >
+                                Notify Manager
+                            </Link>
+                        </div>
 
                         {/* Action Buttons */}
                         <div className="pt-1 border-t border-slate-100 dark:border-slate-800/80">

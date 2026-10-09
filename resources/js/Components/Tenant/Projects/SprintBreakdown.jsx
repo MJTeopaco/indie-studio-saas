@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, ChevronRight, FileText, Edit2, CalendarDays, ExternalLink, Search, Plus, PlayCircle, CheckCircle2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileText, Edit2, CalendarDays, ExternalLink, Search, Plus, PlayCircle, CheckCircle2, Circle, CircleDot, AlertCircle, ArrowUp, Minus, ChevronsUp, ChevronUp, Calendar } from 'lucide-react';
 import axios from 'axios';
 import { router, usePage } from '@inertiajs/react';
 import PortaledPopover from '@/Components/UI/PortaledPopover';
@@ -21,7 +21,6 @@ const SPRINT_STATUSES = [
     { value: 'ready_to_start', label: 'Ready to start', color: '#3b82f6' }, // Blue
     { value: 'in_progress', label: 'In progress', color: '#f97316' },      // Orange
     { value: 'waiting_for_review', label: 'Waiting for review', color: '#d97706' }, // Light brown
-    { value: 'pending_deploy', label: 'Pending deploy', color: '#eab308' },// Yellow
     { value: 'done', label: 'Done', color: '#10b981' },                    // Bright green
     { value: 'stuck', label: 'Stuck', color: '#ef4444' },                  // Red
 ];
@@ -345,17 +344,43 @@ function TaskRow({ task, epics, onUpdateTask, onFindFit, canManage, currentUserI
         return assignees.some(a => Number(a.id) === Number(currentUserId));
     };
 
+    const StatusChip = ({ status }) => {
+        switch(status) {
+            case 'ready_to_start': return <><Circle className="w-3.5 h-3.5 text-slate-400" /> Ready</>;
+            case 'in_progress': return <><CircleDot className="w-3.5 h-3.5 text-blue-500" /> In Progress</>;
+            case 'waiting_for_review': return <><CircleDot className="w-3.5 h-3.5 text-amber-500" /> In Review</>;
+            case 'done': return <><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Done</>;
+            case 'stuck': return <><AlertCircle className="w-3.5 h-3.5 text-rose-500" /> Stuck</>;
+            default: return <><Circle className="w-3.5 h-3.5 text-slate-400" /> {status}</>;
+        }
+    };
+
+    const PriorityChip = ({ priority }) => {
+        switch(priority) {
+            case 'critical': return <><ChevronsUp className="w-3.5 h-3.5 text-rose-500" /> Critical</>;
+            case 'high': return <><ChevronUp className="w-3.5 h-3.5 text-amber-500" /> High</>;
+            case 'medium': return <><Minus className="w-3.5 h-3.5 text-slate-400" /> Medium</>;
+            case 'low': return <><ChevronDown className="w-3.5 h-3.5 text-slate-400" /> Low</>;
+            default: return <><Minus className="w-3.5 h-3.5 text-slate-400" /> {priority}</>;
+        }
+    };
+
     const sStatus = SPRINT_STATUSES.find(s => s.value === (task.sprint_status || 'ready_to_start')) || SPRINT_STATUSES[0];
     const sPriority = SPRINT_PRIORITIES.find(p => p.value === (task.sprint_priority || 'medium')) || SPRINT_PRIORITIES[2];
-    const tailwindClasses = TASK_TYPE_CLASSES[task.task_classification] || 'bg-gray-100 text-gray-800 border border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700';
+    const tailwindClasses = TASK_TYPE_CLASSES[task.task_classification] || 'bg-slate-50 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
     const typeLabel = task.task_classification || 'Unclassified';
     const isEditable = canEditTask(task);
     const isDone = (task.sprint_status === 'done');
 
     return (
-        <div className="grid grid-cols-[minmax(250px,1.5fr)_140px_130px_130px_240px_90px_90px_100px_80px_140px] items-center gap-4 border-b border-gray-100 px-4 py-2.5 last:border-0 hover:bg-gray-50/50 dark:border-slate-800 dark:hover:bg-slate-800/30">
-            <div className="flex items-center gap-2 min-w-0">
-                <span className="truncate text-sm font-medium text-gray-900 dark:text-slate-100" title={task.title}>{task.title}</span>
+        <div className="grid grid-cols-[minmax(280px,2fr)_90px_130px_100px_160px_60px_160px_90px] items-center gap-4 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+            <div className="flex items-center gap-2 min-w-0 pr-2">
+                <span className="shrink-0 font-mono text-[10px] text-slate-400 dark:text-slate-500 select-none">
+                    TALP-{task.id}
+                </span>
+                <span className="truncate text-sm font-medium text-slate-800 dark:text-slate-100" title={task.title}>
+                    {task.title}
+                </span>
             </div>
             
             <div>
@@ -366,10 +391,9 @@ function TaskRow({ task, epics, onUpdateTask, onFindFit, canManage, currentUserI
                 <button
                     ref={statusRef}
                     onClick={(e) => { e.stopPropagation(); isEditable && setOpenPopover('status'); }}
-                    className={`w-full truncate rounded px-2 py-1.5 text-xs font-bold text-center transition-opacity ${isEditable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
-                    style={{ backgroundColor: sStatus.color, color: getContrastColor(sStatus.color) }}
+                    className={`flex items-center gap-1.5 w-full rounded px-2 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 transition-colors ${isEditable ? 'hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer' : 'cursor-default'}`}
                 >
-                    {sStatus.label}
+                    <StatusChip status={sStatus.value} />
                 </button>
                 {openPopover === 'status' && (
                     <InlineSelectEditor options={SPRINT_STATUSES} currentValue={sStatus.value} onSelect={(val) => onUpdateTask(task.id, { sprint_status: val })} onClose={() => setOpenPopover(null)} triggerRef={statusRef} />
@@ -380,10 +404,9 @@ function TaskRow({ task, epics, onUpdateTask, onFindFit, canManage, currentUserI
                 <button
                     ref={priorityRef}
                     onClick={(e) => { e.stopPropagation(); isEditable && setOpenPopover('priority'); }}
-                    className={`w-full truncate rounded px-2 py-1.5 text-xs font-bold text-center transition-opacity ${isEditable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
-                    style={{ backgroundColor: sPriority.color, color: getContrastColor(sPriority.color) }}
+                    className={`flex items-center gap-1.5 w-full rounded px-2 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 transition-colors ${isEditable ? 'hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer' : 'cursor-default'}`}
                 >
-                    {sPriority.label}
+                    <PriorityChip priority={sPriority.value} />
                 </button>
                 {openPopover === 'priority' && (
                     <InlineSelectEditor options={SPRINT_PRIORITIES} currentValue={sPriority.value} onSelect={(val) => onUpdateTask(task.id, { sprint_priority: val })} onClose={() => setOpenPopover(null)} triggerRef={priorityRef} />
@@ -394,9 +417,9 @@ function TaskRow({ task, epics, onUpdateTask, onFindFit, canManage, currentUserI
                 <button
                     ref={typeRef}
                     onClick={(e) => { e.stopPropagation(); isEditable && setOpenPopover('type'); }}
-                    className={`w-full truncate rounded px-2 py-1.5 text-xs font-bold text-center transition-opacity ${isEditable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
+                    className={`w-full text-left truncate transition-opacity ${isEditable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
                 >
-                    <span className={`inline-block whitespace-nowrap rounded px-2 py-1 text-[10px] font-bold hover:opacity-80 transition-opacity ${tailwindClasses}`}>
+                    <span className={`inline-block truncate max-w-full rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors ${tailwindClasses}`}>
                         {typeLabel}
                     </span>
                 </button>
@@ -405,80 +428,61 @@ function TaskRow({ task, epics, onUpdateTask, onFindFit, canManage, currentUserI
                 )}
             </div>
 
-            <div className="text-center">
+            <div className="">
                 <button
                     ref={estSpRef}
                     onClick={(e) => { e.stopPropagation(); canManage && setOpenPopover('est_sp'); }}
-                    className={`w-full rounded px-2 py-1 font-mono text-xs ${canManage ? 'hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300' : 'text-gray-500 cursor-default'}`}
+                    className={`w-full text-left rounded px-2 py-1 font-mono text-xs ${canManage ? 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300' : 'text-slate-500 cursor-default'}`}
                 >
-                    {task.story_points ? `${task.story_points} SP` : '-'}
+                    {task.story_points ? `${task.story_points}` : '-'}
                 </button>
                 {openPopover === 'est_sp' && (
                     <InlineTextEditor type="number" initialValue={task.story_points} onSave={(val) => onUpdateTask(task.id, { story_points: val ? parseInt(val) : null })} onClose={() => setOpenPopover(null)} triggerRef={estSpRef} />
                 )}
             </div>
 
-            <div className="text-center">
-                <button
-                    ref={actSpRef}
-                    onClick={(e) => { e.stopPropagation(); isEditable && isDone && setOpenPopover('actual_sp'); }}
-                    disabled={!isDone}
-                    className={`w-full rounded px-2 py-1 font-mono text-xs ${!isDone ? 'opacity-30 cursor-not-allowed' : (isEditable ? 'hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-900 dark:text-slate-100 font-bold' : 'text-gray-700 dark:text-slate-300')}`}
-                    title={!isDone ? "Task must be 'Done' to set Actual SP" : ""}
-                >
-                    {task.actual_story_points ? `${task.actual_story_points} SP` : '-'}
-                </button>
-                {openPopover === 'actual_sp' && (
-                    <InlineTextEditor type="number" initialValue={task.actual_story_points} onSave={(val) => onUpdateTask(task.id, { actual_story_points: val ? parseInt(val) : null })} onClose={() => setOpenPopover(null)} triggerRef={actSpRef} />
-                )}
-            </div>
-
-            <div className="flex justify-center items-center group relative">
-                {task.hard_constraint_date ? (
-                    <span className="text-xs font-semibold text-gray-700 dark:text-slate-300">
-                        {new Date(task.hard_constraint_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </span>
-                ) : (
-                    <span className="text-gray-300 dark:text-slate-700">-</span>
-                )}
-                {isEditable && (
-                    <button 
-                        ref={dateRef}
-                        onClick={(e) => { e.stopPropagation(); setOpenPopover('due_date'); }}
-                        className="absolute right-0 -translate-y-1/2 top-1/2 opacity-0 group-hover:opacity-100 p-1.5 text-brand bg-brand-10 hover:bg-brand-20 dark:bg-brand-900/40 dark:hover:bg-brand-800/60 dark:text-brand-light rounded-full shadow-sm transition-all border border-brand-20 dark:border-brand-800/50"
-                        title="Set Due Date"
-                    >
-                        <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                )}
-                {openPopover === 'due_date' && (
-                    <InlineTextEditor type="date" initialValue={task.hard_constraint_date ? task.hard_constraint_date.split('T')[0] : ''} onSave={(val) => onUpdateTask(task.id, { hard_constraint_date: val })} onClose={() => setOpenPopover(null)} triggerRef={dateRef} />
-                )}
-            </div>
-
-            <div>
-                <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] text-gray-500 dark:bg-slate-800 dark:text-slate-400">
-                    TALP-{task.id}
-                </span>
-            </div>
-
             <div>
                 {task.epic ? (
                     <button 
                         onClick={(e) => { e.stopPropagation(); canManage && setOpenEpicModal(task.id); }}
-                        className={`truncate max-w-[120px] rounded-full px-2 py-0.5 text-[10px] font-bold inline-flex items-center gap-1.5 border transition-colors ${canManage ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800' : 'cursor-default'}`}
-                        style={{ borderColor: task.epic.color || '#e5e7eb', color: task.epic.color || '#6b7280' }}
+                        className={`truncate max-w-[150px] pl-2 text-[11px] font-medium border-l-2 transition-colors ${canManage ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800' : 'cursor-default'}`}
+                        style={{ borderColor: task.epic.color || '#94a3b8', color: '#475569' }}
                     >
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: task.epic.color || '#9ca3af' }} />
-                        {task.epic.name}
+                        <span className="dark:text-slate-400 text-slate-600">{task.epic.name}</span>
                     </button>
                 ) : (
                     <button 
                         onClick={(e) => { e.stopPropagation(); canManage && setOpenEpicModal(task.id); }}
-                        className={`text-[10px] font-bold text-gray-400 border border-dashed border-gray-300 dark:border-slate-700 rounded-full px-2 py-0.5 ${canManage ? 'hover:border-gray-400 hover:text-gray-500 cursor-pointer' : 'cursor-default'}`}
+                        className={`text-[10px] font-bold text-slate-400 border border-dashed border-slate-300 dark:border-slate-700 rounded-full px-2 py-0.5 ${canManage ? 'hover:border-slate-400 hover:text-slate-500 cursor-pointer' : 'cursor-default'}`}
                     >
                         + Link Epic
                     </button>
+                )}
+            </div>
+
+            <div className="flex items-center group relative w-full h-full min-h-[28px] pl-2">
+                <div className={`transition-opacity ${isEditable ? 'group-hover:opacity-0' : ''}`}>
+                    {task.hard_constraint_date ? (
+                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            {new Date(task.hard_constraint_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </span>
+                    ) : (
+                        <span className="text-slate-300 dark:text-slate-600">-</span>
+                    )}
+                </div>
+                
+                {isEditable && (
+                    <button 
+                        ref={dateRef}
+                        onClick={(e) => { e.stopPropagation(); setOpenPopover('due_date'); }}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-brand transition-all flex items-center h-full"
+                        title="Set Due Date"
+                    >
+                        <Calendar className="w-4 h-4" />
+                    </button>
+                )}
+                {openPopover === 'due_date' && (
+                    <InlineTextEditor type="date" initialValue={task.hard_constraint_date ? task.hard_constraint_date.split('T')[0] : ''} onSave={(val) => onUpdateTask(task.id, { hard_constraint_date: val })} onClose={() => setOpenPopover(null)} triggerRef={dateRef} />
                 )}
             </div>
         </div>
@@ -495,19 +499,19 @@ function SprintTable({ tasks, epics, onUpdateTask, onFindFit, canManage, project
     };
 
     return (
-        <div className="min-w-[1400px] border-t border-gray-100 dark:border-slate-800">
-            <div className="grid grid-cols-[minmax(250px,1.5fr)_140px_130px_130px_240px_90px_90px_100px_80px_140px] gap-4 border-b border-gray-100 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:border-slate-800">
+        <div className="min-w-[1100px] border-t border-slate-100 dark:border-slate-800">
+            <div className="grid grid-cols-[minmax(280px,2fr)_90px_130px_100px_160px_60px_160px_90px] gap-4 border-b border-slate-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 dark:border-slate-800">
                 <span>Task</span>
                 <span>Owner</span>
                 <span>Status</span>
                 <span>Priority</span>
                 <span>Type</span>
-                <span>Estimate SP</span>
-                <span>Actual SP</span>
-                <span>Due Date</span>
-                <span>Task ID</span>
+                <span>SP</span>
                 <span>Epic</span>
+                <span>Due</span>
             </div>
+            
+            <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
             
             {tasks.map(task => (
                 <TaskRow 
@@ -521,9 +525,10 @@ function SprintTable({ tasks, epics, onUpdateTask, onFindFit, canManage, project
                     setOpenEpicModal={setOpenEpicModal} 
                 />
             ))}
+            </div>
             
             {!tasks.length && (
-                <div className="py-8 text-center text-xs text-gray-400">No tasks in this group.</div>
+                <div className="py-8 text-center text-xs text-slate-400">No tasks in this group.</div>
             )}
 
             <EpicLinkModal 
@@ -550,18 +555,18 @@ function SprintGroup({ sprint, tasks, epics, defaultOpen = true, onUpdateTask, o
     };
 
     return (
-        <section className={`mb-6 overflow-hidden rounded-2xl border bg-white dark:bg-slate-900 transition-colors ${isActive ? 'border-brand shadow-sm shadow-brand/10' : 'border-gray-200 dark:border-slate-800'}`}>
+        <section className={`mb-6 overflow-hidden rounded-2xl border transition-colors ${isActive ? 'border-slate-200 border-l-2 border-l-brand bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900 shadow-sm' : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900'}`}>
             <div 
-                className={`flex items-center gap-3 px-4 py-3 cursor-pointer ${isActive ? 'bg-brand/5 dark:bg-brand/10' : 'bg-gray-50 dark:bg-slate-900/50'}`}
+                className="flex items-center gap-3 px-4 py-3 cursor-pointer"
                 onClick={() => setIsOpen(!isOpen)}
             >
-                <button className={`hover:text-gray-700 transition-colors ${isActive ? 'text-brand' : 'text-gray-400 dark:text-gray-500'}`}>
+                <button className={`hover:text-slate-700 transition-colors ${isActive ? 'text-brand' : 'text-slate-400 dark:text-slate-500'}`}>
                     {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                 </button>
-                <h2 className={`text-sm font-extrabold ${isActive ? 'text-brand-dark dark:text-brand-light' : 'text-gray-800 dark:text-slate-200'}`}>
+                <h2 className={`text-sm font-extrabold ${isActive ? 'text-slate-900 dark:text-slate-100' : 'text-slate-800 dark:text-slate-200'}`}>
                     {sprint.name}
                 </h2>
-                <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-bold text-gray-600 dark:bg-slate-800 dark:text-slate-400">
+                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
                     {tasks.length} tasks
                 </span>
 
@@ -615,9 +620,9 @@ function BacklogGroup({ tasks, epics, defaultOpen = true, onUpdateTask, onFindFi
     const [isOpen, setIsOpen] = useState(defaultOpen);
 
     return (
-        <section className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900 opacity-80 hover:opacity-100 transition-opacity">
+        <section className="mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 opacity-80 hover:opacity-100 transition-opacity">
             <div 
-                className="flex cursor-pointer items-center gap-3 bg-gray-50 px-4 py-3 dark:bg-slate-900/50" 
+                className="flex cursor-pointer items-center gap-3 px-4 py-3" 
                 onClick={() => setIsOpen(!isOpen)}
             >
                 <button className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
@@ -937,6 +942,15 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
     const [sprints, setSprints] = useState(initialSprints || []);
     const [backlogTasks, setBacklogTasks] = useState(initialBacklog || []);
     const { auth } = usePage().props;
+
+    useEffect(() => {
+        setSprints(initialSprints || []);
+    }, [initialSprints]);
+
+    useEffect(() => {
+        setBacklogTasks(initialBacklog || []);
+    }, [initialBacklog]);
+
     const currentUserId = auth?.user?.id;
 
     const [closureModal, setClosureModal] = useState({

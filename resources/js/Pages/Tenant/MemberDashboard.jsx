@@ -1,15 +1,60 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Head, Link, usePage } from '@inertiajs/react';
 import TenantLayout from '@/Layouts/TenantLayout';
-import TaskFlyoutInspector from '@/Components/Tenant/Tasks/TaskFlyoutInspector';
-import { showToast } from '@/Components/SystemToast';
-import axios from 'axios';
-import {
+import MemberTaskCard from '@/Components/Tenant/Tasks/MemberTaskCard';
+import MemberTaskDetailModal from '@/Components/Tenant/Tasks/MemberTaskDetailModal';
+import { 
+    CheckCircle2, 
+    Clock, 
+    Flame, 
+    Target, 
+    ListTodo, 
+    Search, 
+    Filter, 
+    Sparkles, 
+    ArrowRight, 
+    Inbox, 
+    Calendar,
+    Kanban,
+    Layers,
+    AlertCircle,
     Check,
-    Play,
-    Pause,
-    CheckCircle2
 } from 'lucide-react';
+import axios from 'axios';
+
+function ConfirmDialog({ isOpen, title, message, confirmLabel, confirmColor = 'brand', onConfirm, onCancel }) {
+    if (!isOpen) return null;
+    const colorMap = {
+        brand: 'bg-brand hover:bg-brand-dark text-white',
+        rose: 'bg-rose-600 hover:bg-rose-700 text-white',
+        amber: 'bg-amber-500 hover:bg-amber-600 text-white',
+        emerald: 'bg-emerald-600 hover:bg-emerald-700 text-white',
+    };
+    return (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-100">
+            <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4">
+                <h4 className="text-base font-bold text-slate-900 dark:text-slate-100">{title}</h4>
+                <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{message}</p>
+                <div className="flex items-center justify-end gap-2.5 pt-2">
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onConfirm}
+                        className={`px-5 py-2 rounded-xl text-xs font-bold shadow-sm transition-all ${colorMap[confirmColor] || colorMap.brand}`}
+                    >
+                        {confirmLabel || 'Confirm'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 export default function MemberDashboard({ 
     studio, 
@@ -22,124 +67,139 @@ export default function MemberDashboard({
 }) {
     const { auth, activeWorkspace } = usePage().props;
     const user = auth?.user;
-    const studioName = studio?.name || 'Studio';
+
+    // View mode: 'board' | 'focus'
+    const [viewMode, setViewMode] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('view') === 'focus') return 'focus';
+        }
+        return 'board';
+    });
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedProject, setSelectedProject] = useState('all');
+    const [selectedPriority, setSelectedPriority] = useState('all');
 
     // Local tasks list for optimistic updates
     const [tasksList, setTasksList] = useState(myTasks);
-
-    // Focus Zone view scale: 'today' | 'week'
-    const [focusScale, setFocusScale] = useState('today');
-
-    // Timer state for "Start timer"
-    const [isTimerRunning, setIsTimerRunning] = useState(false);
-    const [timerSeconds, setTimerSeconds] = useState(0);
-
-    // Slide-over flyout inspector state
     const [selectedTask, setSelectedTask] = useState(null);
-    const [isInspectorOpen, setIsInspectorOpen] = useState(false);
+    const [detailModalOpen, setDetailModalOpen] = useState(false);
 
-    useEffect(() => {
+    // Confirmation dialog state for quick card actions
+    const [confirmDialog, setConfirmDialog] = useState(null); // { task, newSprintStatus, title, message, confirmLabel, confirmColor }
+
+    // Sync tasksList when myTasks prop updates
+    React.useEffect(() => {
         setTasksList(myTasks);
     }, [myTasks]);
 
-    // Timer effect
-    useEffect(() => {
-        let interval = null;
-        if (isTimerRunning) {
-            interval = setInterval(() => {
-                setTimerSeconds((prev) => prev + 1);
-            }, 1000);
-        } else if (!isTimerRunning && timerSeconds !== 0) {
-            clearInterval(interval);
-        }
-        return () => clearInterval(interval);
-    }, [isTimerRunning, timerSeconds]);
-
-    const formatTimer = (totalSec) => {
-        const hrs = Math.floor(totalSec / 3600);
-        const mins = Math.floor((totalSec % 3600) / 60);
-        const secs = totalSec % 60;
-        return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-    };
-
-    // Metric 1: My Tasks Due
-    const tasksDueCount = useMemo(() => {
-        return tasksList.filter(t => t.status !== 'completed' && t.sprint_status !== 'done').length;
-    }, [tasksList]);
-    const tasksDueFormatted = String(tasksDueCount).padStart(2, '0');
-
-    // Metric 2: Focus Hours
-    const totalFocusHours = useMemo(() => {
-        return tasksList.reduce((acc, t) => acc + (Number(t.estimated_hours) || 0), 0);
-    }, [tasksList]);
-    const focusHoursFormatted = String(Math.round(totalFocusHours)).padStart(2, '0');
-
-    // Metric 3: Blocked On Me
-    const blockedOnMeCount = useMemo(() => {
-        return tasksList.filter(t => {
-            const isStuck = t.status === 'stuck' || t.sprint_status === 'stuck';
-            const isCrit = Boolean(t.is_critical || (t.total_float !== null && Number(t.total_float) <= 0));
-            return isStuck || isCrit;
-        }).length;
-    }, [tasksList]);
-    const blockedFormatted = String(blockedOnMeCount).padStart(2, '0');
-
-    // Metric 4: Done This Week
-    const doneThisWeekCount = useMemo(() => {
-        return tasksList.filter(t => t.status === 'completed' || t.sprint_status === 'done').length;
-    }, [tasksList]);
-    const doneFormatted = String(doneThisWeekCount).padStart(2, '0');
-
-    // NOW • CURRENT TASK
-    const currentTask = useMemo(() => {
-        const inProgress = tasksList.find(t => t.status === 'in_progress' || t.sprint_status === 'in_progress');
-        if (inProgress) return inProgress;
-
-        const crit = tasksList.find(t => (t.is_critical || (t.total_float !== null && Number(t.total_float) <= 0)) && t.status !== 'completed');
-        if (crit) return crit;
-
-        return tasksList.find(t => t.status !== 'completed' && t.sprint_status !== 'done') || null;
+    // Unique projects list for filtering
+    const projectsList = useMemo(() => {
+        const set = new Map();
+        tasksList.forEach(t => {
+            if (t.project_id && t.project_name) {
+                set.set(t.project_id, t.project_name);
+            }
+        });
+        return Array.from(set.entries()).map(([id, name]) => ({ id, name }));
     }, [tasksList]);
 
-    // NEXT UP tasks queue
-    const nextUpTasks = useMemo(() => {
-        return tasksList
-            .filter(t => t.id !== currentTask?.id && t.status !== 'completed' && t.sprint_status !== 'done')
-            .slice(0, 3);
-    }, [tasksList, currentTask]);
+    // Filtered tasks
+    const filteredTasks = useMemo(() => {
+        return tasksList.filter(task => {
+            const matchesSearch = searchQuery === '' || 
+                task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (task.description && task.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                (task.project_name && task.project_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                (task.epic_name && task.epic_name.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    // Action Ledger tasks
-    const ledgerTasks = useMemo(() => {
-        return tasksList;
-    }, [tasksList]);
+            const matchesProject = selectedProject === 'all' || String(task.project_id) === String(selectedProject);
+            
+            const isTaskCritical = task.is_critical || task.priority?.toLowerCase() === 'critical' || task.sprint_priority === 'critical';
+            const matchesPriority = selectedPriority === 'all' ||
+                (selectedPriority === 'critical' && isTaskCritical) ||
+                (selectedPriority === 'high' && (task.priority?.toLowerCase() === 'high' || task.sprint_priority === 'high')) ||
+                (selectedPriority === 'medium' && task.priority?.toLowerCase() === 'medium') ||
+                (selectedPriority === 'low' && task.priority?.toLowerCase() === 'low');
 
-    // Handle opening inspector
-    const handleOpenInspector = (task) => {
-        setSelectedTask(task);
-        setIsInspectorOpen(true);
-    };
+            return matchesSearch && matchesProject && matchesPriority;
+        });
+    }, [tasksList, searchQuery, selectedProject, selectedPriority]);
 
-    // Execute status change with optimistic UI update and backend PATCH
-    const handleUpdateTaskStatus = async (task, newStatus, note) => {
-        const prevTasks = [...tasksList];
+    // Active sprint tasks subset
+    const currentSprintTasks = useMemo(() => {
+        if (!activeSprint) return filteredTasks;
+        return filteredTasks.filter(t => t.sprint_id === activeSprint.id);
+    }, [filteredTasks, activeSprint]);
 
-        const sprintStatusMap = {
-            todo: 'ready_to_start',
-            in_progress: 'in_progress',
-            review: 'waiting_for_review',
-            completed: 'done',
-            stuck: 'stuck',
+    // Grouping tasks by sprint status for the Kanban columns
+    const columns = useMemo(() => {
+        const targetTasks = activeSprint ? currentSprintTasks : filteredTasks;
+        return {
+            ready: targetTasks.filter(t => !t.sprint_status || t.sprint_status === 'ready_to_start' || t.status === 'todo'),
+            in_progress: targetTasks.filter(t => t.sprint_status === 'in_progress'),
+            review: targetTasks.filter(t => t.sprint_status === 'waiting_for_review' || t.status === 'review'),
+            done: targetTasks.filter(t => t.sprint_status === 'done' || t.status === 'completed'),
+            stuck: targetTasks.filter(t => t.sprint_status === 'stuck'),
         };
-        const mappedSprintStatus = sprintStatusMap[newStatus] || newStatus;
+    }, [currentSprintTasks, filteredTasks, activeSprint]);
 
+    // Focus tasks (Critical / High priority that are ready or in progress)
+    const focusTasks = useMemo(() => {
+        return filteredTasks.filter(t => {
+            const isCritOrHigh = t.is_critical || 
+                t.priority?.toLowerCase() === 'critical' || 
+                t.priority?.toLowerCase() === 'high' ||
+                t.sprint_priority === 'critical' ||
+                t.sprint_priority === 'high';
+            const isNotDone = t.sprint_status !== 'done' && t.status !== 'completed';
+            return isCritOrHigh && isNotDone;
+        });
+    }, [filteredTasks]);
+
+    // Story points statistics
+    const pointsStats = useMemo(() => {
+        const pool = activeSprint ? currentSprintTasks : tasksList;
+        const total = pool.reduce((acc, t) => acc + (t.story_points || 0), 0);
+        const completed = pool
+            .filter(t => t.sprint_status === 'done' || t.status === 'completed')
+            .reduce((acc, t) => acc + (t.story_points ?? 0), 0);
+        return { total, completed };
+    }, [activeSprint, currentSprintTasks, tasksList]);
+
+    // Status change trigger with confirmation dialog
+    const handleStatusChange = (task, newSprintStatus, confirmOptions = null) => {
+        if (confirmOptions) {
+            setConfirmDialog({
+                task,
+                newSprintStatus,
+                title: confirmOptions.title || 'Update Task Status?',
+                message: confirmOptions.message || 'Are you sure you want to change the status of this task?',
+                confirmLabel: confirmOptions.confirmLabel || 'Confirm',
+                confirmColor: confirmOptions.confirmColor || 'brand',
+            });
+            return;
+        }
+        executeStatusChange(task, newSprintStatus);
+    };
+
+    const executeStatusChange = async (task, newSprintStatus) => {
+        const prevTasks = [...tasksList];
+        setConfirmDialog(null);
+        
         // Optimistic update
         setTasksList(prev => prev.map(t => {
             if (t.id === task.id) {
                 return { 
                     ...t, 
-                    status: newStatus,
-                    sprint_status: mappedSprintStatus,
-                    completion_notes: note || t.completion_notes,
+                    sprint_status: newSprintStatus,
+                    status: {
+                        ready_to_start: 'todo',
+                        in_progress: 'in_progress',
+                        waiting_for_review: 'review',
+                        done: 'completed',
+                        stuck: 'stuck',
+                    }[newSprintStatus] ?? t.status,
                 };
             }
             return t;
@@ -151,382 +211,554 @@ export default function MemberDashboard({
                 task: task.id,
             });
 
-            await axios.patch(url, { 
-                status: newStatus,
-                sprint_status: mappedSprintStatus,
-                completion_notes: note,
-            }, {
+            await axios.patch(url, { sprint_status: newSprintStatus }, {
                 headers: { 'Accept': 'application/json' }
             });
-
-            showToast(`Task #${task.id} updated to ${newStatus}`, 'success');
         } catch (err) {
             console.error('Failed to update task status', err);
+            // Rollback on failure
             setTasksList(prevTasks);
-            throw new Error('Failed to update task status on the server.');
         }
     };
 
+    const handleTaskCardClick = (task) => {
+        setSelectedTask(task);
+        setDetailModalOpen(true);
+    };
+
+    const handleTaskUpdatedFromModal = (updatedTask) => {
+        setTasksList(prev => prev.map(t => t.id === updatedTask.id ? { ...t, ...updatedTask } : t));
+    };
+
+    const todayDateFormatted = new Intl.DateTimeFormat('en-US', { 
+        weekday: 'long', 
+        month: 'short', 
+        day: 'numeric' 
+    }).format(new Date());
+
     return (
-        <TenantLayout studioName={studioName}>
-            <Head title={`My Work — ${studioName}`} />
+        <TenantLayout studioName={studio?.name}>
+            <Head title={`My Work — ${studio?.name || 'Studio'}`} />
 
-            <div className="flex-1 overflow-y-auto bg-surface text-text-primary p-4 sm:p-6 lg:p-8">
-                <div className="max-w-7xl mx-auto space-y-6">
-
-                    {/* ── Top Workspace Bar (Matching Wireframe Header) ── */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
-                        <div className="flex items-center gap-3">
-                            {/* Blue Square Rounded Icon */}
-                            <div className="w-8 h-8 rounded-xl bg-brand text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
-                                {studioName.charAt(0).toUpperCase()}
+            <div className="flex-1 flex flex-col min-h-0 bg-slate-50 dark:bg-slate-950 overflow-y-auto">
+                
+                {/* ── Top Header / Hero Section ── */}
+                <div className="bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 px-6 py-5 shrink-0">
+                    <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                                <Calendar className="w-3.5 h-3.5" />
+                                <span>{todayDateFormatted}</span>
+                                <span>•</span>
+                                <span className="text-brand dark:text-brand-light font-bold">{studio?.name || 'Studio'}</span>
                             </div>
+                            <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+                                Welcome back, {user?.name || 'Developer'}
+                            </h1>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                Here is your active sprint execution board and focus queue.
+                            </p>
+                        </div>
 
-                            <span className="font-heading font-bold text-base text-text-primary tracking-tight">
-                                Workspace
-                            </span>
+                        {/* Fast Quick Links / Actions */}
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                            {pendingEstimatesCount > 0 && (
+                                <Link
+                                    href={`/studio/${activeWorkspace}/estimates/pending`}
+                                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/50 shadow-xs transition-all"
+                                >
+                                    <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-spin" style={{ animationDuration: '3s' }} />
+                                    <span>{pendingEstimatesCount} Pending Estimates</span>
+                                    <ArrowRight className="w-3 h-3" />
+                                </Link>
+                            )}
 
-                            {/* Active & Inactive Navigation Pills */}
-                            <nav className="flex items-center gap-1.5 ml-2">
-                                <span className="px-3 py-1 rounded-xl bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-heading text-xs font-bold shadow-2xs">
-                                    Dashboard
-                                </span>
-                                <Link
-                                    href={`/studio/${activeWorkspace}/projects`}
-                                    className="px-3 py-1 rounded-xl text-text-muted hover:text-text-primary hover:bg-surface-elevated text-xs font-semibold transition-colors"
-                                >
-                                    Projects
-                                </Link>
-                                <Link
-                                    href={`/studio/${activeWorkspace}/team`}
-                                    className="px-3 py-1 rounded-xl text-text-muted hover:text-text-primary hover:bg-surface-elevated text-xs font-semibold transition-colors"
-                                >
-                                    Team
-                                </Link>
-                            </nav>
+                            <Link
+                                href={`/studio/${activeWorkspace}/tasks`}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            >
+                                <ListTodo className="w-3.5 h-3.5 text-slate-500" />
+                                <span>All My Tasks</span>
+                            </Link>
+
+                            <Link
+                                href={`/studio/${activeWorkspace}/burndown`}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            >
+                                <Target className="w-3.5 h-3.5 text-slate-500" />
+                                <span>Burndown</span>
+                            </Link>
                         </div>
                     </div>
+                </div>
 
-                    {/* ── METRIC CARDS ── */}
+                {/* ── Main Container ── */}
+                <div className="max-w-7xl mx-auto w-full px-6 py-6 space-y-6 flex-1 flex flex-col">
+                    
+                    {/* ── Stat Cards Grid ── */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-
-                        {/* Card 1: MY TASKS DUE */}
-                        <div className="p-5 rounded-2xl bg-surface-elevated border border-surface-border shadow-2xs flex flex-col justify-between space-y-4">
+                        
+                        {/* 1. Active Sprint Card */}
+                        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between">
                             <div>
-                                <span className="font-mono text-[10px] font-bold tracking-widest text-text-muted uppercase block">
-                                    Tasks Due
-                                </span>
-                                <span className="font-heading text-4xl sm:text-5xl font-extrabold text-text-primary tracking-tight mt-1.5 block">
-                                    {tasksDueFormatted}
-                                </span>
-                            </div>
-                            {/* Bottom Striped / Hatched Progress Box */}
-                            <div className="h-9 w-full rounded-xl bg-hatched-pattern border border-surface-border/70 relative overflow-hidden flex items-center px-3">
-                                <div
-                                    className="absolute inset-y-0 left-0 bg-brand/15 border-r border-brand/30 transition-all duration-500"
-                                    style={{ width: `${Math.min(100, tasksDueCount * 15)}%` }}
-                                />
-                                <span className="relative z-10 text-[10px] font-mono font-semibold text-text-muted">
-                                    {tasksDueCount} active in backlog
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Card 2: FOCUS HOURS */}
-                        <div className="p-5 rounded-2xl bg-surface-elevated border border-surface-border shadow-2xs flex flex-col justify-between space-y-4">
-                            <div>
-                                <span className="font-mono text-[10px] font-bold tracking-widest text-text-muted uppercase block">
-                                    Focus Hours
-                                </span>
-                                <span className="font-heading text-4xl sm:text-5xl font-extrabold text-text-primary tracking-tight mt-1.5 block font-mono">
-                                    {focusHoursFormatted}
-                                </span>
-                            </div>
-                            {/* Bottom Striped / Hatched Capacity Box */}
-                            <div className="h-9 w-full rounded-xl bg-hatched-pattern border border-surface-border/70 relative overflow-hidden flex items-center px-3">
-                                <div
-                                    className="absolute inset-y-0 left-0 bg-brand/15 border-r border-brand/30 transition-all duration-500"
-                                    style={{ width: `${Math.min(100, (totalFocusHours / 40) * 100)}%` }}
-                                />
-                                <span className="relative z-10 text-[10px] font-mono font-semibold text-text-muted">
-                                    {Math.round(totalFocusHours)}h allocated
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Card 3: BLOCKED ON ME */}
-                        <div className="p-5 rounded-2xl bg-surface-elevated border border-surface-border shadow-2xs flex flex-col justify-between space-y-4">
-                            <div>
-                                <span className="font-mono text-[10px] font-bold tracking-widest text-text-muted uppercase block">
-                                    Blocked On Me
-                                </span>
-                                <span className={`font-heading text-4xl sm:text-5xl font-extrabold tracking-tight mt-1.5 block ${blockedOnMeCount > 0 ? 'text-rose-500' : 'text-text-primary'}`}>
-                                    {blockedFormatted}
-                                </span>
-                            </div>
-                            {/* Bottom Striped / Hatched Alert Box */}
-                            <div className="h-9 w-full rounded-xl bg-hatched-pattern border border-surface-border/70 relative overflow-hidden flex items-center px-3">
-                                {blockedOnMeCount > 0 ? (
-                                    <span className="relative z-10 text-[10px] font-mono font-bold text-rose-500 flex items-center gap-1.5">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
-                                        Critical / blocked items
+                                <div className="flex items-center justify-between gap-2 mb-2">
+                                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                                        <Target className="w-3.5 h-3.5 text-indigo-500" />
+                                        Active Sprint
                                     </span>
+                                    {activeSprint && (
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/40">
+                                            Active
+                                        </span>
+                                    )}
+                                </div>
+                                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 truncate">
+                                    {activeSprint ? activeSprint.name : 'No Active Sprint'}
+                                </h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                                    {activeSprint ? (activeSprint.project_name || 'Project execution') : 'Tasks in backlog queue'}
+                                </p>
+                            </div>
+
+                            {activeSprint ? (
+                                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                    <div className="flex items-center justify-between text-xs font-semibold mb-1.5">
+                                        <span className="text-slate-600 dark:text-slate-400">Sprint Progress</span>
+                                        <span className="text-indigo-600 dark:text-indigo-400">{activeSprint.completion}%</span>
+                                    </div>
+                                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                                        <div 
+                                            className="bg-indigo-600 h-full rounded-full transition-all duration-500"
+                                            style={{ width: `${activeSprint.completion}%` }}
+                                        />
+                                    </div>
+                                    <div className="flex items-center justify-between text-[11px] text-slate-400 mt-2">
+                                        <span>{activeSprint.done_tasks} / {activeSprint.total_tasks} Tasks Done</span>
+                                        {activeSprint.end_date && <span>Ends {activeSprint.end_date}</span>}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-400">
+                                    Sprint planning in progress
+                                </div>
+                            )}
+                        </div>
+
+                        {/* 2. Today's Focus Card */}
+                        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+                            <div>
+                                <div className="flex items-center justify-between gap-2 mb-2">
+                                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                                        <Flame className="w-3.5 h-3.5 text-rose-500" />
+                                        Today's Focus
+                                    </span>
+                                    {focusTasks.length > 0 && (
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40">
+                                            High Priority
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-2xl font-black text-slate-900 dark:text-slate-100">
+                                        {focusTasks.length}
+                                    </span>
+                                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                                        tasks needing immediate work
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                <button
+                                    type="button"
+                                    onClick={() => setViewMode('focus')}
+                                    className="w-full flex items-center justify-between text-xs font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-700 transition-colors"
+                                >
+                                    <span>View Focus Tasks</span>
+                                    <ArrowRight className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* 3. Story Points Velocity Card */}
+                        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+                            <div>
+                                <div className="flex items-center justify-between gap-2 mb-2">
+                                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                                        <Layers className="w-3.5 h-3.5 text-emerald-500" />
+                                        Story Points
+                                    </span>
+                                </div>
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-2xl font-black text-slate-900 dark:text-slate-100">
+                                        {pointsStats.completed}
+                                    </span>
+                                    <span className="text-xs text-slate-400">
+                                        / {pointsStats.total} SP Delivered
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden mb-2">
+                                    <div 
+                                        className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                                        style={{ width: `${pointsStats.total > 0 ? Math.min(100, Math.round((pointsStats.completed / pointsStats.total) * 100)) : 0}%` }}
+                                    />
+                                </div>
+                                <span className="text-[11px] text-slate-400">
+                                    {pointsStats.total > 0 ? `${Math.round((pointsStats.completed / pointsStats.total) * 100)}% points burn complete` : 'No estimated points'}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* 4. Estimates Queue Card */}
+                        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+                            <div>
+                                <div className="flex items-center justify-between gap-2 mb-2">
+                                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                                        Estimation Queue
+                                    </span>
+                                    {pendingEstimatesCount > 0 && (
+                                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                                    )}
+                                </div>
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-2xl font-black text-slate-900 dark:text-slate-100">
+                                        {pendingEstimatesCount}
+                                    </span>
+                                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                                        tasks awaiting Fibonacci vote
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                {pendingEstimatesCount > 0 ? (
+                                    <Link
+                                        href={`/studio/${activeWorkspace}/estimates/pending`}
+                                        className="w-full flex items-center justify-between text-xs font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 transition-colors"
+                                    >
+                                        <span>Submit Votes Now</span>
+                                        <ArrowRight className="w-3.5 h-3.5" />
+                                    </Link>
                                 ) : (
-                                    <span className="relative z-10 text-[10px] font-mono font-semibold text-emerald-500 flex items-center gap-1.5">
-                                        <CheckCircle2 className="w-3.5 h-3.5" />
-                                        No active blockers
+                                    <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                        <Check className="w-3.5 h-3.5" />
+                                        <span>All caught up!</span>
                                     </span>
                                 )}
                             </div>
                         </div>
-
-                        {/* Card 4: DONE THIS WEEK */}
-                        <div className="p-5 rounded-2xl bg-surface-elevated border border-surface-border shadow-2xs flex flex-col justify-between space-y-4">
-                            <div>
-                                <span className="font-mono text-[10px] font-bold tracking-widest text-text-muted uppercase block">
-                                    Done This Week
-                                </span>
-                                <span className="font-heading text-4xl sm:text-5xl font-extrabold text-text-primary tracking-tight mt-1.5 block font-mono">
-                                    {doneFormatted}
-                                </span>
-                            </div>
-                            {/* Bottom Striped / Hatched Velocity Box */}
-                            <div className="h-9 w-full rounded-xl bg-hatched-pattern border border-surface-border/70 relative overflow-hidden flex items-center px-3">
-                                <div
-                                    className="absolute inset-y-0 left-0 bg-emerald-500/15 border-r border-emerald-500/30 transition-all duration-500"
-                                    style={{ width: `${Math.min(100, doneThisWeekCount * 20)}%` }}
-                                />
-                                <span className="relative z-10 text-[10px] font-mono font-semibold text-emerald-500">
-                                    {doneThisWeekCount} tasks completed
-                                </span>
-                            </div>
-                        </div>
-
                     </div>
 
-                    {/* ── MAIN STAGE: Focus Zone ── */}
-                    <div className="p-6 rounded-2xl bg-surface-elevated border border-surface-border shadow-2xs space-y-6">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div>
-                                <h2 className="font-heading text-lg font-bold text-text-primary tracking-tight">
-                                    Focus Zone
-                                </h2>
-                                <p className="text-xs text-text-muted mt-0.5">
-                                    Immediate execution target and upcoming personal queue
-                                </p>
-                            </div>
+                    {/* ── Toolbar: Search, Filters & View Toggle ── */}
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 flex-wrap">
+                        
+                        {/* View Switcher Tabs */}
+                        <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                            <button
+                                type="button"
+                                onClick={() => setViewMode('board')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                    viewMode === 'board'
+                                        ? 'bg-white dark:bg-slate-900 text-brand dark:text-brand-light shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                                }`}
+                            >
+                                <Kanban className="w-3.5 h-3.5" />
+                                <span>Sprint Board</span>
+                            </button>
 
-                            {/* Segmented Control: [ Today | This week ] */}
-                            <div className="flex items-center rounded-xl border border-surface-border bg-surface p-1 self-start sm:self-auto">
-                                <button
-                                    type="button"
-                                    onClick={() => setFocusScale('today')}
-                                    className={`px-3.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                                        focusScale === 'today'
-                                            ? 'bg-brand text-white shadow-2xs'
-                                            : 'text-text-muted hover:text-text-primary'
-                                    }`}
-                                >
-                                    Today
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setFocusScale('week')}
-                                    className={`px-3.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                                        focusScale === 'week'
-                                            ? 'bg-brand text-white shadow-2xs'
-                                            : 'text-text-muted hover:text-text-primary'
-                                    }`}
-                                >
-                                    This week
-                                </button>
-                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setViewMode('focus')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                    viewMode === 'focus'
+                                        ? 'bg-white dark:bg-slate-900 text-brand dark:text-brand-light shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                                }`}
+                            >
+                                <Flame className="w-3.5 h-3.5" />
+                                <span>Today's Focus ({focusTasks.length})</span>
+                            </button>
                         </div>
 
-                        {/* Split Stage: Left NOW Task vs Right NEXT UP Queue */}
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        {/* Search & Select Filters */}
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                            {/* Search */}
+                            <div className="relative flex items-center">
+                                <Search className="w-3.5 h-3.5 absolute left-3 text-slate-400 pointer-events-none" />
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search tasks..."
+                                    className="pl-8.5 pr-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-brand w-48 sm:w-56"
+                                />
+                            </div>
 
-                            {/* Left Pane: Active Focus Task */}
-                            <div className="lg:col-span-7 rounded-2xl bg-hatched-pattern border border-surface-border/80 p-6 flex flex-col justify-between min-h-[190px]">
-                                <div>
-                                    <div className="flex items-center gap-2 mb-2.5">
-                                        <span className="w-2 h-2 rounded-full bg-brand animate-pulse" />
-                                        <span className="font-mono text-[10px] font-bold tracking-widest text-text-muted uppercase">
-                                            Active Focus Target
-                                        </span>
+                            {/* Project Filter */}
+                            {projectsList.length > 0 && (
+                                <select
+                                    value={selectedProject}
+                                    onChange={(e) => setSelectedProject(e.target.value)}
+                                    className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:border-brand cursor-pointer"
+                                >
+                                    <option value="all">All Projects</option>
+                                    {projectsList.map(p => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                    ))}
+                                </select>
+                            )}
+
+                            {/* Priority Filter */}
+                            <select
+                                value={selectedPriority}
+                                onChange={(e) => setSelectedPriority(e.target.value)}
+                                className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:border-brand cursor-pointer"
+                            >
+                                <option value="all">All Priorities</option>
+                                <option value="critical">Critical</option>
+                                <option value="high">High</option>
+                                <option value="medium">Medium</option>
+                                <option value="low">Low</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* ── View Content Area ── */}
+                    {viewMode === 'board' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-start flex-1 min-h-0">
+                            
+                            {/* Column 1: Ready to Start */}
+                            <div className="flex flex-col bg-slate-100/70 dark:bg-slate-900/50 rounded-2xl p-3 border border-slate-200/60 dark:border-slate-800/80">
+                                <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200/80 dark:border-slate-800">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-slate-400" />
+                                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                                            Ready to Start
+                                        </h4>
                                     </div>
-                                    <h3
-                                        onClick={() => currentTask && handleOpenInspector(currentTask)}
-                                        className="font-heading text-xl sm:text-2xl font-bold text-text-primary leading-snug cursor-pointer hover:text-brand transition-colors line-clamp-2"
-                                    >
-                                        {currentTask ? currentTask.title : 'All pending tasks completed! Pick up new work.'}
-                                    </h3>
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 shadow-2xs">
+                                        {columns.ready.length}
+                                    </span>
                                 </div>
 
-                                <div className="pt-6 flex items-center justify-between gap-4 flex-wrap">
-                                    {/* Tactile Timer Button */}
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsTimerRunning(prev => !prev)}
-                                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold border transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] shadow-2xs cursor-pointer ${
-                                            isTimerRunning
-                                                ? 'bg-amber-500/15 border-amber-500/40 text-amber-500 dark:text-amber-400'
-                                                : 'bg-surface border-surface-border text-text-primary hover:border-brand'
-                                        }`}
-                                    >
-                                        {isTimerRunning ? (
-                                            <>
-                                                <Pause className="w-3.5 h-3.5" />
-                                                <span>{formatTimer(timerSeconds)} • Pause</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Play className="w-3.5 h-3.5 text-brand" />
-                                                <span>{timerSeconds > 0 ? `${formatTimer(timerSeconds)} • Resume` : 'Start timer'}</span>
-                                            </>
-                                        )}
-                                    </button>
-
-                                    {currentTask && (
-                                        <button
-                                            type="button"
-                                            onClick={() => handleOpenInspector(currentTask)}
-                                            className="text-xs font-semibold text-text-muted hover:text-brand transition-colors cursor-pointer"
-                                        >
-                                            Inspect details →
-                                        </button>
+                                <div className="space-y-2.5 overflow-y-auto max-h-[calc(100vh-380px)] pr-1">
+                                    {columns.ready.length === 0 ? (
+                                        <div className="p-4 rounded-xl border border-dashed border-slate-300 dark:border-slate-800 text-center text-xs text-slate-400">
+                                            No ready tasks
+                                        </div>
+                                    ) : (
+                                        columns.ready.map(task => (
+                                            <MemberTaskCard
+                                                key={task.id}
+                                                task={task}
+                                                currentUserId={user?.id}
+                                                onClick={handleTaskCardClick}
+                                                onStatusChange={handleStatusChange}
+                                            />
+                                        ))
                                     )}
                                 </div>
                             </div>
 
-                            {/* Right Pane: Next Up Queue */}
-                            <div className="lg:col-span-5 flex flex-col justify-between space-y-3">
-                                <div>
-                                    <span className="font-mono text-[10px] font-bold tracking-widest text-text-muted uppercase block mb-2.5">
-                                        Next In Queue
-                                    </span>
-
-                                    <div className="space-y-2.5">
-                                        {nextUpTasks.length === 0 ? (
-                                            <p className="text-xs text-text-muted italic py-4">
-                                                No upcoming queued tasks.
-                                            </p>
-                                        ) : (
-                                            nextUpTasks.map((task) => (
-                                                <div
-                                                    key={task.id}
-                                                    onClick={() => handleOpenInspector(task)}
-                                                    className="p-3 rounded-xl bg-surface border border-surface-border/70 hover:border-brand/40 transition-colors flex items-center justify-between gap-3 cursor-pointer group"
-                                                >
-                                                    <div className="flex items-center gap-2.5 min-w-0">
-                                                        <div className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-600 group-hover:border-brand shrink-0" />
-                                                        <span className="text-xs font-medium text-text-primary group-hover:text-brand transition-colors truncate">
-                                                            {task.title}
-                                                        </span>
-                                                    </div>
-                                                    <span className="px-2 py-0.5 rounded-full border border-surface-border bg-surface-elevated text-[10px] font-semibold text-text-muted shrink-0">
-                                                        {task.hard_constraint_date ? 'Due' : 'Queued'}
-                                                    </span>
-                                                </div>
-                                            ))
-                                        )}
+                            {/* Column 2: In Progress */}
+                            <div className="flex flex-col bg-amber-50/40 dark:bg-slate-900/50 rounded-2xl p-3 border border-amber-200/50 dark:border-slate-800/80">
+                                <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-amber-200/60 dark:border-slate-800">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                                        <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900 dark:text-amber-400">
+                                             In Progress
+                                        </h4>
                                     </div>
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-300 shadow-2xs">
+                                        {columns.in_progress.length}
+                                    </span>
+                                </div>
+
+                                <div className="space-y-2.5 overflow-y-auto max-h-[calc(100vh-380px)] pr-1">
+                                    {columns.in_progress.length === 0 ? (
+                                        <div className="p-4 rounded-xl border border-dashed border-amber-200 dark:border-slate-800 text-center text-xs text-slate-400">
+                                            No tasks currently in progress
+                                        </div>
+                                    ) : (
+                                        columns.in_progress.map(task => (
+                                            <MemberTaskCard
+                                                key={task.id}
+                                                task={task}
+                                                currentUserId={user?.id}
+                                                onClick={handleTaskCardClick}
+                                                onStatusChange={handleStatusChange}
+                                            />
+                                        ))
+                                    )}
                                 </div>
                             </div>
 
-                        </div>
-                    </div>
+                            {/* Column 3: In Review */}
+                            <div className="flex flex-col bg-blue-50/40 dark:bg-slate-900/50 rounded-2xl p-3 border border-blue-200/50 dark:border-slate-800/80">
+                                <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-blue-200/60 dark:border-slate-800">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-blue-500" />
+                                        <h4 className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-400">
+                                            Review
+                                        </h4>
+                                    </div>
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-300 shadow-2xs">
+                                        {columns.review.length}
+                                    </span>
+                                </div>
 
-                    {/* ── MY ACTION LEDGER ── */}
-                    <div className="p-6 rounded-2xl bg-surface-elevated border border-surface-border shadow-2xs space-y-4">
-                        <div className="flex items-center justify-between">
+                                <div className="space-y-2.5 overflow-y-auto max-h-[calc(100vh-380px)] pr-1">
+                                    {columns.review.length === 0 ? (
+                                        <div className="p-4 rounded-xl border border-dashed border-blue-200 dark:border-slate-800 text-center text-xs text-slate-400">
+                                            No tasks waiting for review
+                                        </div>
+                                    ) : (
+                                        columns.review.map(task => (
+                                            <MemberTaskCard
+                                                key={task.id}
+                                                task={task}
+                                                currentUserId={user?.id}
+                                                onClick={handleTaskCardClick}
+                                                onStatusChange={handleStatusChange}
+                                            />
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Column 4: Done */}
+                            <div className="flex flex-col bg-emerald-50/40 dark:bg-slate-900/50 rounded-2xl p-3 border border-emerald-200/50 dark:border-slate-800/80">
+                                <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-emerald-200/60 dark:border-slate-800">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                                        <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-400">
+                                            Done
+                                        </h4>
+                                    </div>
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 shadow-2xs">
+                                        {columns.done.length}
+                                    </span>
+                                </div>
+
+                                <div className="space-y-2.5 overflow-y-auto max-h-[calc(100vh-380px)] pr-1">
+                                    {columns.done.length === 0 ? (
+                                        <div className="p-4 rounded-xl border border-dashed border-emerald-200 dark:border-slate-800 text-center text-xs text-slate-400">
+                                            Completed tasks appear here
+                                        </div>
+                                    ) : (
+                                        columns.done.map(task => (
+                                            <MemberTaskCard
+                                                key={task.id}
+                                                task={task}
+                                                currentUserId={user?.id}
+                                                onClick={handleTaskCardClick}
+                                                onStatusChange={handleStatusChange}
+                                            />
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Column 5: Blocked / Stuck */}
+                            <div className="flex flex-col bg-rose-50/40 dark:bg-slate-900/50 rounded-2xl p-3 border border-rose-200/50 dark:border-slate-800/80">
+                                <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-rose-200/60 dark:border-slate-800">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-rose-500" />
+                                        <h4 className="text-xs font-bold uppercase tracking-wider text-rose-900 dark:text-rose-400">
+                                            Blocked / Stuck
+                                        </h4>
+                                    </div>
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white dark:bg-slate-800 text-rose-700 dark:text-rose-300 shadow-2xs">
+                                        {columns.stuck.length}
+                                    </span>
+                                </div>
+
+                                <div className="space-y-2.5 overflow-y-auto max-h-[calc(100vh-380px)] pr-1">
+                                    {columns.stuck.length === 0 ? (
+                                        <div className="p-4 rounded-xl border border-dashed border-rose-200 dark:border-slate-800 text-center text-xs text-slate-400">
+                                            No blocked items
+                                        </div>
+                                    ) : (
+                                        columns.stuck.map(task => (
+                                            <MemberTaskCard
+                                                key={task.id}
+                                                task={task}
+                                                currentUserId={user?.id}
+                                                onClick={handleTaskCardClick}
+                                                onStatusChange={handleStatusChange}
+                                            />
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Focus View */}
+                    {viewMode === 'focus' && (
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
                             <div>
-                                <h3 className="font-heading text-lg font-bold text-text-primary tracking-tight">
-                                    My Action Ledger
+                                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                                    <Flame className="w-4 h-4 text-rose-500" />
+                                    <span>High Priority & Critical Focus Tasks</span>
                                 </h3>
-                                <p className="text-xs text-text-muted mt-0.5">
-                                    Personal deliverables, assigned projects, and deadline tracking
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                    Items sorted by urgency and priority. Tackle these first to prevent blocking sprint milestones.
                                 </p>
                             </div>
-                            <span className="text-xs font-mono text-text-muted font-semibold">
-                                {ledgerTasks.length} tasks assigned
-                            </span>
-                        </div>
 
-                        {/* Task Ledger Rows */}
-                        <div className="divide-y divide-surface-border/60 border border-surface-border/70 rounded-xl overflow-hidden bg-surface/40">
-                            {ledgerTasks.length === 0 ? (
-                                <div className="p-8 text-center text-text-muted italic text-xs">
-                                    No active tasks in your personal ledger.
+                            {focusTasks.length === 0 ? (
+                                <div className="p-10 rounded-xl border border-dashed border-slate-300 dark:border-slate-800 text-center text-slate-400">
+                                    <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
+                                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No high-priority blockers pending!</p>
+                                    <p className="text-xs text-slate-500 mt-0.5">You are in good standing with all critical tasks.</p>
                                 </div>
                             ) : (
-                                ledgerTasks.map((task) => (
-                                    <div
-                                        key={task.id}
-                                        className="p-3.5 flex items-center justify-between gap-3 hover:bg-surface/80 transition-colors"
-                                    >
-                                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                                            {/* Checkbox square indicator */}
-                                            <button
-                                                type="button"
-                                                onClick={() => handleOpenInspector(task)}
-                                                className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-600 hover:border-brand flex items-center justify-center shrink-0 transition-colors cursor-pointer"
-                                            >
-                                                {(task.status === 'completed' || task.sprint_status === 'done') && (
-                                                    <Check className="w-3 h-3 text-brand" />
-                                                )}
-                                            </button>
-
-                                            {/* Task Title */}
-                                            <span
-                                                onClick={() => handleOpenInspector(task)}
-                                                className="font-medium text-xs sm:text-sm text-text-primary hover:text-brand transition-colors truncate cursor-pointer"
-                                            >
-                                                {task.title}
-                                            </span>
-                                        </div>
-
-                                        {/* Right Badges & Action Button */}
-                                        <div className="flex items-center gap-2.5 shrink-0">
-                                            {/* Project Pill */}
-                                            <span className="px-2.5 py-0.5 rounded-full border border-surface-border bg-surface text-[11px] font-semibold text-text-muted">
-                                                {task.project_name || 'Project'}
-                                            </span>
-
-                                            {/* Due Pill */}
-                                            <span className="px-2.5 py-0.5 rounded-full border border-surface-border bg-surface text-[11px] font-semibold text-text-muted">
-                                                {task.hard_constraint_date || (task.days_until_deadline ? `Due in ${task.days_until_deadline}d` : 'Due')}
-                                            </span>
-
-                                            {/* Action Button */}
-                                            <button
-                                                type="button"
-                                                onClick={() => handleOpenInspector(task)}
-                                                className="px-3 py-1 rounded-xl border border-surface-border bg-surface hover:bg-surface-elevated text-xs font-bold text-text-primary transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] shadow-2xs cursor-pointer"
-                                            >
-                                                Action
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {focusTasks.map(task => (
+                                        <MemberTaskCard
+                                            key={task.id}
+                                            task={task}
+                                            currentUserId={user?.id}
+                                            onClick={handleTaskCardClick}
+                                            onStatusChange={handleStatusChange}
+                                        />
+                                    ))}
+                                </div>
                             )}
                         </div>
-                    </div>
+                    )}
+
 
                 </div>
             </div>
 
-            {/* ── Slide-Over Flyout Inspector ── */}
-            <TaskFlyoutInspector
-                isOpen={isInspectorOpen}
-                task={selectedTask}
-                onClose={() => {
-                    setIsInspectorOpen(false);
-                    setSelectedTask(null);
-                }}
-                onUpdateStatus={handleUpdateTaskStatus}
-                canManage={false}
-                currentUserId={user?.id}
+            {/* ── Detail & Update Modal ── */}
+            {selectedTask && (
+                <MemberTaskDetailModal
+                    isOpen={detailModalOpen}
+                    onClose={() => setDetailModalOpen(false)}
+                    task={selectedTask}
+                    tenantId={activeWorkspace}
+                    currentUserId={user?.id}
+                    onTaskUpdated={handleTaskUpdatedFromModal}
+                />
+            )}
+
+            {/* ── Quick Progression Confirm Modal ── */}
+            <ConfirmDialog
+                isOpen={Boolean(confirmDialog)}
+                title={confirmDialog?.title}
+                message={confirmDialog?.message}
+                confirmLabel={confirmDialog?.confirmLabel}
+                confirmColor={confirmDialog?.confirmColor}
+                onConfirm={() => executeStatusChange(confirmDialog.task, confirmDialog.newSprintStatus)}
+                onCancel={() => setConfirmDialog(null)}
             />
         </TenantLayout>
     );

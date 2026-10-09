@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Head, usePage } from '@inertiajs/react';
+import { Head, usePage, router } from '@inertiajs/react';
 import ProjectLayout from '@/Layouts/ProjectLayout';
-import { BarChart3, CalendarDays, Clock, Columns3, Cpu, Plus, Search, TableProperties, AlertTriangle, Flame, CheckCircle2, Edit2, Flag, IterationCcw, IterationCw, ListTodo, Layers, Sparkles, ChevronDown, ChevronUp, Zap, X as LucideX } from 'lucide-react';
+import { BarChart3, CalendarDays, Clock, Columns3, Cpu, Plus, Search, TableProperties, AlertTriangle, Flame, CheckCircle2, Edit2, Flag, IterationCcw, IterationCw, ListTodo, Layers, Sparkles, ChevronDown, ChevronUp, Zap, X as LucideX, Circle, CircleDot, AlertCircle, ArrowUp, Minus, ChevronsUp, MoreVertical } from 'lucide-react';
 import axios from 'axios';
 import BestFitModal from '@/Components/ML/BestFitModal';
 import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
@@ -27,7 +27,6 @@ const SPRINT_STATUSES = [
     { value: 'ready_to_start', label: 'Ready to start', color: '#3b82f6' },
     { value: 'in_progress', label: 'In progress', color: '#f97316' },
     { value: 'waiting_for_review', label: 'Waiting for review', color: '#d97706' },
-    { value: 'pending_deploy', label: 'Pending deploy', color: '#eab308' },
     { value: 'done', label: 'Done', color: '#10b981' },
     { value: 'stuck', label: 'Stuck', color: '#ef4444' },
 ];
@@ -496,99 +495,105 @@ function DependencyPills({ predecessors }) {
     );
 }
 
+const StatusChip = ({ status }) => {
+    switch(status) {
+        case 'ready_to_start': return <><Circle className="w-3.5 h-3.5 text-slate-400" /> Ready</>;
+        case 'in_progress': return <><CircleDot className="w-3.5 h-3.5 text-blue-500" /> In Progress</>;
+        case 'waiting_for_review': return <><CircleDot className="w-3.5 h-3.5 text-amber-500" /> In Review</>;
+        case 'done': return <><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Done</>;
+        case 'stuck': return <><AlertCircle className="w-3.5 h-3.5 text-rose-500" /> Stuck</>;
+        default: return <><Circle className="w-3.5 h-3.5 text-slate-400" /> {status}</>;
+    }
+};
+
+const PriorityChip = ({ priority }) => {
+    switch(priority) {
+        case 'critical': return <><ChevronsUp className="w-3.5 h-3.5 text-rose-500" /> Critical</>;
+        case 'high': return <><ChevronUp className="w-3.5 h-3.5 text-amber-500" /> High</>;
+        case 'medium': return <><Minus className="w-3.5 h-3.5 text-slate-400" /> Medium</>;
+        case 'low': return <><ChevronDown className="w-3.5 h-3.5 text-slate-400" /> Low</>;
+        default: return <><Minus className="w-3.5 h-3.5 text-slate-400" /> {priority}</>;
+    }
+};
+
 function MyTasksList({ groups, onFindFit, onEditStatus, projectStartDate }) {
     const { canManage, auth } = usePage().props;
+    
+    // Auto-collapse empty groups
+    const activeGroups = groups.filter(group => group.tasks.length > 0);
+
+    if (activeGroups.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center py-32 px-6">
+                <CheckCircle2 className="w-16 h-16 text-slate-300 dark:text-slate-700 mb-4" />
+                <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400">
+                    Inbox Zero. You're all caught up.
+                </h3>
+            </div>
+        );
+    }
+
     return (
-        <div className="space-y-6 overflow-auto p-6">
-            {groups.map(group => (
-                <section key={group.id} className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-                    <div className={`flex items-center gap-2 border-b border-gray-100 px-4 py-3 dark:border-slate-800 ${group.headerBgClass || 'bg-gray-50 dark:bg-slate-900/50'}`}>
-                        <span className={`h-2 w-2 rounded-full ${group.dotClass || 'bg-slate-400'}`} />
-                        <h2 className="text-xs font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-300">{group.title}</h2>
-                        <span className="rounded-full bg-white/50 px-2 py-0.5 text-[10px] font-bold text-gray-600 dark:bg-slate-800">{group.tasks.length}</span>
+        <div className="space-y-8 overflow-auto p-6">
+            {activeGroups.map(group => (
+                <section key={group.id} className="overflow-hidden">
+                    <div className="flex items-center gap-2 px-4 py-2 mb-2">
+                        <span className={`h-[18px] w-[3px] rounded-full ${group.dotClass || 'bg-slate-400'}`} />
+                        <h2 className="text-sm font-extrabold text-slate-800 dark:text-slate-100">{group.title}</h2>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">{group.tasks.length}</span>
                     </div>
 
-                    <div className="min-w-[1100px]">
-                        <div className="grid grid-cols-[2fr_1.5fr_1.2fr_1.2fr_1fr_1.2fr_.8fr] gap-4 border-b border-gray-100 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:border-slate-800">
+                    <div className="min-w-[900px] border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+                        <div className="grid grid-cols-[minmax(350px,2fr)_120px_130px_220px_60px] gap-4 border-b border-slate-100 px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50">
                             <span>Task</span>
-                            <span>Depends On</span>
-                            <span>Assignee</span>
-                            <span>Target Finish</span>
                             <span>Priority</span>
-                            <span>Status</span>
-                            <span className="text-right">Actions</span>
+                            <span>Due</span>
+                            <span>Depends On</span>
+                            <span className="text-right"></span>
                         </div>
 
-                        {group.tasks.map(task => {
-                            const isClickable = canManage || isUserAssignedToTask(task, auth?.user);
-                            const finishDateStr = projectStartDate && task.ef !== null ? deriveCalendarDate(projectStartDate, task.ef) : (task.ef !== null ? `Hour ${task.ef}` : '—');
-                            const sPriority = SPRINT_PRIORITIES.find(p => p.value === (task.sprint_priority || 'medium')) || SPRINT_PRIORITIES[2];
-                            const sStatus = SPRINT_STATUSES.find(s => s.value === (task.sprint_status || 'ready_to_start')) || SPRINT_STATUSES[0];
-                            return (
-                                <div
-                                    key={task.id}
-                                    onClick={() => isClickable && onEditStatus(task)}
-                                    className={`group grid grid-cols-[2fr_1.5fr_1.2fr_1.2fr_1fr_1.2fr_.8fr] items-center gap-4 border-b border-gray-100 px-4 py-3 last:border-0 hover:bg-gray-50/60 dark:border-slate-800 dark:hover:bg-slate-800/40 transition-colors ${isClickable ? 'cursor-pointer' : 'cursor-default'}`}
-                                >
-                                    <div className="min-w-0">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="font-mono text-[10px] text-gray-400">#{task.id}</span>
-                                            <span className="text-sm font-semibold text-gray-900 dark:text-slate-100 truncate group-hover:text-brand">{task.title}</span>
+                        <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                            {group.tasks.map(task => {
+                                const isClickable = canManage || isUserAssignedToTask(task, auth?.user);
+                                const finishDateStr = projectStartDate && task.ef !== null ? deriveCalendarDate(projectStartDate, task.ef) : (task.ef !== null ? `Hour ${task.ef}` : '—');
+                                const sPriority = SPRINT_PRIORITIES.find(p => p.value === (task.sprint_priority || 'medium')) || SPRINT_PRIORITIES[2];
+                                
+                                return (
+                                    <div
+                                        key={task.id}
+                                        onClick={() => isClickable && onEditStatus(task)}
+                                        className={`group grid grid-cols-[minmax(350px,2fr)_120px_130px_220px_60px] items-center gap-4 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${isClickable ? 'cursor-pointer' : 'cursor-default'}`}
+                                    >
+                                        <div className="min-w-0 pr-4">
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-mono text-xs text-slate-400 shrink-0">#{task.id}</span>
+                                                <span className="text-sm font-semibold text-slate-900 dark:text-slate-200 truncate">{task.title}</span>
+                                            </div>
                                         </div>
-                                        <span className="block text-[11px] text-gray-500 dark:text-slate-400 truncate">{task.description || '—'}</span>
-                                    </div>
 
-                                    <div onClick={(e) => e.stopPropagation()}>
-                                        <DependencyPills predecessors={task.predecessors} />
-                                    </div>
+                                        <div className="flex items-center gap-1.5 w-full text-xs font-medium text-slate-600 dark:text-slate-400 cursor-default">
+                                            <PriorityChip priority={sPriority.value} />
+                                        </div>
 
-                                    <div>
-                                        <TaskAssignee task={task} onFindFit={onFindFit} />
-                                    </div>
+                                        <div className="text-xs text-slate-700 dark:text-slate-300">
+                                            <span className="block font-medium">{finishDateStr}</span>
+                                        </div>
 
-                                    <div className="text-xs text-gray-700 dark:text-slate-300">
-                                        <span className="block font-medium">{finishDateStr}</span>
-                                        {task.hard_constraint_date && (
-                                            <span className="block text-[10px] text-purple-600 dark:text-purple-400 font-mono">Fixed: {task.hard_constraint_date}</span>
-                                        )}
-                                    </div>
+                                        <div onClick={(e) => e.stopPropagation()}>
+                                            <DependencyPills predecessors={task.predecessors} />
+                                        </div>
 
-                                    <div>
-                                        <button
-                                            className="w-full truncate rounded px-2 py-1.5 text-[10px] font-bold text-center cursor-default uppercase tracking-wider"
-                                            style={{ backgroundColor: sPriority.color, color: getContrastColor(sPriority.color) }}
-                                        >
-                                            {sPriority.label}
-                                        </button>
+                                        <div className="flex justify-end pr-2">
+                                            {isClickable && (
+                                                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center w-8 h-8 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700">
+                                                    <MoreVertical className="w-4 h-4" />
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-
-                                    <div>
-                                        <button
-                                            className="w-full truncate rounded px-2 py-1.5 text-[10px] font-bold text-center cursor-default uppercase tracking-wider"
-                                            style={{ backgroundColor: sStatus.color, color: getContrastColor(sStatus.color) }}
-                                        >
-                                            {sStatus.label}
-                                        </button>
-                                    </div>
-
-                                    <div className="text-right">
-                                        {isClickable && (
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); onEditStatus(task); }}
-                                                className="p-1.5 rounded-lg text-gray-400 hover:text-brand hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
-                                                title="Edit Task Status"
-                                            >
-                                                <Edit2 className="w-3.5 h-3.5" />
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
-
-                        {!group.tasks.length && (
-                            <div className="px-4 py-7 text-center text-xs text-gray-400">No tasks in this status.</div>
-                        )}
+                                );
+                            })}
+                        </div>
                     </div>
                 </section>
             ))}
@@ -803,7 +808,7 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                 if (status.id === 'todo') return sprintStatus === 'ready_to_start';
                 if (status.id === 'completed') return sprintStatus === 'done';
                 if (status.id === 'review') return sprintStatus === 'waiting_for_review';
-                if (status.id === 'in_progress') return ['in_progress', 'pending_deploy'].includes(sprintStatus);
+                if (status.id === 'in_progress') return sprintStatus === 'in_progress';
                 if (status.id === 'stuck') return sprintStatus === 'stuck';
                 return false;
             }))
@@ -870,6 +875,7 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
             task.id === taskId ? { ...task, ...updates } : task
         ));
         window.dispatchEvent(new CustomEvent('task-updated', { detail: { taskId, updates } }));
+        router.reload({ only: ['project', 'sprints', 'backlogTasks'] });
     };
 
     const handleDropTask = async (targetStatus) => {

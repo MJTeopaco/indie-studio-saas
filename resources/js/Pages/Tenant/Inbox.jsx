@@ -998,6 +998,18 @@ export default function Inbox({
         return null;
     });
 
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const url = new URL(window.location.href);
+            if (url.searchParams.has('channel') || url.searchParams.has('dm') || url.searchParams.has('message')) {
+                url.searchParams.delete('channel');
+                url.searchParams.delete('dm');
+                url.searchParams.delete('message');
+                window.history.replaceState({}, '', url);
+            }
+        }
+    }, []);
+
     const markChannelRead = useCallback(async (channelId) => {
         if (!workspaceSlug || !channelId) return;
 

@@ -536,8 +536,15 @@ class TenantReportController extends Controller
 
         foreach ($tasks as $task) {
             $isCompleted = ($task->status === 'completed' || $task->sprint_status === 'done');
-            $spOriginal = (int) ($task->story_points ?? 0);
-            $spFinal = (int) ($task->actual_story_points ?? $spOriginal);
+            $spFinal = (int) ($task->story_points ?? 0);
+            $genesisLog = DB::table('activity_logs')
+                ->where('subject_type', Task::class)
+                ->where('subject_id', $task->id)
+                ->where('field', 'story_points')
+                ->where('created_at', '<=', $task->sprint?->start_date ?? now())
+                ->latest('created_at')
+                ->first();
+            $spOriginal = $genesisLog ? (int) $genesisLog->new_value : $spFinal;
             $spDiff = $spFinal - $spOriginal;
 
             $plannedSp += $spOriginal;
@@ -722,7 +729,7 @@ class TenantReportController extends Controller
                 $spTotal = $spTasks->count();
                 $spDone = $spTasks->where('status', 'completed')->count();
                 $spPlannedSp = $spTasks->sum('story_points');
-                $spCompletedSp = $spTasks->where('status', 'completed')->sum(fn ($t) => $t->actual_story_points ?? $t->story_points);
+                $spCompletedSp = $spTasks->where('status', 'completed')->sum('story_points');
 
                 $sprintsBreakdown[] = [
                     'id' => $sp->id,
