@@ -769,7 +769,6 @@ class TenantProjectController extends Controller
                     'ready_to_start' => 'todo',
                     'in_progress' => 'in_progress',
                     'waiting_for_review' => 'review',
-                    'pending_deploy' => 'review',
                     'done' => 'completed',
                     'stuck' => 'stuck',
                 ];
@@ -800,9 +799,6 @@ class TenantProjectController extends Controller
                 abort(403, 'This task requires reviewer approval. Move it to "In Review" first.');
             }
 
-            if (in_array($currentStatus, ['in_progress', 'review', 'completed']) && $newStatus === 'todo') {
-                abort(422, 'You cannot move a task back to "To Do" once started.');
-            }
         } else {
             $validated = $request->validate([
                 'title' => 'sometimes|required|string|max:255',
@@ -1121,7 +1117,7 @@ class TenantProjectController extends Controller
         }
 
         $rules = [
-            'sprint_status' => 'nullable|string|in:ready_to_start,in_progress,waiting_for_review,pending_deploy,done,stuck',
+            'sprint_status' => 'nullable|string|in:ready_to_start,in_progress,waiting_for_review,done,stuck',
             'sprint_priority' => 'nullable|string|in:critical,high,medium,low',
             'task_classification' => 'nullable|string|max:100',
             'github_link' => 'nullable|url|max:500',
@@ -1154,12 +1150,6 @@ class TenantProjectController extends Controller
                 ], 403);
             }
 
-            // Cannot go back to ready_to_start once in progress or beyond
-            if (in_array($currentSprintStatus, ['in_progress', 'waiting_for_review', 'pending_deploy', 'done']) && $newSprintStatus === 'ready_to_start') {
-                return response()->json([
-                    'message' => 'You cannot move a task back to "Ready to Start" once started.',
-                ], 422);
-            }
         }
 
         if (isset($validated['sprint_status'])) {
@@ -1167,7 +1157,6 @@ class TenantProjectController extends Controller
                 'ready_to_start' => 'todo',
                 'in_progress' => 'in_progress',
                 'waiting_for_review' => 'review',
-                'pending_deploy' => 'review',
                 'done' => 'completed',
                 'stuck' => 'stuck',
             ];
