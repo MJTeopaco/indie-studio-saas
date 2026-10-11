@@ -1,639 +1,865 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Head, router, usePage } from '@inertiajs/react';
-import axios from 'axios';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import TextareaAutosize from 'react-textarea-autosize';
+import React, { useState, useMemo } from 'react';
+import { Head, Link, router } from '@inertiajs/react';
 import TenantLayout from '@/Layouts/TenantLayout';
-import RightSidebar from '@/Components/Tenant/Projects/RightSidebar';
-import HierarchicalDecompositionModal from '@/Components/ML/HierarchicalDecompositionModal';
-import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
+import {
+    Card,
+    CardHeader,
+    CardTitle,
+    CardDescription,
+    CardContent,
+} from '@/Components/ui/card';
+import { Badge } from '@/Components/ui/badge';
+import { Progress } from '@/Components/ui/progress';
+import { Button } from '@/Components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/Components/ui/avatar';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/Components/ui/tabs';
+import { Separator } from '@/Components/ui/separator';
+import DataTable from '@/Components/ui/data-table';
+import PriorityBadge from '@/Components/Tenant/PriorityBadge';
+import CpaStatusBadge from '@/Components/Tenant/CpaStatusBadge';
 import CreateProjectModal from '@/Components/Tenant/Projects/CreateProjectModal';
-import ConfirmationModal from '@/Components/ConfirmationModal';
-import { showToast } from '@/Components/SystemToast';
-import { useChatSessions } from '@/hooks/useChatSessions';
-import { CheckSquare, Cpu, Calendar, Users, Paperclip, Mic, Send, Sparkles, Bot, X, AlertCircle, Shield } from 'lucide-react';
+import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
+import {
+    ResponsiveContainer,
+    AreaChart,
+    Area,
+    BarChart,
+    Bar,
+    PieChart,
+    Pie,
+    Cell,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+} from 'recharts';
+import {
+    TrendingUp,
+    AlertTriangle,
+    Flame,
+    UserX,
+    Clock,
+    Sparkles,
+    Plus,
+    Layers,
+    Activity,
+    CheckCircle2,
+    ArrowRight,
+    Shield,
+    Calendar,
+    Users,
+    FolderKanban,
+    ChevronRight,
+    AlertCircle,
+} from 'lucide-react';
 
-function QuickActionCard({ title, description, icon: Icon, badgeColor, onClick }) {
-    const colorMap = {
-        brand: 'bg-brand-10 dark:bg-brand-20 text-brand dark:text-brand-light border-brand-30',
-        emerald: 'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800/50',
-        sky: 'bg-sky-50 dark:bg-sky-950/80 text-sky-600 dark:text-sky-400 border-sky-100 dark:border-sky-800/50',
-        purple: 'bg-purple-50 dark:bg-purple-950/80 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-800/50',
-    };
+const STATUS_COLORS = {
+    todo: '#94a3b8',
+    in_progress: '#007CFF',
+    review: '#f59e0b',
+    completed: '#10b981',
+};
 
-    return (
-        <button type="button" onClick={onClick} className="group relative flex w-full items-center justify-between gap-3 overflow-hidden rounded-xl border border-gray-200 bg-white/80 px-4 py-3.5 text-left shadow-xs transition-all duration-200 hover:border-brand hover:bg-white/95 hover:shadow-md dark:border-slate-800 dark:bg-slate-800/40 dark:hover:border-brand/60 dark:hover:bg-slate-800/60">
-            <div className="flex min-w-0 flex-1 items-center gap-3">
-                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105 ${colorMap[badgeColor] || colorMap.brand}`}><Icon className="h-4 w-4" /></div>
-                <div className="min-w-0"><span className="font-heading block truncate text-sm font-bold text-gray-900 transition-colors group-hover:text-brand dark:text-slate-100 dark:group-hover:text-brand-light">{title}</span><span className="mt-0.5 block truncate text-[10px] text-gray-500 dark:text-slate-500">{description}</span></div>
-            </div>
-            <span className="shrink-0 text-lg font-bold text-gray-400 transition-colors group-hover:text-brand dark:text-slate-500 dark:group-hover:text-brand-light">+</span>
-        </button>
-    );
-}
+export default function TenantDashboard({
+    studio,
+    metrics = {},
+    charts = {},
+    tables = {},
+    isOwner = false,
+    studioLeadership = [],
+    quickActions = {},
+}) {
+    const studioName = studio?.name || 'Studio';
 
-function deadlineDaysFromPrompt(prompt) {
-    const match = prompt.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(20\d{2})\b/i);
-    if (!match) return null;
-
-    const month = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'].indexOf(match[1].toLowerCase());
-    const deadline = new Date(Number(match[2]), month + 1, 0);
-    return Math.max(0, Math.ceil((deadline.getTime() - Date.now()) / 86_400_000));
-}
-
-function isTaskPlanningRequest(prompt) {
-    return /\b(plan|create|build|implement|develop|design|schedule|break\s+down|decompose|add|make|set\s+up)\b[\s\S]*\b(task|tasks|feature|features|sprint|project|work|workflow|landing\s*page|page|website|web\s*app|application|app|game|platform|system)\b/i.test(prompt);
-}
-
-function isNewProjectRequest(prompt) {
-    return /\b(create|build|make|start|develop|launch|set\s+up)\b[\s\S]*\b(project|website|web\s*app|application|app|game|platform|system|product|landing\s*page)\b/i.test(prompt);
-}
-
-function suggestedProjectName(prompt) {
-    const match = prompt.match(/(?:project|website|app|game)\s+(?:called|named)\s+[“"']?([^“"'.!,\n]+)[”"']?/i)
-        || prompt.match(/(?:create|build|make|start)\s+[“"']([^“"']+)[”"']/i);
-    return match ? match[1].trim() : '';
-}
-
-export default function TenantDashboard({ studio, projects = [], activeTasks = [], skills = [], positions = [], teamMembers = [] }) {
-    const { canManage } = usePage().props;
-    const studioName = studio?.name || 'Pixel Play Studio';
-
-    const [prompt, setPrompt] = useState('');
-    const [selectedProjectId, setSelectedProjectId] = useState('');
-    const [messages, setMessages] = useState([]);
-    const [generation, setGeneration] = useState(null);
-
-    const [isPlanOpen, setIsPlanOpen] = useState(false);
+    // Quick Action modal states
+    const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
-    const [isProjectCreationOpen, setIsProjectCreationOpen] = useState(false);
-    const [pendingProjectPlan, setPendingProjectPlan] = useState(null);
-    const [isTextareaFlashing, setIsTextareaFlashing] = useState(false);
-    const abortRef = useRef(null);
-    const chatEndRef = useRef(null);
-    const promptTextareaRef = useRef(null);
-    const isRestoringRef = useRef(false); // Bug 3 fix: suppresses auto-persist while loading a past session
+    const [selectedProjectId, setSelectedProjectId] = useState(
+        quickActions.projects?.[0]?.id || ''
+    );
 
-    const {
-        sessions,
-        activeSessionId,
-        isLoading: isSessionsLoading,
-        startNewSession,
-        selectSession,
-        persistCurrentSession,
-        deleteSession
-    } = useChatSessions(studio.id);
-
-    useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }, [messages, generation]);
-
-    // Auto-persist on message changes
-    // Bug 3 fix: skip persist entirely when messages were set by selectSession (not by the user)
-    useEffect(() => {
-        if (isRestoringRef.current) return;
-        persistCurrentSession(messages);
-    }, [messages, persistCurrentSession]);
-
-    const handleNewChat = () => startNewSession(messages, !!generation, setMessages);
-    const handleSelectChat = (id) => {
-        // Bug 3 fix: signal to the auto-persist effect that the upcoming setMessages
-        // call is a restore, not new user content — so it won't try to persist it
-        isRestoringRef.current = true;
-        selectSession(id, (loadedMessages) => {
-            setMessages(loadedMessages);
-            // Give React one tick to re-render before re-enabling persist
-            setTimeout(() => { isRestoringRef.current = false; }, 50);
-        });
+    const overallProgress = metrics.overall_progress || {
+        percent: 0,
+        completed_tasks: 0,
+        total_tasks: 0,
+        completed_points: 0,
+        total_points: 0,
     };
-    const [chatToDelete, setChatToDelete] = useState(null);
-    const [isDeletingChat, setIsDeletingChat] = useState(false);
-    const [activeActionIntent, setActiveActionIntent] = useState(null);
-
-    const handleDeleteChat = (id) => {
-        setChatToDelete(id);
+    const currentSprint = metrics.current_sprint || {
+        has_sprint: false,
+        name: 'No active sprint',
+        days_left: null,
+        percent: 0,
     };
 
-    const confirmDeleteChat = async () => {
-        if (!chatToDelete) return;
-        setIsDeletingChat(true);
-        try {
-            await deleteSession(chatToDelete, messages, setMessages);
-            showToast('Chat session deleted successfully.', 'info');
-        } catch (error) {
-            console.error('Failed to delete chat:', error);
-            showToast('Failed to delete chat session.', 'error');
-        } finally {
-            setIsDeletingChat(false);
-            setChatToDelete(null);
+    const handleProjectCreated = (newProject) => {
+        setIsProjectModalOpen(false);
+        if (newProject?.id) {
+            router.visit(route('tenant.projects.show', { tenant: studio.id, project: newProject.id }));
+        } else {
+            router.reload();
         }
     };
 
+    // TanStack Columns: Needs Attention (At-Risk Tasks)
+    const needsAttentionColumns = useMemo(
+        () => [
+            {
+                accessorKey: 'title',
+                header: 'Task',
+                cell: ({ row }) => (
+                    <div className="flex flex-col gap-0.5 max-w-[240px]">
+                        <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">
+                            {row.original.title}
+                        </span>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                            {row.original.project_name}
+                        </span>
+                    </div>
+                ),
+            },
+            {
+                accessorKey: 'assignee_name',
+                header: 'Assignee',
+                cell: ({ row }) => (
+                    <div className="flex items-center gap-2">
+                        <Avatar className="h-6 w-6">
+                            <AvatarImage src={row.original.assignee_avatar} />
+                            <AvatarFallback className="text-[10px]">
+                                {row.original.assignee_name?.slice(0, 2).toUpperCase() || 'U'}
+                            </AvatarFallback>
+                        </Avatar>
+                        <span className="truncate max-w-[110px] text-xs">
+                            {row.original.assignee_name}
+                        </span>
+                    </div>
+                ),
+            },
+            {
+                accessorKey: 'priority',
+                header: 'Priority',
+                cell: ({ row }) => <PriorityBadge priority={row.original.priority} />,
+            },
+            {
+                accessorKey: 'total_float',
+                header: 'CPA Health',
+                cell: ({ row }) => (
+                    <CpaStatusBadge
+                        totalFloat={row.original.total_float}
+                        isCritical={row.original.is_critical}
+                    />
+                ),
+            },
+            {
+                accessorKey: 'due_date',
+                header: 'Deadline',
+                cell: ({ row }) => (
+                    <span className="text-xs text-slate-600 dark:text-slate-300">
+                        {row.original.due_date || (row.original.days_until_deadline !== null ? `${row.original.days_until_deadline}d left` : 'No date')}
+                    </span>
+                ),
+            },
+        ],
+        []
+    );
 
+    // TanStack Columns: Team Snapshot
+    const teamSnapshotColumns = useMemo(
+        () => [
+            {
+                accessorKey: 'name',
+                header: 'Member',
+                cell: ({ row }) => (
+                    <div className="flex items-center gap-2.5">
+                        <Avatar className="h-7 w-7">
+                            <AvatarImage src={row.original.avatar} />
+                            <AvatarFallback className="text-xs font-semibold">
+                                {row.original.name?.slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                        </Avatar>
+                        <div className="flex flex-col">
+                            <span className="font-semibold text-slate-900 dark:text-slate-100">
+                                {row.original.name}
+                            </span>
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                {row.original.position || row.original.role}
+                            </span>
+                        </div>
+                    </div>
+                ),
+            },
+            {
+                accessorKey: 'active_tasks_count',
+                header: 'Active Tasks',
+                cell: ({ row }) => (
+                    <span className="font-mono text-xs font-semibold">
+                        {row.original.active_tasks_count}
+                    </span>
+                ),
+            },
+            {
+                accessorKey: 'load_percent',
+                header: 'Weekly Load',
+                cell: ({ row }) => (
+                    <div className="flex items-center gap-2 min-w-[140px]">
+                        <Progress
+                            value={Math.min(100, row.original.load_percent)}
+                            className={`h-2 flex-1 ${
+                                row.original.is_overloaded
+                                    ? '[&>div]:bg-rose-500'
+                                    : row.original.load_percent > 80
+                                    ? '[&>div]:bg-amber-500'
+                                    : '[&>div]:bg-brand'
+                            }`}
+                        />
+                        <span
+                            className={`text-xs font-mono font-bold ${
+                                row.original.is_overloaded
+                                    ? 'text-rose-600 dark:text-rose-400'
+                                    : 'text-slate-600 dark:text-slate-300'
+                            }`}
+                        >
+                            {row.original.load_percent}%
+                        </span>
+                    </div>
+                ),
+            },
+            {
+                accessorKey: 'assigned_hours',
+                header: 'Hours',
+                cell: ({ row }) => (
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                        {row.original.assigned_hours}h / {row.original.max_hours}h
+                    </span>
+                ),
+            },
+        ],
+        []
+    );
 
-    const addAssistantMessage = (content, isError = false) => {
-        setMessages(current => [...current, { id: crypto.randomUUID(), role: 'assistant', content, isError }]);
-    };
+    // TanStack Columns: Projects
+    const projectsColumns = useMemo(
+        () => [
+            {
+                accessorKey: 'name',
+                header: 'Project',
+                cell: ({ row }) => (
+                    <Link
+                        href={route('tenant.projects.show', { tenant: studio.id, project: row.original.id })}
+                        className="font-semibold text-slate-900 dark:text-slate-100 hover:text-brand dark:hover:text-brand-light transition-colors"
+                    >
+                        {row.original.name}
+                    </Link>
+                ),
+            },
+            {
+                accessorKey: 'status',
+                header: 'Status',
+                cell: ({ row }) => (
+                    <Badge variant="outline" className="capitalize text-xs">
+                        {row.original.status}
+                    </Badge>
+                ),
+            },
+            {
+                accessorKey: 'progress_percent',
+                header: 'Progress',
+                cell: ({ row }) => (
+                    <div className="flex items-center gap-2 min-w-[130px]">
+                        <Progress value={row.original.progress_percent} className="h-2 flex-1 [&>div]:bg-brand" />
+                        <span className="text-xs font-mono font-semibold text-slate-700 dark:text-slate-300">
+                            {row.original.progress_percent}%
+                        </span>
+                    </div>
+                ),
+            },
+            {
+                accessorKey: 'deadline_formatted',
+                header: 'Target Date',
+                cell: ({ row }) => (
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                        {row.original.deadline_formatted}
+                    </span>
+                ),
+            },
+            {
+                accessorKey: 'health',
+                header: 'Health',
+                cell: ({ row }) => {
+                    const health = row.original.health;
+                    if (health === 'delayed') {
+                        return (
+                            <Badge variant="destructive" className="text-[11px] font-semibold">
+                                Delayed
+                            </Badge>
+                        );
+                    }
+                    if (health === 'at_risk') {
+                        return (
+                            <Badge variant="warning" className="text-[11px] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-300/40">
+                                At Risk
+                            </Badge>
+                        );
+                    }
+                    return (
+                        <Badge variant="success" className="text-[11px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-300/40">
+                            On Track
+                        </Badge>
+                    );
+                },
+            },
+        ],
+        [studio.id]
+    );
 
-    const handleQuickAction = (actionTitle) => {
-        let template = '';
-        
-        if (actionTitle === 'Plan Sprint') {
-            setActiveActionIntent('CREATE_TASK');
-            template = `📝 Feature Breakdown Guide
-Please fill in the details below. I will break this down into a complete set of tasks and sub-tasks for your team.
-
-Create a task: [Task Title]
-
-Goal: [What are we building, and why does it matter?]
-Requirements: [Key things it must do]
-Constraints: [Any technical limits — optional]
-Done when: [Acceptance criteria — how we'll know it's finished]`;
-        } else if (actionTitle === 'Suggest Assignees') {
-            setActiveActionIntent(null);
-            template = `Goal: Recommend optimal developer assignments for the unassigned tasks in the current sprint.
-
-Context: Evaluate our team's current workload and run the Graph Neural Network (GNN) matching algorithm against our skill matrices. 
-
-Focus Area: Please prioritize finding the best fit for tasks related to [Insert specific Epic, e.g., Backend API Integration or Frontend UI]. 
-
-Expected Output: Provide the top 3 developer recommendations per task, including their matching confidence score, and highlight any resource deficits if we lack specific skills.`;
-        } else if (actionTitle === 'Analyze Critical Path') {
-            setActiveActionIntent(null);
-            template = `Goal: Analyze the health and timeline of the current active sprint.
-
-Context: Evaluate the task dependencies and estimated hours using our Critical Path logic.
-
-Requirements:
-1. Identify any bottlenecks or tasks with zero total float that could delay the sprint.
-2. Flag any developers who are over-allocated based on the earliest start/latest finish times.
-3. Suggest actionable schedule adjustments to ensure we hit our delivery deadline.`;
-        } else if (actionTitle === 'Audit Skill Coverage') {
-            setActiveActionIntent(null);
-            template = `Goal: Audit our studio's current workforce profile and tech stack capabilities.
-
-Context: We are planning to take on a new project heavily focused on [Insert Macro-Domain, e.g., Data Science / Game Dev]. 
-
-Requirements:
-1. Analyze our team's current proficiency levels in required micro-domains.
-2. Identify any critical skill gaps or low-coverage areas that will lower our GNN matching scores.
-3. Recommend specific upskilling areas or new hiring profiles needed to support this upcoming project.`;
-        }
-        
-        setPrompt(template);
-        
-        setIsTextareaFlashing(true);
-        setTimeout(() => setIsTextareaFlashing(false), 800);
-
-        setTimeout(() => {
-            if (promptTextareaRef.current) {
-                promptTextareaRef.current.focus();
-                const startBracketIdx = template.indexOf('[');
-                const endBracketIdx = template.indexOf(']');
-                if (startBracketIdx !== -1 && endBracketIdx !== -1 && endBracketIdx > startBracketIdx) {
-                    promptTextareaRef.current.setSelectionRange(startBracketIdx, endBracketIdx + 1);
-                }
-            }
-        }, 50);
-    };
-
-    const isTaskPlanningRequest = (text) => {
-        const triggers = ['plan', 'break down', 'decompose', 'generate tasks', 'sprint', 'roadmap', 'schedule'];
-        return triggers.some(t => text.toLowerCase().includes(t));
-    };
-
-    const isNewProjectRequest = (text) => {
-        const triggers = ['new project', 'start a project', 'create a project', 'build a new'];
-        return triggers.some(t => text.toLowerCase().includes(t));
-    };
-
-    const suggestedProjectName = (text) => {
-        const titleMatch = text.match(/project (?:called|named|for) ["']?([^"'.]+)["']?/i);
-        if (titleMatch) return titleMatch[1].trim();
-        const firstSentence = text.split(/[.!?]/)[0];
-        return firstSentence.length < 40 ? firstSentence : firstSentence.substring(0, 37) + '...';
-    };
-
-    const handlePromptSubmit = async (e) => {
-        e.preventDefault();
-        const trimmedPrompt = prompt.trim();
-        if (!trimmedPrompt || generation || trimmedPrompt.length > 2000) return;
-
-        setMessages(current => [...current, { id: crypto.randomUUID(), role: 'user', content: trimmedPrompt }]);
-        setPrompt('');
-
-        const controller = new AbortController();
-        abortRef.current = controller;
-
-        try {
-            let isPlanning = false;
-            let isNewProject = false;
-
-            if (activeActionIntent === 'CREATE_TASK') {
-                isPlanning = true;
-            } else {
-                // Call backend semantic router
-                setGeneration({ stage: 'chat', message: 'Analyzing request intent…', pct: 15 });
-                const { data: intentData } = await axios.post(route('tenant.workspace.ai-router', { tenant: studio.id }), {
-                    message: trimmedPrompt,
-                }, { signal: controller.signal });
-
-                if (intentData.intent === 'CLARIFY') {
-                    addAssistantMessage(intentData.clarification_question || "I'm not sure what you'd like to do. Could you clarify?");
-                    setActiveActionIntent(null);
-                    return;
-                } else if (intentData.intent === 'CREATE_TASK') {
-                    isPlanning = true;
-                } else if (intentData.intent === 'NEW_PROJECT') {
-                    isNewProject = true;
-                }
-            }
-
-            if (!isPlanning && !isNewProject) {
-                setGeneration({ stage: 'chat', message: 'Preparing a response…', pct: 35 });
-                const history = messages.slice(-10).map(({ role, content }) => ({ role, content }));
-                const { data } = await axios.post(route('tenant.workspace.ai-assistant', { tenant: studio.id }), {
-                    message: trimmedPrompt,
-                    history,
-                }, { signal: controller.signal });
-                addAssistantMessage(data.reply || 'I could not answer that right now. Please try again.');
-                setActiveActionIntent(null);
-                return;
-            }
-
-            if (!canManage) {
-                addAssistantMessage('Only studio managers are authorized to plan tasks and create projects. You can continue to ask questions about architecture, code, critical path schedules, or workforce skills.');
-                setActiveActionIntent(null);
-                return;
-            }
-
-            if (isNewProject || selectedProjectId === '') {
-                // New Project path
-                setPendingProjectPlan({
-                    description: trimmedPrompt,
-                    name: suggestedProjectName(trimmedPrompt),
-                });
-                setIsProjectCreationOpen(true);
-                addAssistantMessage('I’ll help you decompose this. Add a project name first, and then I will generate the Epic and Sprint breakdown.');
-                setActiveActionIntent(null);
-                return;
-            } else {
-                // Existing Project path
-                setPendingProjectPlan({
-                    description: trimmedPrompt,
-                });
-                setIsPlanOpen(true);
-                addAssistantMessage('Opening the AI Project Decomposer to draft your tasks...');
-                setActiveActionIntent(null);
-            }
-        } catch (error) {
-            if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') return;
-            const errMsg = error.response?.data?.message 
-                || (error.response?.status === 500 ? 'The AI reasoning engine encountered an internal server error. Please try again or rephrase your request.' : null)
-                || (error.message?.includes('Network Error') ? 'Unable to connect to the AI Engine service. Please verify your connection or ML service status.' : null)
-                || error.message 
-                || 'I could not respond just now. Please try again.';
-            addAssistantMessage(errMsg, true);
-        } finally {
-            abortRef.current = null;
-            setGeneration(null);
-        }
-    };
-
-    const cancelGeneration = () => abortRef.current?.abort();
-
-    const handleProjectCreated = (project) => {
-        if (!pendingProjectPlan || !project) return;
-        setSelectedProjectId(String(project.id));
-        setIsPlanOpen(true);
-        addAssistantMessage(`Created “${project.name}”. Opening the AI Project Decomposer...`);
-    };
+    // TanStack Columns: Recent Activity
+    const recentActivityColumns = useMemo(
+        () => [
+            {
+                accessorKey: 'title',
+                header: 'Task Activity',
+                cell: ({ row }) => (
+                    <div className="flex flex-col">
+                        <span className="font-semibold text-slate-900 dark:text-slate-100 truncate max-w-[260px]">
+                            {row.original.title}
+                        </span>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                            {row.original.project_name}
+                        </span>
+                    </div>
+                ),
+            },
+            {
+                accessorKey: 'assignee_name',
+                header: 'Assignee',
+                cell: ({ row }) => (
+                    <span className="text-xs text-slate-600 dark:text-slate-300">
+                        {row.original.assignee_name}
+                    </span>
+                ),
+            },
+            {
+                accessorKey: 'status',
+                header: 'Status',
+                cell: ({ row }) => (
+                    <Badge variant="secondary" className="capitalize text-xs">
+                        {row.original.status.replace('_', ' ')}
+                    </Badge>
+                ),
+            },
+            {
+                accessorKey: 'updated_at_human',
+                header: 'When',
+                cell: ({ row }) => (
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                        {row.original.updated_at_human}
+                    </span>
+                ),
+            },
+        ],
+        []
+    );
 
     return (
         <TenantLayout studioName={studioName}>
-            <Head title={`AI Workspace — ${studioName}`} />
+            <Head title={`Studio Dashboard — ${studioName}`} />
 
-            {/* Sticky Header Navigation Bar */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-800/80 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md shrink-0 select-none">
-                <div className="flex items-center gap-3">
-                    <h1 className="font-heading text-base font-bold text-gray-900 dark:text-slate-100">
-                        Studio Workspace
-                    </h1>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        AI Online
-                    </span>
-                    {!canManage && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-                            <Shield className="w-3 h-3 text-brand" />
-                            Member View
-                        </span>
-                    )}
-                </div>
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={() => showToast('StudioSprint Plan: Standard Account', 'info')}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-dark text-white text-xs font-heading font-semibold transition-all hover:scale-105 active:scale-95 shadow-xs shadow-brand/15"
-                    >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>Upgrade</span>
-                    </button>
-                </div>
-            </div>
-
-            {/* Split Screen Container: Center Canvas + Right Sidebar */}
-            <div className="flex-1 flex overflow-hidden">
-                {/* Center Canvas */}
-                <div className="flex-1 flex flex-col justify-between overflow-y-auto relative p-6 sm:p-10 lg:p-12">
-                    <div className={`mx-auto flex w-full max-w-3xl flex-1 flex-col py-6 ${messages.length === 0 && !generation ? 'justify-center' : 'justify-end'}`}>
-                        <div className="min-h-72 space-y-5 overflow-y-auto pr-1">
-                            {messages.length === 0 && !generation && (
-                                <div className="my-auto py-8">
-                                    <div className="space-y-3 text-center">
-                                        <div className="inline-flex items-center gap-2 rounded-full border border-brand-30 bg-brand-10 px-3 py-1 text-xs font-semibold text-brand shadow-xs dark:text-brand-light"><Sparkles className="h-3.5 w-3.5" />AI-Assisted Sprint Orchestration</div>
-                                        <h2 className="font-heading text-3xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100 sm:text-4xl lg:text-5xl">Welcome to {studioName}</h2>
-                                        <p className="mx-auto max-w-xl text-sm text-gray-600 dark:text-gray-400 sm:text-base">
-                                            {canManage
-                                                ? 'Get started by creating a task or let the StudioSprint AI orchestrate your studio sprint.'
-                                                : 'Explore architectural insights, query schedule critical paths, and review studio workforce skill coverage.'}
-                                        </p>
-                                        {!canManage && (
-                                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-medium text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-                                                <Shield className="w-3 h-3 text-brand" />
-                                                <span>Member Mode: Architecture & Assistant Q&A enabled (Task Decomposition restricted to Managers)</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className={`mx-auto mt-10 grid max-w-2xl grid-cols-1 gap-4 ${canManage ? 'sm:grid-cols-2' : 'sm:grid-cols-2'}`}>
-                                        {canManage && (
-                                            <>
-                                                <QuickActionCard title="Plan Sprint" description="Break down an epic into sprint tasks." icon={CheckSquare} badgeColor="brand" onClick={() => handleQuickAction('Plan Sprint')} />
-                                                <QuickActionCard title="Suggest Assignees" description="Recommend optimal developer assignments for tasks." icon={Cpu} badgeColor="emerald" onClick={() => handleQuickAction('Suggest Assignees')} />
-                                            </>
-                                        )}
-                                        <QuickActionCard title="Analyze Critical Path" description="Analyze the health and timeline of the current sprint." icon={Calendar} badgeColor="sky" onClick={() => handleQuickAction('Analyze Critical Path')} />
-                                        <QuickActionCard title="Audit Skill Coverage" description="Audit our studio's current workforce profile and tech stack." icon={Users} badgeColor="purple" onClick={() => handleQuickAction('Audit Skill Coverage')} />
-                                    </div>
-                                </div>
-                            )}
-
-                            {messages.map(message => (
-                                <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                    {message.role === 'assistant' && (
-                                        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${message.isError ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900' : 'bg-brand/10 text-brand'}`}>
-                                            {message.isError ? <AlertCircle className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-                                        </div>
-                                    )}
-                                    {message.role === 'user' ? (
-                                        /* User bubble: plain text, preserve line breaks */
-                                        <div className="max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-brand text-white shadow-xs">
-                                            {message.content}
-                                        </div>
-                                    ) : (
-                                        <div className={`max-w-[80%] rounded-2xl px-4 py-3 shadow-xs ring-1 ${message.isError ? 'bg-rose-50/90 dark:bg-rose-950/30 ring-rose-200 dark:ring-rose-900/60 text-rose-900 dark:text-rose-200' : 'bg-white ring-gray-100 dark:bg-slate-800 dark:ring-slate-700'}`}>
-                                            {message.isError ? (
-                                                <div className="space-y-1.5">
-                                                    <div className="flex items-center gap-1.5 font-bold text-xs text-rose-600 dark:text-rose-400">
-                                                        <AlertCircle className="w-3.5 h-3.5" />
-                                                        <span>Assistant Error</span>
-                                                    </div>
-                                                    <p className="text-xs leading-relaxed">{message.content}</p>
-                                                </div>
-                                            ) : (
-                                                <div className="prose prose-sm dark:prose-invert max-w-none
-                                                                prose-p:my-1 prose-headings:my-2 prose-headings:font-semibold
-                                                                prose-ul:my-1 prose-ol:my-1 prose-li:my-0
-                                                                prose-pre:my-2 prose-code:text-brand dark:prose-code:text-brand-light
-                                                                prose-a:text-brand dark:prose-a:text-brand-light">
-                                                    <ReactMarkdown 
-                                                        remarkPlugins={[remarkGfm]}
-                                                        components={{
-                                                            table: ({node, ...props}) => (
-                                                              <div className="overflow-x-auto my-4">
-                                                                <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700" {...props} />
-                                                              </div>
-                                                            ),
-                                                        }}
-                                                    >
-                                                        {message.content}
-                                                    </ReactMarkdown>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-
-                            {generation && (
-                                <div className="flex gap-3">
-                                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand"><Bot className="h-4 w-4" /></div>
-                                    <div className="w-full max-w-xl rounded-2xl bg-white p-4 shadow-xs ring-1 ring-gray-100 dark:bg-slate-800 dark:ring-slate-700">
-                                        <div className="flex items-center gap-3">
-                                            {/* Typing-indicator dots */}
-                                            <span className="flex gap-1">
-                                                {[0, 1, 2].map(i => (
-                                                    <span
-                                                        key={i}
-                                                        className="w-1.5 h-1.5 rounded-full bg-brand animate-bounce"
-                                                        style={{ animationDelay: `${i * 150}ms` }}
-                                                    />
-                                                ))}
-                                            </span>
-                                            <span className="text-sm font-semibold text-gray-900 dark:text-slate-100">
-                                                {generation.stage === 'chat' ? 'Preparing a response' : 'Creating your task plan'}
-                                            </span>
-                                        </div>
-                                        <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">{generation.message || 'Working on your request...'}</p>
-                                        {/* Shimmer progress bar */}
-                                        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-slate-700 relative">
-                                            <div
-                                                className="h-full rounded-full bg-brand transition-all duration-700"
-                                                style={{ width: `${generation.pct || 10}%` }}
-                                            />
-                                            <div className="absolute inset-0 animate-shimmer rounded-full opacity-40" />
-                                        </div>
-                                        <div className="mt-3 flex items-center justify-between text-[11px]">
-                                            <span className="text-brand">{generation.stage === 'chat' ? 'Workspace conversation' : 'Drafting tasks'}</span>
-                                            <button type="button" onClick={cancelGeneration} className="inline-flex items-center gap-1 text-gray-400 hover:text-red-500"><X className="h-3 w-3" /> Cancel</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                            <div ref={chatEndRef} />
+            <div className="flex-1 overflow-y-auto bg-slate-50/60 dark:bg-slate-950 px-6 py-8 space-y-8 max-w-7xl mx-auto w-full">
+                {/* ── Top Header & Executive Quick Actions ── */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-2xl font-bold font-heading tracking-tight text-slate-900 dark:text-slate-50">
+                                {studioName}
+                            </h1>
+                            <Badge variant="secondary" className="text-xs font-semibold">
+                                Leader View
+                            </Badge>
                         </div>
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            Studio health, sprint throughput, team capacity, and project delivery.
+                        </p>
                     </div>
 
-                    {isPlanOpen && pendingProjectPlan && canManage && (
-                        <HierarchicalDecompositionModal
-                            isOpen={isPlanOpen}
-                            onClose={() => {
-                                setIsPlanOpen(false);
-                                setPendingProjectPlan(null);
-                            }}
-                            projectId={selectedProjectId}
-                            tenantId={studio.id}
-                            teamMembers={teamMembers}
-                            initialDescription={pendingProjectPlan.description}
-                            autoStart={true}
-                            onSaveSuccess={() => router.visit(route('tenant.projects.show', { tenant: studio.id, project: selectedProjectId }))}
-                        />
-                    )}
-
-                    {isProjectCreationOpen && canManage && (
-                        <CreateProjectModal
-                            isOpen={isProjectCreationOpen}
-                            onClose={() => {
-                                setIsProjectCreationOpen(false);
-                            }}
-                            onCreated={handleProjectCreated}
-                            initialTitle={pendingProjectPlan?.name || ''}
-                            initialDescription={pendingProjectPlan?.description || ''}
-                            planCount={pendingProjectPlan?.tasks?.length || 0}
-                        />
-                    )}
-
-                    {isTaskModalOpen && selectedProjectId && (
-                        <ManualTaskModal
-                            isOpen={isTaskModalOpen}
-                            onClose={() => setIsTaskModalOpen(false)}
-                            project={projects.find(p => Number(p.id) === Number(selectedProjectId))}
-                            tenantId={studio.id}
-                            teamMembers={teamMembers}
-                            skills={skills}
-                            positions={positions}
-                        />
-                    )}
-
-                    {/* Agentic Chat Bar (Taller, rounded-2xl, dual-row layout) */}
-                    <div className="sticky bottom-0 z-20 pt-4 pb-2 w-full max-w-3xl mx-auto">
-                        <form
-                            onSubmit={handlePromptSubmit}
-                            className={`flex flex-col gap-1.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border ${isTextareaFlashing ? 'border-brand ring-4 ring-brand/30 bg-brand/5 dark:bg-brand/10 shadow-brand/20' : 'border-gray-200 dark:border-slate-800 shadow-2xl'} p-2.5 focus-within:border-brand dark:focus-within:border-brand/60 focus-within:ring-2 focus-within:ring-brand/20 transition-all duration-300`}
+                    <div className="flex items-center gap-2.5">
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsProjectModalOpen(true)}
+                            className="gap-2 shadow-xs"
                         >
-                            {/* Top row: Textarea & Send button */}
-                            <div className="flex items-center gap-2">
-                                <TextareaAutosize
-                                    minRows={1}
-                                    maxRows={10}
-                                    ref={promptTextareaRef}
-                                    value={prompt}
-                                    onChange={(e) => {
-                                        setPrompt(e.target.value);
-                                        if (e.target.value.trim() === '') setActiveActionIntent(null);
-                                    }}
-                                    placeholder={canManage ? "Ask a question, or describe a task/sprint to decompose…" : "Ask an architectural or technical question about your projects…"}
-                                    maxLength={2000}
-                                    className="flex-1 bg-transparent border-0 px-2 py-1.5 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-slate-600 focus:outline-hidden focus:ring-0 resize-none min-h-10 align-middle font-sans"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && !e.shiftKey) {
-                                            e.preventDefault();
-                                            if (prompt.trim() && !generation && prompt.length <= 2000) {
-                                                handlePromptSubmit(e);
-                                            }
-                                        }
-                                    }}
-                                />
-                                <button
-                                    type="submit"
-                                    disabled={!prompt.trim() || generation || prompt.length > 2000}
-                                    className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-brand hover:bg-brand-dark text-white shadow-md shadow-brand/25 transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-none self-center shrink-0 mr-1"
-                                    title={prompt.length > 2000 ? "Character limit exceeded (max 2,000)" : !prompt.trim() ? "Type a prompt to send" : "Send Prompt"}
-                                >
-                                    <Send className="w-3.5 h-3.5" />
-                                </button>
-                            </div>
-
-                            {/* Divider line */}
-                            <div className="border-t border-gray-100 dark:border-slate-800/80 my-1"></div>
-
-                            {/* Bottom row: Attach, Voice, Browse, Counter */}
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => showToast('Attachment upload coming soon!', 'info')}
-                                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-sans text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/60 transition-colors"
-                                        title="Attach Sprint Doc or Spec"
-                                    >
-                                        <Paperclip className="w-3.5 h-3.5" />
-                                        <span>Attach</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => showToast('Voice input coming soon!', 'info')}
-                                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-sans text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/60 transition-colors"
-                                        title="Voice Input Prompt"
-                                    >
-                                        <Mic className="w-3.5 h-3.5" />
-                                        <span>Voice Message</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => showToast('Prompt library coming soon!', 'info')}
-                                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-sans text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/60 transition-colors"
-                                        title="Browse Prompt Library"
-                                    >
-                                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                                        <span>Browse Prompts</span>
-                                    </button>
-                                </div>
-
-                                <div className="flex items-center gap-3 pr-2">
-                                    {canManage ? (
-                                        <select
-                                            value={selectedProjectId}
-                                            onChange={(event) => setSelectedProjectId(event.target.value)}
-                                            className="max-w-[180px] bg-transparent text-[10px] font-semibold text-gray-500 outline-hidden dark:text-slate-400 cursor-pointer"
-                                            aria-label="Project for AI tasks"
-                                        >
-                                            <option value="">New Project</option>
-                                            {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-                                        </select>
-                                    ) : (
-                                        <span className="text-[10px] text-gray-400 dark:text-slate-500 font-medium select-none">
-                                            Q&A Mode
-                                        </span>
-                                    )}
-                                    <div
-                                        className={`text-[10px] font-mono select-none transition-colors duration-150 ${
-                                            prompt.length >= 2000
-                                                ? 'text-rose-500 dark:text-rose-400 font-bold animate-pulse'
-                                                : prompt.length >= 1700
-                                                ? 'text-amber-500 dark:text-amber-400 font-semibold'
-                                                : 'text-gray-400 dark:text-slate-600'
-                                        }`}
-                                    >
-                                        {prompt.length.toLocaleString()} / 2,000
-                                    </div>
-                                </div>
-                            </div>
-                        </form>
+                            <Plus className="h-4 w-4 text-brand" />
+                            <span>New Project</span>
+                        </Button>
+                        <Button
+                            onClick={() => setIsTaskModalOpen(true)}
+                            className="gap-2 bg-brand hover:bg-brand-dark text-white shadow-xs"
+                        >
+                            <Plus className="h-4 w-4" />
+                            <span>New Task</span>
+                        </Button>
                     </div>
                 </div>
 
-                {/* Right Sidebar Component: AI Workspace Chat History */}
-                <RightSidebar
-                    sessions={sessions}
-                    activeSessionId={activeSessionId}
-                    isLoading={!!generation}
-                    onNewChat={handleNewChat}
-                    onSelectChat={handleSelectChat}
-                    onDeleteChat={handleDeleteChat}
-                />
+                {/* ── Number Cards Grid (6 cards) ── */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                    {/* Overall Progress */}
+                    <Card className="shadow-xs hover:shadow-md transition-shadow">
+                        <CardHeader className="pb-2">
+                            <CardDescription className="text-xs font-medium flex items-center justify-between">
+                                <span>Overall Progress</span>
+                                <TrendingUp className="h-4 w-4 text-brand" />
+                            </CardDescription>
+                            <CardTitle className="text-2xl font-bold font-heading text-slate-900 dark:text-slate-50">
+                                {overallProgress.percent}%
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-1.5">
+                            <Progress value={overallProgress.percent} className="h-1.5 [&>div]:bg-brand" />
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">
+                                {overallProgress.completed_tasks} / {overallProgress.total_tasks} tasks done
+                            </span>
+                        </CardContent>
+                    </Card>
+
+                    {/* Current Sprint */}
+                    <Card className="shadow-xs hover:shadow-md transition-shadow">
+                        <CardHeader className="pb-2">
+                            <CardDescription className="text-xs font-medium flex items-center justify-between">
+                                <span>Current Sprint</span>
+                                <Calendar className="h-4 w-4 text-indigo-500" />
+                            </CardDescription>
+                            <CardTitle className="text-2xl font-bold font-heading text-slate-900 dark:text-slate-50">
+                                {currentSprint.has_sprint ? `${currentSprint.percent}%` : '—'}
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-1.5">
+                            {currentSprint.has_sprint ? (
+                                <>
+                                    <Progress value={currentSprint.percent} className="h-1.5 [&>div]:bg-indigo-500" />
+                                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">
+                                        {currentSprint.days_left !== null ? `${currentSprint.days_left}d remaining` : currentSprint.name}
+                                    </span>
+                                </>
+                            ) : (
+                                <span className="text-[11px] text-slate-400 dark:text-slate-500 italic block">
+                                    No active sprint
+                                </span>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    {/* Tasks at Risk */}
+                    <Card className="shadow-xs hover:shadow-md transition-shadow">
+                        <CardHeader className="pb-2">
+                            <CardDescription className="text-xs font-medium flex items-center justify-between">
+                                <span>Tasks at Risk</span>
+                                <Flame className="h-4 w-4 text-amber-500" />
+                            </CardDescription>
+                            <CardTitle className={`text-2xl font-bold font-heading ${
+                                metrics.tasks_at_risk_count > 0
+                                    ? 'text-amber-600 dark:text-amber-400'
+                                    : 'text-slate-900 dark:text-slate-50'
+                            }`}>
+                                {metrics.tasks_at_risk_count}
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">
+                                Critical path or delayed
+                            </span>
+                        </CardContent>
+                    </Card>
+
+                    {/* Unassigned Tasks */}
+                    <Card className="shadow-xs hover:shadow-md transition-shadow">
+                        <CardHeader className="pb-2">
+                            <CardDescription className="text-xs font-medium flex items-center justify-between">
+                                <span>Unassigned Tasks</span>
+                                <UserX className="h-4 w-4 text-slate-400" />
+                            </CardDescription>
+                            <CardTitle className="text-2xl font-bold font-heading text-slate-900 dark:text-slate-50">
+                                {metrics.unassigned_tasks_count}
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">
+                                Awaiting developer assignment
+                            </span>
+                        </CardContent>
+                    </Card>
+
+                    {/* Overloaded Members */}
+                    <Card className="shadow-xs hover:shadow-md transition-shadow">
+                        <CardHeader className="pb-2">
+                            <CardDescription className="text-xs font-medium flex items-center justify-between">
+                                <span>Overloaded</span>
+                                <AlertTriangle className="h-4 w-4 text-rose-500" />
+                            </CardDescription>
+                            <CardTitle className={`text-2xl font-bold font-heading ${
+                                metrics.overloaded_members_count > 0
+                                    ? 'text-rose-600 dark:text-rose-400'
+                                    : 'text-slate-900 dark:text-slate-50'
+                            }`}>
+                                {metrics.overloaded_members_count}
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">
+                                Above weekly limit
+                            </span>
+                        </CardContent>
+                    </Card>
+
+                    {/* Items Waiting on Me */}
+                    <Card className="shadow-xs hover:shadow-md transition-shadow">
+                        <CardHeader className="pb-2">
+                            <CardDescription className="text-xs font-medium flex items-center justify-between">
+                                <span>Waiting on Me</span>
+                                <Sparkles className="h-4 w-4 text-brand" />
+                            </CardDescription>
+                            <CardTitle className="text-2xl font-bold font-heading text-slate-900 dark:text-slate-50">
+                                {metrics.items_waiting_count}
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">
+                                Estimates needing review
+                            </span>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* ── Owner-Only Studio Leadership Panel ── */}
+                {isOwner && (
+                    <Card className="border-brand/20 bg-linear-to-r from-brand-5/40 via-white to-transparent dark:from-brand-900/10 dark:via-slate-900 dark:to-transparent shadow-xs">
+                        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                                <div className="h-8 w-8 rounded-lg bg-brand/10 dark:bg-brand/20 text-brand flex items-center justify-center">
+                                    <Shield className="h-4 w-4" />
+                                </div>
+                                <div>
+                                    <CardTitle className="text-base font-bold text-slate-900 dark:text-slate-50">
+                                        Studio Leadership
+                                    </CardTitle>
+                                    <CardDescription className="text-xs">
+                                        Read-only executive roster for studio owners.
+                                    </CardDescription>
+                                </div>
+                            </div>
+                            <Link
+                                href={route('tenant.team', { tenant: studio.id })}
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand hover:text-brand-dark dark:hover:text-brand-light transition-colors"
+                            >
+                                <span>Manage Team</span>
+                                <ChevronRight className="h-3.5 w-3.5" />
+                            </Link>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                                {studioLeadership.map((leader) => (
+                                    <div
+                                        key={leader.id}
+                                        className="flex items-center gap-3 p-2.5 rounded-lg border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/80"
+                                    >
+                                        <Avatar className="h-8 w-8">
+                                            <AvatarImage src={leader.avatar} />
+                                            <AvatarFallback className="text-xs font-bold text-brand">
+                                                {leader.name?.slice(0, 2).toUpperCase()}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <div className="flex flex-col min-w-0">
+                                            <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                                                {leader.name}
+                                            </span>
+                                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                                                <Badge variant="outline" className="text-[10px] px-1 py-0 uppercase">
+                                                    {leader.role}
+                                                </Badge>
+                                                <span className="truncate">{leader.position}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* ── Charts Section ── */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Burndown / Velocity Chart (2 cols) */}
+                    <Card className="lg:col-span-2 shadow-xs">
+                        <CardHeader className="pb-3">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div>
+                                    <CardTitle className="text-base font-bold">
+                                        Sprint Analytics
+                                    </CardTitle>
+                                    <CardDescription className="text-xs">
+                                        Throughput, burndown trajectory, and historical velocity.
+                                    </CardDescription>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <Tabs defaultValue="burndown" className="space-y-4">
+                                <TabsList className="bg-slate-100 dark:bg-slate-800/80">
+                                    <TabsTrigger value="burndown" className="text-xs">
+                                        Sprint Burndown
+                                    </TabsTrigger>
+                                    <TabsTrigger value="velocity" className="text-xs">
+                                        Velocity per Sprint
+                                    </TabsTrigger>
+                                </TabsList>
+
+                                <TabsContent value="burndown" className="h-[260px] w-full">
+                                    {charts.burndown?.length ? (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <AreaChart data={charts.burndown} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                                <defs>
+                                                    <linearGradient id="idealGrad" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.2} />
+                                                        <stop offset="95%" stopColor="#94a3b8" stopOpacity={0} />
+                                                    </linearGradient>
+                                                    <linearGradient id="actualGrad" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="5%" stopColor="#007CFF" stopOpacity={0.3} />
+                                                        <stop offset="95%" stopColor="#007CFF" stopOpacity={0} />
+                                                    </linearGradient>
+                                                </defs>
+                                                <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-800" />
+                                                <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                                                <YAxis tick={{ fontSize: 11 }} />
+                                                <Tooltip />
+                                                <Area type="monotone" dataKey="ideal" name="Ideal Burndown" stroke="#94a3b8" strokeDasharray="4 4" fill="url(#idealGrad)" />
+                                                <Area type="monotone" dataKey="actual" name="Actual Points" stroke="#007CFF" strokeWidth={2} fill="url(#actualGrad)" />
+                                            </AreaChart>
+                                        </ResponsiveContainer>
+                                    ) : (
+                                        <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 gap-2 border border-dashed rounded-xl border-slate-200 dark:border-slate-800">
+                                            <Calendar className="h-8 w-8 stroke-1" />
+                                            <span className="text-xs">No active sprint burndown data. Create or activate a sprint to track story points.</span>
+                                        </div>
+                                    )}
+                                </TabsContent>
+
+                                <TabsContent value="velocity" className="h-[260px] w-full">
+                                    {charts.velocity?.length ? (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={charts.velocity} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                                <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-800" />
+                                                <XAxis dataKey="sprint" tick={{ fontSize: 11 }} />
+                                                <YAxis tick={{ fontSize: 11 }} />
+                                                <Tooltip />
+                                                <Bar dataKey="points" name="Story Points" fill="#007CFF" radius={[4, 4, 0, 0]} />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    ) : (
+                                        <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 gap-2 border border-dashed rounded-xl border-slate-200 dark:border-slate-800">
+                                            <Activity className="h-8 w-8 stroke-1" />
+                                            <span className="text-xs">No historical sprint velocity yet. Completed sprints will appear here.</span>
+                                        </div>
+                                    )}
+                                </TabsContent>
+                            </Tabs>
+                        </CardContent>
+                    </Card>
+
+                    {/* Task Status Split Donut (1 col) */}
+                    <Card className="shadow-xs">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-base font-bold">
+                                Task Status Split
+                            </CardTitle>
+                            <CardDescription className="text-xs">
+                                Distribution of tasks across studio workflows.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="h-[180px] w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={charts.status_split || []}
+                                            innerRadius={50}
+                                            outerRadius={75}
+                                            paddingAngle={3}
+                                            dataKey="value"
+                                        >
+                                            {(charts.status_split || []).map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={entry.color || STATUS_COLORS[entry.status]} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                {(charts.status_split || []).map((item) => (
+                                    <div key={item.status} className="flex items-center gap-2">
+                                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                                        <span className="text-slate-600 dark:text-slate-400 truncate">{item.name}</span>
+                                        <span className="font-mono font-bold ml-auto">{item.value}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* ── Progress Per Project & Team Workload Progress Bars ── */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Progress per Project */}
+                    <Card className="shadow-xs">
+                        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                            <div>
+                                <CardTitle className="text-base font-bold">Project Progress</CardTitle>
+                                <CardDescription className="text-xs">Delivery completion per project</CardDescription>
+                            </div>
+                            <Link href={route('tenant.projects.index', { tenant: studio.id })} className="text-xs font-semibold text-brand hover:underline">
+                                View all
+                            </Link>
+                        </CardHeader>
+                        <CardContent className="space-y-3.5">
+                            {charts.project_progress?.length ? (
+                                charts.project_progress.map((p) => (
+                                    <div key={p.id} className="space-y-1.5">
+                                        <div className="flex items-center justify-between text-xs">
+                                            <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{p.name}</span>
+                                            <span className="font-mono text-slate-500">{p.completed_tasks}/{p.total_tasks} tasks ({p.progress_percent}%)</span>
+                                        </div>
+                                        <Progress value={p.progress_percent} className="h-2 [&>div]:bg-brand" />
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-xs text-slate-400 py-6 text-center">No projects in this studio yet.</div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    {/* Team Workload */}
+                    <Card className="shadow-xs">
+                        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                            <div>
+                                <CardTitle className="text-base font-bold">Team Workload</CardTitle>
+                                <CardDescription className="text-xs">Assigned task hours vs weekly capacity limit</CardDescription>
+                            </div>
+                            <Link href={route('tenant.team', { tenant: studio.id })} className="text-xs font-semibold text-brand hover:underline">
+                                View team
+                            </Link>
+                        </CardHeader>
+                        <CardContent className="space-y-3.5">
+                            {charts.team_workload?.length ? (
+                                charts.team_workload.slice(0, 5).map((m) => (
+                                    <div key={m.id} className="space-y-1.5">
+                                        <div className="flex items-center justify-between text-xs">
+                                            <div className="flex items-center gap-2">
+                                                <Avatar className="h-5 w-5">
+                                                    <AvatarImage src={m.avatar} />
+                                                    <AvatarFallback className="text-[9px]">{m.name?.slice(0, 2).toUpperCase()}</AvatarFallback>
+                                                </Avatar>
+                                                <span className="font-semibold text-slate-800 dark:text-slate-200">{m.name}</span>
+                                            </div>
+                                            <span className={`font-mono text-xs font-bold ${m.is_overloaded ? 'text-rose-600 dark:text-rose-400' : 'text-slate-600 dark:text-slate-400'}`}>
+                                                {m.assigned_hours}h / {m.max_hours}h ({m.load_percent}%)
+                                            </span>
+                                        </div>
+                                        <Progress
+                                            value={Math.min(100, m.load_percent)}
+                                            className={`h-2 ${m.is_overloaded ? '[&>div]:bg-rose-500' : m.load_percent > 80 ? '[&>div]:bg-amber-500' : '[&>div]:bg-brand'}`}
+                                        />
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-xs text-slate-400 py-6 text-center">No team members assigned yet.</div>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* ── Executive Tables Tabs (TanStack Table v8) ── */}
+                <div className="space-y-4">
+                    <Tabs defaultValue="attention" className="w-full">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-2">
+                            <div>
+                                <h3 className="text-lg font-bold font-heading text-slate-900 dark:text-slate-100">
+                                    Studio Records
+                                </h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    Detailed data tables for risk analysis, team capacity, and project tracking.
+                                </p>
+                            </div>
+                            <TabsList className="bg-slate-100 dark:bg-slate-800">
+                                <TabsTrigger value="attention" className="text-xs">
+                                    Needs Attention ({tables.needs_attention?.length || 0})
+                                </TabsTrigger>
+                                <TabsTrigger value="team" className="text-xs">
+                                    Team Snapshot ({tables.team_snapshot?.length || 0})
+                                </TabsTrigger>
+                                <TabsTrigger value="projects" className="text-xs">
+                                    Projects ({tables.projects?.length || 0})
+                                </TabsTrigger>
+                                <TabsTrigger value="activity" className="text-xs">
+                                    Recent Activity
+                                </TabsTrigger>
+                            </TabsList>
+                        </div>
+
+                        <TabsContent value="attention" className="mt-4">
+                            <DataTable
+                                columns={needsAttentionColumns}
+                                data={tables.needs_attention || []}
+                                emptyMessage="All tasks are on track. No critical-path bottlenecks or delayed items."
+                            />
+                        </TabsContent>
+
+                        <TabsContent value="team" className="mt-4">
+                            <DataTable
+                                columns={teamSnapshotColumns}
+                                data={tables.team_snapshot || []}
+                                emptyMessage="No team members in this studio."
+                            />
+                        </TabsContent>
+
+                        <TabsContent value="projects" className="mt-4">
+                            <DataTable
+                                columns={projectsColumns}
+                                data={tables.projects || []}
+                                emptyMessage="No projects created yet."
+                            />
+                        </TabsContent>
+
+                        <TabsContent value="activity" className="mt-4">
+                            <DataTable
+                                columns={recentActivityColumns}
+                                data={tables.recent_activity || []}
+                                emptyMessage="No recent activity recorded."
+                            />
+                        </TabsContent>
+                    </Tabs>
+                </div>
             </div>
 
-            <ConfirmationModal
-                isOpen={!!chatToDelete}
-                onClose={() => setChatToDelete(null)}
-                onConfirm={confirmDeleteChat}
-                title="Delete Chat Session"
-                message="Are you sure you want to delete this chat session? This action cannot be undone."
-                confirmText="Delete Chat"
-                cancelText="Keep Chat"
-                variant="danger"
-                isLoading={isDeletingChat}
-            />
+            {/* ── Modals for Quick Actions ── */}
+            {isProjectModalOpen && (
+                <CreateProjectModal
+                    isOpen={isProjectModalOpen}
+                    onClose={() => setIsProjectModalOpen(false)}
+                    onCreated={handleProjectCreated}
+                />
+            )}
+
+            {isTaskModalOpen && (
+                <ManualTaskModal
+                    isOpen={isTaskModalOpen}
+                    onClose={() => setIsTaskModalOpen(false)}
+                    project={quickActions.projects?.find((p) => String(p.id) === String(selectedProjectId)) || quickActions.projects?.[0]}
+                    tenantId={studio.id}
+                    teamMembers={quickActions.teamMembers || []}
+                    skills={quickActions.skills || []}
+                    positions={quickActions.positions || []}
+                />
+            )}
         </TenantLayout>
     );
 }
