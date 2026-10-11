@@ -22,7 +22,7 @@ export default function StepOneIdentity({ data, setData, errors, positions = [] 
                         id="position_id"
                         value={data.position_id}
                         onChange={(e) => setData('position_id', e.target.value)}
-                        className="w-full pl-10 pr-10 py-3 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-medium focus:border-brand focus:ring-2 focus:ring-brand/20 shadow-xs appearance-none transition-all cursor-pointer"
+                        className="w-full pl-10 pr-10 py-3 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-medium focus:border-brand focus:ring-2 focus:ring-brand/20 shadow-2xs appearance-none transition-all cursor-pointer"
                     >
                         <option value="" disabled>Select your primary role...</option>
                         {positions.map((pos) => (
@@ -60,7 +60,7 @@ export default function StepOneIdentity({ data, setData, errors, positions = [] 
                         value={data.experience_years}
                         onChange={(e) => setData('experience_years', e.target.value)}
                         placeholder="e.g., 3.5"
-                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-medium placeholder-slate-400 dark:placeholder-slate-500 focus:border-brand focus:ring-2 focus:ring-brand/20 shadow-xs transition-all"
+                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-medium placeholder-slate-400 dark:placeholder-slate-500 focus:border-brand focus:ring-2 focus:ring-brand/20 shadow-2xs transition-all"
                     />
                 </div>
                 <InputError message={errors.experience_years} className="mt-1" />
@@ -86,13 +86,13 @@ export default function StepOneIdentity({ data, setData, errors, positions = [] 
                         role="switch"
                         aria-checked={data.open_to_invitations}
                         onClick={() => setData('open_to_invitations', !data.open_to_invitations)}
-                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 dark:focus:ring-offset-[#0B0F17] ${
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden focus:ring-2 focus:ring-brand focus:ring-offset-2 dark:focus:ring-offset-[#0B0F17] ${
                             data.open_to_invitations ? 'bg-brand' : 'bg-slate-300 dark:bg-slate-700'
                         }`}
                     >
                         <span
                             aria-hidden="true"
-                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
                                 data.open_to_invitations ? 'translate-x-5' : 'translate-x-0'
                             }`}
                         />

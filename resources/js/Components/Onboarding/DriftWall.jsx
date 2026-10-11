@@ -184,7 +184,7 @@ const StudioSprintTileContent = React.memo(function StudioSprintTileContent({ it
             <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 min-w-0">
                     {item.dot && (
-                        <span className={`w-1.5 h-1.5 rounded-full ${dotClass} shadow-xs shrink-0`} />
+                        <span className={`w-1.5 h-1.5 rounded-full ${dotClass} shadow-2xs shrink-0`} />
                     )}
                     <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400 truncate">
                         {item.idKey || '#TASK'}
@@ -192,7 +192,7 @@ const StudioSprintTileContent = React.memo(function StudioSprintTileContent({ it
                 </div>
 
                 {item.tag && (
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-medium tracking-wide bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60 shrink-0">
+                    <span className="px-1.5 py-0.5 rounded-sm text-[9px] font-mono font-medium tracking-wide bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60 shrink-0">
                         {item.tag}
                     </span>
                 )}

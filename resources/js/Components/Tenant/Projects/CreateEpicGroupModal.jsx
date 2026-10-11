@@ -15,7 +15,7 @@ export default function CreateEpicGroupModal({ isOpen, onClose, onSubmit, isSubm
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs" onClick={onClose}>
             <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900 border border-gray-100 dark:border-slate-800" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4 dark:border-slate-800">
                     <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Create new group</h2>
@@ -33,7 +33,7 @@ export default function CreateEpicGroupModal({ isOpen, onClose, onSubmit, isSubm
                             placeholder="e.g. Q1 2026, Q2 2026"
                             value={formState.name}
                             onChange={e => setFormState(s => ({ ...s, name: e.target.value }))}
-                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-hidden focus:border-brand dark:border-slate-700 dark:bg-slate-800"
                         />
                         {validationErrors?.name && <p className="mt-1 text-xs text-red-500">{validationErrors.name[0]}</p>}
                     </div>
@@ -45,7 +45,7 @@ export default function CreateEpicGroupModal({ isOpen, onClose, onSubmit, isSubm
                             value={formState.goal}
                             placeholder="Optional high-level goals for this epic group..."
                             onChange={e => setFormState(s => ({ ...s, goal: e.target.value }))}
-                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-hidden focus:border-brand dark:border-slate-700 dark:bg-slate-800"
                         />
                         {validationErrors?.goal && <p className="mt-1 text-xs text-red-500">{validationErrors.goal[0]}</p>}
                     </div>
@@ -62,7 +62,7 @@ export default function CreateEpicGroupModal({ isOpen, onClose, onSubmit, isSubm
                         <button 
                             type="submit"
                             disabled={isSubmitting}
-                            className="rounded-lg bg-brand px-5 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-dark disabled:opacity-50 flex items-center gap-2"
+                            className="rounded-lg bg-brand px-5 py-2 text-sm font-bold text-white shadow-xs hover:bg-brand-dark disabled:opacity-50 flex items-center gap-2"
                         >
                             {isSubmitting ? 'Creating...' : 'Create Group'}
                         </button>

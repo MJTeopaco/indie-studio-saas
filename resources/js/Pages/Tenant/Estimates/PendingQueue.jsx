@@ -31,7 +31,7 @@ export default function PendingQueue({ studio, tasks }) {
                 </div>
 
                 {tasks.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm text-center">
+                    <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-xs text-center">
                         <CheckCircle className="w-12 h-12 text-emerald-500 mb-4" />
                         <h3 className="text-lg font-bold font-heading text-gray-900 dark:text-slate-100">You're all caught up!</h3>
                         <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">No tasks currently require your estimation.</p>
@@ -39,7 +39,7 @@ export default function PendingQueue({ studio, tasks }) {
                 ) : (
                     <div className="space-y-4">
                         {tasks.map((task) => (
-                            <div key={task.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div key={task.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-xs p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                                 <div>
                                     <h3 className="text-base font-bold text-gray-900 dark:text-slate-100">{task.title}</h3>
                                     <div className="flex items-center gap-3 mt-2 text-xs">
@@ -62,7 +62,7 @@ export default function PendingQueue({ studio, tasks }) {
                                                 key={point}
                                                 onClick={() => submitEstimate(task.id, point)}
                                                 disabled={submitting === task.id}
-                                                className="w-10 h-10 flex items-center justify-center rounded-lg text-sm font-bold font-mono text-gray-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 hover:shadow-sm hover:text-brand dark:hover:text-brand-light transition-all focus-ring disabled:opacity-50"
+                                                className="w-10 h-10 flex items-center justify-center rounded-lg text-sm font-bold font-mono text-gray-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 hover:shadow-xs hover:text-brand dark:hover:text-brand-light transition-all focus-ring disabled:opacity-50"
                                             >
                                                 {submitting === task.id ? (
                                                     <Loader2 className="w-3.5 h-3.5 animate-spin" />

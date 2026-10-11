@@ -236,7 +236,7 @@ export default function TeamIndex({
                         <div className="flex items-center gap-2.5">
                             <button
                                 onClick={copyInviteLink}
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-heading font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm shadow-brand/15"
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-heading font-semibold transition-all hover:scale-105 active:scale-95 shadow-xs shadow-brand/15"
                             >
                                 <Copy className="w-4 h-4" />
                                 <span>{copying ? 'Copied Code!' : 'Copy Invite Code'}</span>
@@ -271,7 +271,7 @@ export default function TeamIndex({
                 {/* 3. Conditional Content States */}
                 {members.length === 0 ? (
                     /* CASE A: Empty State */
-                    <div className="mt-12 flex flex-col items-center justify-center rounded-2xl border border-dashed border-surface-border bg-white/20 dark:bg-slate-900/10 p-16 text-center max-w-xl mx-auto shadow-sm">
+                    <div className="mt-12 flex flex-col items-center justify-center rounded-2xl border border-dashed border-surface-border bg-white/20 dark:bg-slate-900/10 p-16 text-center max-w-xl mx-auto shadow-xs">
                         <div className="w-16 h-16 rounded-2xl bg-brand-10 flex items-center justify-center text-brand border border-brand-30 mb-6">
                             <Users className="w-8 h-8" />
                         </div>
@@ -320,9 +320,9 @@ export default function TeamIndex({
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         placeholder="Search..."
-                                        className="pl-9 pr-12 py-1.75 rounded-xl bg-white dark:bg-slate-800/40 border border-gray-200 dark:border-slate-800 focus:border-brand dark:focus:border-brand/60 text-xs text-gray-800 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none cursor-pointer transition-all"
+                                        className="pl-9 pr-12 py-1.75 rounded-xl bg-white dark:bg-slate-800/40 border border-gray-200 dark:border-slate-800 focus:border-brand dark:focus:border-brand/60 text-xs text-gray-800 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-hidden cursor-pointer transition-all"
                                     />
-                                    <span className="absolute right-2.5 text-[9px] font-mono text-gray-400 dark:text-slate-500 bg-gray-100 dark:bg-slate-700/80 rounded px-1.5 py-0.5">
+                                    <span className="absolute right-2.5 text-[9px] font-mono text-gray-400 dark:text-slate-500 bg-gray-100 dark:bg-slate-700/80 rounded-sm px-1.5 py-0.5">
                                         ⌘F
                                     </span>
                                 </div>
@@ -351,7 +351,7 @@ export default function TeamIndex({
                                                     <select
                                                         value={selectedDepartment}
                                                         onChange={(e) => { setSelectedDepartment(e.target.value); setFilterOpen(false); }}
-                                                        className="w-full text-xs bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-2 focus:outline-none focus:border-brand"
+                                                        className="w-full text-xs bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-2 focus:outline-hidden focus:border-brand"
                                                     >
                                                         <option value="All">All Departments</option>
                                                         {DEPARTMENTS.map(d => (
@@ -366,7 +366,7 @@ export default function TeamIndex({
                                                     <select
                                                         value={selectedStatus}
                                                         onChange={(e) => { setSelectedStatus(e.target.value); setFilterOpen(false); }}
-                                                        className="w-full text-xs bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-2 focus:outline-none focus:border-brand"
+                                                        className="w-full text-xs bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-2 focus:outline-hidden focus:border-brand"
                                                     >
                                                         <option value="All">All Statuses</option>
                                                         {STATUSES.map(s => (
@@ -450,7 +450,7 @@ export default function TeamIndex({
                                                         type="button"
                                                         onClick={() => setDeptPages(prev => ({ ...prev, [dept]: Math.max(1, currentPage - 1) }))}
                                                         disabled={currentPage === 1}
-                                                        className="px-2 py-1 rounded bg-gray-250 dark:bg-slate-800 text-[10px] font-bold text-gray-700 dark:text-slate-350 hover:bg-gray-300 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed select-none transition-colors"
+                                                        className="px-2 py-1 rounded-sm bg-gray-250 dark:bg-slate-800 text-[10px] font-bold text-gray-700 dark:text-slate-350 hover:bg-gray-300 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed select-none transition-colors"
                                                     >
                                                         Prev
                                                     </button>
@@ -461,7 +461,7 @@ export default function TeamIndex({
                                                         type="button"
                                                         onClick={() => setDeptPages(prev => ({ ...prev, [dept]: Math.min(totalPages, currentPage + 1) }))}
                                                         disabled={currentPage === totalPages}
-                                                        className="px-2 py-1 rounded bg-gray-250 dark:bg-slate-800 text-[10px] font-bold text-gray-700 dark:text-slate-350 hover:bg-gray-300 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed select-none transition-colors"
+                                                        className="px-2 py-1 rounded-sm bg-gray-250 dark:bg-slate-800 text-[10px] font-bold text-gray-700 dark:text-slate-350 hover:bg-gray-300 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed select-none transition-colors"
                                                     >
                                                         Next
                                                     </button>
@@ -474,7 +474,7 @@ export default function TeamIndex({
                         )}
 
                         {/* 4. Timeline Schedule View */}
-                        <div className="rounded-2xl border border-gray-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/20 p-6 shadow-sm space-y-6">
+                        <div className="rounded-2xl border border-gray-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/20 p-6 shadow-xs space-y-6">
                             {/* Timeline Header Row */}
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                 <div className="flex items-center gap-2">
@@ -494,7 +494,7 @@ export default function TeamIndex({
                                                 onClick={() => setTimelineMode(mode)}
                                                 className={`px-3 py-1 rounded-lg text-xs font-heading font-semibold transition-all duration-200 ${
                                                     isModeActive
-                                                        ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 shadow-sm'
+                                                        ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 shadow-xs'
                                                         : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'
                                                 }`}
                                             >

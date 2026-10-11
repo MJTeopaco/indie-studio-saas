@@ -57,7 +57,7 @@ export default function ManageAssignmentModal({ isOpen, onClose, task, teamMembe
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs" onClick={onClose}>
             <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900 border border-gray-100 dark:border-slate-800" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4 dark:border-slate-800">
                     <div>
@@ -75,7 +75,7 @@ export default function ManageAssignmentModal({ isOpen, onClose, task, teamMembe
                         onClick={() => setActiveTab('manual')}
                         className={`flex-1 inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all ${
                             activeTab === 'manual'
-                                ? 'bg-white text-brand shadow-sm dark:bg-slate-700 dark:text-brand-light'
+                                ? 'bg-white text-brand shadow-xs dark:bg-slate-700 dark:text-brand-light'
                                 : 'text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200'
                         }`}
                     >
@@ -87,7 +87,7 @@ export default function ManageAssignmentModal({ isOpen, onClose, task, teamMembe
                         onClick={() => setActiveTab('ai')}
                         className={`flex-1 inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all ${
                             activeTab === 'ai'
-                                ? 'bg-white text-purple-600 shadow-sm dark:bg-slate-700 dark:text-purple-400'
+                                ? 'bg-white text-purple-600 shadow-xs dark:bg-slate-700 dark:text-purple-400'
                                 : 'text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200'
                         }`}
                     >
@@ -108,7 +108,7 @@ export default function ManageAssignmentModal({ isOpen, onClose, task, teamMembe
                         <button
                             type="button"
                             onClick={handleAiClick}
-                            className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-purple-700 shadow-sm shadow-purple-500/30 transition-all"
+                            className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-purple-700 shadow-xs shadow-purple-500/30 transition-all"
                         >
                             <Sparkles className="h-4 w-4" />
                             Run AI Analysis
@@ -126,7 +126,7 @@ export default function ManageAssignmentModal({ isOpen, onClose, task, teamMembe
                                             type="checkbox"
                                             checked={selectedMembers.includes(member.id)}
                                             onChange={() => handleToggleMember(member.id)}
-                                            className="w-4 h-4 rounded border-gray-300 text-brand focus:ring-brand"
+                                            className="w-4 h-4 rounded-sm border-gray-300 text-brand focus:ring-brand"
                                         />
                                         <div className="ml-3">
                                             <span className="block text-sm font-bold text-gray-900 dark:text-slate-100">{member.name}</span>
@@ -148,7 +148,7 @@ export default function ManageAssignmentModal({ isOpen, onClose, task, teamMembe
                             <button 
                                 type="submit" 
                                 disabled={isSubmitting}
-                                className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2 text-sm font-bold text-white hover:bg-brand-600 disabled:opacity-50 transition-colors shadow-sm shadow-brand/30"
+                                className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2 text-sm font-bold text-white hover:bg-brand-600 disabled:opacity-50 transition-colors shadow-xs shadow-brand/30"
                             >
                                 {isSubmitting ? (
                                     <>

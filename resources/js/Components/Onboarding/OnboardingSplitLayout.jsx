@@ -44,8 +44,8 @@ export default function OnboardingSplitLayout({
                 
                 {/* Top Utility Header (Logo & Theme Toggle) */}
                 <div className="flex items-center justify-between w-full max-w-lg mx-auto">
-                    <Link href="/" className="flex items-center gap-3 group focus:outline-none">
-                        <ApplicationLogo variant="symbol" className="w-8 h-8 rounded-lg shadow-sm" />
+                    <Link href="/" className="flex items-center gap-3 group focus:outline-hidden">
+                        <ApplicationLogo variant="symbol" className="w-8 h-8 rounded-lg shadow-xs" />
                         <span className="font-heading font-extrabold text-base tracking-tight text-slate-900 dark:text-white group-hover:text-brand transition-colors">
                             StudioSprint
                         </span>
@@ -56,7 +56,7 @@ export default function OnboardingSplitLayout({
                         type="button"
                         onClick={toggleTheme}
                         aria-label="Toggle theme"
-                        className="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60 hover:bg-slate-200 dark:hover:bg-slate-800 transition-all shadow-xs"
+                        className="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60 hover:bg-slate-200 dark:hover:bg-slate-800 transition-all shadow-2xs"
                     >
                         {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
                     </button>
@@ -96,7 +96,7 @@ export default function OnboardingSplitLayout({
                                         key={step}
                                         className={`transition-all duration-300 ease-out rounded-full ${
                                             isActive
-                                                ? 'w-6 h-1.5 bg-brand shadow-xs shadow-brand/40'
+                                                ? 'w-6 h-1.5 bg-brand shadow-2xs shadow-brand/40'
                                                 : isPast
                                                 ? 'w-1.5 h-1.5 bg-slate-400 dark:bg-slate-600'
                                                 : 'w-1.5 h-1.5 bg-slate-200 dark:bg-slate-800'

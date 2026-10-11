@@ -87,7 +87,7 @@ export default function TenantLayout({ children, studioName }) {
                     <div className="flex items-center gap-2 shrink-0">
                         <Link
                             href={route('central.hub')}
-                            className="group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-surface-border bg-surface hover:bg-surface-elevated hover:border-brand/40 text-xs font-heading font-medium text-text-secondary hover:text-text-primary transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] shadow-2xs hover:shadow-xs focus-ring cursor-pointer"
+                            className="group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-surface-border bg-surface hover:bg-surface-elevated hover:border-brand/40 text-xs font-heading font-medium text-text-secondary hover:text-text-primary transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] shadow-2xs hover:shadow-2xs focus-ring cursor-pointer"
                             title="Return to Central Hub"
                         >
                             <ArrowLeft className="w-3.5 h-3.5 text-text-muted group-hover:text-brand transition-colors" />

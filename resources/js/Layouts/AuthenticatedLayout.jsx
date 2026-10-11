@@ -35,10 +35,10 @@ export default function AuthenticatedLayout({ header, children }) {
                                     <Dropdown.Trigger>
                                         <button
                                             type="button"
-                                            className="group flex items-center gap-2 p-1 pl-1 pr-2.5 rounded-full hover:bg-surface border border-transparent hover:border-surface-border transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 cursor-pointer shadow-2xs"
+                                            className="group flex items-center gap-2 p-1 pl-1 pr-2.5 rounded-full hover:bg-surface border border-transparent hover:border-surface-border transition-all duration-150 focus:outline-hidden focus:ring-2 focus:ring-brand focus:ring-offset-2 cursor-pointer shadow-2xs"
                                             aria-label="User profile menu"
                                         >
-                                            <div className="relative flex items-center justify-center w-8 h-8 rounded-full ring-1 ring-slate-300 dark:ring-slate-700/80 group-hover:ring-brand/70 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 transition-all duration-200 overflow-hidden shrink-0 shadow-xs">
+                                            <div className="relative flex items-center justify-center w-8 h-8 rounded-full ring-1 ring-slate-300 dark:ring-slate-700/80 group-hover:ring-brand/70 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 transition-all duration-200 overflow-hidden shrink-0 shadow-2xs">
                                                 {user.avatar ? (
                                                     <img
                                                         src={user.avatar}
@@ -89,7 +89,7 @@ export default function AuthenticatedLayout({ header, children }) {
                                         (previousState) => !previousState,
                                     )
                                 }
-                                className="inline-flex items-center justify-center rounded-md p-2 text-text-muted transition duration-150 ease-in-out hover:bg-surface hover:text-text-primary focus:bg-surface focus:text-text-primary focus:outline-none"
+                                className="inline-flex items-center justify-center rounded-md p-2 text-text-muted transition duration-150 ease-in-out hover:bg-surface hover:text-text-primary focus:bg-surface focus:text-text-primary focus:outline-hidden"
                             >
                                 <svg
                                     className="h-6 w-6"
@@ -167,7 +167,7 @@ export default function AuthenticatedLayout({ header, children }) {
             </nav>
 
             {header && (
-                <header className="bg-surface-elevated shadow border-b border-surface-border">
+                <header className="bg-surface-elevated shadow-sm border-b border-surface-border">
                     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
                         {header}
                     </div>

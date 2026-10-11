@@ -154,11 +154,11 @@ export function CpaAiSummaryCard({ tasks = [], project = null, className = '' })
     if (!summary) return null;
 
     return (
-        <div className={`rounded-2xl border border-indigo-200/90 bg-gradient-to-br from-indigo-50/90 via-white to-purple-50/50 p-5 dark:border-indigo-900/50 dark:bg-slate-900 dark:from-slate-900 dark:to-indigo-950/30 shadow-xs space-y-4 ${className}`}>
+        <div className={`rounded-2xl border border-indigo-200/90 bg-linear-to-br from-indigo-50/90 via-white to-purple-50/50 p-5 dark:border-indigo-900/50 dark:bg-slate-900 dark:from-slate-900 dark:to-indigo-950/30 shadow-2xs space-y-4 ${className}`}>
             {/* Header with AI Badge */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-100 dark:border-indigo-900/50 pb-3.5">
                 <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-linear-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-2xs shrink-0">
                         <Sparkles className="w-5 h-5 fill-white/80" />
                     </div>
                     <div>

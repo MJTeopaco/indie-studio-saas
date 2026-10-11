@@ -7,7 +7,7 @@ import PriorityBadge from './PriorityBadge';
  */
 export default function KanbanCard({ task }) {
     return (
-        <div className="group relative rounded-2xl bg-white dark:bg-slate-900/90 border border-gray-200 dark:border-slate-800 hover:border-brand/60 dark:hover:border-brand/60 p-4 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col gap-3">
+        <div className="group relative rounded-2xl bg-white dark:bg-slate-900/90 border border-gray-200 dark:border-slate-800 hover:border-brand/60 dark:hover:border-brand/60 p-4 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col gap-3">
             {/* Top row: ID + Priority */}
             <div className="flex items-center justify-between">
                 <span className="text-[11px] font-mono font-semibold text-gray-400 dark:text-slate-500">

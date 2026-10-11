@@ -50,7 +50,7 @@ export default function ReviewQueue({ studio, tasks }) {
                 </div>
 
                 {tasks.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm text-center">
+                    <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-xs text-center">
                         <CheckCircle className="w-12 h-12 text-emerald-500 mb-4" />
                         <h3 className="text-lg font-bold font-heading text-gray-900 dark:text-slate-100">Queue Clear</h3>
                         <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">No estimates currently require manager resolution.</p>
@@ -58,7 +58,7 @@ export default function ReviewQueue({ studio, tasks }) {
                 ) : (
                     <div className="space-y-6">
                         {tasks.map((task) => (
-                            <div key={task.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-rose-200 dark:border-rose-900/40 shadow-sm overflow-hidden flex flex-col">
+                            <div key={task.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-rose-200 dark:border-rose-900/40 shadow-xs overflow-hidden flex flex-col">
                                 <div className="p-5 border-b border-gray-100 dark:border-slate-800 bg-rose-50/30 dark:bg-rose-950/10">
                                     <div className="flex items-start justify-between flex-wrap gap-4">
                                         <div>
@@ -109,7 +109,7 @@ export default function ReviewQueue({ studio, tasks }) {
                                                             onClick={() => updateData(task.id, 'story_points', point)}
                                                             className={`w-10 h-10 flex items-center justify-center rounded-lg text-sm font-bold font-mono transition-all focus-ring ${
                                                                 (resolutionData[task.id]?.story_points === point)
-                                                                    ? 'bg-brand text-white shadow-sm'
+                                                                    ? 'bg-brand text-white shadow-xs'
                                                                     : 'text-gray-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 hover:shadow-2xs'
                                                             }`}
                                                         >
@@ -133,7 +133,7 @@ export default function ReviewQueue({ studio, tasks }) {
                                             <button
                                                 onClick={() => handleResolve(task.id)}
                                                 disabled={resolving === task.id || !resolutionData[task.id]?.story_points}
-                                                className="inline-flex items-center gap-1.5 px-4 py-2 bg-brand text-white text-sm font-bold rounded-xl hover:bg-brand-dark focus-ring disabled:opacity-50 transition-all shadow-sm"
+                                                className="inline-flex items-center gap-1.5 px-4 py-2 bg-brand text-white text-sm font-bold rounded-xl hover:bg-brand-dark focus-ring disabled:opacity-50 transition-all shadow-xs"
                                             >
                                                 {resolving === task.id ? (
                                                     <Loader2 className="w-4 h-4 animate-spin" />

@@ -561,10 +561,10 @@ export default function Docs({
                 <div className="max-w-7xl mx-auto space-y-6">
 
                     {/* ── Top Header ── */}
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs print:hidden">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs print:hidden">
                         <div className="space-y-1">
                             <div className="flex items-center gap-2.5">
-                                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-brand flex items-center justify-center text-white shadow-xs">
+                                <div className="w-9 h-9 rounded-xl bg-linear-to-br from-indigo-500 to-brand flex items-center justify-center text-white shadow-2xs">
                                     <Archive className="w-5 h-5" />
                                 </div>
                                 <h1 className="font-heading text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
@@ -584,13 +584,13 @@ export default function Docs({
 
                             {/* Sub-Tabs Selector inside Report Archiving */}
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-3 print:hidden">
-                                <div className="flex items-center gap-2 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 shadow-xs">
+                                <div className="flex items-center gap-2 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 shadow-2xs">
                                     <button
                                         type="button"
                                         onClick={() => setArchiveSubTab('generator')}
                                         className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 active:scale-95 ${
                                             archiveSubTab === 'generator'
-                                                ? 'bg-brand text-white shadow-sm ring-1 ring-brand/50'
+                                                ? 'bg-brand text-white shadow-xs ring-1 ring-brand/50'
                                                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-800'
                                         }`}
                                     >
@@ -603,7 +603,7 @@ export default function Docs({
                                         onClick={() => setArchiveSubTab('gallery')}
                                         className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 active:scale-95 ${
                                             archiveSubTab === 'gallery'
-                                                ? 'bg-brand text-white shadow-sm ring-1 ring-brand/50'
+                                                ? 'bg-brand text-white shadow-xs ring-1 ring-brand/50'
                                                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-800'
                                         }`}
                                     >
@@ -620,7 +620,7 @@ export default function Docs({
                                         type="button"
                                         onClick={handleArchiveCurrentReport}
                                         disabled={isArchiving}
-                                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                                         title="Save and permanently archive this report snapshot"
                                     >
                                         {isArchiving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Archive className="w-3.5 h-3.5" />}
@@ -634,7 +634,7 @@ export default function Docs({
                                 <div className="space-y-6">
 
                                     {/* Selection & Action Controls */}
-                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs print:hidden">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs print:hidden">
                                         <div className="flex flex-wrap items-center gap-3 flex-1">
                                             {/* Project Picker */}
                                             <div className="flex items-center gap-2">
@@ -737,7 +737,7 @@ export default function Docs({
                                                         onClick={() => setGeneratorViewTab(tab.id)}
                                                         className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                                                             isActive
-                                                                ? 'bg-white dark:bg-slate-900 text-brand shadow-xs'
+                                                                ? 'bg-white dark:bg-slate-900 text-brand shadow-2xs'
                                                                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                                                         }`}
                                                     >
@@ -773,7 +773,7 @@ export default function Docs({
                                             {/* KPI Cards */}
                                             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                                                 {/* 1. Completion Rate */}
-                                                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-2">
+                                                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-2">
                                                     <div className="flex items-center justify-between text-xs text-slate-500">
                                                         <span className="font-bold uppercase tracking-wider">Completion</span>
                                                         <TrendingUp className="w-4 h-4 text-emerald-500" />
@@ -790,7 +790,7 @@ export default function Docs({
                                                 </div>
 
                                                 {/* 2. Tasks Ratio */}
-                                                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-2">
+                                                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-2">
                                                     <div className="flex items-center justify-between text-xs text-slate-500">
                                                         <span className="font-bold uppercase tracking-wider">Tasks Done</span>
                                                         <CheckCircle2 className="w-4 h-4 text-brand" />
@@ -804,7 +804,7 @@ export default function Docs({
                                                 </div>
 
                                                 {/* 3. Story Points Burned */}
-                                                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-2">
+                                                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-2">
                                                     <div className="flex items-center justify-between text-xs text-slate-500">
                                                         <span className="font-bold uppercase tracking-wider">Story Points</span>
                                                         <Flame className="w-4 h-4 text-amber-500" />
@@ -818,7 +818,7 @@ export default function Docs({
                                                 </div>
 
                                                 {/* 4. Delivery Status */}
-                                                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-2">
+                                                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-2">
                                                     <div className="flex items-center justify-between text-xs text-slate-500">
                                                         <span className="font-bold uppercase tracking-wider">On-Time vs Late</span>
                                                         <Clock className="w-4 h-4 text-indigo-500" />
@@ -832,7 +832,7 @@ export default function Docs({
                                                 </div>
 
                                                 {/* 5. Overdue */}
-                                                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-2 col-span-2 lg:col-span-1">
+                                                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-2 col-span-2 lg:col-span-1">
                                                     <div className="flex items-center justify-between text-xs text-slate-500">
                                                         <span className="font-bold uppercase tracking-wider">Overdue Tasks</span>
                                                         <AlertCircle className="w-4 h-4 text-rose-500" />
@@ -851,7 +851,7 @@ export default function Docs({
                                                 <div className="space-y-6">
                                                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                                                         {/* Donut Chart */}
-                                                        <div className="lg:col-span-5 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+                                                        <div className="lg:col-span-5 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-4">
                                                             <div className="flex items-center justify-between">
                                                                 <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                                                                     <PieChartIcon className="w-4 h-4 text-brand" />
@@ -899,7 +899,7 @@ export default function Docs({
                                                         </div>
 
                                                         {/* Developer contribution bars */}
-                                                        <div className="lg:col-span-7 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+                                                        <div className="lg:col-span-7 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-4">
                                                             <div className="flex items-center justify-between">
                                                                 <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                                                                     <User className="w-4 h-4 text-indigo-500" />
@@ -941,7 +941,7 @@ export default function Docs({
 
                                                     {/* Priority Distribution */}
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+                                                        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-4">
                                                             <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                                                                 <Zap className="w-4 h-4 text-amber-500" />
                                                                 Priority Distribution
@@ -973,7 +973,7 @@ export default function Docs({
                                                         </div>
 
                                                         {/* Difficulty Distribution */}
-                                                        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+                                                        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-4">
                                                             <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                                                                 <Layers className="w-4 h-4 text-indigo-500" />
                                                                 Task Difficulty Breakdown
@@ -1005,7 +1005,7 @@ export default function Docs({
 
                                             {/* ── SUB-TAB: AUDIT BREAKDOWN ── */}
                                             {generatorViewTab === 'audit' && (
-                                                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden space-y-4 p-5">
+                                                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden space-y-4 p-5">
                                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                                         <div className="relative flex-1 max-w-sm">
                                                             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -1014,11 +1014,11 @@ export default function Docs({
                                                                 value={auditSearch}
                                                                 onChange={(e) => setAuditSearch(e.target.value)}
                                                                 placeholder="Search by task title or developer..."
-                                                                className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-brand"
+                                                                className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:border-brand"
                                                             />
                                                         </div>
 
-                                                        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">
+                                                        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
                                                             {[
                                                                 { id: 'all', label: 'All Tasks' },
                                                                 { id: 'completed', label: 'Completed' },
@@ -1119,7 +1119,7 @@ export default function Docs({
 
                                             {/* ── SUB-TAB: TEAM CONTRIBUTION MATRIX ── */}
                                             {generatorViewTab === 'team' && (
-                                                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden p-5 space-y-4">
+                                                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden p-5 space-y-4">
                                                     <div className="flex items-center justify-between">
                                                         <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                                                             <User className="w-4 h-4 text-indigo-500" />
@@ -1207,7 +1207,7 @@ export default function Docs({
                             {archiveSubTab === 'gallery' && (
                                 <div className="space-y-4">
                                     {/* Gallery Controls */}
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
                                         <div className="relative flex-1 max-w-sm">
                                             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                                             <input
@@ -1215,7 +1215,7 @@ export default function Docs({
                                                 value={gallerySearch}
                                                 onChange={(e) => setGallerySearch(e.target.value)}
                                                 placeholder="Search archived reports..."
-                                                className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-brand"
+                                                className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:border-brand"
                                             />
                                         </div>
 
@@ -1223,7 +1223,7 @@ export default function Docs({
                                             <button
                                                 type="button"
                                                 onClick={() => setArchiveSubTab('generator')}
-                                                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-brand text-white shadow-xs hover:bg-brand-dark transition-all"
+                                                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-brand text-white shadow-2xs hover:bg-brand-dark transition-all"
                                             >
                                                 <PlusCircle className="w-3.5 h-3.5" />
                                                 <span>Generate New Report</span>
@@ -1243,7 +1243,7 @@ export default function Docs({
                                                 <button
                                                     type="button"
                                                     onClick={() => setArchiveSubTab('generator')}
-                                                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-brand text-white shadow-xs"
+                                                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-brand text-white shadow-2xs"
                                                 >
                                                     <BarChart3 className="w-3.5 h-3.5" />
                                                     <span>Open Report Generator</span>
@@ -1253,7 +1253,7 @@ export default function Docs({
                                             filteredArchivedReports.map((rep) => (
                                                 <div
                                                     key={rep.id}
-                                                    className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between gap-4 hover:border-brand/40 transition-all"
+                                                    className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-2xs flex flex-col justify-between gap-4 hover:border-brand/40 transition-all"
                                                 >
                                                     <div className="space-y-2">
                                                         <div className="flex items-center justify-between gap-2">
@@ -1364,7 +1364,7 @@ export default function Docs({
 
             {/* ── EMAIL MODAL ── */}
             {emailModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fadeIn">
                     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl p-6 w-full max-w-md space-y-4">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2.5">
@@ -1437,7 +1437,7 @@ export default function Docs({
                                     placeholder="client@company.com or stakeholder@test.io"
                                     required
                                     disabled={sendingEmail}
-                                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand transition-all disabled:opacity-50"
+                                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-brand/40 focus:border-brand transition-all disabled:opacity-50"
                                 />
                             </div>
 
@@ -1451,7 +1451,7 @@ export default function Docs({
                                     placeholder="Add executive commentary or sprint notes..."
                                     rows={3}
                                     disabled={sendingEmail}
-                                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand transition-all disabled:opacity-50"
+                                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-brand/40 focus:border-brand transition-all disabled:opacity-50"
                                 />
                             </div>
 
@@ -1471,7 +1471,7 @@ export default function Docs({
                                 <button
                                     type="submit"
                                     disabled={sendingEmail || !recipientEmail.trim()}
-                                    className="px-4 py-2 rounded-xl text-xs font-bold bg-brand text-white hover:bg-brand-dark transition-all duration-200 shadow-sm shadow-brand/20 flex items-center gap-1.5 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-none"
+                                    className="px-4 py-2 rounded-xl text-xs font-bold bg-brand text-white hover:bg-brand-dark transition-all duration-200 shadow-xs shadow-brand/20 flex items-center gap-1.5 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-none"
                                 >
                                     {sendingEmail ? (
                                         <>
@@ -1493,7 +1493,7 @@ export default function Docs({
 
             {/* ── CHAT SHARE MODAL ── */}
             {chatModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
                     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl p-6 w-full max-w-md space-y-4">
                         <div className="flex items-center justify-between gap-3 min-w-0">
                             <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -1559,7 +1559,7 @@ export default function Docs({
                                     <select
                                         value={chatRecipientId}
                                         onChange={(e) => setChatRecipientId(e.target.value)}
-                                        className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-brand"
+                                        className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-brand"
                                     >
                                         {members.map((m) => (
                                             <option key={m.id} value={m.id}>
@@ -1571,7 +1571,7 @@ export default function Docs({
                                     <select
                                         value={chatRecipientId}
                                         onChange={(e) => setChatRecipientId(e.target.value)}
-                                        className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-brand"
+                                        className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-brand"
                                     >
                                         <option value="ch-general">#general (Announcements)</option>
                                         <option value="ch-sprint">#sprint-room (Sprint Coordination)</option>
@@ -1589,7 +1589,7 @@ export default function Docs({
                                     onChange={(e) => setChatNote(e.target.value)}
                                     placeholder="Add notes for the channel..."
                                     rows={2}
-                                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-brand"
+                                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:border-brand"
                                 />
                             </div>
 
@@ -1604,7 +1604,7 @@ export default function Docs({
                                 <button
                                     type="submit"
                                     disabled={sendingChat}
-                                    className="px-4 py-2 rounded-xl text-xs font-bold bg-brand text-white hover:bg-brand-dark transition-all shadow-xs flex items-center gap-1.5 disabled:opacity-50"
+                                    className="px-4 py-2 rounded-xl text-xs font-bold bg-brand text-white hover:bg-brand-dark transition-all shadow-2xs flex items-center gap-1.5 disabled:opacity-50"
                                 >
                                     {sendingChat ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                                     <span>Post to Chat</span>
@@ -1617,7 +1617,7 @@ export default function Docs({
 
             {/* ── ARCHIVED REPORT VIEW / PRINT MODAL ── */}
             {activePrintReport && (
-                <div className="fixed inset-0 bg-slate-900/60 z-[9999] flex items-center justify-center p-4 md:p-6 backdrop-blur-sm print:p-0 print:bg-white print:static print:inset-auto print:z-auto">
+                <div className="fixed inset-0 bg-slate-900/60 z-9999 flex items-center justify-center p-4 md:p-6 backdrop-blur-xs print:p-0 print:bg-white print:static print:inset-auto print:z-auto">
                     <div className="w-full max-w-4xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-slate-800 overflow-hidden flex flex-col justify-between print:max-h-none print:overflow-visible print:shadow-none print:border-none print:rounded-none">
                         
                         {/* Actions bar - hidden on print */}
@@ -1630,7 +1630,7 @@ export default function Docs({
                                         setEmailTargetReport(activePrintReport);
                                         setEmailModalOpen(true);
                                     }}
-                                    className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow transition-all flex items-center gap-1.5"
+                                    className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition-all flex items-center gap-1.5"
                                     title="Email this archived report (PDF + CSV)"
                                 >
                                     <Mail className="w-3.5 h-3.5" />
@@ -1639,7 +1639,7 @@ export default function Docs({
                                 <button
                                     type="button"
                                     onClick={() => downloadPdfDirectly(activePrintReport)}
-                                    className="px-3.5 py-2 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-bold shadow transition-all flex items-center gap-1.5"
+                                    className="px-3.5 py-2 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-bold shadow-sm transition-all flex items-center gap-1.5"
                                 >
                                     <Download className="w-3.5 h-3.5" />
                                     Download as PDF
@@ -1647,7 +1647,7 @@ export default function Docs({
                                 <button
                                     type="button"
                                     onClick={() => downloadCsvReport(activePrintReport)}
-                                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow transition-all flex items-center gap-1.5"
+                                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all flex items-center gap-1.5"
                                 >
                                     <Download className="w-3.5 h-3.5" />
                                     Download CSV (Excel)

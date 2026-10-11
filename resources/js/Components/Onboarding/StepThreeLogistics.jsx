@@ -46,7 +46,7 @@ export default function StepThreeLogistics({ data, setData, errors }) {
                                 onClick={() => setData('max_hours_per_week', hours)}
                                 className={`py-3 px-2 rounded-xl text-center font-heading text-sm font-bold border transition-all duration-200 ${
                                     isSelected
-                                        ? 'bg-brand text-white border-brand shadow-sm shadow-brand/30'
+                                        ? 'bg-brand text-white border-brand shadow-xs shadow-brand/30'
                                         : 'bg-white dark:bg-slate-900/90 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-brand/60'
                                 }`}
                             >
@@ -76,7 +76,7 @@ export default function StepThreeLogistics({ data, setData, errors }) {
                         id="timezone"
                         value={data.timezone}
                         onChange={(e) => setData('timezone', e.target.value)}
-                        className="w-full pl-10 pr-10 py-3 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-medium focus:border-brand focus:ring-2 focus:ring-brand/20 shadow-xs appearance-none transition-all cursor-pointer"
+                        className="w-full pl-10 pr-10 py-3 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-medium focus:border-brand focus:ring-2 focus:ring-brand/20 shadow-2xs appearance-none transition-all cursor-pointer"
                     >
                         <option value="" disabled>Select your timezone...</option>
                         {commonTimezones.map((tz) => (

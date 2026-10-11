@@ -135,7 +135,7 @@ export default function ListView({ tasks = [], onTaskClick }) {
 
     return (
         <div className="flex-1 overflow-auto p-6">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden min-w-[900px]">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-xs overflow-hidden min-w-[900px]">
                 {/* Table header */}
                 <table className="w-full table-auto">
                     <thead>
@@ -202,7 +202,7 @@ export default function ListView({ tasks = [], onTaskClick }) {
                                         <td className="px-4 py-3">
                                             <div className="flex gap-1 flex-wrap">
                                                 {task.tags?.slice(0, 2).map(tag => (
-                                                    <span key={tag} className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${TAG_COLORS[tag] || 'bg-gray-100 text-gray-500'}`}>{tag}</span>
+                                                    <span key={tag} className={`px-1.5 py-0.5 rounded-sm text-[9px] font-bold ${TAG_COLORS[tag] || 'bg-gray-100 text-gray-500'}`}>{tag}</span>
                                                 ))}
                                             </div>
                                         </td>

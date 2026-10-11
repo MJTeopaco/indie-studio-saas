@@ -150,7 +150,7 @@ export default function DayPanel({ selectedDate, onSelectDate, tasks = [], event
                                 key={day}
                                 onClick={() => onSelectDate(cellDate)}
                                 className={`relative w-full aspect-square flex flex-col items-center justify-center rounded-lg text-[11px] font-semibold transition-all duration-100
-                                    ${isSelected  ? 'bg-indigo-600 text-white shadow-sm'        : ''}
+                                    ${isSelected  ? 'bg-indigo-600 text-white shadow-xs'        : ''}
                                     ${isTodayCell && !isSelected ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 ring-1 ring-inset ring-indigo-300 dark:ring-indigo-700' : ''}
                                     ${!isSelected && !isTodayCell ? 'text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800' : ''}
                                 `}
@@ -233,7 +233,7 @@ export default function DayPanel({ selectedDate, onSelectDate, tasks = [], event
                                     )}
 
                                     {/* Project badge */}
-                                    <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 font-medium truncate max-w-[60px]">
+                                    <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded-sm bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 font-medium truncate max-w-[60px]">
                                         {task.client || task.project_name || 'Project'}
                                     </span>
                                 </button>

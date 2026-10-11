@@ -1,12 +1,14 @@
 import { defineConfig } from 'vite';
 import laravel from 'laravel-vite-plugin';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-    // Both integrations return plugin arrays with the installed Vite version.
+    // Integrations return plugin arrays with the installed Vite version.
     // Flatten them so Vite executes their build hooks instead of falling back
     // to looking for a standalone index.html entry.
     plugins: [
+        ...tailwindcss(),
         ...laravel({
             input: 'resources/js/app.jsx',
             refresh: true,

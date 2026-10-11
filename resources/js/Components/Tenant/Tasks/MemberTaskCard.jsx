@@ -106,7 +106,7 @@ export default function MemberTaskCard({ task, currentUserId, onClick, onStatusC
     return (
         <div 
             onClick={() => onClick && onClick(task)}
-            className="group relative bg-white dark:bg-slate-900/90 rounded-xl p-4 border border-slate-200/80 dark:border-slate-800 hover:border-brand/60 dark:hover:border-brand/60 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between"
+            className="group relative bg-white dark:bg-slate-900/90 rounded-xl p-4 border border-slate-200/80 dark:border-slate-800 hover:border-brand/60 dark:hover:border-brand/60 shadow-2xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between"
         >
             <div>
                 {/* Top Row: Project / Epic & Priority */}
@@ -115,7 +115,7 @@ export default function MemberTaskCard({ task, currentUserId, onClick, onStatusC
                         {getStatusIndicator()}
                         {task.epic_name && (
                             <span 
-                                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold truncate max-w-[110px]"
+                                className="inline-flex items-center px-1.5 py-0.5 rounded-sm text-[10px] font-semibold truncate max-w-[110px]"
                                 style={{
                                     backgroundColor: task.epic_color ? `${task.epic_color}18` : 'rgba(99, 102, 241, 0.1)',
                                     color: task.epic_color || '#6366f1',
@@ -132,7 +132,7 @@ export default function MemberTaskCard({ task, currentUserId, onClick, onStatusC
                     <div className="flex items-center gap-1.5 shrink-0">
                         {getPriorityBadge()}
                         {task.story_points !== null && task.story_points !== undefined && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-sm text-[10px] font-mono font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                                 {task.story_points} SP
                             </span>
                         )}
@@ -193,7 +193,7 @@ export default function MemberTaskCard({ task, currentUserId, onClick, onStatusC
                                 confirmLabel: 'Yes, Start Task',
                                 confirmColor: 'brand',
                             })}
-                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-brand-10 text-brand dark:bg-brand-900/30 dark:text-brand-light hover:bg-brand hover:text-white dark:hover:bg-brand transition-all flex items-center gap-1 shadow-xs"
+                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-brand-10 text-brand dark:bg-brand-900/30 dark:text-brand-light hover:bg-brand hover:text-white dark:hover:bg-brand transition-all flex items-center gap-1 shadow-2xs"
                             title="Start Working"
                         >
                             <span>Start</span>
@@ -213,7 +213,7 @@ export default function MemberTaskCard({ task, currentUserId, onClick, onStatusC
                                         confirmLabel: 'Yes, Submit for Review',
                                         confirmColor: 'brand',
                                     })}
-                                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 transition-all flex items-center gap-1 shadow-xs"
+                                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 transition-all flex items-center gap-1 shadow-2xs"
                                     title="Submit to reviewer"
                                 >
                                     <span>Review</span>
@@ -228,7 +228,7 @@ export default function MemberTaskCard({ task, currentUserId, onClick, onStatusC
                                         confirmLabel: 'Yes, Mark as Done',
                                         confirmColor: 'emerald',
                                     })}
-                                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white dark:hover:bg-emerald-600 transition-all flex items-center gap-1 shadow-xs"
+                                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white dark:hover:bg-emerald-600 transition-all flex items-center gap-1 shadow-2xs"
                                     title="Mark as Done"
                                 >
                                     <CheckCircle2 className="w-3 h-3" />
@@ -265,7 +265,7 @@ export default function MemberTaskCard({ task, currentUserId, onClick, onStatusC
                                     confirmLabel: 'Yes, Approve and Mark Done',
                                     confirmColor: 'emerald',
                                 })}
-                                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white dark:hover:bg-emerald-600 transition-all flex items-center gap-1 shadow-xs"
+                                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white dark:hover:bg-emerald-600 transition-all flex items-center gap-1 shadow-2xs"
                                 title="Approve & Mark Done"
                             >
                                 <CheckCircle2 className="w-3 h-3" />
@@ -299,7 +299,7 @@ export default function MemberTaskCard({ task, currentUserId, onClick, onStatusC
                                 confirmLabel: 'Yes, Resume Working',
                                 confirmColor: 'brand',
                             })}
-                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 hover:bg-rose-600 hover:text-white dark:hover:bg-rose-600 transition-all flex items-center gap-1 shadow-xs"
+                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 hover:bg-rose-600 hover:text-white dark:hover:bg-rose-600 transition-all flex items-center gap-1 shadow-2xs"
                             title="Resume Task"
                         >
                             <AlertCircle className="w-3 h-3" />

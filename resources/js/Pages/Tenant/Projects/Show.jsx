@@ -180,7 +180,7 @@ function KanbanCard({ task, onFindFit, onEdit, projectStartDate, onDragStart }) 
                 onDragStart?.(task);
             }}
             onClick={() => isClickable && onEdit(task)}
-            className={`group rounded-xl border-y border-r bg-white p-4 shadow-sm transition-all dark:bg-slate-900 ${canMove ? 'cursor-grab active:cursor-grabbing hover:shadow-md' : isClickable ? 'cursor-pointer hover:shadow-md' : 'cursor-default'
+            className={`group rounded-xl border-y border-r bg-white p-4 shadow-xs transition-all dark:bg-slate-900 ${canMove ? 'cursor-grab active:cursor-grabbing hover:shadow-md' : isClickable ? 'cursor-pointer hover:shadow-md' : 'cursor-default'
                 } ${highlightClass}`}
         >
             <div className="flex items-center justify-between">
@@ -198,7 +198,7 @@ function KanbanCard({ task, onFindFit, onEdit, projectStartDate, onDragStart }) 
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
                 <PriorityBadge priority={task.priority} />
-                <span className="inline-flex items-center gap-1 rounded bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:text-slate-300">
+                <span className="inline-flex items-center gap-1 rounded-sm bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:text-slate-300">
                     <CalendarDays className="w-3 h-3 text-slate-400" />
                     {task.hard_constraint_date ? new Date(task.hard_constraint_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-'}
                 </span>
@@ -207,7 +207,7 @@ function KanbanCard({ task, onFindFit, onEdit, projectStartDate, onDragStart }) 
             <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3 dark:border-slate-800">
                 <TaskAssignee task={task} onFindFit={onFindFit} />
                 <span className="flex items-center gap-1 font-mono text-[11px] text-gray-500">
-                    <div className="flex items-center justify-center w-5 h-5 rounded bg-brand/10 text-brand">
+                    <div className="flex items-center justify-center w-5 h-5 rounded-sm bg-brand/10 text-brand">
                         <span className="text-[10px] font-bold">{task.story_points ?? '-'}</span>
                     </div>
                     <span className="font-bold">SP</span>
@@ -243,7 +243,7 @@ function ProjectDashboard({ project, tasks }) {
         <div className="space-y-6 p-6">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                 {/* Metric 1: Completion Gauge */}
-                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex items-center justify-between h-32">
+                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex items-center justify-between h-32">
                     <div>
                         <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Completion Rate</p>
                         <p className="mt-2 text-2xl font-extrabold text-gray-900 dark:text-slate-100">{completionRate}%</p>
@@ -275,12 +275,12 @@ function ProjectDashboard({ project, tasks }) {
                 </div>
 
                 {/* Metric 2: Sparkline Trend */}
-                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between h-32">
+                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between h-32">
                     <div>
                         <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Active Tasks</p>
                         <div className="flex items-baseline gap-2 mt-1">
                             <p className="text-2xl font-extrabold text-gray-900 dark:text-slate-100">{activeTasks} Items</p>
-                            <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded bg-indigo-50/50 dark:bg-indigo-950/20">
+                            <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded-sm bg-indigo-50/50 dark:bg-indigo-950/20">
                                 In Progress
                             </span>
                         </div>
@@ -311,7 +311,7 @@ function ProjectDashboard({ project, tasks }) {
                 </div>
 
                 {/* Metric 3: Critical Attention */}
-                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between h-32">
+                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between h-32">
                     <div>
                         <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Critical Tasks</p>
                         <p className="mt-1 text-2xl font-extrabold text-gray-900 dark:text-slate-100">{criticalTasks} Items</p>
@@ -331,7 +331,7 @@ function ProjectDashboard({ project, tasks }) {
                 </div>
 
                 {/* Metric 4: Hours Completed */}
-                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between h-32">
+                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between h-32">
                     <div>
                         <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Hours Burned</p>
                         <p className="mt-1 text-2xl font-extrabold text-gray-900 dark:text-slate-100">{completedHours}h Done</p>
@@ -352,7 +352,7 @@ function ProjectDashboard({ project, tasks }) {
             </div>
 
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_.8fr]">
-                <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
                     <div className="mb-4">
                         <h2 className="text-sm font-bold text-gray-900 dark:text-slate-100">Status Distribution</h2>
                         <p className="text-xs text-gray-500 dark:text-slate-400">Visual status breakdown of all project tasks.</p>
@@ -361,7 +361,7 @@ function ProjectDashboard({ project, tasks }) {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
                         {/* Donut Chart SVG */}
                         <div className="relative flex justify-center py-2">
-                            <svg width="150" height="150" viewBox="0 0 36 36" className="rotate-[-90deg]">
+                            <svg width="150" height="150" viewBox="0 0 36 36" className="-rotate-90">
                                 <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(156,163,175,0.08)" strokeWidth="3" />
                                 {statusRows.map((seg, idx) => {
                                     let cumulative = 0;
@@ -383,7 +383,7 @@ function ProjectDashboard({ project, tasks }) {
                                             strokeWidth="4"
                                             strokeDasharray={`${seg.pct} ${100 - seg.pct}`}
                                             strokeDashoffset={100 - cumulative}
-                                            className="transition-all duration-300 hover:stroke-[5]"
+                                            className="transition-all duration-300 hover:stroke-5"
                                         />
                                     );
                                 })}
@@ -414,7 +414,7 @@ function ProjectDashboard({ project, tasks }) {
                     </div>
                 </section>
 
-                <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
                     <h2 className="text-sm font-bold text-gray-900 dark:text-slate-100">Project Details</h2>
                     <div className="mt-4 space-y-3 text-sm">
                         {[
@@ -433,7 +433,7 @@ function ProjectDashboard({ project, tasks }) {
                 </section>
             </div>
 
-            <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
                 <div className="mb-4 flex items-center gap-2">
                     <Flame className="h-4 w-4 text-rose-500" />
                     <h2 className="text-sm font-bold text-gray-900 dark:text-slate-100">Auto-Priority Queue</h2>
@@ -543,7 +543,7 @@ function MyTasksList({ groups, onFindFit, onEditStatus, projectStartDate }) {
                         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">{group.tasks.length}</span>
                     </div>
 
-                    <div className="min-w-[900px] border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+                    <div className="min-w-[900px] border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
                         <div className="grid grid-cols-[minmax(350px,2fr)_120px_130px_220px_60px] gap-4 border-b border-slate-100 px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50">
                             <span>Task</span>
                             <span>Priority</span>
@@ -669,10 +669,10 @@ function Timeline({ tasks, project, onEdit }) {
                         </p>
                     </div>
                     <div className="flex items-center gap-4 text-xs font-medium text-gray-600 dark:text-slate-400 flex-wrap">
-                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-500 inline-block" /> Must-Do (Zero Buffer)</span>
-                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-indigo-500 inline-block" /> In Progress</span>
-                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-500 inline-block" /> Completed</span>
-                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-rose-500 inline-block" /> Behind Schedule</span>
+                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-amber-500 inline-block" /> Must-Do (Zero Buffer)</span>
+                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-indigo-500 inline-block" /> In Progress</span>
+                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" /> Completed</span>
+                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-rose-500 inline-block" /> Behind Schedule</span>
                     </div>
                 </div>
 
@@ -715,7 +715,7 @@ function Timeline({ tasks, project, onEdit }) {
                                     <div className="relative h-8 rounded-lg bg-slate-100 dark:bg-slate-800/80 overflow-hidden px-1 flex items-center">
                                         <div
                                             title={`${task.title} • ${task.estimated_hours}h • ${isCrit ? 'Must finish on time (Zero delay buffer)' : `Safe buffer: +${task.total_float}h breathing room`}`}
-                                            className={`absolute top-1.5 h-5 rounded-md shadow-sm flex items-center justify-between px-2 text-[10px] font-bold text-white transition-all ${isCompleted ? 'bg-emerald-500' : isDelayed ? 'bg-rose-600 animate-pulse' : isCrit ? 'bg-amber-500' : task.status === 'in_progress' ? 'bg-indigo-500' : 'bg-brand'
+                                            className={`absolute top-1.5 h-5 rounded-md shadow-xs flex items-center justify-between px-2 text-[10px] font-bold text-white transition-all ${isCompleted ? 'bg-emerald-500' : isDelayed ? 'bg-rose-600 animate-pulse' : isCrit ? 'bg-amber-500' : task.status === 'in_progress' ? 'bg-indigo-500' : 'bg-brand'
                                                 }`}
                                             style={{
                                                 left: `${(Number(task.es) / maxFinish) * 100}%`,
@@ -919,7 +919,7 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                                     key={tab.id}
                                     onClick={() => setActiveView(tab.id)}
                                     className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${activeView === tab.id
-                                        ? 'bg-white text-brand shadow-sm dark:bg-slate-700 dark:text-brand-light'
+                                        ? 'bg-white text-brand shadow-xs dark:bg-slate-700 dark:text-brand-light'
                                         : 'text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200'
                                         }`}
                                 >
@@ -990,7 +990,7 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                                 </p>
                                 <button
                                     onClick={() => setActiveView('sprint')}
-                                    className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-600 transition-colors shadow-sm"
+                                    className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-600 transition-colors shadow-xs"
                                 >
                                     Go to Sprint Planning
                                 </button>

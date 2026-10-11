@@ -80,7 +80,7 @@ export default function Edit({
                                     onClick={() => setActiveTab(tab.id)}
                                     className={`w-full flex items-start gap-3 px-3.5 py-3 rounded-xl text-left transition-all duration-200 cursor-pointer ${
                                         isActive
-                                            ? 'bg-slate-100 dark:bg-slate-800/90 text-slate-900 dark:text-white font-semibold shadow-xs ring-1 ring-slate-200 dark:ring-slate-700/80'
+                                            ? 'bg-slate-100 dark:bg-slate-800/90 text-slate-900 dark:text-white font-semibold shadow-2xs ring-1 ring-slate-200 dark:ring-slate-700/80'
                                             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900/60'
                                     }`}
                                 >

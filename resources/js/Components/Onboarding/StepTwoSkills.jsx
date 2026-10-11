@@ -123,7 +123,7 @@ export default function StepTwoSkills({ data, setData, errors, skills = {} }) {
                     placeholder="Search 96 skills (e.g. Unity, C#, Vulkan, Blender, PyTorch)..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-24 py-3 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-medium placeholder-slate-400 dark:placeholder-slate-500 focus:border-brand focus:ring-2 focus:ring-brand/20 shadow-xs transition-all"
+                    className="w-full pl-10 pr-24 py-3 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-medium placeholder-slate-400 dark:placeholder-slate-500 focus:border-brand focus:ring-2 focus:ring-brand/20 shadow-2xs transition-all"
                 />
                 {searchTerm ? (
                     <button
@@ -163,7 +163,7 @@ export default function StepTwoSkills({ data, setData, errors, skills = {} }) {
                         onClick={() => setShowSelectedOnly(prev => !prev)}
                         className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
                             showSelectedOnly
-                                ? 'bg-brand text-white shadow-xs'
+                                ? 'bg-brand text-white shadow-2xs'
                                 : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:text-brand'
                         }`}
                     >
@@ -192,7 +192,7 @@ export default function StepTwoSkills({ data, setData, errors, skills = {} }) {
                         {data.skills.map((skill) => (
                             <div
                                 key={skill.id}
-                                className="p-3 rounded-xl bg-white dark:bg-slate-900/90 border border-brand/40 dark:border-brand/30 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                                className="p-3 rounded-xl bg-white dark:bg-slate-900/90 border border-brand/40 dark:border-brand/30 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                             >
                                 <div className="flex items-center gap-2">
                                     <div className="w-5 h-5 rounded-md bg-brand/10 text-brand flex items-center justify-center shrink-0">
@@ -222,7 +222,7 @@ export default function StepTwoSkills({ data, setData, errors, skills = {} }) {
                                                 title={proficiencyLabels[lvl]}
                                                 className={`w-6 h-6 flex items-center justify-center rounded text-[11px] font-bold transition-all ${
                                                     skill.proficiency_level >= lvl
-                                                        ? 'bg-brand text-white shadow-xs'
+                                                        ? 'bg-brand text-white shadow-2xs'
                                                         : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                                                 }`}
                                             >
@@ -271,7 +271,7 @@ export default function StepTwoSkills({ data, setData, errors, skills = {} }) {
                                     key={skill.id}
                                     className={`p-3 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                                         isSelected
-                                            ? 'bg-brand/5 dark:bg-brand/10 border-brand/40 dark:border-brand/40 shadow-xs'
+                                            ? 'bg-brand/5 dark:bg-brand/10 border-brand/40 dark:border-brand/40 shadow-2xs'
                                             : 'bg-white dark:bg-slate-900/80 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                                     }`}
                                 >
@@ -311,7 +311,7 @@ export default function StepTwoSkills({ data, setData, errors, skills = {} }) {
                                                         title={proficiencyLabels[lvl]}
                                                         className={`w-6 h-6 flex items-center justify-center rounded text-[11px] font-bold transition-all ${
                                                             level >= lvl
-                                                                ? 'bg-brand text-white shadow-xs'
+                                                                ? 'bg-brand text-white shadow-2xs'
                                                                 : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                                                         }`}
                                                     >
@@ -339,7 +339,7 @@ export default function StepTwoSkills({ data, setData, errors, skills = {} }) {
                 </div>
             ) : selectedCategory ? (
                 /* Mode C-2: Category Skills Drill-Down View (Inside the SAME Container) */
-                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 shadow-xs overflow-hidden animate-in fade-in slide-in-from-right-2 duration-200">
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 shadow-2xs overflow-hidden animate-in fade-in slide-in-from-right-2 duration-200">
                     {/* Top Navigation Bar with Back Option */}
                     <div className="p-3.5 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-950/40 flex items-center justify-between">
                         <button
@@ -390,7 +390,7 @@ export default function StepTwoSkills({ data, setData, errors, skills = {} }) {
                                     key={skill.id}
                                     className={`p-2.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
                                         isSelected
-                                            ? 'bg-brand/5 dark:bg-brand/10 border-brand/50 dark:border-brand/40 shadow-xs'
+                                            ? 'bg-brand/5 dark:bg-brand/10 border-brand/50 dark:border-brand/40 shadow-2xs'
                                             : 'bg-white dark:bg-slate-900/60 border-slate-200/80 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700'
                                     }`}
                                 >
@@ -443,7 +443,7 @@ export default function StepTwoSkills({ data, setData, errors, skills = {} }) {
                 </div>
             ) : (
                 /* Mode C-1: Category Directory View (First Display - Uses the ENTIRE Container) */
-                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 shadow-xs overflow-hidden animate-in fade-in slide-in-from-left-2 duration-200">
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 shadow-2xs overflow-hidden animate-in fade-in slide-in-from-left-2 duration-200">
                     <div className="p-3.5 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-950/40 flex items-center justify-between">
                         <div>
                             <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 font-heading">

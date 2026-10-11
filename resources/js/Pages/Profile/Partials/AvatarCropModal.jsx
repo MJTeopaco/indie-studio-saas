@@ -181,7 +181,7 @@ export default function AvatarCropModal({
     };
 
     return createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
             <div 
                 className="relative w-full max-w-md bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
                 onClick={(e) => e.stopPropagation()}
@@ -237,7 +237,7 @@ export default function AvatarCropModal({
                         <button
                             type="button"
                             onClick={handleRotate}
-                            className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:text-brand hover:border-brand/40 text-xs font-semibold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
+                            className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:text-brand hover:border-brand/40 text-xs font-semibold shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
                             title="Rotate 90°"
                         >
                             <RotateCw className="w-3.5 h-3.5" />
@@ -260,7 +260,7 @@ export default function AvatarCropModal({
                         type="button"
                         onClick={handleConfirm}
                         disabled={isProcessing}
-                        className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-semibold shadow-xs disabled:opacity-50 transition-all cursor-pointer"
+                        className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-semibold shadow-2xs disabled:opacity-50 transition-all cursor-pointer"
                     >
                         {isProcessing ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />

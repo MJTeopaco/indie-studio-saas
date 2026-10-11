@@ -79,7 +79,7 @@ export default function CentralHub({ ownedStudios = [], joinedStudios = [], ...p
                                 <button
                                     type="button"
                                     onClick={() => setIsCreateModalOpen(true)}
-                                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-transparent bg-brand hover:bg-brand-light active:bg-brand-dark px-4 py-2.5 text-xs sm:text-sm font-heading font-semibold text-white shadow-xs hover:shadow-md transition-all duration-150 active:scale-[0.98] focus-ring cursor-pointer w-full sm:w-auto"
+                                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-transparent bg-brand hover:bg-brand-light active:bg-brand-dark px-4 py-2.5 text-xs sm:text-sm font-heading font-semibold text-white shadow-2xs hover:shadow-md transition-all duration-150 active:scale-[0.98] focus-ring cursor-pointer w-full sm:w-auto"
                                 >
                                     <Plus className="w-4 h-4" />
                                     <span>New studio</span>
@@ -175,7 +175,7 @@ export default function CentralHub({ ownedStudios = [], joinedStudios = [], ...p
 
                     {/* Clean empty state fallback when user has no studios and cannot create */}
                     {!hasStudios && !canCreateStudio && (
-                        <div className="bg-surface-elevated/90 border border-surface-border rounded-2xl p-10 sm:p-14 text-center shadow-xs">
+                        <div className="bg-surface-elevated/90 border border-surface-border rounded-2xl p-10 sm:p-14 text-center shadow-2xs">
                             <div className="w-14 h-14 bg-brand/10 border border-brand/20 rounded-2xl flex items-center justify-center mx-auto mb-4 text-brand shadow-2xs">
                                 <Layers className="w-7 h-7" />
                             </div>

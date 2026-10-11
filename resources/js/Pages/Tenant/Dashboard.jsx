@@ -23,7 +23,7 @@ function QuickActionCard({ title, description, icon: Icon, badgeColor, onClick }
     };
 
     return (
-        <button type="button" onClick={onClick} className="group relative flex w-full items-center justify-between gap-3 overflow-hidden rounded-xl border border-gray-200 bg-white/80 px-4 py-3.5 text-left shadow-sm transition-all duration-200 hover:border-brand hover:bg-white/95 hover:shadow-md dark:border-slate-800 dark:bg-slate-800/40 dark:hover:border-brand/60 dark:hover:bg-slate-800/60">
+        <button type="button" onClick={onClick} className="group relative flex w-full items-center justify-between gap-3 overflow-hidden rounded-xl border border-gray-200 bg-white/80 px-4 py-3.5 text-left shadow-xs transition-all duration-200 hover:border-brand hover:bg-white/95 hover:shadow-md dark:border-slate-800 dark:bg-slate-800/40 dark:hover:border-brand/60 dark:hover:bg-slate-800/60">
             <div className="flex min-w-0 flex-1 items-center gap-3">
                 <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105 ${colorMap[badgeColor] || colorMap.brand}`}><Icon className="h-4 w-4" /></div>
                 <div className="min-w-0"><span className="font-heading block truncate text-sm font-bold text-gray-900 transition-colors group-hover:text-brand dark:text-slate-100 dark:group-hover:text-brand-light">{title}</span><span className="mt-0.5 block truncate text-[10px] text-gray-500 dark:text-slate-500">{description}</span></div>
@@ -334,7 +334,7 @@ Requirements:
                 <div className="flex items-center gap-4">
                     <button
                         onClick={() => showToast('StudioSprint Plan: Standard Account', 'info')}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-dark text-white text-xs font-heading font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm shadow-brand/15"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-dark text-white text-xs font-heading font-semibold transition-all hover:scale-105 active:scale-95 shadow-xs shadow-brand/15"
                     >
                         <Sparkles className="w-3.5 h-3.5" />
                         <span>Upgrade</span>
@@ -347,11 +347,11 @@ Requirements:
                 {/* Center Canvas */}
                 <div className="flex-1 flex flex-col justify-between overflow-y-auto relative p-6 sm:p-10 lg:p-12">
                     <div className={`mx-auto flex w-full max-w-3xl flex-1 flex-col py-6 ${messages.length === 0 && !generation ? 'justify-center' : 'justify-end'}`}>
-                        <div className="min-h-[18rem] space-y-5 overflow-y-auto pr-1">
+                        <div className="min-h-72 space-y-5 overflow-y-auto pr-1">
                             {messages.length === 0 && !generation && (
                                 <div className="my-auto py-8">
                                     <div className="space-y-3 text-center">
-                                        <div className="inline-flex items-center gap-2 rounded-full border border-brand-30 bg-brand-10 px-3 py-1 text-xs font-semibold text-brand shadow-sm dark:text-brand-light"><Sparkles className="h-3.5 w-3.5" />AI-Assisted Sprint Orchestration</div>
+                                        <div className="inline-flex items-center gap-2 rounded-full border border-brand-30 bg-brand-10 px-3 py-1 text-xs font-semibold text-brand shadow-xs dark:text-brand-light"><Sparkles className="h-3.5 w-3.5" />AI-Assisted Sprint Orchestration</div>
                                         <h2 className="font-heading text-3xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100 sm:text-4xl lg:text-5xl">Welcome to {studioName}</h2>
                                         <p className="mx-auto max-w-xl text-sm text-gray-600 dark:text-gray-400 sm:text-base">
                                             {canManage
@@ -387,11 +387,11 @@ Requirements:
                                     )}
                                     {message.role === 'user' ? (
                                         /* User bubble: plain text, preserve line breaks */
-                                        <div className="max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-brand text-white shadow-sm">
+                                        <div className="max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-brand text-white shadow-xs">
                                             {message.content}
                                         </div>
                                     ) : (
-                                        <div className={`max-w-[80%] rounded-2xl px-4 py-3 shadow-sm ring-1 ${message.isError ? 'bg-rose-50/90 dark:bg-rose-950/30 ring-rose-200 dark:ring-rose-900/60 text-rose-900 dark:text-rose-200' : 'bg-white ring-gray-100 dark:bg-slate-800 dark:ring-slate-700'}`}>
+                                        <div className={`max-w-[80%] rounded-2xl px-4 py-3 shadow-xs ring-1 ${message.isError ? 'bg-rose-50/90 dark:bg-rose-950/30 ring-rose-200 dark:ring-rose-900/60 text-rose-900 dark:text-rose-200' : 'bg-white ring-gray-100 dark:bg-slate-800 dark:ring-slate-700'}`}>
                                             {message.isError ? (
                                                 <div className="space-y-1.5">
                                                     <div className="flex items-center gap-1.5 font-bold text-xs text-rose-600 dark:text-rose-400">
@@ -428,7 +428,7 @@ Requirements:
                             {generation && (
                                 <div className="flex gap-3">
                                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand"><Bot className="h-4 w-4" /></div>
-                                    <div className="w-full max-w-xl rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-100 dark:bg-slate-800 dark:ring-slate-700">
+                                    <div className="w-full max-w-xl rounded-2xl bg-white p-4 shadow-xs ring-1 ring-gray-100 dark:bg-slate-800 dark:ring-slate-700">
                                         <div className="flex items-center gap-3">
                                             {/* Typing-indicator dots */}
                                             <span className="flex gap-1">
@@ -524,7 +524,7 @@ Requirements:
                                     }}
                                     placeholder={canManage ? "Ask a question, or describe a task/sprint to decompose…" : "Ask an architectural or technical question about your projects…"}
                                     maxLength={2000}
-                                    className="flex-1 bg-transparent border-0 px-2 py-1.5 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-slate-600 focus:outline-none focus:ring-0 resize-none min-h-[2.5rem] align-middle font-sans"
+                                    className="flex-1 bg-transparent border-0 px-2 py-1.5 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-slate-600 focus:outline-hidden focus:ring-0 resize-none min-h-10 align-middle font-sans"
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' && !e.shiftKey) {
                                             e.preventDefault();
@@ -584,7 +584,7 @@ Requirements:
                                         <select
                                             value={selectedProjectId}
                                             onChange={(event) => setSelectedProjectId(event.target.value)}
-                                            className="max-w-[180px] bg-transparent text-[10px] font-semibold text-gray-500 outline-none dark:text-slate-400 cursor-pointer"
+                                            className="max-w-[180px] bg-transparent text-[10px] font-semibold text-gray-500 outline-hidden dark:text-slate-400 cursor-pointer"
                                             aria-label="Project for AI tasks"
                                         >
                                             <option value="">New Project</option>

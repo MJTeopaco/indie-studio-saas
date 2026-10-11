@@ -60,13 +60,13 @@ export default function Fork() {
 
             <div className="space-y-8 animate-in fade-in duration-300">
                 {/* Segmented Mode Selector (Linear-Style Pill Switch) */}
-                <div className="p-1 rounded-2xl bg-slate-100 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center shadow-xs">
+                <div className="p-1 rounded-2xl bg-slate-100 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center shadow-2xs">
                     <button
                         type="button"
                         onClick={() => setMode('create')}
                         className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-heading font-bold flex items-center justify-center gap-2 transition-all duration-200 ${
                             mode === 'create'
-                                ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                                ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
                                 : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
                         }`}
                     >
@@ -79,7 +79,7 @@ export default function Fork() {
                         onClick={() => setMode('join')}
                         className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-heading font-bold flex items-center justify-center gap-2 transition-all duration-200 ${
                             mode === 'join'
-                                ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                                ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
                                 : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
                         }`}
                     >
@@ -110,7 +110,7 @@ export default function Fork() {
                                     value={createData.studio_name}
                                     onChange={(e) => setCreateData('studio_name', e.target.value)}
                                     required
-                                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-medium placeholder-slate-400 dark:placeholder-slate-500 focus:border-brand focus:ring-2 focus:ring-brand/20 shadow-xs transition-all"
+                                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-sm font-medium placeholder-slate-400 dark:placeholder-slate-500 focus:border-brand focus:ring-2 focus:ring-brand/20 shadow-2xs transition-all"
                                 />
                             </div>
                             <InputError message={createErrors.studio_name} className="mt-1" />
@@ -128,7 +128,7 @@ export default function Fork() {
                             <button
                                 type="submit"
                                 disabled={processingCreate}
-                                className="inline-flex items-center gap-2 rounded-full px-7 py-3 bg-brand hover:bg-brand-dark dark:hover:bg-brand-light text-white text-sm font-semibold shadow-lg shadow-brand/25 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 dark:focus:ring-offset-[#0B0F17]"
+                                className="inline-flex items-center gap-2 rounded-full px-7 py-3 bg-brand hover:bg-brand-dark dark:hover:bg-brand-light text-white text-sm font-semibold shadow-lg shadow-brand/25 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-hidden focus:ring-2 focus:ring-brand focus:ring-offset-2 dark:focus:ring-offset-[#0B0F17]"
                             >
                                 {processingCreate ? (
                                     <>
@@ -170,7 +170,7 @@ export default function Fork() {
                                     onChange={(e) => setJoinData('invitation_code', e.target.value.toUpperCase())}
                                     required
                                     autoComplete="off"
-                                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-mono tracking-widest text-base font-bold placeholder-slate-400 dark:placeholder-slate-500 focus:border-brand focus:ring-2 focus:ring-brand/20 shadow-xs transition-all uppercase"
+                                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-mono tracking-widest text-base font-bold placeholder-slate-400 dark:placeholder-slate-500 focus:border-brand focus:ring-2 focus:ring-brand/20 shadow-2xs transition-all uppercase"
                                 />
                             </div>
                             <InputError message={joinErrors.invitation_code} className="mt-1" />
@@ -188,7 +188,7 @@ export default function Fork() {
                             <button
                                 type="submit"
                                 disabled={processingJoin}
-                                className="inline-flex items-center gap-2 rounded-full px-7 py-3 bg-brand hover:bg-brand-dark dark:hover:bg-brand-light text-white text-sm font-semibold shadow-lg shadow-brand/25 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 dark:focus:ring-offset-[#0B0F17]"
+                                className="inline-flex items-center gap-2 rounded-full px-7 py-3 bg-brand hover:bg-brand-dark dark:hover:bg-brand-light text-white text-sm font-semibold shadow-lg shadow-brand/25 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-hidden focus:ring-2 focus:ring-brand focus:ring-offset-2 dark:focus:ring-offset-[#0B0F17]"
                             >
                                 {processingJoin ? (
                                     <>

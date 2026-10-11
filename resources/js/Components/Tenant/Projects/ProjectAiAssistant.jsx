@@ -62,7 +62,7 @@ function CreateTaskActionCard({ payload, projectId, tenantId, canManage, onDismi
     if (isSuccess) {
         return (
             <div className="mt-3 p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl flex items-center gap-3 animate-fade-in">
-                <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-xs">
                     <Check className="w-4 h-4" />
                 </div>
                 <div>
@@ -75,9 +75,9 @@ function CreateTaskActionCard({ payload, projectId, tenantId, canManage, onDismi
 
     return (
         <div className="mt-3 overflow-hidden rounded-xl border border-brand/30 bg-white dark:bg-slate-900 shadow-md">
-            <div className="bg-gradient-to-r from-brand/15 via-brand/10 to-transparent px-3.5 py-2.5 border-b border-brand/20 flex items-center justify-between">
+            <div className="bg-linear-to-r from-brand/15 via-brand/10 to-transparent px-3.5 py-2.5 border-b border-brand/20 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-brand text-white shadow-sm">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-brand text-white shadow-xs">
                         <Plus className="h-3.5 w-3.5" />
                     </span>
                     <span className="text-xs font-bold text-slate-800 dark:text-slate-100">Proposed Action: Create Task</span>
@@ -101,7 +101,7 @@ function CreateTaskActionCard({ payload, projectId, tenantId, canManage, onDismi
                                 type="text"
                                 value={taskData.title}
                                 onChange={e => setTaskData({ ...taskData, title: e.target.value })}
-                                className="w-full mt-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2.5 py-1.5 focus:border-brand focus:outline-none dark:text-slate-100"
+                                className="w-full mt-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2.5 py-1.5 focus:border-brand focus:outline-hidden dark:text-slate-100"
                             />
                         </div>
                         <div>
@@ -110,7 +110,7 @@ function CreateTaskActionCard({ payload, projectId, tenantId, canManage, onDismi
                                 value={taskData.objective}
                                 onChange={e => setTaskData({ ...taskData, objective: e.target.value })}
                                 rows={2}
-                                className="w-full mt-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2.5 py-1.5 focus:border-brand focus:outline-none dark:text-slate-100"
+                                className="w-full mt-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2.5 py-1.5 focus:border-brand focus:outline-hidden dark:text-slate-100"
                             />
                         </div>
                         <div className="grid grid-cols-3 gap-2">
@@ -121,7 +121,7 @@ function CreateTaskActionCard({ payload, projectId, tenantId, canManage, onDismi
                                     step="0.5"
                                     value={taskData.estimated_hours}
                                     onChange={e => setTaskData({ ...taskData, estimated_hours: parseFloat(e.target.value) || 0 })}
-                                    className="w-full mt-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2 py-1 focus:border-brand focus:outline-none dark:text-slate-100"
+                                    className="w-full mt-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2 py-1 focus:border-brand focus:outline-hidden dark:text-slate-100"
                                 />
                             </div>
                             <div>
@@ -129,7 +129,7 @@ function CreateTaskActionCard({ payload, projectId, tenantId, canManage, onDismi
                                 <select
                                     value={taskData.priority}
                                     onChange={e => setTaskData({ ...taskData, priority: e.target.value })}
-                                    className="w-full mt-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2 py-1 focus:border-brand focus:outline-none dark:text-slate-100"
+                                    className="w-full mt-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2 py-1 focus:border-brand focus:outline-hidden dark:text-slate-100"
                                 >
                                     <option value="High">High</option>
                                     <option value="Medium">Medium</option>
@@ -141,7 +141,7 @@ function CreateTaskActionCard({ payload, projectId, tenantId, canManage, onDismi
                                 <select
                                     value={taskData.task_difficulty}
                                     onChange={e => setTaskData({ ...taskData, task_difficulty: e.target.value })}
-                                    className="w-full mt-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2 py-1 focus:border-brand focus:outline-none dark:text-slate-100"
+                                    className="w-full mt-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2 py-1 focus:border-brand focus:outline-hidden dark:text-slate-100"
                                 >
                                     <option value="Hard">Hard</option>
                                     <option value="Medium">Medium</option>
@@ -183,7 +183,7 @@ function CreateTaskActionCard({ payload, projectId, tenantId, canManage, onDismi
                         {taskData.required_skills?.length > 0 && (
                             <div className="flex flex-wrap gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
                                 {taskData.required_skills.map((skill, idx) => (
-                                    <span key={idx} className="px-1.5 py-0.5 rounded bg-brand/10 text-brand text-[9px] font-bold">
+                                    <span key={idx} className="px-1.5 py-0.5 rounded-sm bg-brand/10 text-brand text-[9px] font-bold">
                                         {typeof skill === 'object' ? skill.name : skill}
                                     </span>
                                 ))}
@@ -218,7 +218,7 @@ function CreateTaskActionCard({ payload, projectId, tenantId, canManage, onDismi
                                 type="button"
                                 onClick={handleConfirm}
                                 disabled={isExecuting}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-dark text-white text-xs font-bold shadow-sm transition-all hover:shadow disabled:opacity-50"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-dark text-white text-xs font-bold shadow-xs transition-all hover:shadow-sm disabled:opacity-50"
                             >
                                 {isExecuting ? (
                                     <>
@@ -240,10 +240,10 @@ function CreateTaskActionCard({ payload, projectId, tenantId, canManage, onDismi
 
 function SprintDecompositionActionCard({ payload, canManage, onLaunch, onDismiss }) {
     return (
-        <div className="mt-3 overflow-hidden rounded-xl border border-indigo-500/30 bg-gradient-to-br from-indigo-50/50 via-white to-purple-50/30 dark:from-indigo-950/30 dark:via-slate-900 dark:to-purple-950/20 shadow-md">
-            <div className="bg-gradient-to-r from-indigo-500/15 via-purple-500/10 to-transparent px-3.5 py-2.5 border-b border-indigo-500/20 flex items-center justify-between">
+        <div className="mt-3 overflow-hidden rounded-xl border border-indigo-500/30 bg-linear-to-br from-indigo-50/50 via-white to-purple-50/30 dark:from-indigo-950/30 dark:via-slate-900 dark:to-purple-950/20 shadow-md">
+            <div className="bg-linear-to-r from-indigo-500/15 via-purple-500/10 to-transparent px-3.5 py-2.5 border-b border-indigo-500/20 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-600 to-purple-600 text-white shadow-sm">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-linear-to-br from-indigo-600 to-purple-600 text-white shadow-xs">
                         <Sparkles className="h-3.5 w-3.5 animate-pulse" />
                     </span>
                     <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200">Proposed Action: AI Sprint Decomposer</span>
@@ -280,7 +280,7 @@ function SprintDecompositionActionCard({ payload, canManage, onLaunch, onDismiss
                             <button
                                 type="button"
                                 onClick={() => onLaunch(payload?.prompt || '')}
-                                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-bold shadow-md shadow-indigo-500/20 transition-all hover:scale-[1.02]"
+                                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-bold shadow-md shadow-indigo-500/20 transition-all hover:scale-[1.02]"
                             >
                                 <Sparkles className="w-3.5 h-3.5" /> Launch Decomposer
                             </button>
@@ -448,7 +448,7 @@ export default function ProjectAiAssistant({ projectId, tenantId, teamMembers = 
             <div className="flex-1 space-y-4 overflow-y-auto custom-scrollbar p-4">
                 {messages.map((message, index) => (
                     <div key={index} className={`max-w-[92%] ${message.role === 'user' ? 'ml-auto' : 'mr-auto'}`}>
-                        <div className={`rounded-2xl px-3 py-2.5 shadow-sm ${message.role === 'user' ? 'bg-brand text-white rounded-br-none whitespace-pre-wrap text-xs leading-relaxed' : 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-bl-none'}`}>
+                        <div className={`rounded-2xl px-3 py-2.5 shadow-xs ${message.role === 'user' ? 'bg-brand text-white rounded-br-none whitespace-pre-wrap text-xs leading-relaxed' : 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-bl-none'}`}>
                             {message.role === 'user' ? (
                                 message.content
                             ) : (
@@ -505,7 +505,7 @@ export default function ProjectAiAssistant({ projectId, tenantId, teamMembers = 
                 
                 {isLoading && (
                     <div className="max-w-[90%] mr-auto">
-                        <div className="flex items-center gap-3 rounded-2xl px-4 py-3 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm rounded-bl-none">
+                        <div className="flex items-center gap-3 rounded-2xl px-4 py-3 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs rounded-bl-none">
                             <span className="flex gap-1.5">
                                 {[0, 1, 2].map(i => (
                                     <span key={i} className="w-1.5 h-1.5 rounded-full bg-brand animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
@@ -517,7 +517,7 @@ export default function ProjectAiAssistant({ projectId, tenantId, teamMembers = 
                 )}
                 <div ref={messagesEndRef} />
             </div>
-            <form onSubmit={event => { event.preventDefault(); sendMessage(); }} className="flex gap-2 border-t border-slate-100 p-3 dark:border-slate-800"><input value={input} onChange={event => setInput(event.target.value)} placeholder="Ask a question or describe a task/sprint to create…" className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs outline-none focus:border-brand focus:ring-1 focus:ring-brand dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" /><button disabled={!input.trim() || isLoading} className="rounded-xl bg-brand p-2 text-white disabled:opacity-50 hover:bg-brand-dark transition-colors shrink-0"><Send className="h-4 w-4" /></button></form>
+            <form onSubmit={event => { event.preventDefault(); sendMessage(); }} className="flex gap-2 border-t border-slate-100 p-3 dark:border-slate-800"><input value={input} onChange={event => setInput(event.target.value)} placeholder="Ask a question or describe a task/sprint to create…" className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs outline-hidden focus:border-brand focus:ring-1 focus:ring-brand dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" /><button disabled={!input.trim() || isLoading} className="rounded-xl bg-brand p-2 text-white disabled:opacity-50 hover:bg-brand-dark transition-colors shrink-0"><Send className="h-4 w-4" /></button></form>
         </div>}
 
         <HierarchicalDecompositionModal
