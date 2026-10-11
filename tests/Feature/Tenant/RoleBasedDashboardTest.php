@@ -118,8 +118,15 @@ class RoleBasedDashboardTest extends TestCase
         $response->assertInertia(fn (Assert $page) => $page
             ->component('Tenant/MemberDashboard')
             ->has('metrics')
-            ->has('tables')
             ->where('metrics.open_tasks_count', 1)
+            ->has('metrics.open_tasks')
+            ->has('metrics.due_soon')
+            ->has('metrics.overall_progress')
+            ->has('metrics.hours_this_week')
+            ->missing('metrics.pending_votes_count')
+            ->missing('metrics.unread_mentions_count')
+            ->missing('metrics.waiting_review_count')
+            ->missing('metrics.points_this_sprint')
             ->where('tables.my_tasks', fn ($tasks) => count($tasks) === 1 && $tasks[0]['title'] === 'Member Task')
             // Assert no leaked studio-wide tables or actions
             ->missing('tables.team_snapshot')

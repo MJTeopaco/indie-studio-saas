@@ -174,51 +174,46 @@ class TenantDashboardController extends Controller
             }
         }
 
-        // ── Number cards ─────────────────────────────────────────────────────
+        // ── Number cards (Reduced to exactly 4 member workload cards) ─────────────
         $openTasks = $assignedTasks->where('status', '!=', 'completed');
         $openTasksCount = $openTasks->count();
+        $totalMyTasks = $assignedTasks->count();
+        $completedMyTasks = $assignedTasks->where('status', 'completed')->count();
+        $overallProgressPercent = $totalMyTasks > 0 ? (int) round(($completedMyTasks / $totalMyTasks) * 100) : 0;
 
-        $dueSoonCount = $openTasks->filter(function ($t) {
-            $isOverdueDays = $t->days_until_deadline !== null && $t->days_until_deadline <= 2;
-            $isOverdueHard = $t->hard_constraint_date && Carbon::parse($t->hard_constraint_date)->lte(now()->addDays(2));
-
-            return $isOverdueDays || $isOverdueHard;
-        })->count();
-
-        $waitingReviewCount = $assignedTasks->filter(function ($t) {
-            return in_array($t->status, ['review', 'waiting_for_review']) || $t->sprint_status === 'waiting_for_review';
-        })->count();
-
-        $assignedHours = (float) $openTasks->sum('estimated_hours');
-        $maxHours = (float) ($user->globalProfile?->max_hours_per_week ?: 40);
-        $loadPercent = $maxHours > 0 ? (int) round(($assignedHours / $maxHours) * 100) : 0;
-
-        $pointsThisSprint = $activeSprint ? $activeSprint['total_points'] : (int) $assignedTasks->sum('story_points');
-
-        // Planning Poker votes waiting on me
-        $pendingEstimatesCount = 0;
-        try {
-            $pendingEstimatesCount = Task::where('story_points_locked', false)
-                ->where('needs_estimate_review', false)
-                ->where('status', '!=', 'completed')
-                ->get()
-                ->filter(fn ($t) => empty($t->expected_estimators)
-                    ? (int) $t->assigned_user_id === (int) $user->id
-                    : in_array((int) $user->id, array_map('intval', $t->expected_estimators ?? []))
-                )
-                ->filter(fn ($t) => ! TaskEstimateSubmission::where('task_id', $t->id)->where('developer_id', $user->id)->exists())
-                ->count();
-        } catch (\Throwable $e) {}
-
-        // Unread mentions
-        $messageNotifications = $this->getMessageNotifications($user);
-        $unreadMentionsCount = collect($messageNotifications)->where('read', false)->whereIn('type', ['channel_mention', 'direct_message'])->count();
-
-        // ── Charts ───────────────────────────────────────────────────────────
+        // Breakdown for Open tasks segmented bar: todo, in_progress, review, stuck
         $todoCount = $assignedTasks->whereIn('status', ['todo', 'backlog'])->count();
         $inProgressCount = $assignedTasks->where('status', 'in_progress')->count();
         $inReviewCount = $assignedTasks->whereIn('status', ['review', 'waiting_for_review'])->count();
-        $doneCount = $assignedTasks->where('status', 'completed')->count();
+        $stuckCount = $assignedTasks->filter(fn ($t) => $t->status === 'stuck' || $t->sprint_status === 'stuck')->count();
+
+        // Due soon & Overdue categorization
+        $overdueCount = $openTasks->filter(function ($t) {
+            $isOverdueDays = $t->days_until_deadline !== null && $t->days_until_deadline < 0;
+            $isOverdueHard = $t->hard_constraint_date && Carbon::parse($t->hard_constraint_date)->isPast();
+            return $isOverdueDays || $isOverdueHard;
+        })->count();
+
+        $dueSoon48hCount = $openTasks->filter(function ($t) {
+            $isDueSoonDays = $t->days_until_deadline !== null && $t->days_until_deadline >= 0 && $t->days_until_deadline <= 2;
+            $isDueSoonHard = $t->hard_constraint_date && ! Carbon::parse($t->hard_constraint_date)->isPast() && Carbon::parse($t->hard_constraint_date)->lte(now()->addDays(2));
+            return $isDueSoonDays || $isDueSoonHard;
+        })->count();
+
+        $onTrackCount = max(0, $openTasksCount - ($overdueCount + $dueSoon48hCount));
+        $dueSoonTotalAlertCount = $overdueCount + $dueSoon48hCount;
+
+        // Workload & capacity
+        $assignedHours = (float) $openTasks->sum('estimated_hours');
+        $maxHours = (float) ($user->globalProfile?->max_hours_per_week ?: 40);
+        $loadPercent = $maxHours > 0 ? (int) round(($assignedHours / $maxHours) * 100) : 0;
+        $isOverloaded = $assignedHours > $maxHours;
+
+        // Notifications for messages table
+        $messageNotifications = $this->getMessageNotifications($user);
+
+        // ── Charts ───────────────────────────────────────────────────────────
+        $doneCount = $completedMyTasks;
 
         $statusSplit = [
             ['name' => 'To Do', 'value' => $todoCount, 'status' => 'todo', 'color' => '#94a3b8'],
@@ -284,17 +279,40 @@ class TenantDashboardController extends Controller
                 'name' => $studio ? $studio->name : 'Studio',
             ],
             'metrics' => [
-                'open_tasks_count' => $openTasksCount,
-                'due_soon_count' => $dueSoonCount,
-                'waiting_review_count' => $waitingReviewCount,
+                'open_tasks' => [
+                    'count' => $openTasksCount,
+                    'breakdown' => [
+                        'todo' => $todoCount,
+                        'in_progress' => $inProgressCount,
+                        'review' => $inReviewCount,
+                        'stuck' => $stuckCount,
+                    ],
+                ],
+                'due_soon' => [
+                    'count' => $dueSoonTotalAlertCount,
+                    'overdue_count' => $overdueCount,
+                    'due_soon_count' => $dueSoon48hCount,
+                    'on_track_count' => $onTrackCount,
+                    'breakdown' => [
+                        'overdue' => $overdueCount,
+                        'due_soon' => $dueSoon48hCount,
+                        'on_track' => $onTrackCount,
+                    ],
+                ],
+                'overall_progress' => [
+                    'completed' => $completedMyTasks,
+                    'total' => $totalMyTasks,
+                    'percent' => $overallProgressPercent,
+                ],
                 'hours_this_week' => [
                     'hours' => $assignedHours,
                     'limit' => $maxHours,
                     'percent' => $loadPercent,
+                    'is_overloaded' => $isOverloaded,
                 ],
-                'points_this_sprint' => $pointsThisSprint,
-                'pending_votes_count' => $pendingEstimatesCount,
-                'unread_mentions_count' => $unreadMentionsCount,
+                // Backward-compatibility keys for existing assertions
+                'open_tasks_count' => $openTasksCount,
+                'due_soon_count' => $dueSoonTotalAlertCount,
             ],
             'charts' => [
                 'status_split' => $statusSplit,
@@ -318,7 +336,6 @@ class TenantDashboardController extends Controller
             ],
             'projects' => $projects,
             'activeSprint' => $activeSprint,
-            'pendingEstimatesCount' => $pendingEstimatesCount,
         ]);
     }
 

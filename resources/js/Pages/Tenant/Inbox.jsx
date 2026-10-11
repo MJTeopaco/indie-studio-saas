@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { Head, Link, usePage, router } from '@inertiajs/react';
 import TenantLayout from '@/Layouts/TenantLayout';
 import MemberTaskDetailModal from '@/Components/Tenant/Tasks/MemberTaskDetailModal';
+import LeaveApprovalConfirmDialog from '@/Components/Tenant/LeaveApprovalConfirmDialog';
 import { showToast } from '@/Components/SystemToast';
 import {
     Bell,
@@ -874,6 +875,7 @@ export default function Inbox({
 
     // Leave approval states
     const [leaveActionProcessingId, setLeaveActionProcessingId] = useState(null);
+    const [approveModalReq, setApproveModalReq] = useState(null);
     const [declineModalReq, setDeclineModalReq] = useState(null);
 
     const unreadCount = useMemo(() => notificationsList.filter(n => !n.read).length, [notificationsList]);
@@ -881,14 +883,17 @@ export default function Inbox({
 
     const handleApproveLeave = (leaveReq) => {
         if (!leaveReq) return;
-        if (!confirm(`Are you sure you want to approve ${leaveReq.user_name}'s leave request for ${leaveReq.leave_start_formatted || leaveReq.leave_start_date} to ${leaveReq.leave_end_formatted || leaveReq.leave_end_date}?`)) {
-            return;
-        }
+        setApproveModalReq(leaveReq);
+    };
+
+    const handleExecuteApproveLeave = (leaveReq) => {
+        if (!leaveReq) return;
         setLeaveActionProcessingId(leaveReq.id);
-        router.post(route('tenant.team.leave-requests.approve', leaveReq.id), {}, {
+        router.post(route('tenant.team.leave-requests.approve', { tenant: workspaceSlug, id: leaveReq.id }), {}, {
             preserveScroll: true,
             onSuccess: () => {
                 showToast(`Leave request approved for ${leaveReq.user_name}.`, 'success');
+                setApproveModalReq(null);
                 setNotificationsList(prev => prev.filter(n => n.id !== `leave-req-${leaveReq.id}`));
             },
             onError: (errs) => {
@@ -903,7 +908,7 @@ export default function Inbox({
 
     const handleConfirmDeclineLeave = (leaveReqId, reason) => {
         setLeaveActionProcessingId(leaveReqId);
-        router.post(route('tenant.team.leave-requests.reject', leaveReqId), {
+        router.post(route('tenant.team.leave-requests.reject', { tenant: workspaceSlug, id: leaveReqId }), {
             rejection_reason: reason,
         }, {
             preserveScroll: true,
@@ -2917,13 +2922,24 @@ export default function Inbox({
                 isAdmin={isLeader}
             />
 
-            {/* Decline Leave Request Modal */}
-            <DeclineLeaveModal
+            {/* Custom Leave Approval Confirmation Dialog */}
+            <LeaveApprovalConfirmDialog
+                isOpen={Boolean(approveModalReq)}
+                onClose={() => setApproveModalReq(null)}
+                leaveRequest={approveModalReq}
+                onConfirm={handleExecuteApproveLeave}
+                mode="approve"
+                isLoading={Boolean(leaveActionProcessingId)}
+            />
+
+            {/* Custom Leave Decline Confirmation Dialog (Destructive Style) */}
+            <LeaveApprovalConfirmDialog
                 isOpen={Boolean(declineModalReq)}
                 onClose={() => setDeclineModalReq(null)}
                 leaveRequest={declineModalReq}
                 onConfirm={handleConfirmDeclineLeave}
-                isProcessing={Boolean(leaveActionProcessingId)}
+                mode="reject"
+                isLoading={Boolean(leaveActionProcessingId)}
             />
         </TenantLayout>
     );

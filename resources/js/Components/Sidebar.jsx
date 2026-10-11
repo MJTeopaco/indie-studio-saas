@@ -688,11 +688,14 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                             {(user?.name || 'U').charAt(0).toUpperCase()}
                         </button>
                         <Link
-                            href={route('central.hub')}
-                            className="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-slate-800/70 hover:bg-brand/10 hover:border-brand/30 border border-transparent text-gray-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-light transition-all duration-150 cursor-pointer"
-                            title="Return to Central Hub"
+                            href={route('logout')}
+                            method="post"
+                            as="button"
+                            aria-label="Log out"
+                            title="Log out"
+                            className="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-slate-800/70 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:border-rose-300 border border-transparent text-gray-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 transition-all duration-150 cursor-pointer"
                         >
-                            <LayoutGrid className="w-4 h-4" />
+                            <LogOut className="w-4 h-4" />
                         </Link>
                     </div>
                 ) : (
@@ -716,11 +719,14 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                             </div>
                         </button>
                         <Link
-                            href={route('central.hub')}
-                            className="p-2 rounded-xl bg-white dark:bg-slate-700/60 hover:bg-brand/10 dark:hover:bg-brand/20 hover:border-brand/30 border border-gray-200/80 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-light transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] shadow-2xs hover:shadow-2xs shrink-0 ml-1.5 cursor-pointer"
-                            title="Return to Central Hub"
+                            href={route('logout')}
+                            method="post"
+                            as="button"
+                            aria-label="Log out"
+                            title="Log out"
+                            className="p-2 rounded-xl bg-white dark:bg-slate-700/60 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:border-rose-300 border border-gray-200/80 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] shadow-2xs hover:shadow-2xs shrink-0 ml-1.5 cursor-pointer"
                         >
-                            <LayoutGrid className="w-4 h-4" />
+                            <LogOut className="w-4 h-4" />
                         </Link>
                     </div>
                 )}

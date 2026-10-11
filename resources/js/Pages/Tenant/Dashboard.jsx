@@ -364,7 +364,7 @@ export default function TenantDashboard({
         <TenantLayout studioName={studioName}>
             <Head title={`Studio Dashboard — ${studioName}`} />
 
-            <div className="flex-1 overflow-y-auto bg-slate-50/60 dark:bg-slate-950 px-6 py-8 space-y-8 max-w-7xl mx-auto w-full">
+            <div className="flex-1 overflow-y-auto bg-slate-50/60 dark:bg-slate-950 px-6 lg:px-8 xl:px-10 py-6 sm:py-8 space-y-8 w-full">
                 {/* ── Top Header & Executive Quick Actions ── */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
@@ -612,7 +612,7 @@ export default function TenantDashboard({
                                     </TabsTrigger>
                                 </TabsList>
 
-                                <TabsContent value="burndown" className="h-[260px] w-full">
+                                <TabsContent value="burndown" className="h-[300px] w-full">
                                     {charts.burndown?.length ? (
                                         <ResponsiveContainer width="100%" height="100%">
                                             <AreaChart data={charts.burndown} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -642,7 +642,7 @@ export default function TenantDashboard({
                                     )}
                                 </TabsContent>
 
-                                <TabsContent value="velocity" className="h-[260px] w-full">
+                                <TabsContent value="velocity" className="h-[300px] w-full">
                                     {charts.velocity?.length ? (
                                         <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={charts.velocity} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -675,13 +675,13 @@ export default function TenantDashboard({
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="h-[180px] w-full">
+                            <div className="h-[220px] w-full">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
                                         <Pie
                                             data={charts.status_split || []}
-                                            innerRadius={50}
-                                            outerRadius={75}
+                                            innerRadius={55}
+                                            outerRadius={85}
                                             paddingAngle={3}
                                             dataKey="value"
                                         >
