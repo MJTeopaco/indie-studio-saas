@@ -1251,7 +1251,7 @@ export default function Inbox({
         loadMessages(selectedChat.id, true);
     }, [selectedChat?.id, markChannelRead, loadMessages]);
 
-    // Start polling (3s interval) while messages tab is open and a chat is selected
+    // Start polling (5s fallback interval) while messages tab is open and a chat is selected
     useEffect(() => {
         if (activeTab !== 'messages' || !selectedChat?.id) {
             if (pollingRef.current) clearInterval(pollingRef.current);
@@ -1259,11 +1259,76 @@ export default function Inbox({
         }
         pollingRef.current = setInterval(() => {
             pollMessages();
-        }, 3000);
+        }, 5000);
         return () => {
             if (pollingRef.current) clearInterval(pollingRef.current);
         };
     }, [activeTab, selectedChat?.id, pollMessages]);
+
+    // ── WebSocket Real-time Sync (Laravel Reverb & Echo) ─────────────────────
+    // Studio-wide events (activity & unread updates across all channels)
+    useEffect(() => {
+        if (!workspaceSlug || typeof window === 'undefined' || !window.Echo) return;
+
+        const studioChannel = window.Echo.private(`studio.${workspaceSlug}`);
+
+        studioChannel.listen('.message.sent', (data) => {
+            if (data?.channelId && data.channelId !== selectedChat?.id) {
+                setUnreadCounts(prev => ({
+                    ...prev,
+                    [data.channelId]: (prev[data.channelId] || 0) + 1,
+                }));
+            }
+            pollActivity();
+        });
+
+        return () => {
+            studioChannel.stopListening('.message.sent');
+        };
+    }, [workspaceSlug, selectedChat?.id, pollActivity]);
+
+    // Active channel events (instant message append, pin update, unsend/delete)
+    useEffect(() => {
+        if (!workspaceSlug || !selectedChat?.id || typeof window === 'undefined' || !window.Echo) return;
+
+        const channel = window.Echo.private(`studio.${workspaceSlug}.channel.${selectedChat.id}`);
+
+        channel.listen('.message.sent', (data) => {
+            if (data?.message) {
+                setMessages(prev => {
+                    if (prev.some(m => m.id === data.message.id)) return prev;
+                    return [...prev, data.message];
+                });
+                setLastId(prev => Math.max(prev || 0, data.message.id));
+            }
+        });
+
+        channel.listen('.message.deleted', (data) => {
+            if (data?.messageId) {
+                setMessages(prev => prev.map(m => m.id === data.messageId ? {
+                    ...m,
+                    is_unsent: true,
+                    body: '',
+                    attachments: [],
+                } : m));
+            }
+        });
+
+        channel.listen('.message.pinned', (data) => {
+            if (data?.messageId) {
+                setMessages(prev => prev.map(m => m.id === data.messageId ? {
+                    ...m,
+                    is_pinned: Boolean(data.isPinned),
+                } : m));
+            }
+        });
+
+        return () => {
+            channel.stopListening('.message.sent');
+            channel.stopListening('.message.deleted');
+            channel.stopListening('.message.pinned');
+        };
+    }, [workspaceSlug, selectedChat?.id]);
 
     // Auto-scroll to bottom on new message
     useEffect(() => {

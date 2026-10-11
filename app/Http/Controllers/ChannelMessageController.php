@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\ChannelMessageDeleted;
+use App\Events\ChannelMessagePinned;
+use App\Events\ChannelMessageSent;
 use App\Mail\ChannelMessageNotificationMail;
 use App\Models\Studio;
 use App\Models\Tenant\ChannelMessage;
@@ -10,6 +13,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -211,8 +215,16 @@ class ChannelMessageController extends Controller
         // Attempt asynchronous/safe email alert to mentioned users or DM recipient
         $this->notifyRecipientsViaEmail($message, $channelId, $tenantId, $user);
 
+        $formatted = $this->format($message, $user);
+
+        try {
+            broadcast(new ChannelMessageSent((string) $tenantId, (string) $channelId, $formatted))->toOthers();
+        } catch (\Throwable $e) {
+            Log::warning('ChannelMessageSent broadcast failed: '.$e->getMessage());
+        }
+
         return response()->json([
-            'message' => $this->format($message, $user),
+            'message' => $formatted,
         ], 201);
     }
 
@@ -436,12 +448,21 @@ class ChannelMessageController extends Controller
             'forwarded_from' => null,
         ]);
 
+        $deletedItem = $this->format($message->fresh(), $user);
+
+        try {
+            $tenantId = (string) (tenant('id') ?? $request->route('tenant'));
+            broadcast(new ChannelMessageDeleted($tenantId, (string) $channelId, (int) $messageId, 'everyone'))->toOthers();
+        } catch (\Throwable $e) {
+            Log::warning('ChannelMessageDeleted broadcast failed: '.$e->getMessage());
+        }
+
         return response()->json([
             'success' => true,
             'deleted_id' => $messageId,
             'scope' => 'everyone',
             'message' => 'Message unsent for everyone.',
-            'item' => $this->format($message->fresh(), $user),
+            'item' => $deletedItem,
         ]);
     }
 
@@ -468,6 +489,13 @@ class ChannelMessageController extends Controller
             'pinned_at' => $newPinned ? now() : null,
             'pinned_by_user_id' => $newPinned ? $user->id : null,
         ]);
+
+        try {
+            $tenantId = (string) (tenant('id') ?? $request->route('tenant'));
+            broadcast(new ChannelMessagePinned($tenantId, (string) $channelId, (int) $messageId, $newPinned))->toOthers();
+        } catch (\Throwable $e) {
+            Log::warning('ChannelMessagePinned broadcast failed: '.$e->getMessage());
+        }
 
         return response()->json([
             'success' => true,

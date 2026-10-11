@@ -55,3 +55,5 @@ AGENTS.md
 boost.json
 ml-engine/venv/
 ml-engine/__pycache__/
+
+pdf/
