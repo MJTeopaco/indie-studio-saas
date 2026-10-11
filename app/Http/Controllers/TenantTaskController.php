@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\TaskStatusUpdated;
 use App\Models\Studio;
 use App\Models\Tenant\Project;
 use App\Models\Tenant\Task;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 class TenantTaskController extends Controller
@@ -203,6 +205,20 @@ class TenantTaskController extends Controller
         }
 
         $taskModel->update($validated);
+
+        try {
+            $studioId = (string) (tenant('id') ?? $request->route('tenant'));
+            broadcast(new TaskStatusUpdated(
+                $studioId,
+                (int) $taskModel->id,
+                (string) ($taskModel->status ?? ''),
+                array_merge($taskModel->toArray(), [
+                    'reviewer_user_id' => $taskModel->reviewer_user_id,
+                ])
+            ))->toOthers();
+        } catch (\Throwable $e) {
+            Log::warning('TaskStatusUpdated broadcast failed: '.$e->getMessage());
+        }
 
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json([

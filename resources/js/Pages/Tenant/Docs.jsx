@@ -3,7 +3,6 @@ import { Head, usePage, useForm, router } from '@inertiajs/react';
 import TenantLayout from '@/Layouts/TenantLayout';
 import axios from 'axios';
 import {
-    FileText,
     Archive,
     Download,
     Trash2,
@@ -12,8 +11,6 @@ import {
     FolderKanban,
     PlusCircle,
     CheckCircle2,
-    ChevronRight,
-    HelpCircle,
     BarChart3,
     TrendingUp,
     Clock,
@@ -86,19 +83,16 @@ export default function Docs({
     const { activeWorkspace } = usePage().props;
     const workspaceSlug = studio?.id || activeWorkspace;
 
-    // Main tabs: 'handbook' | 'archive'
-    const [activeTab, setActiveTab] = useState(() => {
+    // Sub-tab inside Report Archiving: 'generator' | 'gallery'
+    const [archiveSubTab, setArchiveSubTab] = useState(() => {
         if (typeof window !== 'undefined') {
             const params = new URLSearchParams(window.location.search);
-            if (params.get('tab') === 'archive' || params.get('tab') === 'reports') {
-                return 'archive';
+            if (params.get('tab') === 'gallery') {
+                return 'gallery';
             }
         }
-        return 'handbook';
+        return 'generator';
     });
-
-    // Sub-tab inside Report Archiving: 'generator' | 'gallery'
-    const [archiveSubTab, setArchiveSubTab] = useState('generator');
 
     // ── REPORT GENERATION FILTERS & STATE ──
     const [selectedProjectId, setSelectedProjectId] = useState(
@@ -561,7 +555,7 @@ export default function Docs({
 
     return (
         <TenantLayout studioName={studio?.name || 'Studio'}>
-            <Head title="Documentation & Report Archiving — SprintStudio" />
+            <Head title="Report Archiving — SprintStudio" />
 
             <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950 p-4 sm:p-6 lg:p-8 select-none print:p-0 print:bg-white">
                 <div className="max-w-7xl mx-auto space-y-6">
@@ -574,114 +568,19 @@ export default function Docs({
                                     <Archive className="w-5 h-5" />
                                 </div>
                                 <h1 className="font-heading text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-                                    Documentation & Report Archiving
+                                    Report Archiving
                                 </h1>
                             </div>
                             <p className="text-xs text-slate-500 dark:text-slate-400">
-                                Engineering handbook, deterministic scheduling specs, and data-driven Sprint/Project report generation & compliance archiving.
+                                Data-driven Sprint and Project report generation, performance audits, and compliance archiving.
                             </p>
-                        </div>
-
-                        {/* Top navigation tabs (Handbook vs Report Archiving) */}
-                        <div className="flex rounded-xl bg-slate-100 dark:bg-slate-800/80 p-1 shrink-0 self-start border border-slate-200/80 dark:border-slate-700/60 shadow-xs">
-                            <button
-                                type="button"
-                                onClick={() => setActiveTab('handbook')}
-                                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all duration-200 active:scale-95 ${
-                                    activeTab === 'handbook'
-                                        ? 'bg-white dark:bg-slate-900 text-brand shadow-sm ring-1 ring-slate-900/5 dark:ring-white/10'
-                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/50 dark:hover:bg-slate-800/50'
-                                }`}
-                            >
-                                <FileText className={`w-3.5 h-3.5 transition-colors ${activeTab === 'handbook' ? 'text-brand' : 'text-slate-400'}`} />
-                                <span>Handbook & Specs</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setActiveTab('archive')}
-                                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all duration-200 active:scale-95 ${
-                                    activeTab === 'archive'
-                                        ? 'bg-white dark:bg-slate-900 text-brand shadow-sm ring-1 ring-slate-900/5 dark:ring-white/10'
-                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/50 dark:hover:bg-slate-800/50'
-                                }`}
-                            >
-                                <Archive className={`w-3.5 h-3.5 transition-colors ${activeTab === 'archive' ? 'text-brand' : 'text-slate-400'}`} />
-                                <span>Report Archiving</span>
-                            </button>
                         </div>
                     </div>
 
                     {/* ================================================================
-                        TAB: HANDBOOK & SPECS
+                        REPORT ARCHIVING (COMPREHENSIVE GENERATION & ARCHIVES)
                     ================================================================ */}
-                    {activeTab === 'handbook' && (
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            <div className="lg:col-span-2 space-y-6">
-                                <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                                    <h2 className="text-base font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2">
-                                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                                        SprintStudio Platform Architecture Overview
-                                    </h2>
-                                    <p className="mt-3 text-xs text-gray-500 dark:text-slate-400 leading-relaxed font-sans">
-                                        Welcome to SprintStudio. Our platform is structured as an integrated multi-tenant pipeline connecting deterministic scheduling calculations with modern deep-learning recommendation algorithms:
-                                    </p>
-                                    <div className="mt-4 space-y-3 font-sans text-xs text-slate-600 dark:text-slate-300">
-                                        {[
-                                            { title: 'Deterministic Critical Path Engine', desc: 'Schedules tasks relative to project release boundaries dynamically skipping weekends.' },
-                                            { title: 'AI-Powered Developer Match Fit', desc: 'Predicts suitability score between developers and tasks using Graph Neural Network (GNN) embeddings.' },
-                                            { title: 'Fast Cloud Inference', desc: 'Leverages cloud-hosted Groq API engines for fast natural language sprint breakdowns.' },
-                                        ].map((item, idx) => (
-                                            <div key={idx} className="flex gap-2.5 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/50">
-                                                <ChevronRight className="w-4 h-4 text-brand shrink-0 mt-0.5" />
-                                                <div>
-                                                    <span className="font-bold text-gray-800 dark:text-slate-200 block">{item.title}</span>
-                                                    <span className="text-gray-500 dark:text-slate-400 mt-0.5 block">{item.desc}</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </section>
-
-                                <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                                    <h2 className="text-base font-bold text-gray-900 dark:text-slate-100">
-                                        Developer Onboarding Playbook
-                                    </h2>
-                                    <p className="mt-2 text-xs text-slate-600 dark:text-slate-400 font-sans leading-relaxed">
-                                        Every new developer must complete onboarding via the central profile setup. Ensure that your weekly work capacity (hours) is updated regularly. This is critical for the AI resource allocator and Gantt scheduler to calculate healthy team sprint capacities.
-                                    </p>
-                                    <div className="mt-4 p-4 rounded-xl border-l-4 border-indigo-500 bg-indigo-500/5 text-indigo-700 dark:text-indigo-400 text-xs font-semibold font-sans">
-                                        Looking to generate comprehensive sprint/project velocity reports and compliance archives? Switch to the "Report Archiving" tab at the top-right.
-                                    </div>
-                                </section>
-                            </div>
-
-                            <div className="space-y-6">
-                                <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                                    <h3 className="text-xs font-extrabold uppercase tracking-wider text-gray-400">
-                                        Need Help?
-                                    </h3>
-                                    <div className="mt-3 space-y-3 font-sans text-xs">
-                                        {[
-                                            'How do I add dependencies to tasks?',
-                                            'What is task float slack?',
-                                            'How do I archive and export sprint reports?',
-                                        ].map((q, idx) => (
-                                            <a key={idx} href="#" className="flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-brand transition-colors py-1.5 border-b border-gray-100 last:border-0 dark:border-slate-800">
-                                                <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
-                                                <span className="truncate">{q}</span>
-                                            </a>
-                                        ))}
-                                    </div>
-                                </section>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ================================================================
-                        TAB: REPORT ARCHIVING (COMPREHENSIVE GENERATION & ARCHIVES)
-                    ================================================================ */}
-                    {activeTab === 'archive' && (
-                        <div className="space-y-6">
+                    <div className="space-y-6">
 
                             {/* Sub-Tabs Selector inside Report Archiving */}
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-3 print:hidden">
@@ -1460,7 +1359,6 @@ export default function Docs({
                             )}
 
                         </div>
-                    )}
                 </div>
             </div>
 

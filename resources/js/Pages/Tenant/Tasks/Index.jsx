@@ -42,6 +42,34 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
         setLocalTasksMap(tasks);
     }, [tasks]);
 
+    // Real-time task status sync across team members via WebSocket
+    useEffect(() => {
+        const studioId = studio?.id || activeWorkspace?.id;
+        if (!studioId || typeof window === 'undefined' || !window.Echo) return;
+
+        const channel = window.Echo.private(`studio.${studioId}`);
+        channel.listen('.task.status.updated', (data) => {
+            if (data?.taskId && data?.status) {
+                setLocalTasksMap(prev => {
+                    const next = { ...prev };
+                    Object.keys(next).forEach(projId => {
+                        next[projId] = next[projId].map(t => {
+                            if (t.id === data.taskId) {
+                                return { ...t, status: data.status, ...(data.task || {}) };
+                            }
+                            return t;
+                        });
+                    });
+                    return next;
+                });
+            }
+        });
+
+        return () => {
+            channel.stopListening('.task.status.updated');
+        };
+    }, [studio?.id, activeWorkspace?.id]);
+
     // Default to the first available project
     useEffect(() => {
         if (!selectedProjectId && projects.length > 0) {

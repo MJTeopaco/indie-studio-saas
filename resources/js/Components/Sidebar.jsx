@@ -96,6 +96,14 @@ const PremiumDocsIcon = ({ className }) => (
     </svg>
 );
 
+const PremiumArchiveIcon = ({ className }) => (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M21 8V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+        <rect x="2" y="3" width="20" height="5" rx="1.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+        <line x1="10" y1="12" x2="14" y2="12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+);
+
 const PremiumEstimatesIcon = ({ className }) => (
     <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
@@ -370,8 +378,8 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
 
     const utilityLinks = [
         {
-            label: 'Documentation & Reports',
-            icon: PremiumDocsIcon,
+            label: 'Report Archiving',
+            icon: PremiumArchiveIcon,
             href: `${baseHref}/docs`,
             active: currentPath.includes('/docs') || currentPath.includes('/reports'),
         },

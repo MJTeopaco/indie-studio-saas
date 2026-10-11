@@ -11,7 +11,7 @@ function getSectionName(url = '') {
     if (url.includes('/schedule')) return 'Schedule';
     if (url.includes('/team')) return 'Team';
     if (url.includes('/projects')) return 'Projects';
-    if (url.includes('/docs')) return 'Documentation & Reports';
+    if (url.includes('/docs')) return 'Report Archiving';
     if (url.includes('/reports')) return 'Reports & Analytics';
     if (url.includes('/inbox')) return 'Inbox';
     if (url.includes('/settings')) return 'Settings';

@@ -126,7 +126,7 @@ class MemberTaskManagementTest extends TestCase
         $response->assertForbidden();
     }
 
-    public function test_member_cannot_move_task_back_to_todo_once_started(): void
+    public function test_member_can_move_task_back_to_todo_once_started(): void
     {
         $task = Task::factory()->create([
             'project_id' => $this->project->id,
@@ -144,10 +144,11 @@ class MemberTaskManagementTest extends TestCase
             'sprint_status' => 'ready_to_start',
         ]);
 
-        $response->assertStatus(422);
+        $response->assertOk();
 
         $task->refresh();
-        $this->assertEquals('in_progress', $task->status);
+        $this->assertEquals('todo', $task->status);
+        $this->assertEquals('ready_to_start', $task->sprint_status);
     }
 
     public function test_member_can_mark_task_as_stuck_during_in_progress(): void
