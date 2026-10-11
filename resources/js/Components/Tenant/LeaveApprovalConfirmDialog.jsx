@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertDialog } from '@/Components/ui/alert-dialog';
+import { AlertDialog } from '@/Components/UI/alert-dialog';
 import { Calendar, User, Clock, AlertTriangle, FileText } from 'lucide-react';
 
 /**

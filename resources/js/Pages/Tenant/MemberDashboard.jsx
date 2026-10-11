@@ -7,13 +7,13 @@ import {
     CardTitle,
     CardDescription,
     CardContent,
-} from '@/Components/ui/card';
-import { Badge } from '@/Components/ui/badge';
-import { Progress } from '@/Components/ui/progress';
-import { Button } from '@/Components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/Components/ui/avatar';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/Components/ui/tabs';
-import DataTable from '@/Components/ui/data-table';
+} from '@/Components/UI/card';
+import { Badge } from '@/Components/UI/badge';
+import { Progress } from '@/Components/UI/progress';
+import { Button } from '@/Components/UI/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/Components/UI/avatar';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/Components/UI/tabs';
+import DataTable from '@/Components/UI/data-table';
 import PriorityBadge from '@/Components/Tenant/PriorityBadge';
 import TaskFlyoutInspector from '@/Components/Tenant/Tasks/TaskFlyoutInspector';
 import { showToast } from '@/Components/SystemToast';
