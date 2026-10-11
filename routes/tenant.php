@@ -44,9 +44,12 @@ Route::prefix('/studio/{tenant}')->middleware([
     Route::get('/ai-workspace', [TenantDashboardController::class, 'aiWorkspace'])
         ->name('tenant.ai-workspace');
 
-    // Alias: members can bookmark /my-work and land on their member dashboard
-    Route::get('/my-work', [TenantDashboardController::class, 'index'])
+    // Legacy aliases redirect to unified studio dashboard
+    Route::get('/my-work', fn () => redirect()->route('tenant.dashboard', ['tenant' => tenant('id') ?? request()->route('tenant')]))
         ->name('tenant.my-work');
+
+    Route::get('/overview', fn () => redirect()->route('tenant.dashboard', ['tenant' => tenant('id') ?? request()->route('tenant')]))
+        ->name('tenant.overview');
 
     Route::get('/inbox', [TenantDashboardController::class, 'inbox'])
         ->name('tenant.inbox');
@@ -54,9 +57,6 @@ Route::prefix('/studio/{tenant}')->middleware([
         ->name('tenant.notifications.read-all');
     Route::post('/notifications/{id}/read', [TenantDashboardController::class, 'markNotificationRead'])
         ->name('tenant.notifications.read');
-
-    Route::get('/overview', [TenantOverviewController::class, 'index'])
-        ->name('tenant.overview');
 
     Route::get('/tasks', [TenantTaskController::class, 'index'])
         ->name('tenant.tasks');

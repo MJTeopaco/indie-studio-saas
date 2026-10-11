@@ -5,7 +5,6 @@ import SystemToast from '@/Components/SystemToast';
 import { ChevronRight, ArrowLeft, LayoutGrid } from 'lucide-react';
 
 function getSectionName(url = '') {
-    if (url.includes('/overview')) return 'Overview';
     if (url.includes('/ai-workspace')) return 'AI Workspace';
     if (url.includes('/tasks')) return 'Tasks';
     if (url.includes('/schedule')) return 'Schedule';
@@ -17,8 +16,7 @@ function getSectionName(url = '') {
     if (url.includes('/settings')) return 'Settings';
     if (url.includes('/burndown')) return 'Burndown';
     if (url.includes('/estimates')) return 'Estimates';
-    if (url.includes('/my-work')) return 'My Work';
-    if (url.includes('/dashboard')) return 'AI Workspace';
+    if (url.includes('/my-work') || url.includes('/dashboard') || url.includes('/overview')) return 'Dashboard';
     return 'Studio Workspace';
 }
 
@@ -60,18 +58,18 @@ export default function TenantLayout({ children, studioName }) {
                     {/* Breadcrumbs Trail */}
                     <nav aria-label="Breadcrumbs" className="flex items-center gap-2 min-w-0 text-xs sm:text-sm">
                         <Link
-                            href="/dashboard"
+                            href={route('central.hub')}
                             className="group flex items-center gap-1.5 text-text-muted hover:text-text-primary transition-colors rounded-md p-1 focus-ring"
                             title="Return to Central Hub"
                         >
                             <LayoutGrid className="w-3.5 h-3.5 text-text-muted group-hover:text-brand transition-colors" />
-                            <span className="font-heading font-medium hidden sm:inline">Your Hub</span>
+                            <span className="font-heading font-medium hidden sm:inline">Central Hub</span>
                         </Link>
 
                         <ChevronRight className="w-3.5 h-3.5 text-text-muted/40 shrink-0" aria-hidden="true" />
 
                         <Link
-                            href={`/studio/${studioSlug}/overview`}
+                            href={`/studio/${studioSlug}/dashboard`}
                             className="font-heading font-medium text-text-secondary hover:text-text-primary transition-colors truncate max-w-[120px] sm:max-w-[200px] rounded-md p-1 focus-ring"
                             title={`Studio: ${currentStudioName}`}
                         >
@@ -88,12 +86,12 @@ export default function TenantLayout({ children, studioName }) {
                     {/* Quick Return to Central Hub Button */}
                     <div className="flex items-center gap-2 shrink-0">
                         <Link
-                            href="/dashboard"
+                            href={route('central.hub')}
                             className="group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-surface-border bg-surface hover:bg-surface-elevated hover:border-brand/40 text-xs font-heading font-medium text-text-secondary hover:text-text-primary transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] shadow-2xs hover:shadow-xs focus-ring cursor-pointer"
-                            title="Back to Central Hub"
+                            title="Return to Central Hub"
                         >
                             <ArrowLeft className="w-3.5 h-3.5 text-text-muted group-hover:text-brand transition-colors" />
-                            <span className="hidden sm:inline">Return to Central</span>
+                            <span className="hidden sm:inline">Return to Central Hub</span>
                             <span className="sm:hidden">Central Hub</span>
                         </Link>
                     </div>

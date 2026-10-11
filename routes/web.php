@@ -14,8 +14,11 @@ Route::get('/', function () {
     ]);
 });
 
+// Temporary redirect from old central dashboard route
+Route::redirect('/dashboard', '/central');
+
 Route::middleware(['auth', 'verified', 'requires.onboarding'])->group(function () {
-    Route::get('/dashboard', [CentralDashboardController::class, 'index'])->name('dashboard');
+    Route::get('/central', [CentralDashboardController::class, 'index'])->name('central.hub');
 
     // Hub actions
     Route::post('/hub/studio', [HubController::class, 'createStudio'])->name('hub.studio.store');

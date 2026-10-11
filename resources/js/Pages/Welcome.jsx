@@ -76,7 +76,7 @@ export default function Welcome({ auth }) {
 
                 {/* 1. Elevated Navigation Bar */}
                 <header className="relative z-20 mx-auto w-full max-w-7xl px-6 py-6 flex items-center justify-between">
-                    <Link href={auth?.user ? route('dashboard') : '/'} className="transition-transform hover:scale-[1.02]">
+                    <Link href={auth?.user ? route('central.hub') : '/'} className="transition-transform hover:scale-[1.02]">
                         <ApplicationLogo variant="horizontal" className="h-8" />
                     </Link>
 
@@ -99,8 +99,8 @@ export default function Welcome({ auth }) {
                         </button>
 
                         {auth.user ? (
-                            <Link href={route('dashboard')}>
-                                <PrimaryButton className="shadow-md shadow-brand/10">Dashboard</PrimaryButton>
+                            <Link href={route('central.hub')}>
+                                <PrimaryButton className="shadow-md shadow-brand/10">Central Hub</PrimaryButton>
                             </Link>
                         ) : (
                             <>
@@ -136,9 +136,9 @@ export default function Welcome({ auth }) {
                         </p>
                         
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-5 mb-24 w-full opacity-0 animate-hero-fade" style={{ animationDelay: '450ms' }}>
-                            <Link href={auth?.user ? route('dashboard') : route('register')} className="w-full sm:w-auto">
+                            <Link href={auth?.user ? route('central.hub') : route('register')} className="w-full sm:w-auto">
                                 <button className="w-full sm:w-auto px-9 py-4 bg-brand hover:bg-brand-light text-white rounded-2xl font-heading font-bold text-base transition-all hover:scale-105 shadow-[0_0_50px_-10px_rgba(0,124,255,0.6)]">
-                                    Access Platform Hub
+                                    Access Central Hub
                                 </button>
                             </Link>
                             <a href="#features" className="w-full sm:w-auto">

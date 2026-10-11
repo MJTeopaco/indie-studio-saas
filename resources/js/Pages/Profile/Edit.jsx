@@ -52,11 +52,11 @@ export default function Edit({
                     {/* Return to Dashboard Action */}
                     <div>
                         <Link
-                            href={route('dashboard')}
+                            href={route('central.hub')}
                             className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-150 group"
                         >
                             <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
-                            <span>Return to Dashboard</span>
+                            <span>Return to Central Hub</span>
                         </Link>
                     </div>
 

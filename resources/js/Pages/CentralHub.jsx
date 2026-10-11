@@ -6,7 +6,7 @@ import CreateStudioModal from '@/Components/Hub/CreateStudioModal';
 import JoinStudioModal from '@/Components/Hub/JoinStudioModal';
 import { Plus, Users, Layers } from 'lucide-react';
 
-export default function Dashboard({ ownedStudios = [], joinedStudios = [], ...props }) {
+export default function CentralHub({ ownedStudios = [], joinedStudios = [], ...props }) {
     const { auth } = usePage().props;
     const user = auth?.user;
 
@@ -35,7 +35,7 @@ export default function Dashboard({ ownedStudios = [], joinedStudios = [], ...pr
 
     return (
         <AuthenticatedLayout>
-            <Head title="Your Hub" />
+            <Head title="Central Hub" />
 
             <div className="relative py-8 sm:py-12 overflow-hidden">
                 {/* Subtle ambient lighting - provides grounding without AI slop gradients */}
@@ -51,13 +51,13 @@ export default function Dashboard({ ownedStudios = [], joinedStudios = [], ...pr
                         <div>
                             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-medium tracking-wide uppercase bg-brand/10 text-brand border border-brand/20 mb-3 shadow-2xs">
                                 <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
-                                Studio Workspaces
+                                Central Hub
                             </div>
                             <h1 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-bold text-text-primary tracking-tight">
-                                {greeting}
+                                Central Hub
                             </h1>
                             <p className="mt-1.5 text-sm sm:text-base text-text-muted leading-relaxed max-w-xl">
-                                {subtitle}
+                                {greeting}. {subtitle}
                             </p>
                         </div>
 

@@ -301,15 +301,15 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
     const dashboardLinks = isManager
         ? [
             {
-                label: 'Overview',
+                label: 'Dashboard',
                 icon: PremiumDashboardIcon,
-                href: `${baseHref}/overview`,
-                active: currentPath.includes('/overview'),
+                href: `${baseHref}/dashboard`,
+                active: currentPath.includes('/dashboard') && !currentPath.includes('/ai-workspace'),
             },
         ]
         : [
             {
-                label: 'My Work',
+                label: 'Dashboard',
                 icon: PremiumDashboardIcon,
                 href: `${baseHref}/dashboard`,
                 active: (currentPath.includes('/dashboard') || currentPath.includes('/my-work') || currentPath === baseHref) && !isInboxActive,
@@ -362,7 +362,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                 label: 'AI Workspace',
                 icon: PremiumAutomationIcon,
                 href: `${baseHref}/ai-workspace`,
-                active: currentPath.includes('/ai-workspace') || (currentPath.includes('/dashboard') && isManager && !currentPath.includes('/overview')),
+                active: currentPath.includes('/ai-workspace'),
             },
         ]
         : [];
@@ -400,7 +400,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
             {/* 1. Brand Header (Search removed for streamlined vertical height) */}
             <div className="p-4 flex items-center justify-between border-b border-gray-100 dark:border-slate-800/50">
                 <Link
-                    href={`${baseHref}/overview`}
+                    href={`${baseHref}/dashboard`}
                     className="flex items-center gap-2.5 overflow-hidden focus:outline-none"
                     title={studioName}
                 >
@@ -655,12 +655,12 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                             <span>Profile Settings</span>
                         </Link>
                         <Link
-                            href={route('dashboard')}
+                            href={route('central.hub')}
                             className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/70 transition-colors"
                             onClick={() => setProfileMenuOpen(false)}
                         >
                             <LayoutGrid className="w-3.5 h-3.5 text-brand" />
-                            <span>Switch Studio (Hub)</span>
+                            <span>Central Hub</span>
                         </Link>
                         <div className="my-1 border-t border-gray-100 dark:border-slate-800/80" />
                         <Link
@@ -688,7 +688,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                             {(user?.name || 'U').charAt(0).toUpperCase()}
                         </button>
                         <Link
-                            href={route('dashboard')}
+                            href={route('central.hub')}
                             className="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-slate-800/70 hover:bg-brand/10 hover:border-brand/30 border border-transparent text-gray-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-light transition-all duration-150 cursor-pointer"
                             title="Return to Central Hub"
                         >
@@ -716,7 +716,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                             </div>
                         </button>
                         <Link
-                            href={route('dashboard')}
+                            href={route('central.hub')}
                             className="p-2 rounded-xl bg-white dark:bg-slate-700/60 hover:bg-brand/10 dark:hover:bg-brand/20 hover:border-brand/30 border border-gray-200/80 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-light transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] shadow-2xs hover:shadow-xs shrink-0 ml-1.5 cursor-pointer"
                             title="Return to Central Hub"
                         >

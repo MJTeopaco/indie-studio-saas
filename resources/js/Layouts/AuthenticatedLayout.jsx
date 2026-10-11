@@ -23,7 +23,7 @@ export default function AuthenticatedLayout({ header, children }) {
                     <div className="flex h-16 justify-between">
                         <div className="flex items-center">
                             <div className="flex shrink-0 items-center">
-                                <Link href={route('dashboard')}>
+                                <Link href={route('central.hub')}>
                                     <ApplicationLogo variant="horizontal" className="h-7" />
                                 </Link>
                             </div>
