@@ -144,8 +144,8 @@ export default function Edit({
             </aside>
 
             {/* ── Right Content Area ── */}
-            <main className="flex-1 overflow-y-auto px-5 sm:px-10 lg:px-14 py-8 sm:py-12">
-                <div className="max-w-3xl mx-auto">
+            <main className="flex-1 overflow-y-auto px-5 sm:px-8 lg:px-12 py-8 sm:py-10">
+                <div className="max-w-5xl 2xl:max-w-6xl mx-auto">
                     {activeTab === 'personal' && (
                         <div className="animate-in fade-in duration-200">
                             <PersonalInfoForm
