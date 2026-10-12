@@ -2,10 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\TenantDashboardController;
+use App\Models\Tenant\ChannelMessage;
 use App\Models\Tenant\Project;
 use App\Models\Tenant\Task;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class NotificationReadWorkflowTest extends TestCase
@@ -101,5 +104,29 @@ class NotificationReadWorkflowTest extends TestCase
             'messages',
             'total',
         ]);
+    }
+
+    public function test_channel_messages_appear_in_notifications(): void
+    {
+        $this->actingAs($this->user);
+
+        $sender = User::factory()->create(['name' => 'Alice']);
+
+        if (Schema::hasTable('channel_messages')) {
+            ChannelMessage::create([
+                'channel_id' => 'ch-general',
+                'user_id' => $sender->id,
+                'sender_name' => 'Alice',
+                'body' => 'Hello team in general channel!',
+                'is_unsent' => false,
+            ]);
+        }
+
+        $controller = app(TenantDashboardController::class);
+        $notifs = $controller->getMessageNotifications($this->user);
+
+        $this->assertNotEmpty($notifs);
+        $this->assertEquals('channel_message', $notifs[0]['type']);
+        $this->assertStringContainsString('#general', $notifs[0]['title']);
     }
 }

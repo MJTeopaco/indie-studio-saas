@@ -35,13 +35,15 @@ class TenantDocsController extends Controller
             ])->all();
         }
 
-        // Get existing archived reports
-        $reports = Report::latest()->get()->map(fn ($r) => [
+        $currentUser = auth()->user();
+        // Get existing archived reports generated strictly by this user
+        $reports = Report::where('created_by_user_id', $currentUser?->id)->latest()->get()->map(fn ($r) => [
             'id' => $r->id,
             'name' => $r->name,
             'type' => $r->type,
             'target_name' => $r->target_name,
             'created_by' => $r->created_by,
+            'created_by_user_id' => $r->created_by_user_id,
             'created_at' => $r->created_at->toIso8601String(),
             'metrics' => $r->metrics,
         ])->all();
@@ -292,6 +294,7 @@ class TenantDocsController extends Controller
             'type' => $validated['type'],
             'target_name' => $targetName,
             'created_by' => auth()->user()?->name ?? 'Studio Member',
+            'created_by_user_id' => auth()->id(),
             'metrics' => $metrics,
         ]);
 
@@ -312,6 +315,9 @@ class TenantDocsController extends Controller
     public function deleteReport($tenant, $report)
     {
         $rep = Report::findOrFail($report);
+        if ($rep->created_by_user_id && (int) $rep->created_by_user_id !== (int) auth()->id()) {
+            abort(403, 'You do not have permission to delete this archived report.');
+        }
         $rep->delete();
 
         return redirect()->back()->with('success', 'Report deleted successfully.');

@@ -326,12 +326,13 @@ class HandleInertiaRequests extends Middleware
                 }
             }
 
-            $notificationsCount = $reviewTasksCount + $unstartedTasksCount + $pendingLeaveCount + $alertTasksCount + $pendingEstimatesNotification;
+            $systemNotifCount = $reviewTasksCount + $unstartedTasksCount + $pendingLeaveCount + $alertTasksCount + $pendingEstimatesNotification;
+            $notificationsCount = $systemNotifCount + $messageNotifCount;
 
             return [
                 'notifications' => $notificationsCount,
                 'messages' => $messageNotifCount,
-                'total' => $notificationsCount + $messageNotifCount,
+                'total' => $notificationsCount,
             ];
         } catch (\Exception $e) {
             return ['notifications' => 0, 'messages' => 0, 'total' => 0];

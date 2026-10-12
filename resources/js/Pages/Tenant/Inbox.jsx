@@ -1244,7 +1244,20 @@ export default function Inbox({
     const chatEndRef = useRef(null);
     const chatContainerRef = useRef(null);
     const [showScrollDown, setShowScrollDown] = useState(false);
+    const [newMessagesWhileScrolled, setNewMessagesWhileScrolled] = useState(0);
+    const isInitialChatOpenRef = useRef(true);
     const pollingRef = useRef(null);
+
+    const scrollToBottom = useCallback((smooth = true) => {
+        const el = chatContainerRef.current;
+        if (!el) return;
+        el.scrollTo({
+            top: el.scrollHeight,
+            behavior: smooth ? 'smooth' : 'auto',
+        });
+        setShowScrollDown(false);
+        setNewMessagesWhileScrolled(0);
+    }, []);
 
     const pinnedMessages = useMemo(() => messages.filter(m => m.is_pinned && !m.is_unsent), [messages]);
 
@@ -1381,16 +1394,20 @@ export default function Inbox({
             setMessages(res.data.messages ?? []);
             setLastId(res.data.last_id ?? null);
             requestAnimationFrame(() => {
-                if (chatContainerRef.current) {
-                    chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-                }
+                scrollToBottom(false);
             });
+            setTimeout(() => {
+                scrollToBottom(false);
+            }, 50);
         } catch (err) {
             console.error('Failed to load channel messages:', err);
         } finally {
             setLoadingMessages(false);
+            setTimeout(() => {
+                scrollToBottom(false);
+            }, 100);
         }
-    }, [workspaceSlug]);
+    }, [workspaceSlug, scrollToBottom]);
 
     // Poll for new messages & updated messages (pins, unsends, etc.)
     const pollMessages = useCallback(async () => {
@@ -1439,11 +1456,14 @@ export default function Inbox({
             setLastId(null);
             return;
         }
+        isInitialChatOpenRef.current = true;
         setMessages([]);
         setLastId(null);
         setReplyingTo(null);
         setShowPinnedDrawer(false);
         setShowAssetsPanel(false);
+        setShowScrollDown(false);
+        setNewMessagesWhileScrolled(0);
         markChannelRead(selectedChat.id);
         loadMessages(selectedChat.id, true);
     }, [selectedChat?.id, markChannelRead, loadMessages]);
@@ -1527,27 +1547,39 @@ export default function Inbox({
         };
     }, [workspaceSlug, selectedChat?.id]);
 
-    // Auto-scroll to bottom on new message (scoped to chat container only)
+    // Auto-scroll to bottom on chat open or when user is near bottom
     useEffect(() => {
+        const el = chatContainerRef.current;
+        if (!el || messages.length === 0) return;
+
+        if (isInitialChatOpenRef.current) {
+            isInitialChatOpenRef.current = false;
+            requestAnimationFrame(() => scrollToBottom(false));
+            setTimeout(() => scrollToBottom(false), 40);
+            setTimeout(() => scrollToBottom(false), 140);
+            return;
+        }
+
+        const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+        if (distFromBottom < 160) {
+            scrollToBottom(true);
+        } else {
+            setShowScrollDown(true);
+            setNewMessagesWhileScrolled(prev => prev + 1);
+        }
+    }, [messages, scrollToBottom]);
+
+    const handleChatScroll = useCallback(() => {
         const el = chatContainerRef.current;
         if (!el) return;
         const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-        if (distFromBottom < 150) {
-            el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+        if (distFromBottom > 140) {
+            setShowScrollDown(true);
+        } else {
+            setShowScrollDown(false);
+            setNewMessagesWhileScrolled(0);
         }
-    }, [messages]);
-
-    const handleChatScroll = () => {
-        const el = chatContainerRef.current;
-        if (!el) return;
-        setShowScrollDown(el.scrollHeight - el.scrollTop - el.clientHeight > 80);
-    };
-
-    const scrollToBottom = () => {
-        if (chatContainerRef.current) {
-            chatContainerRef.current.scrollTo({ top: chatContainerRef.current.scrollHeight, behavior: 'smooth' });
-        }
-    };
+    }, []);
 
     // ── Load Channel Shared Assets ───────────────────────────────────────────
     const loadAssets = useCallback(async (channelId) => {
@@ -1878,6 +1910,9 @@ export default function Inbox({
                 });
                 setLastId(newMsg.id);
             }
+            setTimeout(() => {
+                scrollToBottom(true);
+            }, 30);
         } catch (err) {
             console.error('Failed to send message:', err);
             setInputMessage(body);
@@ -3171,12 +3206,24 @@ export default function Inbox({
                                     <div ref={chatEndRef} />
                                 </div>
 
-                                {/* Scroll-to-bottom button */}
+                                {/* Popping Scroll-to-Bottom Button with Arrow & Unread Badge */}
                                 {showScrollDown && (
-                                    <div className="absolute bottom-24 right-6 z-10">
-                                        <button type="button" onClick={scrollToBottom}
-                                            className="flex items-center justify-center w-8 h-8 rounded-full bg-brand text-white shadow-lg hover:bg-brand-dark transition-all">
-                                            <ChevronDown className="w-4 h-4" />
+                                    <div className="absolute bottom-24 right-6 sm:right-8 z-30 animate-in fade-in zoom-in-75 slide-in-from-bottom-2 duration-200">
+                                        <button
+                                            type="button"
+                                            onClick={() => scrollToBottom(true)}
+                                            title="Jump down to latest chat"
+                                            className="flex items-center gap-2 px-3 py-2 rounded-full bg-slate-900/95 dark:bg-white/95 text-white dark:text-slate-900 shadow-xl hover:shadow-2xl border border-slate-700/60 dark:border-slate-200/80 backdrop-blur-md transition-all duration-200 transform hover:scale-105 active:scale-95 cursor-pointer group select-none"
+                                        >
+                                            <div className="w-5 h-5 rounded-full bg-brand text-white flex items-center justify-center shrink-0 shadow-xs">
+                                                <ChevronDown className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-y-0.5" />
+                                            </div>
+                                            <span className="text-xs font-bold tracking-tight">Latest</span>
+                                            {newMessagesWhileScrolled > 0 && (
+                                                <span className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full text-[9px] font-extrabold bg-rose-500 text-white shadow-xs animate-pulse">
+                                                    {newMessagesWhileScrolled > 9 ? '9+' : newMessagesWhileScrolled}
+                                                </span>
+                                            )}
                                         </button>
                                     </div>
                                 )}

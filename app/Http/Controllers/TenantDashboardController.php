@@ -1183,6 +1183,26 @@ class TenantDashboardController extends Controller
         } catch (\Exception $e) {
         }
 
+        try {
+            $messageNotifications = $this->getMessageNotifications($user, $readNotificationIds);
+            $notifications = array_merge($notifications, $messageNotifications);
+
+            // Sort notifications: unread first, then preserve recent order
+            usort($notifications, function ($a, $b) {
+                $aRead = ! empty($a['read']);
+                $bRead = ! empty($b['read']);
+                if (! $aRead && $bRead) {
+                    return -1;
+                }
+                if ($aRead && ! $bRead) {
+                    return 1;
+                }
+
+                return 0;
+            });
+        } catch (\Exception $e) {
+        }
+
         return Inertia::render('Tenant/Inbox', [
             'studio' => [
                 'id' => $studio ? $studio->id : tenant('id'),

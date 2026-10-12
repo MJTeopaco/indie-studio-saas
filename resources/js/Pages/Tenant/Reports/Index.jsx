@@ -59,8 +59,12 @@ export default function ReportsIndex({
     const [report, setReport] = useState(null);
     const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
-    // Archive state
-    const [archivedReports, setArchivedReports] = useState(initialArchivedReports || []);
+    // Archive state — strictly scoped to reports created by current user
+    const [archivedReports, setArchivedReports] = useState(() => {
+        const list = initialArchivedReports || [];
+        if (!currentUser?.id) return list;
+        return list.filter(r => !r.created_by_user_id || Number(r.created_by_user_id) === Number(currentUser.id));
+    });
     const [archiveSearch, setArchiveSearch] = useState('');
     const [archiveTypeFilter, setArchiveTypeFilter] = useState('all');
     const [archiveProjectFilter, setArchiveProjectFilter] = useState('all');
@@ -208,10 +212,16 @@ export default function ReportsIndex({
 
             if (response.data?.success && response.data?.data) {
                 setReport(response.data.data);
+                if (response.data.archived_report) {
+                    setArchivedReports(prev => [
+                        response.data.archived_report,
+                        ...prev.filter(r => r.id !== response.data.archived_report.id),
+                    ]);
+                }
                 setStepDirection('forward');
                 setWizardStep(3);
                 setMaxStep(3);
-                showToast('Executive report preview generated.', 'success');
+                showToast('Executive report preview generated and saved to archive.', 'success');
             } else {
                 showToast('Unable to compile report data for the selected parameters.', 'warning');
             }
