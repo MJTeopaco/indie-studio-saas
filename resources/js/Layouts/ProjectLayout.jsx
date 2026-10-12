@@ -2,16 +2,17 @@ import React from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import Sidebar from '@/Components/Sidebar';
 
-export default function ProjectLayout({ auth, project, children }) {
-    const { activeWorkspace, canManage, currentUserRole } = usePage().props;
+export default function ProjectLayout({ auth, project, studioName, children }) {
+    const { activeWorkspace, currentStudioName, canManage, currentUserRole } = usePage().props;
     const user = auth?.user || { name: 'Demo User', role: 'manager' };
     const tenantId = activeWorkspace || 'default';
     const projectTitle = project?.title || project?.name || 'Project Workspace';
+    const resolvedStudioName = studioName || currentStudioName;
 
     return (
         <div className="h-screen w-full overflow-hidden bg-surface text-text-primary flex">
             {/* AI-Agentic StudioSprint Left Sidebar */}
-            <Sidebar user={user} />
+            <Sidebar user={user} studioName={resolvedStudioName} />
 
             {/* Right Side: Header + Main Content Area */}
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">

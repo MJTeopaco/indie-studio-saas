@@ -240,7 +240,7 @@ function ProjectDashboard({ project, tasks }) {
         .slice(0, 5);
 
     return (
-        <div className="space-y-6 p-6">
+        <div className="space-y-6 p-6 pb-24">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                 {/* Metric 1: Completion Gauge */}
                 <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex items-center justify-between h-32">

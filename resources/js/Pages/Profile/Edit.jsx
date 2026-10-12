@@ -41,7 +41,7 @@ export default function Edit({
     ];
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#070A10] text-slate-900 dark:text-slate-100 flex flex-col md:flex-row antialiased selection:bg-brand selection:text-white">
+        <div className="min-h-screen md:h-screen md:overflow-hidden bg-[#F8FAFC] dark:bg-[#070A10] text-slate-900 dark:text-slate-100 flex flex-col md:flex-row antialiased selection:bg-brand selection:text-white">
             <Head title="Profile & Preferences — StudioSprint" />
 
             {/* ── Left Sidebar (No Top Navbar Displayed) ── */}
@@ -135,7 +135,7 @@ export default function Edit({
             </aside>
 
             {/* ── Right Content Area ── */}
-            <main className="flex-1 overflow-y-auto px-5 sm:px-10 lg:px-14 py-8 sm:py-12">
+            <main className="flex-1 md:h-full overflow-y-auto px-5 sm:px-10 lg:px-14 py-8 sm:py-12">
                 <div className="max-w-3xl mx-auto">
                     {activeTab === 'personal' && (
                         <div className="animate-in fade-in duration-200">
