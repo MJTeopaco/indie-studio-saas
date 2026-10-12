@@ -116,6 +116,15 @@ class User extends Authenticatable
     }
 
     /**
+     * The accessors to append to the model's array form.
+     *
+     * @var array<int, string>
+     */
+    protected $appends = [
+        'can_create_studio',
+    ];
+
+    /**
      * Determine if this user is an admin.
      */
     public function isAdmin(): bool
@@ -130,4 +139,39 @@ class User extends Authenticatable
     {
         return $this->role === self::ROLE_PROGRAMMER;
     }
+
+    /**
+     * Determine if this user is a studio owner, leader, or administrator.
+     */
+    public function isOwnerOrLeader(): bool
+    {
+        if ($this->isAdmin()) {
+            return true;
+        }
+
+        if ($this->ownedStudios()->exists()) {
+            return true;
+        }
+
+        return $this->joinedStudios()
+            ->wherePivotIn('role', ['owner', 'leader', 'manager'])
+            ->exists();
+    }
+
+    /**
+     * Determine if this user is authorized to create a studio.
+     */
+    public function canCreateStudio(): bool
+    {
+        return $this->isOwnerOrLeader();
+    }
+
+    /**
+     * Accessor for can_create_studio attribute.
+     */
+    public function getCanCreateStudioAttribute(): bool
+    {
+        return $this->canCreateStudio();
+    }
 }
+

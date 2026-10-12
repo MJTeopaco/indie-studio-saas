@@ -18,6 +18,10 @@ class HubController extends Controller
     {
         $user = $request->user();
 
+        if (! $user->canCreateStudio()) {
+            abort(403, 'Unauthorized to create a studio.');
+        }
+
         // 1. Create the studio
         $studio = Studio::create([
             'name' => $request->studio_name,
