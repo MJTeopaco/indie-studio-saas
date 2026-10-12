@@ -388,10 +388,10 @@ export default function ReportsIndex({
                 <div className="max-w-7xl mx-auto space-y-6">
 
                     {/* ── Top Header & Action Controls ── */}
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs print:border-none print:shadow-none">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs print:border-none print:shadow-none">
                         <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-brand flex items-center justify-center text-white shadow-xs">
+                                <div className="w-8 h-8 rounded-xl bg-linear-to-br from-indigo-500 to-brand flex items-center justify-center text-white shadow-2xs">
                                     <BarChart3 className="w-4 h-4" />
                                 </div>
                                 <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
@@ -446,7 +446,7 @@ export default function ReportsIndex({
                     </div>
 
                     {/* ── Selection & Scope Bar ── */}
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs print:hidden">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs print:hidden">
                         <div className="flex flex-wrap items-center gap-3 flex-1">
                             {/* Project Picker */}
                             <div className="flex items-center gap-2">
@@ -504,7 +504,7 @@ export default function ReportsIndex({
                                         onClick={() => setActiveTab(tab.id)}
                                         className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                                             isActive
-                                                ? 'bg-white dark:bg-slate-900 text-brand shadow-xs'
+                                                ? 'bg-white dark:bg-slate-900 text-brand shadow-2xs'
                                                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                                         }`}
                                     >
@@ -552,7 +552,7 @@ export default function ReportsIndex({
                             {/* ── High-Level KPI Summary Cards ── */}
                             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                                 {/* 1. Completion Rate */}
-                                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-2">
+                                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-2">
                                     <div className="flex items-center justify-between text-xs text-slate-500">
                                         <span className="font-bold uppercase tracking-wider">Completion</span>
                                         <TrendingUp className="w-4 h-4 text-emerald-500" />
@@ -569,7 +569,7 @@ export default function ReportsIndex({
                                 </div>
 
                                 {/* 2. Tasks Ratio */}
-                                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-2">
+                                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-2">
                                     <div className="flex items-center justify-between text-xs text-slate-500">
                                         <span className="font-bold uppercase tracking-wider">Tasks Done</span>
                                         <CheckCircle2 className="w-4 h-4 text-brand" />
@@ -583,7 +583,7 @@ export default function ReportsIndex({
                                 </div>
 
                                 {/* 3. Story Points Burned */}
-                                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-2">
+                                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-2">
                                     <div className="flex items-center justify-between text-xs text-slate-500">
                                         <span className="font-bold uppercase tracking-wider">Story Points</span>
                                         <Flame className="w-4 h-4 text-amber-500" />
@@ -597,7 +597,7 @@ export default function ReportsIndex({
                                 </div>
 
                                 {/* 4. Delivery Status */}
-                                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-2">
+                                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-2">
                                     <div className="flex items-center justify-between text-xs text-slate-500">
                                         <span className="font-bold uppercase tracking-wider">On-Time vs Late</span>
                                         <Clock className="w-4 h-4 text-indigo-500" />
@@ -611,7 +611,7 @@ export default function ReportsIndex({
                                 </div>
 
                                 {/* 5. Overdue / At Risk */}
-                                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-2 col-span-2 lg:col-span-1">
+                                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-2 col-span-2 lg:col-span-1">
                                     <div className="flex items-center justify-between text-xs text-slate-500">
                                         <span className="font-bold uppercase tracking-wider">Overdue Tasks</span>
                                         <AlertCircle className="w-4 h-4 text-rose-500" />
@@ -634,7 +634,7 @@ export default function ReportsIndex({
                                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
                                         {/* Chart 1: Donut Chart - Completion Status */}
-                                        <div className="lg:col-span-5 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+                                        <div className="lg:col-span-5 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-4">
                                             <div className="flex items-center justify-between">
                                                 <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                                                     <PieChartIcon className="w-4 h-4 text-brand" />
@@ -682,7 +682,7 @@ export default function ReportsIndex({
                                         </div>
 
                                         {/* Chart 2: Employee Contribution Bar Chart */}
-                                        <div className="lg:col-span-7 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+                                        <div className="lg:col-span-7 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-4">
                                             <div className="flex items-center justify-between">
                                                 <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                                                     <User className="w-4 h-4 text-indigo-500" />
@@ -725,7 +725,7 @@ export default function ReportsIndex({
                                     {/* Priority & Difficulty Distributions */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         {/* Priority Distribution */}
-                                        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+                                        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-4">
                                             <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                                                 <Zap className="w-4 h-4 text-amber-500" />
                                                 Priority Distribution
@@ -758,7 +758,7 @@ export default function ReportsIndex({
 
                                         {/* Sprint-by-Sprint breakdown for Project Scope OR Difficulty Breakdown */}
                                         {report.scope === 'project' && report.sprints_breakdown?.length > 0 ? (
-                                            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+                                            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-4">
                                                 <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                                                     <Layers className="w-4 h-4 text-brand" />
                                                     Sprint-by-Sprint Progress
@@ -793,7 +793,7 @@ export default function ReportsIndex({
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+                                            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-4">
                                                 <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                                                     <Flame className="w-4 h-4 text-pink-500" />
                                                     Difficulty Distribution
@@ -828,7 +828,7 @@ export default function ReportsIndex({
                                 TAB 2: SPRINT AUDIT TABLE
                             ================================================================ */}
                             {activeTab === 'audit' && (
-                                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden space-y-4">
+                                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden space-y-4">
                                     <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                         <div>
                                             <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
@@ -848,7 +848,7 @@ export default function ReportsIndex({
                                                     value={auditSearch}
                                                     onChange={(e) => setAuditSearch(e.target.value)}
                                                     placeholder="Search task or employee..."
-                                                    className="pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-brand"
+                                                    className="pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 focus:outline-hidden focus:border-brand"
                                                 />
                                             </div>
 
@@ -856,7 +856,7 @@ export default function ReportsIndex({
                                             <select
                                                 value={auditStatusFilter}
                                                 onChange={(e) => setAuditStatusFilter(e.target.value)}
-                                                className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 focus:outline-none cursor-pointer"
+                                                className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 focus:outline-hidden cursor-pointer"
                                             >
                                                 <option value="all">All Statuses</option>
                                                 <option value="completed">Completed Only</option>
@@ -1004,7 +1004,7 @@ export default function ReportsIndex({
                                 TAB 3: TEAM PERFORMANCE MATRIX
                             ================================================================ */}
                             {activeTab === 'team' && (
-                                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden space-y-4">
+                                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden space-y-4">
                                     <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800">
                                         <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                                             Factual Employee Performance Matrix
@@ -1127,7 +1127,7 @@ export default function ReportsIndex({
                                     value={recipientEmail}
                                     onChange={(e) => setRecipientEmail(e.target.value)}
                                     placeholder="client@organization.com"
-                                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand"
+                                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-brand"
                                 />
                             </div>
 
@@ -1141,7 +1141,7 @@ export default function ReportsIndex({
                                     value={emailNote}
                                     onChange={(e) => setEmailNote(e.target.value)}
                                     placeholder="Add executive highlights or context..."
-                                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand"
+                                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-brand"
                                 />
                             </div>
 
@@ -1232,7 +1232,7 @@ export default function ReportsIndex({
                                     }}
                                     className={`flex-1 py-1.5 rounded-lg transition-all ${
                                         chatRecipientType === 'dm'
-                                            ? 'bg-white dark:bg-slate-900 text-brand shadow-xs'
+                                            ? 'bg-white dark:bg-slate-900 text-brand shadow-2xs'
                                             : 'text-slate-500'
                                     }`}
                                 >
@@ -1246,7 +1246,7 @@ export default function ReportsIndex({
                                     }}
                                     className={`flex-1 py-1.5 rounded-lg transition-all ${
                                         chatRecipientType === 'channel'
-                                            ? 'bg-white dark:bg-slate-900 text-brand shadow-xs'
+                                            ? 'bg-white dark:bg-slate-900 text-brand shadow-2xs'
                                             : 'text-slate-500'
                                     }`}
                                 >
@@ -1264,7 +1264,7 @@ export default function ReportsIndex({
                                         id="chat-recipient"
                                         value={chatRecipientId}
                                         onChange={(e) => setChatRecipientId(e.target.value)}
-                                        className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand cursor-pointer"
+                                        className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-brand cursor-pointer"
                                     >
                                         {teamMembers.map((m) => (
                                             <option key={m.id} value={m.id}>
@@ -1277,7 +1277,7 @@ export default function ReportsIndex({
                                         id="chat-recipient"
                                         value={chatRecipientId}
                                         onChange={(e) => setChatRecipientId(e.target.value)}
-                                        className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand cursor-pointer"
+                                        className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-brand cursor-pointer"
                                     >
                                         <option value="ch-general">#general</option>
                                         <option value="ch-sprint">#sprint-room</option>
@@ -1296,7 +1296,7 @@ export default function ReportsIndex({
                                     value={chatNote}
                                     onChange={(e) => setChatNote(e.target.value)}
                                     placeholder="Check out our latest sprint progress and audit..."
-                                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand"
+                                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-brand"
                                 />
                             </div>
 

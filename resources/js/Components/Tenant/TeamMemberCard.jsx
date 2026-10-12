@@ -15,7 +15,7 @@ export default function TeamMemberCard({ member, index, status, badgeClass, depa
 
     return (
         <div
-            className={`group rounded-2xl bg-white dark:bg-slate-800/40 border border-gray-200 dark:border-slate-800 p-5 shadow-sm transition-all duration-200 relative flex flex-col justify-between ${isClickable ? 'hover:shadow-lg cursor-pointer' : ''}`}
+            className={`group rounded-2xl bg-white dark:bg-slate-800/40 border border-gray-200 dark:border-slate-800 p-5 shadow-xs transition-all duration-200 relative flex flex-col justify-between ${isClickable ? 'hover:shadow-lg cursor-pointer' : ''}`}
             role={isClickable ? 'button' : undefined}
             tabIndex={isClickable ? 0 : undefined}
             onClick={handleSelect}
@@ -29,7 +29,7 @@ export default function TeamMemberCard({ member, index, status, badgeClass, depa
             <div>
                 {/* Header avatar & Status badge */}
                 <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center text-sm font-bold shadow-sm">
+                    <div className="w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center text-sm font-bold shadow-xs">
                         {member.name.charAt(0).toUpperCase()}
                     </div>
                     <span className={`rounded-full text-[10px] px-2 py-0.5 font-bold uppercase ${badgeClass}`}>

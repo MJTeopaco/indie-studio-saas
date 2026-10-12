@@ -109,20 +109,20 @@ export default function TimelineView({ tasks = [], onTaskClick }) {
     return (
         <div className="flex-1 overflow-auto p-6 space-y-4">
             {/* Legend / Status Indicators */}
-            <div className="flex items-center justify-between bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-4 shadow-sm shrink-0">
+            <div className="flex items-center justify-between bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-4 shadow-xs shrink-0">
                 <div>
                     <h2 className="text-sm font-bold text-gray-900 dark:text-slate-100 font-heading">Tasks Timeline Gantt</h2>
                     <p className="text-xs text-gray-500 font-sans">Tasks sorted by auto-priority (critical path first).</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-gray-600 dark:text-slate-400 font-sans">
-                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-500 inline-block" /> Completed</span>
-                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-indigo-500 inline-block" /> In Progress</span>
-                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-500 inline-block" /> In Review</span>
-                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-gray-300 dark:bg-slate-600 inline-block" /> To Do</span>
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" /> Completed</span>
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-indigo-500 inline-block" /> In Progress</span>
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-amber-500 inline-block" /> In Review</span>
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-gray-300 dark:bg-slate-600 inline-block" /> To Do</span>
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-xs overflow-hidden">
                 <div className="overflow-x-auto">
                     <div style={{ minWidth: `${LEFT_W + totalDays * COL_W}px` }}>
 
@@ -190,7 +190,7 @@ export default function TimelineView({ tasks = [], onTaskClick }) {
                                             </div>
 
                                             {/* Gantt area */}
-                                            <div style={{ width: totalDays * COL_W }} className="relative h-full flex-shrink-0">
+                                            <div style={{ width: totalDays * COL_W }} className="relative h-full shrink-0">
                                                 {/* Weekend shading */}
                                                 {days.map((d, i) => (d.getDay() === 0 || d.getDay() === 6) ? (
                                                     <div key={i}
@@ -210,7 +210,7 @@ export default function TimelineView({ tasks = [], onTaskClick }) {
                                                 {barW > 0 && (
                                                     <div
                                                         onClick={() => onTaskClick?.(task)}
-                                                        className={`absolute top-1/2 -translate-y-1/2 rounded-full flex items-center px-2 gap-1.5 shadow-sm cursor-pointer hover:scale-[1.02] active:scale-[0.98] transition-transform ${STATUS_COLOR[task.status] || STATUS_COLOR.todo}`}
+                                                        className={`absolute top-1/2 -translate-y-1/2 rounded-full flex items-center px-2 gap-1.5 shadow-xs cursor-pointer hover:scale-[1.02] active:scale-[0.98] transition-transform ${STATUS_COLOR[task.status] || STATUS_COLOR.todo}`}
                                                         style={{ left: barStart * COL_W + 1, width: barW - 2, height: 24, minWidth: 24 }}
                                                         title={`${task.title} — ${task.startDate} → ${task.dueDate}`}
                                                     >

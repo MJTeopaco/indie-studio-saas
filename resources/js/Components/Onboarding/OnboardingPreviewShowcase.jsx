@@ -101,7 +101,7 @@ function OnboardingPreviewShowcase({ step = 1, data = {}, positions = [], forkMo
             <div className="absolute -bottom-1/4 -left-1/4 w-[450px] h-[450px] bg-indigo-400/15 dark:bg-indigo-500/10 rounded-full blur-[120px] pointer-events-none transition-colors duration-300" />
 
             {/* Subtle Grid Lines Background (Occluded by solid cards) */}
-            <div className="absolute inset-0 bg-[linear-gradient(to_right,#64748b10_1px,transparent_1px),linear-gradient(to_bottom,#64748b10_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,#1e293b20_1px,transparent_1px),linear-gradient(to_bottom,#1e293b20_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,#64748b10_1px,transparent_1px),linear-gradient(to_bottom,#64748b10_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,#1e293b20_1px,transparent_1px),linear-gradient(to_bottom,#1e293b20_1px,transparent_1px)] bg-size-[40px_40px] pointer-events-none" />
 
             {/* Linear-style React Bits DriftWall Component */}
             <div className="w-full h-full min-h-[650px] flex items-center justify-center">

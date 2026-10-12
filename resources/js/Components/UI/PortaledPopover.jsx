@@ -82,7 +82,7 @@ export default function PortaledPopover({
     return createPortal(
         <div 
             ref={popoverRef}
-            className={`fixed z-[9999] ${className}`}
+            className={`fixed z-9999 ${className}`}
             style={{ 
                 left: coords.left, 
                 top: coords.top,

@@ -248,7 +248,7 @@ export default function PersonalInfoForm({
             {/* Main Information Card */}
             <form 
                 onSubmit={handleSaveProfile} 
-                className="bg-white dark:bg-[#0B0F17] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl shadow-xs overflow-hidden divide-y divide-slate-100 dark:divide-slate-800/70"
+                className="bg-white dark:bg-[#0B0F17] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl shadow-2xs overflow-hidden divide-y divide-slate-100 dark:divide-slate-800/70"
             >
                 
                 {/* 1. Profile Picture Row */}
@@ -264,7 +264,7 @@ export default function PersonalInfoForm({
 
                     <div className="flex items-center gap-4">
                         <div className="relative group">
-                            <div className="w-14 h-14 rounded-full ring-2 ring-slate-200 dark:ring-slate-800 bg-slate-100 dark:bg-slate-800 overflow-hidden flex items-center justify-center font-heading font-bold text-base text-slate-700 dark:text-slate-200 shadow-xs">
+                            <div className="w-14 h-14 rounded-full ring-2 ring-slate-200 dark:ring-slate-800 bg-slate-100 dark:bg-slate-800 overflow-hidden flex items-center justify-center font-heading font-bold text-base text-slate-700 dark:text-slate-200 shadow-2xs">
                                 {isUploadingAvatar ? (
                                     <Loader2 className="w-5 h-5 animate-spin text-brand" />
                                 ) : user.avatar ? (
@@ -293,7 +293,7 @@ export default function PersonalInfoForm({
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={isUploadingAvatar}
-                                className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:text-brand hover:border-brand/40 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                                className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:text-brand hover:border-brand/40 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
                             >
                                 Change
                             </button>
@@ -444,7 +444,7 @@ export default function PersonalInfoForm({
                         <button
                             type="button"
                             onClick={() => setIsSkillModalOpen(true)}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-white text-xs font-semibold border border-slate-200 dark:border-slate-700/80 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-white text-xs font-semibold border border-slate-200 dark:border-slate-700/80 transition-all cursor-pointer shadow-2xs active:scale-[0.98]"
                         >
                             <span>Manage Skills</span>
                             <span className="text-slate-400">→</span>
@@ -764,7 +764,7 @@ export default function PersonalInfoForm({
                                 <button
                                     type="submit"
                                     disabled={processing}
-                                    className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-white text-xs font-semibold shadow-xs disabled:opacity-50 transition-all cursor-pointer ${
+                                    className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-white text-xs font-semibold shadow-2xs disabled:opacity-50 transition-all cursor-pointer ${
                                         data.working_status === 'on_leave' && !isOwner
                                             ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-500/20'
                                             : 'bg-brand hover:bg-brand-dark'

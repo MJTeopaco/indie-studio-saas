@@ -51,7 +51,7 @@ function InlineSelectEditor({ options, groupedOptions, currentValue, onSelect, o
                                         <button
                                             key={opt}
                                             onClick={() => { onSelect(opt); onClose(); }}
-                                            className={`w-full rounded px-2 py-1.5 text-left text-[11px] font-bold transition-colors flex items-center gap-2 hover:opacity-80 ${tailwindClasses}`}
+                                            className={`w-full rounded-sm px-2 py-1.5 text-left text-[11px] font-bold transition-colors flex items-center gap-2 hover:opacity-80 ${tailwindClasses}`}
                                         >
                                             {opt}
                                         </button>
@@ -65,7 +65,7 @@ function InlineSelectEditor({ options, groupedOptions, currentValue, onSelect, o
                         <button
                             key={opt.value}
                             onClick={() => { onSelect(opt.value); onClose(); }}
-                            className={`w-full rounded px-2 py-1.5 text-left text-xs font-bold transition-colors flex items-center gap-2 hover:opacity-80`}
+                            className={`w-full rounded-sm px-2 py-1.5 text-left text-xs font-bold transition-colors flex items-center gap-2 hover:opacity-80`}
                             style={{ backgroundColor: opt.color, color: getContrastColor(opt.color) }}
                         >
                             {opt.label}
@@ -88,7 +88,7 @@ function InlineTextEditor({ initialValue, onSave, onClose, type = 'text', placeh
                     value={val}
                     onChange={e => setVal(e.target.value)}
                     placeholder={placeholder}
-                    className="flex-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 outline-none focus:border-brand"
+                    className="flex-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 outline-hidden focus:border-brand"
                     onKeyDown={e => {
                         if (e.key === 'Enter') {
                             onSave(val);
@@ -112,7 +112,7 @@ function EpicLinkModal({ isOpen, onClose, epics, currentEpicId, onSelect }) {
     const filtered = epics.filter(e => e.name.toLowerCase().includes(search.toLowerCase()));
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs" onClick={onClose}>
             <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl dark:bg-slate-900 border border-gray-100 dark:border-slate-800" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-3 dark:border-slate-800">
                     <h2 className="text-sm font-bold text-gray-900 dark:text-slate-100">Link to Epic</h2>
@@ -126,7 +126,7 @@ function EpicLinkModal({ isOpen, onClose, epics, currentEpicId, onSelect }) {
                         autoFocus
                         value={search} 
                         onChange={e => setSearch(e.target.value)}
-                        className="w-full rounded-lg border border-gray-200 py-1.5 pl-8 pr-3 text-sm dark:border-slate-700 dark:bg-slate-800 outline-none focus:border-brand"
+                        className="w-full rounded-lg border border-gray-200 py-1.5 pl-8 pr-3 text-sm dark:border-slate-700 dark:bg-slate-800 outline-hidden focus:border-brand"
                         placeholder="Search epics..."
                     />
                 </div>
@@ -161,7 +161,7 @@ function SprintClosureModal({ isOpen, onClose, summaryData, formState, setFormSt
     const isDisplacement = pendingStartSprintId !== null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs" onClick={onClose}>
             <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900 border border-gray-100 dark:border-slate-800" onClick={e => e.stopPropagation()}>
                 <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100 mb-4">
                     {isDisplacement 
@@ -219,7 +219,7 @@ function SprintClosureModal({ isOpen, onClose, summaryData, formState, setFormSt
                                 <select 
                                     value={formState.moveToSprintId || ''}
                                     onChange={(e) => setFormState(s => ({ ...s, moveToSprintId: e.target.value }))}
-                                    className="ml-6 w-[calc(100%-1.5rem)] rounded-lg border border-gray-200 p-2 text-sm dark:border-slate-700 dark:bg-slate-800 focus:border-brand outline-none"
+                                    className="ml-6 w-[calc(100%-1.5rem)] rounded-lg border border-gray-200 p-2 text-sm dark:border-slate-700 dark:bg-slate-800 focus:border-brand outline-hidden"
                                 >
                                     <option value="" disabled>Select target sprint</option>
                                     {available_sprints.map(s => (
@@ -254,7 +254,7 @@ function SprintClosureModal({ isOpen, onClose, summaryData, formState, setFormSt
                         <select 
                             value={formState.activateNextSprintId || ''}
                             onChange={(e) => setFormState(s => ({ ...s, activateNextSprintId: e.target.value }))}
-                            className="w-full rounded-lg border border-gray-200 p-2 text-sm dark:border-slate-700 dark:bg-slate-800 focus:border-brand outline-none"
+                            className="w-full rounded-lg border border-gray-200 p-2 text-sm dark:border-slate-700 dark:bg-slate-800 focus:border-brand outline-hidden"
                         >
                             <option value="">None (Don't auto-activate)</option>
                             {available_sprints.filter(s => s.status === 'planned').map(s => (
@@ -275,7 +275,7 @@ function SprintClosureModal({ isOpen, onClose, summaryData, formState, setFormSt
                     <button 
                         onClick={onConfirm}
                         disabled={isSubmitting || (formState.incompleteAction === 'move_to_sprint' && !formState.moveToSprintId)}
-                        className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white shadow-xs hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
                         {isSubmitting ? 'Processing...' : 'Complete Sprint'}
                     </button>
@@ -315,7 +315,7 @@ function SprintTaskAssignee({ task, onFindFit, canManage }) {
     return (
         <div className="flex -space-x-1.5 overflow-hidden">
             {assignees.map((assignee, idx) => (
-                <div key={idx} className="relative inline-flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-indigo-500 text-[10px] font-bold text-white shadow-sm dark:border-slate-900" title={assignee.name}>
+                <div key={idx} className="relative inline-flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-indigo-500 text-[10px] font-bold text-white shadow-xs dark:border-slate-900" title={assignee.name}>
                     {assignee.name.charAt(0).toUpperCase()}
                 </div>
             ))}
@@ -391,7 +391,7 @@ function TaskRow({ task, epics, onUpdateTask, onFindFit, canManage, currentUserI
                 <button
                     ref={statusRef}
                     onClick={(e) => { e.stopPropagation(); isEditable && setOpenPopover('status'); }}
-                    className={`flex items-center gap-1.5 w-full rounded px-2 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 transition-colors ${isEditable ? 'hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer' : 'cursor-default'}`}
+                    className={`flex items-center gap-1.5 w-full rounded-sm px-2 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 transition-colors ${isEditable ? 'hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer' : 'cursor-default'}`}
                 >
                     <StatusChip status={sStatus.value} />
                 </button>
@@ -404,7 +404,7 @@ function TaskRow({ task, epics, onUpdateTask, onFindFit, canManage, currentUserI
                 <button
                     ref={priorityRef}
                     onClick={(e) => { e.stopPropagation(); isEditable && setOpenPopover('priority'); }}
-                    className={`flex items-center gap-1.5 w-full rounded px-2 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 transition-colors ${isEditable ? 'hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer' : 'cursor-default'}`}
+                    className={`flex items-center gap-1.5 w-full rounded-sm px-2 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 transition-colors ${isEditable ? 'hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer' : 'cursor-default'}`}
                 >
                     <PriorityChip priority={sPriority.value} />
                 </button>
@@ -432,7 +432,7 @@ function TaskRow({ task, epics, onUpdateTask, onFindFit, canManage, currentUserI
                 <button
                     ref={estSpRef}
                     onClick={(e) => { e.stopPropagation(); canManage && setOpenPopover('est_sp'); }}
-                    className={`w-full text-left rounded px-2 py-1 font-mono text-xs ${canManage ? 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300' : 'text-slate-500 cursor-default'}`}
+                    className={`w-full text-left rounded-sm px-2 py-1 font-mono text-xs ${canManage ? 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300' : 'text-slate-500 cursor-default'}`}
                 >
                     {task.story_points ? `${task.story_points}` : '-'}
                 </button>
@@ -555,7 +555,7 @@ function SprintGroup({ sprint, tasks, epics, defaultOpen = true, onUpdateTask, o
     };
 
     return (
-        <section className={`mb-6 overflow-hidden rounded-2xl border transition-colors ${isActive ? 'border-slate-200 border-l-2 border-l-brand bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900 shadow-sm' : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900'}`}>
+        <section className={`mb-6 overflow-hidden rounded-2xl border transition-colors ${isActive ? 'border-slate-200 border-l-2 border-l-brand bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900 shadow-xs' : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900'}`}>
             <div 
                 className="flex items-center gap-3 px-4 py-3 cursor-pointer"
                 onClick={() => setIsOpen(!isOpen)}
@@ -587,7 +587,7 @@ function SprintGroup({ sprint, tasks, epics, defaultOpen = true, onUpdateTask, o
                     {canManage && !isCompleted && (
                         <button 
                             onClick={() => onUpdateSprintStatus(sprint.id, isActive ? 'completed' : 'active')}
-                            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 ${isActive ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700'}`}
+                            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 ${isActive ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700'}`}
                         >
                             {isActive ? <><CheckCircle2 className="w-3.5 h-3.5" /> Complete Sprint</> : <><PlayCircle className="w-3.5 h-3.5 text-brand" /> Start Sprint</>}
                         </button>
@@ -695,7 +695,7 @@ function EditSprintModal({ isOpen, onClose, sprint, onSubmit, isSubmitting, vali
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs" onClick={onClose}>
             <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900 border border-gray-100 dark:border-slate-800" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4 dark:border-slate-800">
                     <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Edit Sprint</h2>
@@ -710,7 +710,7 @@ function EditSprintModal({ isOpen, onClose, sprint, onSubmit, isSubmitting, vali
                             required
                             value={formState.name}
                             onChange={e => setFormState(s => ({ ...s, name: e.target.value }))}
-                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-hidden focus:border-brand dark:border-slate-700 dark:bg-slate-800"
                         />
                         {validationErrors?.name && <p className="mt-1 text-xs text-red-500">{validationErrors.name[0]}</p>}
                     </div>
@@ -724,7 +724,7 @@ function EditSprintModal({ isOpen, onClose, sprint, onSubmit, isSubmitting, vali
                                     required
                                     value={formState.start_date}
                                     onChange={e => setFormState(s => ({ ...s, start_date: e.target.value }))}
-                                    className="w-full rounded-lg border border-gray-200 p-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                                    className="w-full rounded-lg border border-gray-200 p-2 text-sm outline-hidden focus:border-brand dark:border-slate-700 dark:bg-slate-800"
                                 />
                             </div>
                             <div className="flex items-center justify-center text-gray-400">-</div>
@@ -735,7 +735,7 @@ function EditSprintModal({ isOpen, onClose, sprint, onSubmit, isSubmitting, vali
                                     value={formState.end_date}
                                     onChange={e => setFormState(s => ({ ...s, end_date: e.target.value }))}
                                     min={formState.start_date}
-                                    className="w-full rounded-lg border border-gray-200 p-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                                    className="w-full rounded-lg border border-gray-200 p-2 text-sm outline-hidden focus:border-brand dark:border-slate-700 dark:bg-slate-800"
                                 />
                             </div>
                         </div>
@@ -763,7 +763,7 @@ function EditSprintModal({ isOpen, onClose, sprint, onSubmit, isSubmitting, vali
                             placeholder="Enter sprint goals"
                             value={formState.goal}
                             onChange={e => setFormState(s => ({ ...s, goal: e.target.value }))}
-                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-hidden focus:border-brand dark:border-slate-700 dark:bg-slate-800"
                         ></textarea>
                         {validationErrors?.goal && <p className="mt-1 text-xs text-red-500">{validationErrors.goal[0]}</p>}
                     </div>
@@ -780,7 +780,7 @@ function EditSprintModal({ isOpen, onClose, sprint, onSubmit, isSubmitting, vali
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="rounded-lg bg-brand px-5 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-dark disabled:opacity-50 flex items-center gap-2"
+                            className="rounded-lg bg-brand px-5 py-2 text-sm font-bold text-white shadow-xs hover:bg-brand-dark disabled:opacity-50 flex items-center gap-2"
                         >
                             {isSubmitting ? 'Saving...' : 'Save Changes'}
                         </button>
@@ -819,7 +819,7 @@ function CreateSprintModal({ isOpen, onClose, sprintCount, activeSprintName, onS
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs" onClick={onClose}>
             <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900 border border-gray-100 dark:border-slate-800" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4 dark:border-slate-800">
                     <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Create new sprint</h2>
@@ -837,7 +837,7 @@ function CreateSprintModal({ isOpen, onClose, sprintCount, activeSprintName, onS
                             required
                             value={formState.name}
                             onChange={e => setFormState(s => ({ ...s, name: e.target.value }))}
-                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-hidden focus:border-brand dark:border-slate-700 dark:bg-slate-800"
                         />
                         {validationErrors?.name && <p className="mt-1 text-xs text-red-500">{validationErrors.name[0]}</p>}
                     </div>
@@ -853,7 +853,7 @@ function CreateSprintModal({ isOpen, onClose, sprintCount, activeSprintName, onS
                                     onChange={e => {
                                         setFormState(s => ({ ...s, start_date: e.target.value }));
                                     }}
-                                    className="w-full rounded-lg border border-gray-200 p-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                                    className="w-full rounded-lg border border-gray-200 p-2 text-sm outline-hidden focus:border-brand dark:border-slate-700 dark:bg-slate-800"
                                 />
                             </div>
                             <div className="flex items-center justify-center text-gray-400">-</div>
@@ -864,7 +864,7 @@ function CreateSprintModal({ isOpen, onClose, sprintCount, activeSprintName, onS
                                     value={formState.end_date}
                                     onChange={e => setFormState(s => ({ ...s, end_date: e.target.value }))}
                                     min={formState.start_date}
-                                    className="w-full rounded-lg border border-gray-200 p-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                                    className="w-full rounded-lg border border-gray-200 p-2 text-sm outline-hidden focus:border-brand dark:border-slate-700 dark:bg-slate-800"
                                 />
                             </div>
                         </div>
@@ -892,7 +892,7 @@ function CreateSprintModal({ isOpen, onClose, sprintCount, activeSprintName, onS
                             placeholder="Enter sprint goals"
                             value={formState.goal}
                             onChange={e => setFormState(s => ({ ...s, goal: e.target.value }))}
-                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-hidden focus:border-brand dark:border-slate-700 dark:bg-slate-800"
                         ></textarea>
                         {validationErrors?.goal && <p className="mt-1 text-xs text-red-500">{validationErrors.goal[0]}</p>}
                     </div>
@@ -902,7 +902,7 @@ function CreateSprintModal({ isOpen, onClose, sprintCount, activeSprintName, onS
                         <select 
                             value={formState.status}
                             onChange={e => setFormState(s => ({ ...s, status: e.target.value }))}
-                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-800"
+                            className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-hidden focus:border-brand dark:border-slate-700 dark:bg-slate-800"
                         >
                             <option value="planned">Planned (Start later)</option>
                             <option value="active">Active (Start immediately)</option>
@@ -927,7 +927,7 @@ function CreateSprintModal({ isOpen, onClose, sprintCount, activeSprintName, onS
                         <button 
                             type="submit"
                             disabled={isSubmitting}
-                            className="rounded-lg bg-brand px-5 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-dark disabled:opacity-50 flex items-center gap-2"
+                            className="rounded-lg bg-brand px-5 py-2 text-sm font-bold text-white shadow-xs hover:bg-brand-dark disabled:opacity-50 flex items-center gap-2"
                         >
                             {isSubmitting ? 'Creating...' : 'Create Sprint'}
                         </button>
@@ -1185,13 +1185,13 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
                     <button 
                         onClick={() => canManage && setIsCreateSprintModalOpen(true)}
                         disabled={!canManage}
-                        className={`inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold shadow-sm transition-colors ${canManage ? 'bg-white text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700' : 'bg-gray-50 text-gray-400 opacity-60 cursor-not-allowed dark:bg-slate-800/50 dark:text-slate-500'}`}
+                        className={`inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold shadow-xs transition-colors ${canManage ? 'bg-white text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700' : 'bg-gray-50 text-gray-400 opacity-60 cursor-not-allowed dark:bg-slate-800/50 dark:text-slate-500'}`}
                     >
                         Create Sprint
                     </button>
                     <button 
                         onClick={onNewTask}
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-brand-dark"
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white shadow-xs transition-colors hover:bg-brand-dark"
                     >
                         <Plus className="h-4 w-4" />
                         New Task

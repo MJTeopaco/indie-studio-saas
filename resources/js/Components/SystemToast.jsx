@@ -69,7 +69,7 @@ export default function SystemToast() {
     };
 
     return (
-        <div className="fixed top-6 right-6 z-[9999] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none select-none">
+        <div className="fixed top-6 right-6 z-9999 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none select-none">
             {toasts.map(toast => {
                 const theme = TOAST_THEMES[toast.type] || TOAST_THEMES.info;
 

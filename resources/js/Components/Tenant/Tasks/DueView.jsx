@@ -83,7 +83,7 @@ function TaskRow({ task, isOverdue, onClick }) {
 function DueSection({ title, tasks, accent, isOverdue = false, onTaskClick }) {
     if (!tasks.length) return null;
     return (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-xs overflow-hidden">
             {/* Section header */}
             <div className={`flex items-center gap-3 px-5 py-3.5 border-b border-gray-100 dark:border-slate-800/60 ${accent}`}>
                 <h3 className="text-sm font-bold text-gray-900 dark:text-slate-100">{title}</h3>

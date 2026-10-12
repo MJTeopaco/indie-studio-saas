@@ -54,7 +54,7 @@ export default function PortaledTooltip({
             
             {isHovered && tooltipContent && createPortal(
                 <div 
-                    className="fixed z-[9999] pointer-events-none"
+                    className="fixed z-9999 pointer-events-none"
                     style={{ 
                         left: coords.left, 
                         top: coords.top,

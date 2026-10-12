@@ -147,7 +147,7 @@ export default function WeekGrid({ weekStart, selectedDate, onSelectDate, tasksB
                                         return (
                                             <div key={task.id}
                                                 style={{ top: Math.max(0, top), height: Math.max(20, height), left: 2, right: 2, position: 'absolute' }}
-                                                className={`rounded-lg border px-1.5 py-1 overflow-hidden shadow-sm ${style} cursor-pointer hover:brightness-95 transition-all`}
+                                                className={`rounded-lg border px-1.5 py-1 overflow-hidden shadow-xs ${style} cursor-pointer hover:brightness-95 transition-all`}
                                                 title={task.title}
                                             >
                                                 <p className="text-[10px] font-bold truncate leading-tight">{task.title}</p>
@@ -167,7 +167,7 @@ export default function WeekGrid({ weekStart, selectedDate, onSelectDate, tasksB
                                         return (
                                             <div key={event.id}
                                                 style={{ top: Math.max(0, top), height: Math.max(20, height), left: 2, right: 2, position: 'absolute' }}
-                                                className={`rounded-lg border px-1.5 py-1 overflow-hidden shadow-sm ${style} cursor-pointer hover:brightness-95 transition-all`}
+                                                className={`rounded-lg border px-1.5 py-1 overflow-hidden shadow-xs ${style} cursor-pointer hover:brightness-95 transition-all`}
                                                 title={event.title}
                                             >
                                                 <p className="text-[10px] font-bold truncate leading-tight">{event.title}</p>

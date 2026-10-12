@@ -18,7 +18,7 @@ export default function DeleteAvatarModal({
     }, []);
 
     return createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
             <div 
                 className="relative w-full max-w-md bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-6 sm:p-7 overflow-hidden space-y-5"
                 onClick={(e) => e.stopPropagation()}
@@ -64,7 +64,7 @@ export default function DeleteAvatarModal({
                         type="button"
                         onClick={onConfirm}
                         disabled={isDeleting}
-                        className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-xs disabled:opacity-50 transition-all cursor-pointer"
+                        className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-2xs disabled:opacity-50 transition-all cursor-pointer"
                     >
                         {isDeleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                         <span>Remove Picture</span>

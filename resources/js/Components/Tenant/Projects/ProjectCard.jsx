@@ -11,10 +11,10 @@ export default function ProjectCard({ project, tenantId }) {
     return (
         <Link
             href={`/studio/${tenantId}/projects/${project.id}`}
-            className="group relative block rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-6 shadow-sm hover:shadow-xl transition-all duration-200 hover:-translate-y-1 hover:border-brand dark:hover:border-brand focus-ring overflow-hidden"
+            className="group relative block rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-6 shadow-xs hover:shadow-xl transition-all duration-200 hover:-translate-y-1 hover:border-brand dark:hover:border-brand focus-ring overflow-hidden"
         >
             {/* Top decorative brand accent line on hover */}
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-brand to-brand-light opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+            <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-brand to-brand-light opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
 
             {/* Card Header */}
             <div className="flex items-center justify-between mb-4">
@@ -36,7 +36,7 @@ export default function ProjectCard({ project, tenantId }) {
             </h3>
 
             {/* Description */}
-            <p className="mt-2 text-sm text-gray-600 dark:text-slate-400 line-clamp-2 min-h-[2.5rem]">
+            <p className="mt-2 text-sm text-gray-600 dark:text-slate-400 line-clamp-2 min-h-10">
                 {description}
             </p>
 
