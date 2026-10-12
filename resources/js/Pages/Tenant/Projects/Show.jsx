@@ -63,12 +63,15 @@ const priorityWeight = {
 
 function sortByPriorityAndCriticality(tasks) {
     return [...tasks].sort((a, b) => {
-        const aCritical = a.is_critical || (a.total_float !== null && Number(a.total_float) <= 0);
-        const bCritical = b.is_critical || (b.total_float !== null && Number(b.total_float) <= 0);
+        const aCritical = Boolean(a.is_critical);
+        const bCritical = Boolean(b.is_critical);
         if (aCritical !== bCritical) return aCritical ? -1 : 1;
         const aPri = priorityWeight[String(a.priority || 'Medium').toLowerCase()] ?? 2;
         const bPri = priorityWeight[String(b.priority || 'Medium').toLowerCase()] ?? 2;
         if (aPri !== bPri) return aPri - bPri;
+        const aFloat = a.total_float !== null && a.total_float !== undefined ? Number(a.total_float) : 999999;
+        const bFloat = b.total_float !== null && b.total_float !== undefined ? Number(b.total_float) : 999999;
+        if (aFloat !== bFloat) return aFloat - bFloat;
         const aES = a.es !== null ? Number(a.es) : 999999;
         const bES = b.es !== null ? Number(b.es) : 999999;
         if (aES !== bES) return aES - bES;
@@ -220,8 +223,9 @@ function KanbanCard({ task, onFindFit, onEdit, projectStartDate, onDragStart }) 
 function ProjectDashboard({ project, tasks }) {
     const totalTasks = tasks.length;
     const completedTasks = tasks.filter(task => task.status === 'completed').length;
-    const activeTasks = tasks.filter(task => ['todo', 'in_progress', 'review'].includes(task.status)).length;
-    const criticalTasks = tasks.filter(task => task.status !== 'completed' && (task.is_critical || Number(task.total_float) === 0)).length;
+    const inProgressTasks = tasks.filter(task => task.status === 'in_progress').length;
+    const remainingTasks = tasks.filter(task => ['todo', 'in_progress', 'stuck', 'review'].includes(task.status)).length;
+    const criticalTasks = tasks.filter(task => task.status !== 'completed' && Boolean(task.is_critical)).length;
     const completionRate = totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
     const estimatedHours = tasks.reduce((sum, task) => sum + Number(task.estimated_hours || 0), 0);
     const completedHours = tasks
@@ -274,21 +278,19 @@ function ProjectDashboard({ project, tasks }) {
                     </div>
                 </div>
 
-                {/* Metric 2: Sparkline Trend */}
+                {/* Metric 2: Active Work */}
                 <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between h-32">
                     <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Active Tasks</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Active Work</p>
                         <div className="flex items-baseline gap-2 mt-1">
-                            <p className="text-2xl font-extrabold text-gray-900 dark:text-slate-100">{activeTasks} Items</p>
-                            <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded-sm bg-indigo-50/50 dark:bg-indigo-950/20">
-                                In Progress
-                            </span>
+                            <p className="text-2xl font-extrabold text-gray-900 dark:text-slate-100">{inProgressTasks} In Progress</p>
                         </div>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">{remainingTasks} tasks in backlog / review</p>
                     </div>
                     <div className="w-full h-8 mt-2 overflow-visible">
                         <svg className="w-full h-full overflow-visible" viewBox="0 0 100 30" preserveAspectRatio="none">
                             <path
-                                d={`M 0 ${30 - (Math.max(10, activeTasks * 5) / 100) * 20} L 20 22 L 40 18 L 60 25 L 80 15 L 100 10`}
+                                d={`M 0 ${30 - (Math.max(10, inProgressTasks * 5) / 100) * 20} L 20 22 L 40 18 L 60 25 L 80 15 L 100 10`}
                                 fill="none"
                                 stroke="#4f46e5"
                                 strokeWidth="2.5"
@@ -296,7 +298,7 @@ function ProjectDashboard({ project, tasks }) {
                                 strokeLinejoin="round"
                             />
                             <path
-                                d={`M 0 ${30 - (Math.max(10, activeTasks * 5) / 100) * 20} L 20 22 L 40 18 L 60 25 L 80 15 L 100 10 L 100 30 L 0 30 Z`}
+                                d={`M 0 ${30 - (Math.max(10, inProgressTasks * 5) / 100) * 20} L 20 22 L 40 18 L 60 25 L 80 15 L 100 10 L 100 30 L 0 30 Z`}
                                 fill="url(#activeSparkGrad)"
                                 opacity="0.12"
                             />
@@ -310,15 +312,15 @@ function ProjectDashboard({ project, tasks }) {
                     </div>
                 </div>
 
-                {/* Metric 3: Critical Attention */}
+                {/* Metric 3: Bottleneck Sequence */}
                 <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between h-32">
                     <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Critical Tasks</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Bottleneck Sequence</p>
                         <p className="mt-1 text-2xl font-extrabold text-gray-900 dark:text-slate-100">{criticalTasks} Items</p>
                     </div>
                     <div className="mt-2 space-y-1.5">
                         <div className="flex justify-between text-[10px] font-bold text-rose-600 dark:text-rose-450">
-                            <span>Zero Float Risk</span>
+                            <span>Zero Buffer Risk</span>
                             <span>{criticalTasks > 0 ? 'Urgent' : 'Nominal'}</span>
                         </div>
                         <div className="h-2 rounded-full bg-gray-100 dark:bg-slate-800 overflow-hidden">
@@ -333,12 +335,12 @@ function ProjectDashboard({ project, tasks }) {
                 {/* Metric 4: Hours Completed */}
                 <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between h-32">
                     <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Hours Burned</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Hours Completed</p>
                         <p className="mt-1 text-2xl font-extrabold text-gray-900 dark:text-slate-100">{completedHours}h Done</p>
                     </div>
                     <div className="mt-2 space-y-1.5">
                         <div className="flex justify-between text-[10px] font-bold text-emerald-600 dark:text-emerald-450">
-                            <span>Burn Velocity</span>
+                            <span>Estimated Progress</span>
                             <span>{estimatedHours ? Math.round((completedHours / estimatedHours) * 100) : 0}%</span>
                         </div>
                         <div className="h-2 rounded-full bg-gray-100 dark:bg-slate-800 overflow-hidden">
@@ -610,7 +612,7 @@ function Timeline({ tasks, project, onEdit }) {
 
     // Calculate project-level metrics
     const hasDelayed = scheduled.some(t => t.total_float !== null && Number(t.total_float) < 0);
-    const criticalCount = scheduled.filter(t => t.is_critical || (t.total_float !== null && Number(t.total_float) === 0)).length;
+    const criticalCount = scheduled.filter(t => Boolean(t.is_critical)).length;
 
     return (
         <div className="overflow-auto p-6 space-y-6">
@@ -636,7 +638,7 @@ function Timeline({ tasks, project, onEdit }) {
                 <div>
                     <span className="block text-[11px] font-bold uppercase tracking-wider text-gray-400">Total Scheduled Tasks</span>
                     <span className="mt-1 block text-sm font-bold text-gray-900 dark:text-slate-100">
-                        {scheduled.length} of {tasks.length} ({criticalCount} Must-Do Tasks)
+                        {scheduled.length} of {tasks.length} ({criticalCount} Bottleneck Tasks)
                     </span>
                 </div>
                 <div className="flex items-center justify-start md:justify-end">
@@ -659,17 +661,17 @@ function Timeline({ tasks, project, onEdit }) {
                 <div className="mb-5 flex items-center justify-between border-b border-gray-100 pb-4 dark:border-slate-800">
                     <div>
                         <h2 className="text-sm font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2">
-                            <span>Project Timeline &amp; Schedule Schedule</span>
+                            <span>Project Timeline &amp; Schedule</span>
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                                Live CPA Gantt
+                                Bottleneck Sequence (CPA)
                             </span>
                         </h2>
                         <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
-                            Shows which tasks directly control your delivery date and which tasks have flexible breathing room.
+                            Shows which tasks directly control your delivery date (Bottleneck Sequence) and which tasks have schedule buffer.
                         </p>
                     </div>
                     <div className="flex items-center gap-4 text-xs font-medium text-gray-600 dark:text-slate-400 flex-wrap">
-                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-amber-500 inline-block" /> Must-Do (Zero Buffer)</span>
+                        <span className="flex items-center gap-1.5" title="Tasks that will directly delay the project delivery date if held up."><span className="w-3 h-3 rounded-sm bg-amber-500 inline-block" /> Bottleneck Sequence</span>
                         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-indigo-500 inline-block" /> In Progress</span>
                         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" /> Completed</span>
                         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-rose-500 inline-block" /> Behind Schedule</span>
@@ -681,10 +683,10 @@ function Timeline({ tasks, project, onEdit }) {
                         {scheduled.map(task => {
                             const isClickable = canManage || isUserAssignedToTask(task, auth?.user);
                             const isDelayed = task.total_float !== null && task.total_float !== undefined && Number(task.total_float) < 0;
-                            const isCrit = task.is_critical || (task.total_float !== null && Number(task.total_float) === 0);
+                            const isCrit = Boolean(task.is_critical);
                             const isCompleted = task.status === 'completed';
-                            const startStr = project.start_date ? deriveCalendarDate(project.start_date, task.es) : `Hour ${task.es}`;
-                            const finishStr = project.start_date ? deriveCalendarDate(project.start_date, task.ef) : `Hour ${task.ef}`;
+                            const startStr = project.start_date ? deriveCalendarDate(project.start_date, task.es) : (task.es !== null ? `Hour ${task.es}` : '—');
+                            const finishStr = project.start_date ? deriveCalendarDate(project.start_date, task.ef) : (task.ef !== null ? `Hour ${task.ef}` : '—');
                             const statusLabel = task.status === 'completed' ? 'Completed' : task.status === 'in_progress' ? 'In Progress' : task.status === 'review' ? 'In Review' : 'To Do';
 
                             return (
@@ -706,7 +708,7 @@ function Timeline({ tasks, project, onEdit }) {
                                             <span className="font-mono text-[10px] text-gray-400">#{task.id}</span>
                                             <p className="truncate text-xs font-bold text-gray-900 dark:text-slate-100 hover:text-brand">{task.title}</p>
                                         </div>
-                                        <p className="mt-1 font-mono text-[10px] text-gray-500 dark:text-slate-400">
+                                        <p className="mt-1 font-mono text-[10px] text-gray-500 dark:text-slate-400" title="Earliest Start → Earliest Finish">
                                             {startStr} → {finishStr} ({task.estimated_hours}h)
                                         </p>
                                     </div>
@@ -714,7 +716,7 @@ function Timeline({ tasks, project, onEdit }) {
                                     {/* Bar visualizer */}
                                     <div className="relative h-8 rounded-lg bg-slate-100 dark:bg-slate-800/80 overflow-hidden px-1 flex items-center">
                                         <div
-                                            title={`${task.title} • ${task.estimated_hours}h • ${isCrit ? 'Must finish on time (Zero delay buffer)' : `Safe buffer: +${task.total_float}h breathing room`}`}
+                                            title={`${task.title} • ${task.estimated_hours}h • ${isCrit ? 'Bottleneck Sequence: Must finish on time (Zero buffer)' : `Schedule Buffer: +${task.total_float}h breathing room`}`}
                                             className={`absolute top-1.5 h-5 rounded-md shadow-xs flex items-center justify-between px-2 text-[10px] font-bold text-white transition-all ${isCompleted ? 'bg-emerald-500' : isDelayed ? 'bg-rose-600 animate-pulse' : isCrit ? 'bg-amber-500' : task.status === 'in_progress' ? 'bg-indigo-500' : 'bg-brand'
                                                 }`}
                                             style={{

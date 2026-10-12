@@ -12,6 +12,12 @@ class Task extends Model
 {
     use HasFactory;
 
+    public const STATUS_TODO = 'todo';
+    public const STATUS_IN_PROGRESS = 'in_progress';
+    public const STATUS_STUCK = 'stuck';
+    public const STATUS_REVIEW = 'review';
+    public const STATUS_COMPLETED = 'completed';
+
     protected $table = 'tasks';
 
     protected $fillable = [

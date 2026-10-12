@@ -39,13 +39,14 @@ export default function CpaStatusBadge({ totalFloat, isCritical, showSlack = tru
         );
     }
 
-    if (isCritical || floatVal === 0) {
+    if (Boolean(isCritical)) {
         return (
             <span
+                title="Tasks that will directly delay the project delivery date if held up."
                 className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40 shadow-xs shadow-amber-500/10 ${className}`}
             >
                 <Flame className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                <span>Critical Bottleneck</span>
+                <span>Bottleneck Sequence</span>
                 {showSlack && (
                     <span className="ml-0.5 px-1.5 py-0.2 rounded-sm bg-amber-200/60 dark:bg-amber-500/30 text-[10px] font-mono">
                         No Buffer
@@ -57,10 +58,11 @@ export default function CpaStatusBadge({ totalFloat, isCritical, showSlack = tru
 
     return (
         <span
+            title="Days/hours this task can slip before it impacts the project deadline."
             className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 ${className}`}
         >
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span>On Track (Flexible)</span>
+            <span>Schedule Buffer</span>
             {showSlack && (
                 <span className="ml-0.5 px-1.5 py-0.2 rounded-sm bg-emerald-200/50 dark:bg-emerald-500/20 text-[10px] font-mono">
                     +{floatVal}h Buffer

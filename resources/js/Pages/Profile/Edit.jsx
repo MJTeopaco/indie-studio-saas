@@ -5,11 +5,13 @@ import {
     ShieldCheck, 
     ArrowLeft, 
     LogOut, 
-    Sparkles 
+    Sparkles,
+    Calendar
 } from 'lucide-react';
 import SystemToast from '@/Components/SystemToast';
 import PersonalInfoForm from './Partials/PersonalInfoForm';
 import PrivacySecurityForm from './Partials/PrivacySecurityForm';
+import WorkingStatusForm from './Partials/WorkingStatusForm';
 
 export default function Edit({
     user = {},
@@ -19,7 +21,7 @@ export default function Edit({
     joinedStudios = [],
     status,
 }) {
-    const [activeTab, setActiveTab] = useState('personal'); // 'personal' | 'security'
+    const [activeTab, setActiveTab] = useState('personal'); // 'personal' | 'availability' | 'security'
 
     const userInitials = user.name
         ? user.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
@@ -29,8 +31,14 @@ export default function Edit({
         {
             id: 'personal',
             label: 'Personal Information',
-            desc: 'Avatar, skills & working status',
+            desc: 'Avatar, profile details & skills',
             icon: User,
+        },
+        {
+            id: 'availability',
+            label: 'Availability & Leave',
+            desc: 'Working status, leave requests & studio scope',
+            icon: Calendar,
         },
         {
             id: 'security',
@@ -146,6 +154,15 @@ export default function Edit({
                                 availableSkills={availableSkills}
                                 joinedStudios={joinedStudios}
                                 status={status}
+                            />
+                        </div>
+                    )}
+
+                    {activeTab === 'availability' && (
+                        <div className="animate-in fade-in duration-200">
+                            <WorkingStatusForm
+                                user={user}
+                                joinedStudios={joinedStudios}
                             />
                         </div>
                     )}

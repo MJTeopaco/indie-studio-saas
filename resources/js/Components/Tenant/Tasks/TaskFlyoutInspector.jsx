@@ -178,26 +178,26 @@ export default function TaskFlyoutInspector({
                             </div>
 
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
-                                <div className="p-3 rounded-xl bg-surface border border-surface-border/80">
-                                    <span className="block text-[10px] uppercase font-bold text-text-muted tracking-wider">Early Start (ES)</span>
+                                <div className="p-3 rounded-xl bg-surface border border-surface-border/80" title="The soonest this task can begin based on prerequisites.">
+                                    <span className="block text-[10px] uppercase font-bold text-text-muted tracking-wider">Earliest Start (ES)</span>
                                     <span className="font-mono text-sm font-bold text-text-primary mt-0.5 block">
                                         {es !== null ? `${es}h` : '—'}
                                     </span>
                                 </div>
-                                <div className="p-3 rounded-xl bg-surface border border-surface-border/80">
-                                    <span className="block text-[10px] uppercase font-bold text-text-muted tracking-wider">Early Finish (EF)</span>
+                                <div className="p-3 rounded-xl bg-surface border border-surface-border/80" title="The soonest this task can finish based on prerequisites.">
+                                    <span className="block text-[10px] uppercase font-bold text-text-muted tracking-wider">Earliest Finish (EF)</span>
                                     <span className="font-mono text-sm font-bold text-text-primary mt-0.5 block">
                                         {ef !== null ? `${ef}h` : '—'}
                                     </span>
                                 </div>
-                                <div className="p-3 rounded-xl bg-surface border border-surface-border/80">
-                                    <span className="block text-[10px] uppercase font-bold text-text-muted tracking-wider">Late Start (LS)</span>
+                                <div className="p-3 rounded-xl bg-surface border border-surface-border/80" title="The latest date this task can start without delaying the target release.">
+                                    <span className="block text-[10px] uppercase font-bold text-text-muted tracking-wider">Latest Start (LS)</span>
                                     <span className="font-mono text-sm font-bold text-text-primary mt-0.5 block">
                                         {ls !== null ? `${ls}h` : '—'}
                                     </span>
                                 </div>
-                                <div className="p-3 rounded-xl bg-surface border border-surface-border/80">
-                                    <span className="block text-[10px] uppercase font-bold text-text-muted tracking-wider">Total Float (TF)</span>
+                                <div className="p-3 rounded-xl bg-surface border border-surface-border/80" title="Hours or days this task can slip before it impacts the project deadline.">
+                                    <span className="block text-[10px] uppercase font-bold text-text-muted tracking-wider">Schedule Buffer</span>
                                     <span className={`font-mono text-sm font-bold mt-0.5 block ${isCritical ? 'text-rose-500' : 'text-emerald-500'}`}>
                                         {totalFloat !== null ? `${totalFloat}h` : '—'}
                                     </span>

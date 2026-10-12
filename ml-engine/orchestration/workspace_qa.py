@@ -72,6 +72,11 @@ _STATUS_ALIASES: dict[str, str] = {
     "reviewing":    "review",
     "code review":  "review",
 
+    # "stuck" variants
+    "stuck":        "stuck",
+    "blocked":      "stuck",
+    "blocker":      "stuck",
+
     # "completed" variants
     "completed":  "completed",
     "done":       "completed",

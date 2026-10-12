@@ -722,7 +722,7 @@ class TenantProjectController extends Controller
             'estimated_hours' => 'required|numeric|min:0',
             'hard_constraint_date' => 'nullable|date',
             'priority' => 'required|string|in:Low,Medium,High,Critical',
-            'status' => 'required|string|in:todo,in_progress,review,completed',
+            'status' => 'required|string|in:todo,in_progress,review,completed,stuck',
             'depends_on' => 'nullable|array',
             'depends_on.*' => 'integer',
             'task_classification' => 'nullable|string|max:255',
