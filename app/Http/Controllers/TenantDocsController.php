@@ -309,9 +309,10 @@ class TenantDocsController extends Controller
     /**
      * Delete an archived report.
      */
-    public function deleteReport($tenant, $report)
+    public function deleteReport($report = null, $extra = null)
     {
-        $rep = Report::findOrFail($report);
+        $targetReportId = $extra ?? $report ?? request()->route('report');
+        $rep = Report::findOrFail($targetReportId);
         $rep->delete();
 
         return redirect()->back()->with('success', 'Report deleted successfully.');

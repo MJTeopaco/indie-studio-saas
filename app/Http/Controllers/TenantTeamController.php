@@ -278,8 +278,10 @@ class TenantTeamController extends Controller
      * - Member request: can be approved by Leader or Owner.
      * - Leader request: can ONLY be approved by Owner.
      */
-    public function approveLeaveRequest(Request $request, $tenant, $id): RedirectResponse
+    public function approveLeaveRequest(Request $request, $id, $extra = null): RedirectResponse
     {
+        $targetId = $extra ?? $id ?? $request->route('id');
+
         $currentUserMember = \DB::connection(config('tenancy.database.central_connection', 'central'))
             ->table('studio_members')
             ->where('studio_id', tenant('id'))
@@ -290,7 +292,7 @@ class TenantTeamController extends Controller
         $isOwner = $callerRole === 'owner' || (auth()->check() && auth()->user()->role === User::ROLE_ADMIN);
         $isLeader = in_array($callerRole, ['leader', 'manager']);
 
-        $leaveReq = LeaveRequest::where('id', $id)
+        $leaveReq = LeaveRequest::where('id', $targetId)
             ->where('studio_id', tenant('id'))
             ->where('status', 'pending')
             ->firstOrFail();
@@ -328,6 +330,8 @@ class TenantTeamController extends Controller
         // Synchronize central users table
         \App\Models\User::where('id', $leaveReq->user_id)->update([
             'working_status' => $targetStatus,
+            'leave_start_date' => $leaveReq->leave_start_date,
+            'leave_end_date' => $leaveReq->leave_end_date,
         ]);
 
         $typeLabel = $leaveReq->request_type === LeaveRequest::TYPE_EMERGENCY ? 'Emergency declaration' : 'Leave request';
@@ -341,8 +345,10 @@ class TenantTeamController extends Controller
      * - Member request: can be rejected by Leader or Owner.
      * - Leader request: can ONLY be rejected by Owner.
      */
-    public function rejectLeaveRequest(Request $request, $tenant, $id): RedirectResponse
+    public function rejectLeaveRequest(Request $request, $id, $extra = null): RedirectResponse
     {
+        $targetId = $extra ?? $id ?? $request->route('id');
+
         $currentUserMember = \DB::connection(config('tenancy.database.central_connection', 'central'))
             ->table('studio_members')
             ->where('studio_id', tenant('id'))
@@ -353,7 +359,7 @@ class TenantTeamController extends Controller
         $isOwner = $callerRole === 'owner' || (auth()->check() && auth()->user()->role === User::ROLE_ADMIN);
         $isLeader = in_array($callerRole, ['leader', 'manager']);
 
-        $leaveReq = LeaveRequest::where('id', $id)
+        $leaveReq = LeaveRequest::where('id', $targetId)
             ->where('studio_id', tenant('id'))
             ->where('status', 'pending')
             ->firstOrFail();
