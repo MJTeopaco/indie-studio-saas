@@ -10,6 +10,8 @@ import {
     LayoutGrid,
     ArrowLeft,
     User as UserIcon,
+    Bell,
+    MessageSquare,
 } from 'lucide-react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import { showToast } from '@/Components/SystemToast';
@@ -229,7 +231,7 @@ function CategoryHeader({ label, isOpen, onToggle, isCollapsed }) {
 
 export default function Sidebar({ user: propUser, studioName: propStudioName }) {
     const pageProps = usePage().props || {};
-    const { auth, activeWorkspace, workspaceProjects = [], currentUserRole, canManage = false, pendingEstimatesCount, inboxNotificationCount = 0 } = pageProps;
+    const { auth, activeWorkspace, workspaceProjects = [], currentUserRole, canManage = false, pendingEstimatesCount, inboxNotificationCount = 0, inboxUnreadBreakdown = { notifications: 0, messages: 0, total: 0 } } = pageProps;
     const currentPath = usePage().url || '';
 
     const isManager = Boolean(canManage);
@@ -297,6 +299,21 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
     const baseHref = `/studio/${activeWorkspace || 'default'}`;
 
     const isInboxActive = currentPath.includes('/inbox') || currentPath.includes('view=inbox');
+    const isMessagesActive = isInboxActive && currentPath.includes('tab=messages');
+    const isNotificationsActive = isInboxActive && !isMessagesActive;
+
+    const totalInboxUnread = inboxUnreadBreakdown?.total ?? inboxNotificationCount ?? 0;
+    const notifUnread = inboxUnreadBreakdown?.notifications ?? 0;
+    const msgUnread = inboxUnreadBreakdown?.messages ?? 0;
+
+    const [inboxExpanded, setInboxExpanded] = useState(() => isInboxActive);
+    const [collapsedInboxMenuOpen, setCollapsedInboxMenuOpen] = useState(false);
+
+    useEffect(() => {
+        if (isInboxActive) {
+            setInboxExpanded(true);
+        }
+    }, [isInboxActive]);
 
     const dashboardLinks = isManager
         ? [
@@ -315,16 +332,6 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                 active: (currentPath.includes('/dashboard') || currentPath.includes('/my-work') || currentPath === baseHref) && !isInboxActive,
             },
         ];
-
-    // Inbox is always a standalone section for both roles
-    const inboxLink = {
-        label: 'Inbox',
-        icon: PremiumInboxIcon,
-        href: `${baseHref}/inbox`,
-        active: isInboxActive,
-        badge: inboxNotificationCount > 0 ? String(inboxNotificationCount) : null,
-        badgeVariant: 'notification',
-    };
 
     const primaryLinks = isManager
         ? [
@@ -453,16 +460,168 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                                     isCollapsed={isCollapsed}
                                 />
                             ))}
-                            <NavItem
-                                key="inbox"
-                                icon={inboxLink.icon}
-                                label={inboxLink.label}
-                                href={inboxLink.href}
-                                active={inboxLink.active}
-                                badge={inboxLink.badge}
-                                badgeVariant={inboxLink.badgeVariant}
-                                isCollapsed={isCollapsed}
-                            />
+                            {/* Inbox with Dropdown (Notifications & Messages) */}
+                            {isCollapsed ? (
+                                <div className="relative group/inbox">
+                                    <button
+                                        type="button"
+                                        onClick={() => setCollapsedInboxMenuOpen(prev => !prev)}
+                                        title={totalInboxUnread > 0 ? `Inbox (${totalInboxUnread})` : 'Inbox'}
+                                        className={`group relative flex items-center justify-center w-full px-2 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 focus-ring ${
+                                            isInboxActive
+                                                ? 'bg-brand-10 text-brand font-semibold shadow-xs'
+                                                : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 hover:dark:bg-slate-800/50 hover:text-gray-900 hover:dark:text-slate-200'
+                                        }`}
+                                    >
+                                        <div className="relative shrink-0 flex items-center justify-center">
+                                            <PremiumInboxIcon
+                                                className={`w-5 h-5 shrink-0 transition-transform duration-200 group-hover:scale-105 ${
+                                                    isInboxActive ? 'text-brand' : 'text-gray-500 dark:text-slate-400'
+                                                }`}
+                                            />
+                                            {totalInboxUnread > 0 && (
+                                                <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full text-[8px] font-extrabold text-white bg-rose-500 ring-2 ring-white dark:ring-slate-900 shadow-sm select-none">
+                                                    {totalInboxUnread > 9 ? '9+' : totalInboxUnread}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </button>
+
+                                    {collapsedInboxMenuOpen && (
+                                        <div className="absolute left-full top-0 ml-2 w-48 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95">
+                                            <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-slate-500 border-b border-gray-100 dark:border-slate-800 mb-1">
+                                                Inbox
+                                            </div>
+                                            <Link
+                                                href={`${baseHref}/inbox?tab=notifications`}
+                                                onClick={() => setCollapsedInboxMenuOpen(false)}
+                                                className={`flex items-center justify-between px-3 py-2 text-xs font-medium transition-colors ${
+                                                    isNotificationsActive
+                                                        ? 'bg-brand/10 text-brand font-semibold'
+                                                        : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800'
+                                                }`}
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    <Bell className="w-3.5 h-3.5" />
+                                                    <span>Notifications</span>
+                                                </span>
+                                                {notifUnread > 0 && (
+                                                    <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">
+                                                        {notifUnread}
+                                                    </span>
+                                                )}
+                                            </Link>
+                                            <Link
+                                                href={`${baseHref}/inbox?tab=messages`}
+                                                onClick={() => setCollapsedInboxMenuOpen(false)}
+                                                className={`flex items-center justify-between px-3 py-2 text-xs font-medium transition-colors ${
+                                                    isMessagesActive
+                                                        ? 'bg-brand/10 text-brand font-semibold'
+                                                        : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800'
+                                                }`}
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    <MessageSquare className="w-3.5 h-3.5" />
+                                                    <span>Messages</span>
+                                                </span>
+                                                {msgUnread > 0 && (
+                                                    <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">
+                                                        {msgUnread}
+                                                    </span>
+                                                )}
+                                            </Link>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="space-y-0.5">
+                                    <div
+                                        className={`group relative flex items-center justify-between px-3 py-2.25 rounded-xl text-sm font-medium transition-all duration-200 select-none ${
+                                            isInboxActive
+                                                ? 'bg-brand-10 text-brand font-semibold shadow-xs'
+                                                : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 hover:dark:bg-slate-800/50 hover:text-gray-900 hover:dark:text-slate-200'
+                                        }`}
+                                    >
+                                        <Link
+                                            href={`${baseHref}/inbox`}
+                                            className="flex items-center gap-3 flex-1 min-w-0"
+                                        >
+                                            <PremiumInboxIcon
+                                                className={`w-5 h-5 shrink-0 transition-transform duration-200 group-hover:scale-105 ${
+                                                    isInboxActive ? 'text-brand' : 'text-gray-500 dark:text-slate-400'
+                                                }`}
+                                            />
+                                            <span className="truncate">Inbox</span>
+                                        </Link>
+
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            {totalInboxUnread > 0 && (
+                                                <span className="inline-flex items-center justify-center min-w-[1.2rem] h-[1.2rem] px-1 rounded-full text-[9px] font-extrabold text-white bg-rose-500 shadow-2xs">
+                                                    {totalInboxUnread > 9 ? '9+' : totalInboxUnread}
+                                                </span>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setInboxExpanded(prev => !prev);
+                                                }}
+                                                title={inboxExpanded ? 'Collapse Inbox menu' : 'Expand Inbox menu'}
+                                                className="p-1 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 hover:bg-gray-200/50 dark:hover:bg-slate-800/60 transition-colors"
+                                            >
+                                                <ChevronDown
+                                                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                                                        inboxExpanded ? 'rotate-0' : '-rotate-90'
+                                                    }`}
+                                                />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Submenu Dropdown Items */}
+                                    {inboxExpanded && (
+                                        <div className="pl-6 pr-1 space-y-0.5 pt-0.5 animate-in fade-in-50 duration-150">
+                                            <Link
+                                                href={`${baseHref}/inbox?tab=notifications`}
+                                                className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                                    isNotificationsActive
+                                                        ? 'bg-brand/10 text-brand font-semibold'
+                                                        : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100/80 dark:hover:bg-slate-800/40 hover:text-gray-900 dark:hover:text-slate-200'
+                                                }`}
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    <Bell className="w-3.5 h-3.5" />
+                                                    <span>Notifications</span>
+                                                </span>
+                                                {notifUnread > 0 && (
+                                                    <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">
+                                                        {notifUnread}
+                                                    </span>
+                                                )}
+                                            </Link>
+
+                                            <Link
+                                                href={`${baseHref}/inbox?tab=messages`}
+                                                className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                                    isMessagesActive
+                                                        ? 'bg-brand/10 text-brand font-semibold'
+                                                        : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100/80 dark:hover:bg-slate-800/40 hover:text-gray-900 dark:hover:text-slate-200'
+                                                }`}
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    <MessageSquare className="w-3.5 h-3.5" />
+                                                    <span>Messages</span>
+                                                </span>
+                                                {msgUnread > 0 && (
+                                                    <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">
+                                                        {msgUnread}
+                                                    </span>
+                                                )}
+                                            </Link>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
