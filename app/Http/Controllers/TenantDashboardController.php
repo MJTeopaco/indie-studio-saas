@@ -512,9 +512,17 @@ class TenantDashboardController extends Controller
 
         $tasksAtRiskCount = $atRiskTasks->count();
 
-        $unassignedTasksCount = Task::where('status', '!=', 'completed')
-            ->whereNull('assigned_user_id')
-            ->count();
+        $unassignedQuery = Task::where('status', '!=', 'completed')
+            ->whereNull('assigned_user_id');
+
+        if (Schema::hasTable('assignments')) {
+            $assignedTaskIds = DB::table('assignments')
+                ->where('status', 'active')
+                ->pluck('task_id');
+            $unassignedQuery->whereNotIn('id', $assignedTaskIds);
+        }
+
+        $unassignedTasksCount = $unassignedQuery->count();
 
         // ── 3. Central Team Members & Workload ───────────────────────────────
         $centralMembers = DB::connection(config('tenancy.database.central_connection', 'central'))
@@ -535,10 +543,19 @@ class TenantDashboardController extends Controller
             ])
             ->get();
 
+        $activeAssignmentsMap = [];
+        if (Schema::hasTable('assignments')) {
+            $activeAssignmentsMap = DB::table('assignments')
+                ->where('status', 'active')
+                ->pluck('employee_user_id', 'task_id')
+                ->all();
+        }
+
         $activeTasksByAssignee = Task::where('status', '!=', 'completed')
-            ->whereNotNull('assigned_user_id')
             ->get()
-            ->groupBy('assigned_user_id');
+            ->groupBy(function ($task) use ($activeAssignmentsMap) {
+                return $task->assigned_user_id ?? ($activeAssignmentsMap[$task->id] ?? null);
+            });
 
         $overloadedCount = 0;
         $teamSnapshot = $centralMembers->map(function ($m) use ($activeTasksByAssignee, &$overloadedCount) {
@@ -566,12 +583,19 @@ class TenantDashboardController extends Controller
             ];
         })->sortByDesc('load_percent')->values()->all();
 
-        // Items waiting on leader (estimates needing review or story points unlocked)
-        $itemsWaitingCount = Task::where('needs_estimate_review', true)
+        // Items waiting on leader (pending leave approvals, estimates needing review, or code reviews)
+        $pendingLeaveCount = LeaveRequest::where('studio_id', tenant('id'))
+            ->where('status', 'pending')
+            ->count();
+
+        $tasksNeedingActionCount = Task::where('needs_estimate_review', true)
             ->orWhere(function ($q) {
-                $q->where('story_points_locked', false)->where('status', '!=', 'completed');
+                $q->where('status', 'review')
+                    ->orWhere('sprint_status', 'waiting_for_review');
             })
             ->count();
+
+        $itemsWaitingCount = $pendingLeaveCount + $tasksNeedingActionCount;
 
         // ── 4. Charts Data ───────────────────────────────────────────────────
         // Sprint Burndown

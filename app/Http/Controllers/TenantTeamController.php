@@ -278,8 +278,9 @@ class TenantTeamController extends Controller
      * - Member request: can be approved by Leader or Owner.
      * - Leader request: can ONLY be approved by Owner.
      */
-    public function approveLeaveRequest(Request $request, $tenant, $id): RedirectResponse
+    public function approveLeaveRequest(Request $request, $tenantOrId, $id = null): RedirectResponse
     {
+        $id = $id ?? $tenantOrId;
         $currentUserMember = \DB::connection(config('tenancy.database.central_connection', 'central'))
             ->table('studio_members')
             ->where('studio_id', tenant('id'))
@@ -332,8 +333,9 @@ class TenantTeamController extends Controller
      * - Member request: can be rejected by Leader or Owner.
      * - Leader request: can ONLY be rejected by Owner.
      */
-    public function rejectLeaveRequest(Request $request, $tenant, $id): RedirectResponse
+    public function rejectLeaveRequest(Request $request, $tenantOrId, $id = null): RedirectResponse
     {
+        $id = $id ?? $tenantOrId;
         $currentUserMember = \DB::connection(config('tenancy.database.central_connection', 'central'))
             ->table('studio_members')
             ->where('studio_id', tenant('id'))

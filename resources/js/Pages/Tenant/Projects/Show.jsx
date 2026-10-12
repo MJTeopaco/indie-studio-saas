@@ -221,7 +221,7 @@ function ProjectDashboard({ project, tasks }) {
     const totalTasks = tasks.length;
     const completedTasks = tasks.filter(task => task.status === 'completed').length;
     const activeTasks = tasks.filter(task => ['todo', 'in_progress', 'review'].includes(task.status)).length;
-    const criticalTasks = tasks.filter(task => task.is_critical || Number(task.total_float) === 0).length;
+    const criticalTasks = tasks.filter(task => task.status !== 'completed' && (task.is_critical || Number(task.total_float) === 0)).length;
     const completionRate = totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
     const estimatedHours = tasks.reduce((sum, task) => sum + Number(task.estimated_hours || 0), 0);
     const completedHours = tasks

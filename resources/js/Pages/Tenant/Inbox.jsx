@@ -2077,7 +2077,7 @@ export default function Inbox({
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center justify-between gap-1 mb-0.5">
                                                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                                                {notif.type.replace('_', ' ')}
+                                                                {(notif.type || 'notification').replace(/_/g, ' ')}
                                                             </span>
                                                             <span className="text-[10px] text-slate-400 font-mono">
                                                                 {notif.created_at_human}
@@ -2146,7 +2146,7 @@ export default function Inbox({
                                                 <div className="space-y-1">
                                                     <div className="flex items-center gap-2 flex-wrap">
                                                         <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                                                            {activeNotification.type.replace('_', ' ')}
+                                                            {(activeNotification.type || 'notification').replace(/_/g, ' ')}
                                                         </span>
                                                         {activeNotification.project_name && (
                                                             <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
@@ -2360,6 +2360,32 @@ export default function Inbox({
                                                         <span>Open in Messages</span>
                                                         <ArrowRight className="w-3.5 h-3.5" />
                                                     </button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Estimate Pending Voting Module */}
+                                        {activeNotification.type === 'estimate_pending' && !activeTask && (
+                                            <div className="p-5 space-y-3">
+                                                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                    Sprint Planning Action
+                                                </div>
+                                                <div className="p-4 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/50 dark:bg-amber-950/20 space-y-3">
+                                                    <div className="flex items-center gap-2 text-xs font-bold text-amber-900 dark:text-amber-200">
+                                                        <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                                                        <span>Story Point Voting Required</span>
+                                                    </div>
+                                                    <p className="text-xs text-slate-600 dark:text-slate-300">
+                                                        {activeNotification.body}
+                                                    </p>
+                                                    <Link
+                                                        href={`/studio/${workspaceSlug}/estimates/pending`}
+                                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-colors shadow-2xs"
+                                                    >
+                                                        <Sparkles className="w-3.5 h-3.5" />
+                                                        <span>Open Fibonacci Estimation Queue</span>
+                                                        <ArrowRight className="w-3.5 h-3.5" />
+                                                    </Link>
                                                 </div>
                                             </div>
                                         )}
