@@ -449,8 +449,11 @@ class TenantDashboardController extends Controller
                     $end = $req->leave_end_date ? Carbon::parse($req->leave_end_date) : null;
 
                     $conflicts = $assignedTasks->filter(function ($task) use ($start, $end) {
-                        if (! $task->hard_constraint_date || ! $start || ! $end) return false;
+                        if (! $task->hard_constraint_date || ! $start || ! $end) {
+                            return false;
+                        }
                         $due = Carbon::parse($task->hard_constraint_date);
+
                         return $due->betweenIncluded($start, $end);
                     })->values();
 
@@ -461,7 +464,7 @@ class TenantDashboardController extends Controller
                         'id' => 'leave-req-'.$req->id,
                         'type' => 'leave_request',
                         'title' => "Leave Request: {$reqUser->name}",
-                        'body' => "{$reqUser->name} ({$roleLabel}) requested absence from ".($start ? $start->format('M d, Y') : '').' to '.($end ? $end->format('M d, Y') : '')." ({$calendarDays} calendar day".($calendarDays === 1 ? '' : 's').").".($req->reason ? " Handover: {$req->reason}" : ''),
+                        'body' => "{$reqUser->name} ({$roleLabel}) requested absence from ".($start ? $start->format('M d, Y') : '').' to '.($end ? $end->format('M d, Y') : '')." ({$calendarDays} calendar day".($calendarDays === 1 ? '' : 's').').'.($req->reason ? " Handover: {$req->reason}" : ''),
                         'icon' => 'calendar',
                         'color' => 'amber',
                         'priority' => null,

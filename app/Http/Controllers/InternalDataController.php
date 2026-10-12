@@ -3,9 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Studio;
-use App\Models\User;
 use App\Models\Task;
+use App\Models\Tenant\Project;
 use Illuminate\Http\Request;
+
 class InternalDataController extends Controller
 {
     /**
@@ -69,9 +70,9 @@ class InternalDataController extends Controller
         if (! $studio) {
             return response()->json(['error' => 'Studio not found'], 404);
         }
-        
-        $projectIds = \App\Models\Tenant\Project::pluck('id')->toArray();
-        
+
+        $projectIds = Project::pluck('id')->toArray();
+
         $tasks = \App\Models\Tenant\Task::whereIn('project_id', $projectIds)
             ->whereIn('status', ['todo', 'in_progress', 'review'])
             ->get(['id', 'title', 'status', 'assigned_user_id', 'total_float', 'is_critical', 'estimated_hours', 'days_until_deadline']);
@@ -106,7 +107,7 @@ class InternalDataController extends Controller
             return response()->json(['error' => 'Studio not found'], 404);
         }
 
-        $projectIds = \App\Models\Tenant\Project::pluck('id')->toArray();
+        $projectIds = Project::pluck('id')->toArray();
 
         $tasks = \App\Models\Tenant\Task::whereIn('project_id', $projectIds)
             ->where('assigned_user_id', $userId)
@@ -131,8 +132,8 @@ class InternalDataController extends Controller
     public function getUnassignedSprintTasks(Request $request, $studioId, $projectId, $sprintName)
     {
         tenancy()->initialize($studioId);
-        $project = \App\Models\Tenant\Project::with('sprints')->find($projectId);
-        if (!$project) {
+        $project = Project::with('sprints')->find($projectId);
+        if (! $project) {
             return response()->json(['status' => 'error', 'message' => 'Project not found.'], 404);
         }
 
@@ -140,10 +141,10 @@ class InternalDataController extends Controller
         $sprint = null;
 
         if (in_array($sprintNameLower, ['current', 'active', 'latest'])) {
-            // Find the active sprint based on dates or status. 
+            // Find the active sprint based on dates or status.
             // Assuming there's a status or we find the one currently in progress.
             $sprint = $project->sprints()->where('status', 'active')->first();
-            if (!$sprint) {
+            if (! $sprint) {
                 // Fallback: finding sprint that encompasses today
                 $now = now();
                 $sprint = $project->sprints()
@@ -151,18 +152,18 @@ class InternalDataController extends Controller
                     ->where('target_end_date', '>=', $now)
                     ->first();
             }
-            if (!$sprint) {
+            if (! $sprint) {
                 // Fallback: get the most recent sprint
                 $sprint = $project->sprints()->orderBy('start_date', 'desc')->first();
             }
 
-            if (!$sprint) {
+            if (! $sprint) {
                 return response()->json(['status' => 'error', 'message' => 'No active sprint found for this project.'], 404);
             }
         } else {
             // Strict name match
             $sprint = $project->sprints()->whereRaw('LOWER(name) = ?', [$sprintNameLower])->first();
-            if (!$sprint) {
+            if (! $sprint) {
                 return response()->json(['status' => 'error', 'message' => "Sprint '{$sprintName}' not found."], 404);
             }
         }
@@ -177,7 +178,7 @@ class InternalDataController extends Controller
             'project_id' => $projectId,
             'sprint_id' => $sprint->id,
             'sprint_name' => $sprint->name,
-            'unassigned_tasks' => $tasks
+            'unassigned_tasks' => $tasks,
         ]);
     }
 
@@ -188,13 +189,13 @@ class InternalDataController extends Controller
     public function getProjectTasks(Request $request, $studioId, $projectId)
     {
         tenancy()->initialize($studioId);
-        $project = \App\Models\Tenant\Project::find($projectId);
-        if (!$project) {
+        $project = Project::find($projectId);
+        if (! $project) {
             return response()->json(['status' => 'error', 'message' => 'Project not found.'], 404);
         }
 
         $limit = 50;
-        
+
         $query = \App\Models\Tenant\Task::where('project_id', $projectId)
             ->orderByRaw("CASE WHEN status IN ('in_progress', 'todo') THEN 1 ELSE 2 END")
             ->orderBy('priority', 'desc')
@@ -211,10 +212,10 @@ class InternalDataController extends Controller
             'meta' => [
                 'total_tasks' => $totalTasks,
                 'showing' => $tasks->count(),
-                'note' => $totalTasks > $limit 
-                    ? "List truncated. Use specific sprint filters for more granularity." 
-                    : "All tasks retrieved."
-            ]
+                'note' => $totalTasks > $limit
+                    ? 'List truncated. Use specific sprint filters for more granularity.'
+                    : 'All tasks retrieved.',
+            ],
         ]);
     }
 }

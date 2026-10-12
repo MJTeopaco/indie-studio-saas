@@ -12,7 +12,7 @@ function getSectionName(url = '') {
     if (url.includes('/team')) return 'Team';
     if (url.includes('/projects')) return 'Projects';
     if (url.includes('/docs')) return 'Report Archiving';
-    if (url.includes('/reports')) return 'Reports & Analytics';
+    if (url.includes('/reports')) return 'Report Center';
     if (url.includes('/inbox')) return 'Inbox';
     if (url.includes('/settings')) return 'Settings';
     if (url.includes('/burndown')) return 'Burndown';
@@ -27,7 +27,7 @@ function getSectionName(url = '') {
  * Displays a persistent top header with breadcrumb navigation,
  * studio switcher / return to central link, and the studio sidebar.
  */
-export default function TenantLayout({ children, studioName }) {
+export default function TenantLayout({ children, studioName, header }) {
     const pageProps = usePage().props || {};
     const { auth, activeWorkspace, studio: propStudio } = pageProps;
     const currentUrl = usePage().url || '';
@@ -98,6 +98,12 @@ export default function TenantLayout({ children, studioName }) {
                         </Link>
                     </div>
                 </header>
+
+                {header && (
+                    <div className="shrink-0 border-b border-surface-border bg-surface-elevated/70 backdrop-blur-md px-4 sm:px-6 py-3.5 z-10 transition-colors">
+                        {header}
+                    </div>
+                )}
 
                 {/* Main Page Content */}
                 <main id="main-content" className="flex-1 flex flex-col min-h-0 overflow-hidden">

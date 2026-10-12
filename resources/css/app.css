@@ -86,32 +86,69 @@ html {
 /* Applies to any element with .custom-scrollbar. Works in light + dark mode. */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #CBD5E1 transparent; /* slate-300 thumb on transparent track */
+  scrollbar-color: #94A3B8 #F1F5F9;
 }
 .custom-scrollbar::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 8px;
+  height: 8px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: #CBD5E1;
+  background: #F1F5F9;
   border-radius: 999px;
 }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+.custom-scrollbar::-webkit-scrollbar-thumb {
   background-color: #94A3B8;
+  border-radius: 999px;
+  border: 2px solid #F1F5F9;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #64748B;
 }
 
 /* Dark mode scrollbar */
 .dark .custom-scrollbar {
-  scrollbar-color: #334155 transparent; /* slate-700 thumb */
+  scrollbar-color: #475569 #0F172A;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: #0F172A;
 }
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: #334155;
+  background-color: #475569;
+  border: 2px solid #0F172A;
 }
 .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: #475569;
+  background-color: #64748B;
+}
+
+/* ── Wizard step transition micro-animations ────────────────────────────────── */
+@keyframes stepFadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes stepFadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.step-enter-forward {
+  animation: stepFadeInRight 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.step-enter-backward {
+  animation: stepFadeInLeft 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* Tactile diagonal micro-hatch pattern for wireframe sparklines and focus containers */

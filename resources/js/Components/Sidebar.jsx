@@ -378,10 +378,10 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
 
     const utilityLinks = [
         {
-            label: 'Report Archiving',
+            label: 'Report Center',
             icon: PremiumArchiveIcon,
-            href: `${baseHref}/docs`,
-            active: currentPath.includes('/docs') || currentPath.includes('/reports'),
+            href: `${baseHref}/reports`,
+            active: currentPath.includes('/reports') || currentPath.includes('/docs'),
         },
         {
             label: 'Settings',

@@ -2,12 +2,11 @@
 
 namespace App\Providers;
 
+use App\Models\Tenant\Task;
+use App\Observers\TaskObserver;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
-
-use App\Models\Tenant\Task;
-use App\Observers\TaskObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
