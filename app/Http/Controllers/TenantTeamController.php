@@ -310,20 +310,29 @@ class TenantTeamController extends Controller
             'reviewed_at' => now(),
         ]);
 
+        $targetStatus = $leaveReq->request_type === LeaveRequest::TYPE_EMERGENCY ? 'emergency' : 'on_leave';
+
         // Update studio member record
         \DB::connection(config('tenancy.database.central_connection', 'central'))
             ->table('studio_members')
             ->where('studio_id', tenant('id'))
             ->where('user_id', $leaveReq->user_id)
             ->update([
-                'working_status' => 'on_leave',
+                'working_status' => $targetStatus,
                 'leave_start_date' => $leaveReq->leave_start_date,
                 'leave_end_date' => $leaveReq->leave_end_date,
                 'leave_request_status' => 'approved',
                 'updated_at' => now(),
             ]);
 
-        return redirect()->back()->with('status', 'leave-approved:Leave request approved successfully.');
+        // Synchronize central users table
+        \App\Models\User::where('id', $leaveReq->user_id)->update([
+            'working_status' => $targetStatus,
+        ]);
+
+        $typeLabel = $leaveReq->request_type === LeaveRequest::TYPE_EMERGENCY ? 'Emergency declaration' : 'Leave request';
+
+        return redirect()->back()->with('status', "leave-approved:{$typeLabel} approved successfully.");
     }
 
     /**

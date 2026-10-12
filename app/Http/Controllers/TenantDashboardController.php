@@ -1039,15 +1039,20 @@ class TenantDashboardController extends Controller
                     })->values();
 
                     $calendarDays = $start && $end ? $start->diffInDays($end) + 1 : 0;
+                    $isEmergency = ($req->request_type ?? 'leave') === 'emergency';
                     $roleLabel = $req->requester_role === 'leader' ? 'Team Leader' : 'Team Member';
+                    $title = $isEmergency ? "🚨 Emergency Declared: {$reqUser->name}" : "Leave Request: {$reqUser->name}";
+                    $body = $isEmergency
+                        ? "{$reqUser->name} ({$roleLabel}) declared an operational emergency: \"{$req->reason}\"".($end ? ' (Est. return: '.$end->format('M d, Y').')' : '')
+                        : "{$reqUser->name} ({$roleLabel}) requested absence from ".($start ? $start->format('M d, Y') : '').' to '.($end ? $end->format('M d, Y') : '')." ({$calendarDays} calendar day".($calendarDays === 1 ? '' : 's').').'.($req->reason ? " Handover: {$req->reason}" : '');
 
                     return [
                         'id' => 'leave-req-'.$req->id,
-                        'type' => 'leave_request',
-                        'title' => "Leave Request: {$reqUser->name}",
-                        'body' => "{$reqUser->name} ({$roleLabel}) requested absence from ".($start ? $start->format('M d, Y') : '').' to '.($end ? $end->format('M d, Y') : '')." ({$calendarDays} calendar day".($calendarDays === 1 ? '' : 's').').'.($req->reason ? " Handover: {$req->reason}" : ''),
-                        'icon' => 'calendar',
-                        'color' => 'amber',
+                        'type' => $isEmergency ? 'emergency_declaration' : 'leave_request',
+                        'title' => $title,
+                        'body' => $body,
+                        'icon' => $isEmergency ? 'ban' : 'calendar',
+                        'color' => $isEmergency ? 'rose' : 'amber',
                         'priority' => null,
                         'task_id' => null,
                         'task_title' => null,
