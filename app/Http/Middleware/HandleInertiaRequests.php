@@ -76,12 +76,49 @@ class HandleInertiaRequests extends Middleware
             },
 
             // Share the list of projects for the current workspace
-            'workspaceProjects' => function () {
-                if (! tenant()) {
+            'workspaceProjects' => function () use ($request) {
+                if (! tenant() || ! $request->user()) {
                     return [];
                 }
                 try {
-                    return Project::select('id', 'name', 'status')->latest()->get()->toArray();
+                    $user = $request->user();
+                    if ($user->role === User::ROLE_ADMIN) {
+                        return Project::select('id', 'name', 'status')->latest()->get()->toArray();
+                    }
+
+                    $member = \DB::connection(config('tenancy.database.central_connection', 'central'))->table('studio_members')
+                        ->where('studio_id', tenant('id'))
+                        ->where('user_id', $user->id)
+                        ->first();
+                    $role = $member ? $member->role : 'member';
+
+                    if (in_array($role, ['owner', 'leader', 'manager'])) {
+                        return Project::select('id', 'name', 'status')->latest()->get()->toArray();
+                    }
+
+                    $assignedIds = \DB::table('project_members')
+                        ->where('user_id', $user->id)
+                        ->pluck('project_id')
+                        ->merge(
+                            Task::where('assigned_user_id', $user->id)
+                                ->orWhere('reviewer_user_id', $user->id)
+                                ->pluck('project_id')
+                        );
+
+                    if (Schema::hasTable('assignments')) {
+                        $assignedTaskProjectIds = \DB::table('assignments')
+                            ->join('tasks', 'assignments.task_id', '=', 'tasks.id')
+                            ->where('assignments.employee_user_id', $user->id)
+                            ->where('assignments.status', 'active')
+                            ->pluck('tasks.project_id');
+                        $assignedIds = $assignedIds->merge($assignedTaskProjectIds);
+                    }
+
+                    return Project::whereIn('id', $assignedIds->unique()->filter()->values())
+                        ->select('id', 'name', 'status')
+                        ->latest()
+                        ->get()
+                        ->toArray();
                 } catch (\Exception $e) {
                     return [];
                 }
@@ -130,7 +167,18 @@ class HandleInertiaRequests extends Middleware
                         })
                         ->count();
 
-                    $unstartedTasksCount = Task::where('assigned_user_id', $user->id)
+                    $unstartedTasksCount = Task::where(function ($q) use ($user) {
+                        $q->where('assigned_user_id', $user->id);
+
+                        if (Schema::hasTable('assignments')) {
+                            $q->orWhereIn('id', function ($sub) use ($user) {
+                                $sub->select('task_id')
+                                    ->from('assignments')
+                                    ->where('employee_user_id', $user->id)
+                                    ->where('status', 'active');
+                            });
+                        }
+                    })
                         ->where(function ($q) {
                             $q->where('status', 'todo')
                                 ->orWhere('sprint_status', 'ready_to_start');
@@ -222,7 +270,18 @@ class HandleInertiaRequests extends Middleware
                         })
                         ->count();
 
-                    $unstartedTasksCount = Task::where('assigned_user_id', $user->id)
+                    $unstartedTasksCount = Task::where(function ($q) use ($user) {
+                        $q->where('assigned_user_id', $user->id);
+
+                        if (Schema::hasTable('assignments')) {
+                            $q->orWhereIn('id', function ($sub) use ($user) {
+                                $sub->select('task_id')
+                                    ->from('assignments')
+                                    ->where('employee_user_id', $user->id)
+                                    ->where('status', 'active');
+                            });
+                        }
+                    })
                         ->where(function ($q) {
                             $q->where('status', 'todo')
                                 ->orWhere('sprint_status', 'ready_to_start');

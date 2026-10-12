@@ -97,6 +97,15 @@ class TenantDashboardController extends Controller
                 ->where(function ($q) use ($user) {
                     $q->where('assigned_user_id', $user->id)
                         ->orWhere('reviewer_user_id', $user->id);
+
+                    if (Schema::hasTable('assignments')) {
+                        $q->orWhereIn('id', function ($sub) use ($user) {
+                            $sub->select('task_id')
+                                ->from('assignments')
+                                ->where('employee_user_id', $user->id)
+                                ->where('status', 'active');
+                        });
+                    }
                 })
                 ->get();
 
@@ -104,7 +113,19 @@ class TenantDashboardController extends Controller
 
             if (Schema::hasTable('sprints')) {
                 $activeSprintRecord = Sprint::where('status', 'active')
-                    ->whereHas('tasks', fn ($q) => $q->where('assigned_user_id', $user->id)->orWhere('reviewer_user_id', $user->id))
+                    ->whereHas('tasks', function ($q) use ($user) {
+                        $q->where('assigned_user_id', $user->id)
+                            ->orWhere('reviewer_user_id', $user->id);
+
+                        if (Schema::hasTable('assignments')) {
+                            $q->orWhereIn('id', function ($sub) use ($user) {
+                                $sub->select('task_id')
+                                    ->from('assignments')
+                                    ->where('employee_user_id', $user->id)
+                                    ->where('status', 'active');
+                            });
+                        }
+                    })
                     ->with('project:id,name')
                     ->latest()
                     ->first();
@@ -296,6 +317,15 @@ class TenantDashboardController extends Controller
                 ->where(function ($q) use ($user) {
                     $q->where('assigned_user_id', $user->id)
                         ->orWhere('reviewer_user_id', $user->id);
+
+                    if (Schema::hasTable('assignments')) {
+                        $q->orWhereIn('id', function ($sub) use ($user) {
+                            $sub->select('task_id')
+                                ->from('assignments')
+                                ->where('employee_user_id', $user->id)
+                                ->where('status', 'active');
+                        });
+                    }
                 })
                 ->get();
 
@@ -603,6 +633,23 @@ class TenantDashboardController extends Controller
      */
     private function formatTaskForMember(Task $task, mixed $currentUser = null): array
     {
+        $isDoer = false;
+        if ($currentUser) {
+            $isDoer = ((int) $task->assigned_user_id === (int) $currentUser->id);
+            if (! $isDoer && Schema::hasTable('assignments')) {
+                $isDoer = DB::table('assignments')
+                    ->where('task_id', $task->id)
+                    ->where('employee_user_id', $currentUser->id)
+                    ->where('status', 'active')
+                    ->exists();
+            }
+        }
+
+        $assigneeName = $task->assignee?->name;
+        if (! $assigneeName && $isDoer && $currentUser) {
+            $assigneeName = $currentUser->name;
+        }
+
         return [
             'id' => $task->id,
             'project_id' => $task->project_id,
@@ -620,12 +667,12 @@ class TenantDashboardController extends Controller
             'days_until_deadline' => $task->days_until_deadline,
             'github_link' => $task->github_link,
             'is_critical' => (bool) $task->is_critical,
-            'assigned_user_id' => $task->assigned_user_id,
-            'assignee' => $task->assignee?->name,
+            'assigned_user_id' => $task->assigned_user_id ?? ($isDoer ? $currentUser?->id : null),
+            'assignee' => $assigneeName,
             'reviewer_user_id' => $task->reviewer_user_id,
             'reviewer' => $task->reviewer?->name,
             'is_reviewer' => $currentUser ? ((int) $task->reviewer_user_id === (int) $currentUser->id) : false,
-            'is_doer' => $currentUser ? ((int) $task->assigned_user_id === (int) $currentUser->id) : false,
+            'is_doer' => $isDoer,
             'sprint_id' => $task->sprint_id,
             'sprint_name' => $task->sprint?->name,
             'epic_id' => $task->epic_id,

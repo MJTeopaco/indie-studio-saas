@@ -342,6 +342,10 @@ class TenantSeeder extends Seeder
 
         DB::table('assignments')->insert($assignmentRows);
 
+        foreach ($assignmentRows as $row) {
+            DB::table('tasks')->where('id', $row['task_id'])->update(['assigned_user_id' => $row['employee_user_id']]);
+        }
+
         // -------------------------------------------------------------------
         // 5. Seed Team Velocity for Sprint 1 (Burndown Chart)
         // -------------------------------------------------------------------

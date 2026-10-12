@@ -679,58 +679,60 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                 )}
 
                 {/* 4. Projects Category */}
-                <div className="space-y-0.5 pt-1">
-                    <CategoryHeader
-                        label="Projects"
-                        isOpen={openCategories.projects}
-                        onToggle={() => toggleCategory('projects')}
-                        isCollapsed={isCollapsed}
-                    />
-                    {(openCategories.projects || isCollapsed) && (
-                        <div className="space-y-0.5 animate-in fade-in-50 duration-150">
-                            {projectLinks.map((item) => (
-                                <div key={item.label} className="space-y-1">
-                                    <NavItem
-                                        icon={item.icon}
-                                        label={item.label}
-                                        href={item.href}
-                                        active={item.active}
-                                        isCollapsed={isCollapsed}
-                                    />
-                                    {/* Sub-projects list */}
-                                    {!isCollapsed && workspaceProjects && workspaceProjects.length > 0 && (
-                                        <div className="mt-1 space-y-1">
-                                            {workspaceProjects.map((p) => {
-                                                const projectHref = `${baseHref}/projects/${p.id}`;
-                                                const isProjectActive = currentPath === projectHref;
-                                                return (
-                                                    <Link
-                                                        key={p.id}
-                                                        href={projectHref}
-                                                        className={`flex items-center gap-2 pl-9 pr-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-200 border-l-2 ${
-                                                            isProjectActive
-                                                                ? 'border-brand text-brand bg-brand-10/40 font-semibold'
-                                                                : 'border-transparent text-gray-500 dark:text-slate-400 hover:bg-gray-50 hover:dark:bg-slate-800/30 hover:text-gray-900 hover:dark:text-slate-200'
-                                                        }`}
-                                                    >
-                                                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                                            p.status === 'active'
-                                                                ? 'bg-emerald-500'
-                                                                : p.status === 'planning'
-                                                                ? 'bg-amber-500'
-                                                                : 'bg-gray-400'
-                                                        }`} />
-                                                        <span className="truncate">{p.name}</span>
-                                                    </Link>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
+                {(isManager || (workspaceProjects && workspaceProjects.length > 0)) && (
+                    <div className="space-y-0.5 pt-1">
+                        <CategoryHeader
+                            label="Projects"
+                            isOpen={openCategories.projects}
+                            onToggle={() => toggleCategory('projects')}
+                            isCollapsed={isCollapsed}
+                        />
+                        {(openCategories.projects || isCollapsed) && (
+                            <div className="space-y-0.5 animate-in fade-in-50 duration-150">
+                                {projectLinks.map((item) => (
+                                    <div key={item.label} className="space-y-1">
+                                        <NavItem
+                                            icon={item.icon}
+                                            label={item.label}
+                                            href={item.href}
+                                            active={item.active}
+                                            isCollapsed={isCollapsed}
+                                        />
+                                        {/* Sub-projects list */}
+                                        {!isCollapsed && workspaceProjects && workspaceProjects.length > 0 && (
+                                            <div className="mt-1 space-y-1">
+                                                {workspaceProjects.map((p) => {
+                                                    const projectHref = `${baseHref}/projects/${p.id}`;
+                                                    const isProjectActive = currentPath === projectHref;
+                                                    return (
+                                                        <Link
+                                                            key={p.id}
+                                                            href={projectHref}
+                                                            className={`flex items-center gap-2 pl-9 pr-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-200 border-l-2 ${
+                                                                isProjectActive
+                                                                    ? 'border-brand text-brand bg-brand-10/40 font-semibold'
+                                                                    : 'border-transparent text-gray-500 dark:text-slate-400 hover:bg-gray-50 hover:dark:bg-slate-800/30 hover:text-gray-900 hover:dark:text-slate-200'
+                                                            }`}
+                                                        >
+                                                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                                                p.status === 'active'
+                                                                    ? 'bg-emerald-500'
+                                                                    : p.status === 'planning'
+                                                                    ? 'bg-amber-500'
+                                                                    : 'bg-gray-400'
+                                                            }`} />
+                                                            <span className="truncate">{p.name}</span>
+                                                        </Link>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* 5. Utilities Category */}
                 <div className="space-y-0.5 pt-1">

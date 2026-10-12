@@ -224,16 +224,22 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
                         <div className="text-text-muted mb-4 opacity-40">
                             <PackageX className="w-12 h-12" />
                         </div>
-                        <h2 className="text-lg font-bold text-text-primary">No Projects Found</h2>
+                        <h2 className="text-lg font-bold text-text-primary">
+                            {hasManagerRights ? 'No Projects Found' : 'No Assigned Projects'}
+                        </h2>
                         <p className="text-sm text-text-muted mt-1 max-w-sm">
-                            Create your first project to organize tasks, assign developers, and start planning sprints.
+                            {hasManagerRights
+                                ? 'Create your first project to organize tasks, assign developers, and start planning sprints.'
+                                : 'You are not assigned to any projects yet. When you are added to a project or assigned tasks, your project details and tasks will appear here.'}
                         </p>
-                        <Link
-                            href={route('tenant.projects.index', { tenant: activeWorkspace })}
-                            className="mt-5 px-4 py-2 rounded-xl bg-brand text-white text-xs font-bold hover:bg-brand-light transition-all shadow-2xs focus-ring"
-                        >
-                            Go to Projects
-                        </Link>
+                        {hasManagerRights && (
+                            <Link
+                                href={route('tenant.projects.index', { tenant: activeWorkspace })}
+                                className="mt-5 px-4 py-2 rounded-xl bg-brand text-white text-xs font-bold hover:bg-brand-light transition-all shadow-2xs focus-ring"
+                            >
+                                Go to Projects
+                            </Link>
+                        )}
                     </div>
                 ) : (
                     <div className="flex-1 flex flex-col overflow-hidden">

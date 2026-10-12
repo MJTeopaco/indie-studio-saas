@@ -22,21 +22,65 @@ class TenantProjectController extends Controller
 {
     private function authorizeManager()
     {
+        if (! $this->isManagerOrLeader()) {
+            abort(403, 'Unauthorized action. Only studio managers can perform this task.');
+        }
+    }
+
+    private function isManagerOrLeader(): bool
+    {
         $user = auth()->user();
-        if ($user && $user->role === User::ROLE_ADMIN) {
-            return;
+        if (! $user) {
+            return false;
+        }
+        if ($user->role === User::ROLE_ADMIN) {
+            return true;
         }
 
-        $member = \DB::connection(config('tenancy.database.central_connection', 'central'))->table('studio_members')
+        $member = DB::connection(config('tenancy.database.central_connection', 'central'))->table('studio_members')
             ->where('studio_id', tenant('id'))
             ->where('user_id', $user->id)
             ->first();
 
         $role = $member ? $member->role : 'member';
 
-        if (! in_array($role, ['owner', 'leader', 'manager'])) {
-            abort(403, 'Unauthorized action. Only studio managers can perform this task.');
+        return in_array($role, ['owner', 'leader', 'manager']);
+    }
+
+    private function canViewProject(Project $project): bool
+    {
+        if ($this->isManagerOrLeader()) {
+            return true;
         }
+
+        $userId = auth()->id();
+        if (! $userId) {
+            return false;
+        }
+
+        if ($project->hasMember($userId)) {
+            return true;
+        }
+
+        if ($project->tasks()->where(function ($q) use ($userId) {
+            $q->where('assigned_user_id', $userId)
+                ->orWhere('reviewer_user_id', $userId);
+        })->exists()) {
+            return true;
+        }
+
+        if (Schema::hasTable('assignments')) {
+            $hasAssignment = DB::table('assignments')
+                ->where('employee_user_id', $userId)
+                ->whereIn('task_id', $project->tasks()->pluck('id'))
+                ->where('status', 'active')
+                ->exists();
+            if ($hasAssignment) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -46,9 +90,35 @@ class TenantProjectController extends Controller
     {
         $studio = Studio::find(tenant('id'));
         $membersCount = $studio ? $studio->users()->count() : 0;
+        $isManager = $this->isManagerOrLeader();
 
-        $projects = Project::withCount(['projectMembers as members_count', 'tasks'])
-            ->latest()
+        $query = Project::withCount(['projectMembers as members_count', 'tasks']);
+
+        if (! $isManager) {
+            $userId = auth()->id();
+            $assignedProjectIds = DB::table('project_members')
+                ->where('user_id', $userId)
+                ->pluck('project_id')
+                ->merge(
+                    Task::where('assigned_user_id', $userId)
+                        ->orWhere('reviewer_user_id', $userId)
+                        ->pluck('project_id')
+                );
+
+            if (Schema::hasTable('assignments')) {
+                $assignedTaskProjectIds = DB::table('assignments')
+                    ->join('tasks', 'assignments.task_id', '=', 'tasks.id')
+                    ->where('assignments.employee_user_id', $userId)
+                    ->where('assignments.status', 'active')
+                    ->pluck('tasks.project_id');
+                $assignedProjectIds = $assignedProjectIds->merge($assignedTaskProjectIds);
+            }
+
+            $assignedProjectIds = $assignedProjectIds->unique()->filter()->values();
+            $query->whereIn('id', $assignedProjectIds);
+        }
+
+        $projects = $query->latest()
             ->get()
             ->map(fn (Project $project): array => [
                 'id' => $project->id,
@@ -90,6 +160,10 @@ class TenantProjectController extends Controller
                     }]);
             },
         ])->findOrFail($project);
+
+        if (! $this->canViewProject($projectModel)) {
+            abort(403, 'Unauthorized access. Only assigned members or team leaders can view this project.');
+        }
 
         $teamMembers = $studio ? $studio->users()->get()->map(fn ($u) => ['id' => $u->id, 'name' => $u->name]) : [];
         $membersById = collect($teamMembers)->keyBy('id');

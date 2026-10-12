@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import TenantLayout from '@/Layouts/TenantLayout';
 import { Head, usePage } from '@inertiajs/react';
-import { Plus } from 'lucide-react';
+import { Plus, PackageX } from 'lucide-react';
 import ProjectCard from '@/Components/Tenant/Projects/ProjectCard';
 import CreateProjectModal from '@/Components/Tenant/Projects/CreateProjectModal';
 
 export default function TenantProjectsIndex({ studio, projects: serverProjects }) {
-    const { activeWorkspace } = usePage().props;
+    const { activeWorkspace, canManage = false } = usePage().props;
     const tenantId = activeWorkspace || (studio ? studio.id : 'default');
 
     const initialProjects = Array.isArray(serverProjects) ? serverProjects : [];
@@ -76,23 +76,35 @@ export default function TenantProjectsIndex({ studio, projects: serverProjects }
 
                     {/* Responsive CSS Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {/* Dashed Create New Project Card */}
-                        <button
-                            type="button"
-                            onClick={() => setIsCreateModalOpen(true)}
-                            className="group flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 dark:border-slate-700 hover:border-brand dark:hover:border-brand bg-gray-50/50 dark:bg-slate-900/50 hover:bg-gray-100/80 dark:hover:bg-slate-800/80 p-8 text-center transition-all duration-200 min-h-[14rem] focus-ring cursor-pointer"
-                        >
-                            <div className="w-12 h-12 rounded-xl bg-brand/10 dark:bg-brand/20 group-hover:bg-brand group-hover:text-white text-brand dark:text-brand-light flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-sm">
-                                <Plus className="w-6 h-6 stroke-[2.5]" />
-                            </div>
+                        {/* Dashed Create New Project Card (Managers/Leaders only) */}
+                        {canManage && (
+                            <button
+                                type="button"
+                                onClick={() => setIsCreateModalOpen(true)}
+                                className="group flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 dark:border-slate-700 hover:border-brand dark:hover:border-brand bg-gray-50/50 dark:bg-slate-900/50 hover:bg-gray-100/80 dark:hover:bg-slate-800/80 p-8 text-center transition-all duration-200 min-h-[14rem] focus-ring cursor-pointer"
+                            >
+                                <div className="w-12 h-12 rounded-xl bg-brand/10 dark:bg-brand/20 group-hover:bg-brand group-hover:text-white text-brand dark:text-brand-light flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-sm">
+                                    <Plus className="w-6 h-6 stroke-[2.5]" />
+                                </div>
 
-                            <h3 className="mt-4 text-base font-bold text-gray-900 dark:text-slate-100 group-hover:text-brand dark:group-hover:text-brand-light transition-colors">
-                                Create New Project
-                            </h3>
-                            <p className="mt-1 text-xs text-gray-600 dark:text-slate-400 max-w-[14rem]">
-                                Organize tasks, assign members, and track delivery progress.
-                            </p>
-                        </button>
+                                <h3 className="mt-4 text-base font-bold text-gray-900 dark:text-slate-100 group-hover:text-brand dark:group-hover:text-brand-light transition-colors">
+                                    Create New Project
+                                </h3>
+                                <p className="mt-1 text-xs text-gray-600 dark:text-slate-400 max-w-[14rem]">
+                                    Organize tasks, assign members, and track delivery progress.
+                                </p>
+                            </button>
+                        )}
+
+                        {!canManage && projects.length === 0 && (
+                            <div className="col-span-full flex flex-col items-center justify-center py-16 text-center bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-8">
+                                <PackageX className="w-12 h-12 text-gray-400 dark:text-slate-500 mb-3" />
+                                <h3 className="text-base font-bold text-gray-900 dark:text-slate-100">No Assigned Projects</h3>
+                                <p className="text-xs text-gray-500 dark:text-slate-400 max-w-sm mt-1">
+                                    You have not been assigned to any projects yet. When you are added to a project team or assigned tasks, your project details will appear here.
+                                </p>
+                            </div>
+                        )}
 
                         {/* Existing Project Cards */}
                         {projects.map((project) => (

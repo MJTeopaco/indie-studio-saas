@@ -10,6 +10,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class TenantTaskController extends Controller
@@ -32,11 +33,42 @@ class TenantTaskController extends Controller
             $isManager = in_array($role, ['owner', 'leader', 'manager']);
         }
 
-        $projects = Project::latest()->get()->map(fn (Project $project) => [
-            'id' => $project->id,
-            'name' => $project->name,
-            'status' => $project->status,
-        ])->all();
+        if ($isManager) {
+            $projects = Project::latest()->get()->map(fn (Project $project) => [
+                'id' => $project->id,
+                'name' => $project->name,
+                'status' => $project->status,
+            ])->all();
+        } else {
+            $assignedProjectIds = DB::table('project_members')
+                ->where('user_id', $user->id)
+                ->pluck('project_id')
+                ->merge(
+                    Task::where('assigned_user_id', $user->id)
+                        ->orWhere('reviewer_user_id', $user->id)
+                        ->pluck('project_id')
+                );
+
+            if (Schema::hasTable('assignments')) {
+                $assignedTaskProjectIds = DB::table('assignments')
+                    ->join('tasks', 'assignments.task_id', '=', 'tasks.id')
+                    ->where('assignments.employee_user_id', $user->id)
+                    ->where('assignments.status', 'active')
+                    ->pluck('tasks.project_id');
+                $assignedProjectIds = $assignedProjectIds->merge($assignedTaskProjectIds);
+            }
+
+            $assignedProjectIds = $assignedProjectIds->unique()->filter()->values();
+
+            $projects = Project::whereIn('id', $assignedProjectIds)
+                ->latest()
+                ->get()
+                ->map(fn (Project $project) => [
+                    'id' => $project->id,
+                    'name' => $project->name,
+                    'status' => $project->status,
+                ])->all();
+        }
 
         $tasks = [];
         foreach ($projects as $project) {
@@ -47,44 +79,87 @@ class TenantTaskController extends Controller
                 $query->where(function ($q) use ($user) {
                     $q->where('assigned_user_id', $user->id)
                         ->orWhere('reviewer_user_id', $user->id);
+
+                    if (Schema::hasTable('assignments')) {
+                        $q->orWhereIn('id', function ($sub) use ($user) {
+                            $sub->select('task_id')
+                                ->from('assignments')
+                                ->where('employee_user_id', $user->id)
+                                ->where('status', 'active');
+                        });
+                    }
                 });
             }
 
-            $tasks[$project['id']] = $query->get()
-                ->map(fn (Task $task) => [
-                    'id' => $task->id,
-                    'project_id' => $task->project_id,
-                    'title' => $task->title,
-                    'description' => $task->description,
-                    'task_classification' => $task->task_classification,
-                    'required_position' => $task->required_position,
-                    'task_difficulty' => $task->task_difficulty,
-                    'priority' => $task->priority,
-                    'estimated_hours' => $task->estimated_hours,
-                    'days_until_deadline' => $task->days_until_deadline,
-                    'hard_constraint_date' => $task->hard_constraint_date?->format('Y-m-d'),
-                    'status' => $task->status,
-                    'sprint_status' => $task->sprint_status,
-                    'sprint_priority' => $task->sprint_priority,
-                    'story_points' => $task->story_points,
-                    'github_link' => $task->github_link,
-                    'is_critical' => (bool) $task->is_critical,
-                    'assignee' => $task->assignee ? $task->assignee->name : null,
-                    'assigned_user_id' => $task->assigned_user_id,
-                    'reviewer' => $task->reviewer ? $task->reviewer->name : null,
-                    'reviewer_user_id' => $task->reviewer_user_id,
-                    'sprint_id' => $task->sprint_id,
-                    'sprint_name' => $task->sprint?->name,
-                    'epic_id' => $task->epic_id,
-                    'epic_name' => $task->epic?->name,
-                    'epic_color' => $task->epic?->color,
-                    'dueDate' => $task->hard_constraint_date
-                        ? $task->hard_constraint_date->format('Y-m-d')
-                        : ($task->days_until_deadline !== null
-                            ? now()->addDays($task->days_until_deadline)->toDateString()
-                            : null),
-                    'startDate' => now()->toDateString(),
-                ])->all();
+            $projectTasks = $query->get();
+            $taskIds = $projectTasks->pluck('id');
+
+            $assignmentsByTask = [];
+            if (Schema::hasTable('assignments') && $taskIds->isNotEmpty()) {
+                $activeAssignments = DB::table('assignments')
+                    ->whereIn('task_id', $taskIds)
+                    ->where('status', 'active')
+                    ->orderBy('assigned_at')
+                    ->get(['task_id', 'employee_user_id']);
+
+                $memberIds = $activeAssignments->pluck('employee_user_id')->unique()->filter();
+                $members = DB::connection(config('tenancy.database.central_connection', 'central'))
+                    ->table('users')
+                    ->whereIn('id', $memberIds)
+                    ->get(['id', 'name'])
+                    ->keyBy('id');
+
+                foreach ($activeAssignments as $assign) {
+                    if (! isset($assignmentsByTask[$assign->task_id])) {
+                        $assignmentsByTask[$assign->task_id] = [
+                            'user_id' => $assign->employee_user_id,
+                            'name' => $members[$assign->employee_user_id]->name ?? null,
+                        ];
+                    }
+                }
+            }
+
+            $tasks[$project['id']] = $projectTasks
+                ->map(function (Task $task) use ($assignmentsByTask) {
+                    $fallbackAssignee = $assignmentsByTask[$task->id] ?? null;
+                    $assigneeName = $task->assignee ? $task->assignee->name : ($fallbackAssignee['name'] ?? null);
+                    $assignedUserId = $task->assigned_user_id ?? ($fallbackAssignee['user_id'] ?? null);
+
+                    return [
+                        'id' => $task->id,
+                        'project_id' => $task->project_id,
+                        'title' => $task->title,
+                        'description' => $task->description,
+                        'task_classification' => $task->task_classification,
+                        'required_position' => $task->required_position,
+                        'task_difficulty' => $task->task_difficulty,
+                        'priority' => $task->priority,
+                        'estimated_hours' => $task->estimated_hours,
+                        'days_until_deadline' => $task->days_until_deadline,
+                        'hard_constraint_date' => $task->hard_constraint_date?->format('Y-m-d'),
+                        'status' => $task->status,
+                        'sprint_status' => $task->sprint_status,
+                        'sprint_priority' => $task->sprint_priority,
+                        'story_points' => $task->story_points,
+                        'github_link' => $task->github_link,
+                        'is_critical' => (bool) $task->is_critical,
+                        'assignee' => $assigneeName,
+                        'assigned_user_id' => $assignedUserId,
+                        'reviewer' => $task->reviewer ? $task->reviewer->name : null,
+                        'reviewer_user_id' => $task->reviewer_user_id,
+                        'sprint_id' => $task->sprint_id,
+                        'sprint_name' => $task->sprint?->name,
+                        'epic_id' => $task->epic_id,
+                        'epic_name' => $task->epic?->name,
+                        'epic_color' => $task->epic?->color,
+                        'dueDate' => $task->hard_constraint_date
+                            ? $task->hard_constraint_date->format('Y-m-d')
+                            : ($task->days_until_deadline !== null
+                                ? now()->addDays($task->days_until_deadline)->toDateString()
+                                : null),
+                        'startDate' => now()->toDateString(),
+                    ];
+                })->all();
         }
 
         return Inertia::render('Tenant/Tasks/Index', [
