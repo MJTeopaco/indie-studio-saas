@@ -47,6 +47,9 @@ Route::prefix('/studio/{tenant}')->middleware([
     Route::get('/my-work', fn () => redirect()->route('tenant.dashboard', ['tenant' => tenant('id') ?? request()->route('tenant')]))
         ->name('tenant.my-work');
 
+    Route::get('/home', fn () => redirect()->route('tenant.dashboard', ['tenant' => tenant('id') ?? request()->route('tenant')]))
+        ->name('tenant.home');
+
     Route::get('/overview', fn () => redirect()->route('tenant.dashboard', ['tenant' => tenant('id') ?? request()->route('tenant')]))
         ->name('tenant.overview');
 

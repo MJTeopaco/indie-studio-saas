@@ -21,6 +21,12 @@ import { showToast } from '@/Components/SystemToast';
 // Premium Custom SVG Icons
 // =============================================================================
 
+const PremiumHomeIcon = ({ className }) => (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 9.5L12 3L21 9.5V20C21 20.5523 20.5523 21 20 21H15C14.4477 21 14 20.5523 14 20V15C14 14.4477 13.5523 14 13 14H11C10.4477 14 10 14.4477 10 15V20C10 20.5523 9.55228 21 9 21H4C3.44772 21 3 20.5523 3 20V9.5Z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+);
+
 const PremiumDashboardIcon = ({ className }) => (
     <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect x="3" y="3" width="7" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
@@ -472,10 +478,10 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
         ]
         : [
             {
-                label: 'Dashboard',
-                icon: PremiumDashboardIcon,
+                label: 'Home',
+                icon: PremiumHomeIcon,
                 href: `${baseHref}/dashboard`,
-                active: (currentPath.includes('/dashboard') || currentPath.includes('/my-work') || currentPath === baseHref) && !isInboxActive,
+                active: (currentPath.includes('/dashboard') || currentPath.includes('/my-work') || currentPath.includes('/home') || currentPath === baseHref) && !isInboxActive,
             },
         ];
 

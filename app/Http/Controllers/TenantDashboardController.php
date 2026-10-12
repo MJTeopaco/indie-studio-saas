@@ -385,11 +385,59 @@ class TenantDashboardController extends Controller
             ];
         })->values()->all();
 
+        // ── Monday.com Home Page Experience (Recently Visited, Update Feed Inbox, Profile Checklist) ──
+        $tenantId = tenant('id') ?? ($studio ? $studio->id : 'default');
+        $studioName = $studio ? $studio->name : 'SprintStudio';
+        $primaryProject = collect($projects)->first();
+        $primaryProjectId = $primaryProject['id'] ?? null;
+        $primaryProjectName = $primaryProject['name'] ?? 'Workspace';
+
+        $recentBoards = [
+            [
+                'id' => 'sprints',
+                'title' => 'Sprints',
+                'type' => 'sprints',
+                'breadcrumb' => "{$studioName} > {$primaryProjectName} > Sprints",
+                'url' => $primaryProjectId ? url("/studio/{$tenantId}/projects/{$primaryProjectId}") : url("/studio/{$tenantId}/tasks"),
+                'project_id' => $primaryProjectId,
+            ],
+            [
+                'id' => 'tasks',
+                'title' => 'Tasks',
+                'type' => 'tasks',
+                'breadcrumb' => "{$studioName} > {$primaryProjectName} > Tasks",
+                'url' => url("/studio/{$tenantId}/tasks"),
+                'project_id' => $primaryProjectId,
+            ],
+            [
+                'id' => 'epics',
+                'title' => 'Epics',
+                'type' => 'epics',
+                'breadcrumb' => "{$studioName} > {$primaryProjectName} > Epics",
+                'url' => url("/studio/{$tenantId}/overview"),
+                'project_id' => $primaryProjectId,
+            ],
+            [
+                'id' => 'reports',
+                'title' => 'Retrospectives',
+                'type' => 'reports',
+                'breadcrumb' => "{$studioName} > {$primaryProjectName} > Retrospectives",
+                'url' => url("/studio/{$tenantId}/reports"),
+                'project_id' => $primaryProjectId,
+            ],
+        ];
+
+        $updateFeed = $this->getMemberUpdateFeed($user, $tenantId, $assignedTasks, $reviewTasks);
+        $unreadFeedCount = count(array_filter($updateFeed, fn ($f) => ! $f['is_read']));
+
         return Inertia::render('Tenant/MemberDashboard', [
             'studio' => [
                 'id' => $studio ? $studio->id : tenant('id'),
                 'name' => $studio ? $studio->name : 'Studio',
             ],
+            'recentBoards' => $recentBoards,
+            'updateFeed' => $updateFeed,
+            'unreadFeedCount' => $unreadFeedCount,
             'metrics' => [
                 'open_tasks' => [
                     'count' => $openTasksCount,
@@ -1357,6 +1405,190 @@ class TenantDashboardController extends Controller
         }
 
         return $notifications;
+    }
+
+    /**
+     * Build rich Monday.com-style update feed for member home page.
+     */
+    private function getMemberUpdateFeed(User $user, ?string $tenantId, $assignedTasks, $reviewTasks): array
+    {
+        $feed = [];
+        $tenantId = $tenantId ?: (tenant('id') ?: 'default');
+
+        // 1. Channel messages & direct messages
+        try {
+            if (Schema::hasTable('channel_messages')) {
+                $userReads = collect();
+                if (Schema::hasTable('channel_reads')) {
+                    $userReads = ChannelRead::where('user_id', $user->id)->get()->keyBy('channel_id');
+                }
+
+                $readNotificationIds = [];
+                if (Schema::hasTable('notification_reads')) {
+                    $readNotificationIds = NotificationRead::where('user_id', $user->id)->pluck('notification_id')->all();
+                }
+
+                $msgs = ChannelMessage::where('user_id', '!=', $user->id)
+                    ->where('is_unsent', false)
+                    ->where(function ($q) use ($user) {
+                        $q->whereNull('deleted_for_user_ids')
+                            ->orWhereJsonDoesntContain('deleted_for_user_ids', (int) $user->id);
+                    })
+                    ->orderBy('created_at', 'desc')
+                    ->limit(30)
+                    ->get();
+
+                foreach ($msgs as $m) {
+                    $isDm = str_starts_with($m->channel_id, 'dm-');
+                    if ($isDm) {
+                        $parts = explode('-', str_replace('dm-', '', $m->channel_id));
+                        $uIds = explode('_', $parts[0] ?? '');
+                        if (! in_array((string) $user->id, $uIds, true)) {
+                            continue;
+                        }
+                    }
+
+                    $isMention = (! empty($m->mentions) && in_array((int) $user->id, $m->mentions))
+                        || str_contains(strtolower($m->body), '@'.strtolower($user->name));
+
+                    $chTitle = $isDm ? 'Direct Message' : (str_starts_with($m->channel_id, 'ch-') ? '#'.str_replace('ch-', '', $m->channel_id) : '#'.$m->channel_id);
+
+                    $userRead = $userReads->get($m->channel_id);
+                    $isRead = false;
+                    if ($userRead) {
+                        if ($userRead->last_read_message_id && $m->id <= $userRead->last_read_message_id) {
+                            $isRead = true;
+                        } elseif ($userRead->last_read_at && $m->created_at <= $userRead->last_read_at) {
+                            $isRead = true;
+                        }
+                    }
+
+                    $notifId = 'msg-'.$m->id;
+                    $isRead = $isRead || in_array($notifId, $readNotificationIds);
+
+                    $initials = collect(explode(' ', $m->sender_name))->map(fn ($p) => substr($p, 0, 1))->take(2)->join('');
+
+                    $feed[] = [
+                        'id' => $notifId,
+                        'feed_type' => $isMention ? 'mention' : ($isDm ? 'direct_message' : 'channel_message'),
+                        'title' => $isMention ? "{$m->sender_name} mentioned you in {$chTitle}" : ($isDm ? "Direct message from {$m->sender_name}" : "{$m->sender_name} posted in {$chTitle}"),
+                        'context_name' => $chTitle,
+                        'context_type' => $isDm ? 'dm' : 'channel',
+                        'context_url' => url("/studio/{$tenantId}/inbox"),
+                        'channel_id' => $m->channel_id,
+                        'task_id' => null,
+                        'author' => [
+                            'id' => $m->user_id,
+                            'name' => $m->sender_name,
+                            'avatar' => null,
+                            'role' => $m->sender_role ?? 'Team Member',
+                            'initials' => strtoupper($initials ?: 'U'),
+                        ],
+                        'body' => $m->body,
+                        'attachments' => $m->attachments ?? [],
+                        'created_at' => $m->created_at?->toIso8601String() ?? now()->toIso8601String(),
+                        'created_at_human' => $m->created_at?->diffForHumans() ?? 'Recently',
+                        'is_read' => (bool) $isRead,
+                        'is_mention' => (bool) $isMention,
+                        'likes_count' => 0,
+                        'is_liked' => false,
+                    ];
+                }
+            }
+        } catch (\Throwable $e) {
+            // Ignore fallback
+        }
+
+        // 2. Task Assignments
+        try {
+            $readNotificationIds = Schema::hasTable('notification_reads')
+                ? NotificationRead::where('user_id', $user->id)->pluck('notification_id')->all()
+                : [];
+
+            foreach ($assignedTasks->take(10) as $t) {
+                $notifId = "task-{$t->id}-assigned";
+                $isRead = in_array($notifId, $readNotificationIds) || in_array("task-{$t->id}-task_assigned", $readNotificationIds);
+                $projectName = $t->project?->name ?? 'Studio Project';
+
+                $feed[] = [
+                    'id' => $notifId,
+                    'feed_type' => 'task_assigned',
+                    'title' => "You were assigned to: {$t->title}",
+                    'context_name' => "Tasks > {$projectName} > #{$t->id}",
+                    'context_type' => 'task',
+                    'context_url' => url("/studio/{$tenantId}/tasks"),
+                    'channel_id' => null,
+                    'task_id' => $t->id,
+                    'task' => [
+                        'id' => $t->id,
+                        'title' => $t->title,
+                        'status' => $t->status,
+                        'priority' => $t->priority ?? 'MEDIUM',
+                    ],
+                    'author' => [
+                        'id' => null,
+                        'name' => 'Sprint Automation',
+                        'avatar' => null,
+                        'role' => 'Project Lead',
+                        'initials' => 'SA',
+                    ],
+                    'body' => "You have been assigned to '{$t->title}' ({$t->estimated_hours}h estimated). Priority: {$t->priority}.",
+                    'attachments' => [],
+                    'created_at' => $t->created_at?->toIso8601String() ?? now()->toIso8601String(),
+                    'created_at_human' => $t->created_at?->diffForHumans() ?? 'Recently',
+                    'is_read' => (bool) $isRead,
+                    'is_mention' => false,
+                    'likes_count' => 0,
+                    'is_liked' => false,
+                ];
+            }
+
+            foreach ($reviewTasks->take(10) as $rt) {
+                $notifId = "task-{$rt->id}-review_request";
+                $isRead = in_array($notifId, $readNotificationIds);
+                $assigneeName = $rt->assignee?->name ?? 'Teammate';
+                $initials = collect(explode(' ', $assigneeName))->map(fn ($p) => substr($p, 0, 1))->take(2)->join('');
+
+                $feed[] = [
+                    'id' => $notifId,
+                    'feed_type' => 'task_review',
+                    'title' => "Code review requested on: {$rt->title}",
+                    'context_name' => "Review Queue > #{$rt->id}",
+                    'context_type' => 'task',
+                    'context_url' => url("/studio/{$tenantId}/tasks"),
+                    'channel_id' => null,
+                    'task_id' => $rt->id,
+                    'task' => [
+                        'id' => $rt->id,
+                        'title' => $rt->title,
+                        'status' => $rt->status,
+                        'priority' => $rt->priority ?? 'MEDIUM',
+                    ],
+                    'author' => [
+                        'id' => $rt->assignee?->id,
+                        'name' => $assigneeName,
+                        'avatar' => $rt->assignee?->avatar,
+                        'role' => 'Developer',
+                        'initials' => strtoupper($initials ?: 'DEV'),
+                    ],
+                    'body' => "{$assigneeName} moved Task #{$rt->id} ('{$rt->title}') to Review and requested your verification.",
+                    'attachments' => [],
+                    'created_at' => $rt->updated_at?->toIso8601String() ?? now()->toIso8601String(),
+                    'created_at_human' => $rt->updated_at?->diffForHumans() ?? 'Recently',
+                    'is_read' => (bool) $isRead,
+                    'is_mention' => true,
+                    'likes_count' => 0,
+                    'is_liked' => false,
+                ];
+            }
+        } catch (\Throwable $e) {
+            // Ignore fallback
+        }
+
+        // Sort descending by created_at
+        usort($feed, fn ($a, $b) => strcmp($b['created_at'], $a['created_at']));
+
+        return array_values($feed);
     }
 
     public function unreadCount(Request $request): JsonResponse
