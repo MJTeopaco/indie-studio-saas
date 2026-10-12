@@ -108,26 +108,27 @@ class MLEngineService
      */
     private function streamFromMlEngine(string $path, string $description): \Generator
     {
-        $url  = $this->baseUrl.$path;
+        $url = $this->baseUrl.$path;
         $body = json_encode(['description' => $description]);
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $body,
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: text/event-stream'],
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $body,
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Accept: text/event-stream'],
             CURLOPT_RETURNTRANSFER => false,
             CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_TIMEOUT        => 600,
+            CURLOPT_TIMEOUT => 600,
             // Stream chunks back via the write callback
-            CURLOPT_WRITEFUNCTION  => function ($ch, $chunk) use (&$chunks) {
+            CURLOPT_WRITEFUNCTION => function ($ch, $chunk) use (&$chunks) {
                 $chunks[] = $chunk;
+
                 return strlen($chunk);
             },
         ]);
 
         $chunks = [];
-        $index  = 0;
+        $index = 0;
 
         // We need to drive the cURL transfer in small steps so we can yield
         // individual SSE frames as they arrive. Use a multi-handle for this.

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Tenant\UserDomain;
+use Carbon\Carbon;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -85,7 +86,7 @@ class User extends Authenticatable
      */
     public function checkAndResolveLeaveStatus(): void
     {
-        if ($this->working_status === 'on_leave' && $this->leave_end_date && now()->startOfDay()->gt(\Carbon\Carbon::parse($this->leave_end_date)->endOfDay())) {
+        if ($this->working_status === 'on_leave' && $this->leave_end_date && now()->startOfDay()->gt(Carbon::parse($this->leave_end_date)->endOfDay())) {
             $this->working_status = 'active';
             $this->leave_start_date = null;
             $this->leave_end_date = null;

@@ -6,6 +6,7 @@ import LeaveApprovalConfirmDialog from '@/Components/Tenant/LeaveApprovalConfirm
 import { showToast } from '@/Components/SystemToast';
 import {
     Bell,
+    Inbox as InboxIcon,
     MailOpen,
     MessageSquare,
     Sparkles,
@@ -853,33 +854,83 @@ export default function Inbox({
     teamMembers = [],
     pendingEstimatesCount = 0,
 }) {
-    const { auth, activeWorkspace, canManage = false } = usePage().props;
+    const page = usePage();
+    const { auth, activeWorkspace, canManage = false } = page.props;
+    const pageUrl = page.url || '';
     const currentUser = auth?.user;
     const isLeader = Boolean(canManage);
     const workspaceSlug = studio?.id || activeWorkspace || (typeof window !== 'undefined' ? window.location.pathname.split('/')[2] : 'indiecraft-studios');
 
-    // ── TABS ─────────────────────────────────────────────────────────────────
-    const [activeTab, setActiveTab] = useState('notifications');
+    // ── TABS & VIEW SELECTION (Driven by Sidebar navigation) ─────────────────
+    const [activeTab, setActiveTab] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            const tabParam = params.get('tab');
+            if (tabParam === 'messages' || tabParam === 'channels') return 'messages';
+        }
+        return 'notifications';
+    });
 
-    // ── NOTIFICATIONS ────────────────────────────────────────────────────────
+    const handleTabChange = useCallback((newTab) => {
+        setActiveTab(newTab);
+        if (typeof window !== 'undefined') {
+            const url = new URL(window.location.href);
+            url.searchParams.set('tab', newTab);
+            window.history.replaceState({}, '', url.toString());
+        }
+    }, []);
+
+    // Sync tab when navigating via Sidebar dropdown or browser history
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            const tabParam = params.get('tab');
+            if (tabParam === 'messages' || tabParam === 'channels') {
+                setActiveTab('messages');
+            } else if (tabParam === 'notifications') {
+                setActiveTab('notifications');
+            }
+        }
+    }, [pageUrl]);
+
+    useEffect(() => {
+        const handlePopState = () => {
+            const params = new URLSearchParams(window.location.search);
+            const tabParam = params.get('tab');
+            if (tabParam === 'messages' || tabParam === 'channels') setActiveTab('messages');
+            else if (tabParam === 'notifications') setActiveTab('notifications');
+        };
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
+
+    // ── NOTIFICATIONS STATE ──────────────────────────────────────────────────
     const [notificationsList, setNotificationsList] = useState(initialNotifications);
-    const [notifFilter, setNotifFilter] = useState('all');
+    const [notifFilter, setNotifFilter] = useState('all'); // 'all' | 'action' | 'messages' | 'alerts'
+    const [onlyUnread, setOnlyUnread] = useState(false);
     const [notifSearch, setNotifSearch] = useState('');
     const [selectedNotifId, setSelectedNotifId] = useState(
         () => initialNotifications.length > 0 ? initialNotifications[0].id : null
     );
     const [selectedTask, setSelectedTask] = useState(null);
     const [detailModalOpen, setDetailModalOpen] = useState(false);
-    const [quickReplyText, setQuickReplyText] = useState('');
-    const [quickReplySuccess, setQuickReplySuccess] = useState(false);
 
     // Leave approval states
     const [leaveActionProcessingId, setLeaveActionProcessingId] = useState(null);
     const [approveModalReq, setApproveModalReq] = useState(null);
     const [declineModalReq, setDeclineModalReq] = useState(null);
 
+    // Category count metrics
     const unreadCount = useMemo(() => notificationsList.filter(n => !n.read).length, [notificationsList]);
-    const leaveRequestsCount = useMemo(() => notificationsList.filter(n => n.type === 'leave_request').length, [notificationsList]);
+    const actionRequiredCount = useMemo(() =>
+        notificationsList.filter(n => ['leave_request', 'review_request', 'estimate_pending'].includes(n.type) && !n.read).length,
+    [notificationsList]);
+    const messagesNotifCount = useMemo(() =>
+        notificationsList.filter(n => ['direct_message', 'channel_mention'].includes(n.type) && !n.read).length,
+    [notificationsList]);
+    const alertsNotifCount = useMemo(() =>
+        notificationsList.filter(n => ['overdue', 'stuck'].includes(n.type) && !n.read).length,
+    [notificationsList]);
 
     const handleApproveLeave = (leaveReq) => {
         if (!leaveReq) return;
@@ -931,7 +982,7 @@ export default function Inbox({
         setNotificationsList(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
         try {
             await axios.post(`/studio/${workspaceSlug}/notifications/${id}/read`);
-            router.reload({ only: ['inboxNotificationCount'] });
+            router.reload({ only: ['inboxNotificationCount', 'inboxUnreadBreakdown'] });
         } catch {
             // ignore
         }
@@ -942,27 +993,34 @@ export default function Inbox({
         setUnreadCounts({});
         try {
             await axios.post(`/studio/${workspaceSlug}/notifications/read-all`);
-            router.reload({ only: ['inboxNotificationCount'] });
+            router.reload({ only: ['inboxNotificationCount', 'inboxUnreadBreakdown'] });
         } catch {
             // ignore
         }
     };
 
+    const filteredNotifications = useMemo(() => {
+        return notificationsList.filter(item => {
+            const matchesSearch = notifSearch === '' ||
+                item.title?.toLowerCase().includes(notifSearch.toLowerCase()) ||
+                item.body?.toLowerCase().includes(notifSearch.toLowerCase()) ||
+                (item.project_name && item.project_name.toLowerCase().includes(notifSearch.toLowerCase()));
 
-    const filteredNotifications = useMemo(() => notificationsList.filter(item => {
-        const matchesSearch = notifSearch === '' ||
-            item.title.toLowerCase().includes(notifSearch.toLowerCase()) ||
-            item.body.toLowerCase().includes(notifSearch.toLowerCase()) ||
-            (item.project_name && item.project_name.toLowerCase().includes(notifSearch.toLowerCase()));
-        let matchesFilter = true;
-        if (notifFilter === 'unread') matchesFilter = !item.read;
-        else if (notifFilter === 'leaves') matchesFilter = item.type === 'leave_request';
-        else if (notifFilter === 'messages') matchesFilter = item.type === 'direct_message' || item.type === 'channel_mention';
-        else if (notifFilter === 'reviews') matchesFilter = item.type === 'review_request';
-        else if (notifFilter === 'assignments') matchesFilter = item.type === 'task_assigned';
-        else if (notifFilter === 'alerts') matchesFilter = item.type === 'overdue' || item.type === 'stuck';
-        return matchesSearch && matchesFilter;
-    }), [notificationsList, notifSearch, notifFilter]);
+            if (!matchesSearch) return false;
+            if (onlyUnread && item.read) return false;
+
+            if (notifFilter === 'action') {
+                return ['leave_request', 'review_request', 'estimate_pending'].includes(item.type);
+            }
+            if (notifFilter === 'messages') {
+                return ['direct_message', 'channel_mention'].includes(item.type);
+            }
+            if (notifFilter === 'alerts') {
+                return ['overdue', 'stuck'].includes(item.type);
+            }
+            return true;
+        });
+    }, [notificationsList, notifSearch, notifFilter, onlyUnread]);
 
     const activeNotification = useMemo(
         () => notificationsList.find(n => n.id === selectedNotifId) || filteredNotifications[0] || null,
@@ -1142,6 +1200,29 @@ export default function Inbox({
             return a.name.localeCompare(b.name);
         });
     }, [channels, channelActivity, selectedChat, messages, unreadCounts]);
+
+    // ── Chat Search & Filtering ───────────────────────────────────────────────
+    const [chatSearchQuery, setChatSearchQuery] = useState('');
+
+    const filteredChannels = useMemo(() => {
+        if (!chatSearchQuery.trim()) return sortedChannels;
+        const q = chatSearchQuery.toLowerCase().trim();
+        return sortedChannels.filter(c =>
+            c.name.toLowerCase().includes(q) ||
+            (c.description && c.description.toLowerCase().includes(q))
+        );
+    }, [sortedChannels, chatSearchQuery]);
+
+    const filteredTeamMembers = useMemo(() => {
+        if (!chatSearchQuery.trim()) return sortedTeamMembers;
+        const q = chatSearchQuery.toLowerCase().trim();
+        return sortedTeamMembers.filter(m =>
+            m.name.toLowerCase().includes(q) ||
+            (m.role && m.role.toLowerCase().includes(q)) ||
+            (m.position && m.position.toLowerCase().includes(q)) ||
+            (m.email && m.email.toLowerCase().includes(q))
+        );
+    }, [sortedTeamMembers, chatSearchQuery]);
 
     // ── Poll channel activity & unread counts across all channels & DMs ───────
     const pollActivity = useCallback(async () => {
@@ -1801,22 +1882,32 @@ export default function Inbox({
 
                 {/* ── Top Header ── */}
                 <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-20 shadow-2xs">
-                    <div className="max-w-7xl mx-auto px-6 py-4">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div className="flex items-center gap-3.5">
                                 <div className="flex items-center justify-center w-10 h-10 rounded-2xl bg-linear-to-tr from-brand to-indigo-600 text-white shadow-md shadow-brand/20">
-                                    <Bell className="w-5 h-5" />
+                                    {activeTab === 'notifications' ? (
+                                        <Bell className="w-5 h-5" />
+                                    ) : (
+                                        <MessageSquare className="w-5 h-5" />
+                                    )}
                                 </div>
                                 <div>
-                                    <div className="flex items-center gap-2">
-                                        <h1 className="text-lg font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">Inbox</h1>
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-900/40">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                            Live Feed
-                                        </span>
+                                    <div className="flex items-center gap-2.5">
+                                        <h1 className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+                                            {activeTab === 'notifications' ? 'Notifications' : 'Team Messages'}
+                                        </h1>
+                                        {activeTab === 'notifications' && unreadCount > 0 && (
+                                            <NotifBadge count={unreadCount} size="sm" />
+                                        )}
+                                        {activeTab === 'messages' && totalUnreadMessages > 0 && (
+                                            <NotifBadge count={totalUnreadMessages} size="sm" />
+                                        )}
                                     </div>
                                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                                        Personal notifications, team chat rooms, files & mentions
+                                        {activeTab === 'notifications'
+                                            ? 'Personal notifications, review requests, and updates'
+                                            : 'Channels and team direct conversations'}
                                     </p>
                                 </div>
                             </div>
@@ -1841,15 +1932,15 @@ export default function Inbox({
                                         <span>Team Messages</span>
                                         {totalUnreadMessages > 0 && <NotifBadge count={totalUnreadMessages} size="sm" />}
                                     </button>
-
                                 </div>
 
                                 {activeTab === 'notifications' && unreadCount > 0 && (
                                     <button
                                         type="button"
                                         onClick={markAllAsRead}
-                                        className="text-xs font-semibold text-slate-500 hover:text-brand dark:text-slate-400 transition-colors">
-                                        Mark all read
+                                        className="text-xs font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 transition-colors px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs"
+                                    >
+                                        Mark all as read
                                     </button>
                                 )}
                             </div>
@@ -1858,18 +1949,19 @@ export default function Inbox({
                 </div>
 
                 {/* ── Main View Area ── */}
-                <div className="max-w-7xl mx-auto px-6 py-6 w-full flex-1 flex flex-col">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 w-full flex-1 flex flex-col">
 
                     {/* ================================================================
                         NOTIFICATIONS TAB
                     ================================================================ */}
                     {activeTab === 'notifications' && (
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0 items-start">
-                            {/* Left — Feed */}
-                            <div className="lg:col-span-5 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full max-h-[calc(100vh-180px)]">
-                                <div className="p-4 border-b border-slate-100 dark:border-slate-800 space-y-3 shrink-0">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 min-h-0 items-start">
+                            {/* Left — Feed List */}
+                            <div className="lg:col-span-5 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full max-h-[calc(100vh-175px)]">
+                                {/* Search & Category Filter Header */}
+                                <div className="p-3.5 border-b border-slate-100 dark:border-slate-800 space-y-2.5 shrink-0 bg-slate-50/50 dark:bg-slate-900/50">
                                     <div className="relative">
-                                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                                         <input
                                             type="text"
                                             value={notifSearch}
@@ -1878,130 +1970,247 @@ export default function Inbox({
                                             className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:border-brand"
                                         />
                                     </div>
-                                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                                        {[
-                                            { id: 'all', label: 'All' },
-                                            { id: 'unread', label: `Unread (${unreadCount})` },
-                                            ...(leaveRequestsCount > 0 ? [{ id: 'leaves', label: `Leave Requests (${leaveRequestsCount})` }] : []),
-                                            { id: 'messages', label: 'Messages & Mentions' },
-                                            { id: 'reviews', label: 'Reviews' },
-                                            { id: 'assignments', label: 'Assigned' },
-                                            { id: 'alerts', label: 'Alerts' },
-                                        ].map(f => (
-                                            <button key={f.id} type="button" onClick={() => setNotifFilter(f.id)}
-                                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors ${notifFilter === f.id ? 'bg-brand text-white shadow-2xs' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700'}`}>
-                                                {f.label}
-                                            </button>
-                                        ))}
+
+                                    {/* Category Filter Pills */}
+                                    <div className="flex items-center justify-between gap-1">
+                                        <div className="flex items-center gap-1 overflow-x-auto pb-0.5 [scrollbar-width:none]">
+                                            {[
+                                                { id: 'all', label: 'All', count: notificationsList.length },
+                                                { id: 'action', label: 'Action Required', count: actionRequiredCount, highlight: actionRequiredCount > 0 },
+                                                { id: 'messages', label: 'Mentions & Chats', count: messagesNotifCount },
+                                                { id: 'alerts', label: 'Alerts', count: alertsNotifCount },
+                                            ].map(f => (
+                                                <button
+                                                    key={f.id}
+                                                    type="button"
+                                                    onClick={() => setNotifFilter(f.id)}
+                                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                                                        notifFilter === f.id
+                                                            ? 'bg-brand text-white shadow-2xs'
+                                                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 border border-slate-200/80 dark:border-slate-700/80'
+                                                    }`}
+                                                >
+                                                    <span>{f.label}</span>
+                                                    {f.count > 0 && (
+                                                        <span className={`px-1 py-0.2 rounded-full text-[9px] font-mono font-bold ${
+                                                            notifFilter === f.id
+                                                                ? 'bg-white/20 text-white dark:bg-black/20 dark:text-black'
+                                                                : f.highlight
+                                                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                                                                : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                                                        }`}>
+                                                            {f.count}
+                                                        </span>
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setOnlyUnread(prev => !prev)}
+                                            className={`px-2 py-1 rounded-lg text-[10px] font-semibold whitespace-nowrap transition-colors shrink-0 ${
+                                                onlyUnread
+                                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 font-bold'
+                                                    : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                                            }`}
+                                        >
+                                            Unread only
+                                        </button>
                                     </div>
                                 </div>
 
+                                {/* Notification List */}
                                 <div className="divide-y divide-slate-100 dark:divide-slate-800 overflow-y-auto flex-1">
                                     {filteredNotifications.length === 0 ? (
-                                        <div className="py-20 px-6 text-center flex flex-col items-center gap-3">
-                                            <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400"><MailOpen className="w-6 h-6" /></div>
+                                        <div className="py-20 px-6 text-center flex flex-col items-center gap-2.5">
+                                            <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                                                <MailOpen className="w-5 h-5" />
+                                            </div>
                                             <div>
-                                                <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No notifications found</p>
-                                                <p className="text-xs text-slate-400 mt-0.5">{notifFilter !== 'all' || notifSearch ? 'Try adjusting your filters' : 'You are completely caught up!'}</p>
+                                                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No notifications in this view</p>
+                                                <p className="text-[11px] text-slate-400 mt-0.5">
+                                                    {notifSearch || onlyUnread || notifFilter !== 'all' ? 'Try adjusting your search or filters.' : 'You are all caught up!'}
+                                                </p>
                                             </div>
                                         </div>
-                                    ) : filteredNotifications.map(notif => {
-                                        const NIcon = iconMap[notif.icon] || Bell;
-                                        const c = colorMap[notif.color] || colorMap.indigo;
-                                        const isSelected = selectedNotifId === notif.id;
-                                        const isChatNotif = notif.type === 'direct_message' || notif.type === 'channel_mention';
+                                    ) : (
+                                        filteredNotifications.map(notif => {
+                                            const NIcon = iconMap[notif.icon] || Bell;
+                                            const isSelected = selectedNotifId === notif.id;
 
-                                        return (
-                                            <div key={notif.id}
-                                                onClick={() => {
-                                                    setSelectedNotifId(notif.id);
-                                                    markAsRead(notif.id);
-                                                    if (notif.channel_id) {
-                                                        markChannelRead(notif.channel_id);
-                                                    }
-                                                }}
-
-                                                className={`p-4 cursor-pointer transition-all border-l-3 relative flex items-start gap-3.5 ${isSelected ? 'bg-brand/5 dark:bg-brand/10 border-l-brand' : !notif.read ? `${c.bg} border-l-rose-500 hover:brightness-95` : 'bg-white dark:bg-slate-900 border-l-transparent hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}>
-                                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-2xs mt-0.5 ${c.icon}`}>
-                                                    <NIcon className="w-4 h-4" />
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center justify-between gap-1 mb-1">
-                                                        <span className={`text-[11px] font-bold uppercase tracking-wider ${c.badge} px-2 py-0.2 rounded-md`}>{notif.type.replace('_', ' ')}</span>
-                                                        <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">{notif.created_at_human}</span>
+                                            return (
+                                                <div
+                                                    key={notif.id}
+                                                    onClick={() => {
+                                                        setSelectedNotifId(notif.id);
+                                                        markAsRead(notif.id);
+                                                        if (notif.channel_id) {
+                                                            markChannelRead(notif.channel_id);
+                                                        }
+                                                    }}
+                                                    className={`p-3.5 cursor-pointer transition-all relative flex items-start gap-3 border-l-2 ${
+                                                        isSelected
+                                                            ? 'bg-slate-100/80 dark:bg-slate-800/80 border-l-slate-900 dark:border-l-slate-100'
+                                                            : !notif.read
+                                                            ? 'bg-white dark:bg-slate-900 border-l-blue-500 hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                                                            : 'bg-slate-50/30 dark:bg-slate-900/30 border-l-transparent hover:bg-slate-50 dark:hover:bg-slate-800/40 opacity-80'
+                                                    }`}
+                                                >
+                                                    {/* Notification Type Icon */}
+                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border mt-0.5 ${
+                                                        notif.type === 'leave_request'
+                                                            ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/60 text-amber-700 dark:text-amber-400'
+                                                            : notif.type === 'review_request'
+                                                            ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800/60 text-blue-700 dark:text-blue-400'
+                                                            : notif.type === 'estimate_pending'
+                                                            ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800/60 text-purple-700 dark:text-purple-400'
+                                                            : notif.type === 'overdue' || notif.type === 'stuck'
+                                                            ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-400'
+                                                            : notif.type === 'direct_message' || notif.type === 'channel_mention'
+                                                            ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-400'
+                                                            : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                                                    }`}>
+                                                        <NIcon className="w-4 h-4" />
                                                     </div>
-                                                    <h4 className={`text-xs font-bold truncate leading-tight ${!notif.read ? 'text-slate-900 dark:text-slate-100' : 'text-slate-700 dark:text-slate-300'}`}>{notif.title}</h4>
-                                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">{notif.body}</p>
-                                                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                                                        {notif.project_name && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm text-[9px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"><FolderGit2 className="w-2.5 h-2.5" />{notif.project_name}</span>}
-                                                        {notif.priority && notif.type !== 'leave_request' && <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-sm ${c.badge}`}>{notif.priority}</span>}
-                                                        {notif.type === 'leave_request' && notif.leave_request && (
-                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm text-[9px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-                                                                <Calendar className="w-2.5 h-2.5" />
-                                                                {notif.leave_request.calendar_days}d ({notif.leave_request.leave_start_formatted || notif.leave_request.leave_start_date} → {notif.leave_request.leave_end_formatted || notif.leave_request.leave_end_date})
+
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center justify-between gap-1 mb-0.5">
+                                                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                                {notif.type.replace('_', ' ')}
                                                             </span>
-                                                        )}
-                                                        {isChatNotif && (
-                                                            <button type="button"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleOpenNotificationChat(notif);
-                                                                }}
-                                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-[9px] font-bold bg-brand/10 text-brand hover:bg-brand/20 transition-colors">
-                                                                <span>Open Chat</span>
-                                                                <ArrowRight className="w-2.5 h-2.5" />
-                                                            </button>
-                                                        )}
+                                                            <span className="text-[10px] text-slate-400 font-mono">
+                                                                {notif.created_at_human}
+                                                            </span>
+                                                        </div>
+
+                                                        <h4 className={`text-xs truncate ${!notif.read ? 'font-bold text-slate-900 dark:text-slate-100' : 'font-medium text-slate-700 dark:text-slate-300'}`}>
+                                                            {notif.title}
+                                                        </h4>
+
+                                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                                                            {notif.body}
+                                                        </p>
+
+                                                        {/* Metadata Tags */}
+                                                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                                                            {notif.project_name && (
+                                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                                                    <FolderGit2 className="w-2.5 h-2.5 opacity-60" />
+                                                                    <span>{notif.project_name}</span>
+                                                                </span>
+                                                            )}
+                                                            {notif.priority && notif.type !== 'leave_request' && (
+                                                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                                                    {notif.priority}
+                                                                </span>
+                                                            )}
+                                                            {notif.type === 'leave_request' && notif.leave_request && (
+                                                                <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.2 rounded border border-amber-200/60 dark:border-amber-800/40">
+                                                                    {notif.leave_request.calendar_days}d absence
+                                                                </span>
+                                                            )}
+                                                            {notif.channel_id && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleOpenNotificationChat(notif);
+                                                                    }}
+                                                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-brand/10 text-brand hover:bg-brand/20 transition-colors"
+                                                                >
+                                                                    <span>Open Chat</span>
+                                                                    <ArrowRight className="w-2.5 h-2.5" />
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </div>
+
+                                                    {!notif.read && (
+                                                        <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0 mt-1" />
+                                                    )}
                                                 </div>
-                                                {!notif.read && <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 mt-2" />}
-                                            </div>
-                                        );
-                                    })}
+                                            );
+                                        })
+                                    )}
                                 </div>
                             </div>
 
-                            {/* Right — Detail */}
-                            <div className="lg:col-span-7 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full max-h-[calc(100vh-180px)]">
+                            {/* Right — Detail / Context Inspection Pane */}
+                            <div className="lg:col-span-7 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full max-h-[calc(100vh-175px)]">
                                 {activeNotification ? (
                                     <div className="flex flex-col h-full overflow-y-auto">
+                                        {/* Inspection Header */}
                                         <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-linear-to-br from-slate-50 to-indigo-50/20 dark:from-slate-900 dark:to-indigo-950/20">
                                             <div className="flex items-start justify-between gap-4">
-                                                <div className="space-y-1.5">
+                                                <div className="space-y-1">
                                                     <div className="flex items-center gap-2 flex-wrap">
-                                                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider ${activeNotification.type === 'leave_request' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300' : 'bg-brand/10 text-brand'}`}>
+                                                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                                                             {activeNotification.type.replace('_', ' ')}
                                                         </span>
-                                                        {activeNotification.project_name && <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">{activeNotification.project_name}</span>}
-                                                        {activeNotification.priority && activeNotification.type !== 'leave_request' && <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400">{activeNotification.priority}</span>}
+                                                        {activeNotification.project_name && (
+                                                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                                                {activeNotification.project_name}
+                                                            </span>
+                                                        )}
+                                                        <span className="text-xs text-slate-400 font-mono">
+                                                            {activeNotification.created_at_human}
+                                                        </span>
                                                     </div>
-                                                    <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 leading-tight">{activeNotification.title}</h2>
-                                                    <p className="text-xs text-slate-400 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" />Received {activeNotification.created_at_human}</p>
+                                                    <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 leading-tight">
+                                                        {activeNotification.title}
+                                                    </h2>
                                                 </div>
-                                                <div className="flex items-center gap-2">
+
+                                                <div className="flex items-center gap-2 shrink-0">
                                                     {activeNotification.channel_id && (
-                                                        <button type="button" onClick={() => handleOpenNotificationChat(activeNotification)}
-                                                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white transition-all shadow-2xs shrink-0">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleOpenNotificationChat(activeNotification)}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white transition-all shadow-2xs"
+                                                        >
                                                             <MessageSquare className="w-3.5 h-3.5" />
                                                             <span>Open Chat</span>
                                                             <ArrowRight className="w-3.5 h-3.5" />
                                                         </button>
                                                     )}
                                                     {activeTask && (
-                                                        <button type="button" onClick={() => handleOpenTaskDetail(activeTask)}
-                                                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-brand text-white hover:bg-brand-dark transition-all shadow-2xs shrink-0">
-                                                            <span>Open Task</span><ArrowRight className="w-3.5 h-3.5" />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleOpenTaskDetail(activeTask)}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-brand text-white hover:bg-brand-dark transition-all shadow-2xs"
+                                                        >
+                                                            <span>Open Task</span>
+                                                            <ArrowRight className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
+                                                    {activeNotification.read ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setNotificationsList(prev => prev.map(n => n.id === activeNotification.id ? { ...n, read: false } : n))}
+                                                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                        >
+                                                            Mark unread
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => markAsRead(activeNotification.id)}
+                                                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                        >
+                                                            Mark read
                                                         </button>
                                                     )}
                                                 </div>
                                             </div>
-                                            {activeNotification.type !== 'leave_request' && (
-                                                <div className="mt-4 p-4 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed shadow-2xs">
-                                                    {activeNotification.body}
-                                                </div>
-                                            )}
+
+                                            {/* Description text */}
+                                            <div className="mt-3.5 p-3.5 rounded-lg bg-white dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 text-xs text-slate-700 dark:text-slate-200 leading-relaxed">
+                                                {activeNotification.body}
+                                            </div>
                                         </div>
 
+                                        {/* Leave Request Review Module */}
                                         {activeNotification.type === 'leave_request' && activeNotification.leave_request && (() => {
                                             const req = activeNotification.leave_request;
                                             const isLeaderReq = req.requester_role === 'leader';
@@ -2009,9 +2218,9 @@ export default function Inbox({
                                             const hasConflicts = req.conflicting_tasks && req.conflicting_tasks.length > 0;
 
                                             return (
-                                                <div className="p-6 space-y-5">
-                                                    {/* Requester Identity & Governance Authority Card */}
-                                                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                                <div className="p-5 space-y-4">
+                                                    {/* Requester Identity Card */}
+                                                    <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                                         <div className="flex items-center gap-3">
                                                             <div className="relative">
                                                                 {req.avatar ? (
@@ -2029,27 +2238,16 @@ export default function Inbox({
                                                                 )}
                                                             </div>
                                                             <div>
-                                                                <div className="flex items-center gap-2 flex-wrap">
-                                                                    <h4 className="text-sm font-extrabold text-slate-900 dark:text-slate-100">{req.user_name}</h4>
-                                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase ${
-                                                                        isLeaderReq
-                                                                            ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
-                                                                            : 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30'
-                                                                    }`}>
-                                                                        {isLeaderReq ? 'Team Leader' : 'Member'}
+                                                                <div className="flex items-center gap-2">
+                                                                    <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">{req.user_name}</h4>
+                                                                    <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                                                                        {isLeaderReq ? 'Team Leader' : 'Team Member'}
                                                                     </span>
                                                                 </div>
-                                                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                                                <p className="text-[11px] text-slate-500 mt-0.5">
                                                                     {req.position} • {req.user_email}
                                                                 </p>
                                                             </div>
-                                                        </div>
-
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-200/80 dark:border-slate-800 flex items-center gap-1.5">
-                                                                {isLeaderReq ? <Crown className="w-3.5 h-3.5 text-amber-500" /> : <UserCheck className="w-3.5 h-3.5 text-brand" />}
-                                                                <span>{isLeaderReq ? 'Studio Owner Approval Authority' : 'Leader & Owner Review Scope'}</span>
-                                                            </span>
                                                         </div>
                                                     </div>
 
@@ -2065,41 +2263,35 @@ export default function Inbox({
                                                                     {req.calendar_days} Calendar Day{req.calendar_days === 1 ? '' : 's'}
                                                                 </span>
                                                             </div>
-                                                            <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
-                                                                <span>{req.leave_start_formatted || req.leave_start_date}</span>
-                                                                <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
-                                                                <span>{req.leave_end_formatted || req.leave_end_date}</span>
+                                                            <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                                                {req.leave_start_formatted || req.leave_start_date} → {req.leave_end_formatted || req.leave_end_date}
                                                             </div>
                                                         </div>
 
-                                                        <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 space-y-1.5">
-                                                            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
-                                                                Handover Note & Details
-                                                            </span>
-                                                            <p className="text-xs text-slate-700 dark:text-slate-300 italic line-clamp-3 leading-relaxed">
-                                                                "{req.reason || 'No handover note provided.'}"
+                                                        <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 space-y-1.5">
+                                                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                                Handover & Reason
+                                                            </div>
+                                                            <p className="text-xs text-slate-700 dark:text-slate-300 italic line-clamp-3">
+                                                                "{req.reason || 'No specific notes provided.'}"
                                                             </p>
                                                         </div>
                                                     </div>
 
-                                                    {/* Sprint Task Conflict Intelligence */}
+                                                    {/* Task Conflict Intelligence */}
                                                     <div className="space-y-2">
-                                                        <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                                                            <span className="flex items-center gap-1.5">
-                                                                <FileText className="w-3.5 h-3.5" />
-                                                                Sprint Task Conflict Intelligence
-                                                            </span>
+                                                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                            Schedule Conflict Analysis
                                                         </div>
-
                                                         {hasConflicts ? (
-                                                            <div className="p-4 rounded-2xl bg-rose-500/5 dark:bg-rose-500/10 border border-rose-500/20 space-y-2.5">
-                                                                <div className="flex items-center gap-2 text-xs font-bold text-rose-700 dark:text-rose-400">
-                                                                    <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                                                            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 space-y-2">
+                                                                <div className="flex items-center gap-2 text-xs font-bold text-amber-800 dark:text-amber-300">
+                                                                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                                                                     <span>
-                                                                        Sprint Conflict Alert: {req.conflicting_tasks.length} task{req.conflicting_tasks.length === 1 ? '' : 's'} assigned to this member have deadlines during this leave window!
+                                                                        Attention: {req.conflicting_tasks.length} task{req.conflicting_tasks.length === 1 ? '' : 's'} scheduled with deadlines during this absence:
                                                                     </span>
                                                                 </div>
-                                                                <div className="space-y-1.5 pl-6">
+                                                                <div className="space-y-1 pl-6">
                                                                     {req.conflicting_tasks.map((task) => (
                                                                         <div key={task.id} className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-rose-500/20 flex items-center justify-between gap-2 text-xs">
                                                                             <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">{task.title}</span>
@@ -2113,24 +2305,22 @@ export default function Inbox({
                                                                 </div>
                                                             </div>
                                                         ) : (
-                                                            <div className="p-4 rounded-2xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2.5 text-xs text-emerald-700 dark:text-emerald-300 font-medium">
-                                                                <Check className="w-4 h-4 text-emerald-500 shrink-0" />
-                                                                <span>
-                                                                    No sprint conflicts detected. ({req.active_tasks_count} active assigned task{req.active_tasks_count === 1 ? '' : 's'} safely outside this leave window).
-                                                                </span>
+                                                            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/50 flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300">
+                                                                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                                                                <span>No deadline conflicts. Assigned tasks are scheduled outside this window.</span>
                                                             </div>
                                                         )}
                                                     </div>
 
-                                                    {/* Approval Action Footer Bar */}
-                                                    <div className="pt-4 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-end gap-3">
+                                                    {/* Approval Footer */}
+                                                    <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2.5">
                                                         <button
                                                             type="button"
                                                             disabled={isProcessing}
                                                             onClick={() => setDeclineModalReq(req)}
-                                                            className="px-4 py-2.5 rounded-xl border border-rose-300 dark:border-rose-800/80 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-xs font-bold transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5">
-                                                            <X className="w-3.5 h-3.5" />
-                                                            <span>Decline Request</span>
+                                                            className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 hover:text-rose-600 text-xs font-semibold transition-colors disabled:opacity-50"
+                                                        >
+                                                            Decline
                                                         </button>
                                                         <button
                                                             type="button"
@@ -2149,58 +2339,75 @@ export default function Inbox({
                                             );
                                         })()}
 
+                                        {/* Chat Mention / Message Module */}
                                         {activeNotification.channel_id && (
-                                            <div className="p-6 space-y-4">
-                                                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Chat Thread Action</h3>
-                                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 space-y-3">
+                                            <div className="p-5 space-y-3">
+                                                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                    Conversation Context
+                                                </div>
+                                                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-800/40 space-y-3">
                                                     <div className="flex items-center justify-between text-xs">
-                                                        <span className="font-bold text-slate-800 dark:text-slate-200">
-                                                            Sender: {activeNotification.sender_name || 'Team Member'}
+                                                        <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                                            From: {activeNotification.sender_name || 'Team Member'}
                                                         </span>
-                                                        <span className="text-slate-400 font-medium">
-                                                            Room: {activeNotification.channel_id}
+                                                        <span className="text-slate-500 font-mono text-[11px]">
+                                                            Channel: {activeNotification.channel_id}
                                                         </span>
                                                     </div>
                                                     <button type="button" onClick={() => handleOpenNotificationChat(activeNotification)}
                                                         className="w-full py-2.5 rounded-xl text-xs font-bold bg-linear-to-r from-brand to-indigo-600 text-white hover:from-brand-dark hover:to-indigo-700 transition-all shadow-xs flex items-center justify-center gap-2">
                                                         <MessageSquare className="w-4 h-4" />
-                                                        <span>Jump to Active Chat Room</span>
+                                                        <span>Open in Messages</span>
                                                         <ArrowRight className="w-3.5 h-3.5" />
                                                     </button>
                                                 </div>
                                             </div>
                                         )}
 
+                                        {/* Task / Review Context Module */}
                                         {activeTask && (
-                                            <div className="p-6 space-y-4">
-                                                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Associated Task Context</h3>
-                                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 space-y-4">
+                                            <div className="p-5 space-y-3">
+                                                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                    Task Details
+                                                </div>
+                                                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-800/40 space-y-3">
                                                     <div className="flex items-start justify-between gap-3">
                                                         <div>
-                                                            <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">{activeTask.title}</h4>
-                                                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{activeTask.description || 'No additional description provided.'}</p>
+                                                            <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">{activeTask.title}</h4>
+                                                            <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">{activeTask.description || 'No description provided.'}</p>
                                                         </div>
-                                                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-2xs shrink-0">
+                                                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 shrink-0">
                                                             {(activeTask.sprint_status || activeTask.status || 'todo').replace(/_/g, ' ')}
                                                         </span>
                                                     </div>
-                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-200/60 dark:border-slate-700/60">
-                                                        {[
-                                                            { label: 'Assignee', value: activeTask.assignee || 'Unassigned' },
-                                                            { label: 'Reviewer', value: activeTask.reviewer || 'None assigned' },
-                                                            { label: 'Story Points', value: activeTask.story_points ? `${activeTask.story_points} SP` : 'Unestimated' },
-                                                            { label: 'Priority', value: activeTask.priority || 'Normal', cls: 'text-rose-600 dark:text-rose-400 uppercase' },
-                                                        ].map(({ label, value, cls }) => (
-                                                            <div key={label}>
-                                                                <span className="text-[10px] text-slate-400 uppercase font-bold">{label}</span>
-                                                                <p className={`text-xs font-bold mt-0.5 truncate ${cls || 'text-slate-800 dark:text-slate-200'}`}>{value}</p>
-                                                            </div>
-                                                        ))}
+
+                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2.5 border-t border-slate-200/60 dark:border-slate-700/60">
+                                                        <div>
+                                                            <span className="text-[10px] text-slate-400 font-semibold uppercase">Assignee</span>
+                                                            <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate mt-0.5">{activeTask.assignee || 'Unassigned'}</p>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-[10px] text-slate-400 font-semibold uppercase">Reviewer</span>
+                                                            <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate mt-0.5">{activeTask.reviewer || 'None'}</p>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-[10px] text-slate-400 font-semibold uppercase">Story Points</span>
+                                                            <p className="text-xs font-mono font-medium text-slate-800 dark:text-slate-200 mt-0.5">{activeTask.story_points ?? '—'} SP</p>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-[10px] text-slate-400 font-semibold uppercase">Priority</span>
+                                                            <p className="text-xs font-bold uppercase text-slate-800 dark:text-slate-200 mt-0.5">{activeTask.priority || 'Normal'}</p>
+                                                        </div>
                                                     </div>
-                                                    <div className="flex items-center gap-2 pt-3 border-t border-slate-200/60 dark:border-slate-700/60 flex-wrap">
-                                                        <button type="button" onClick={() => handleOpenTaskDetail(activeTask)}
-                                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
-                                                            <Eye className="w-3.5 h-3.5 text-brand" /><span>Review Full Task</span>
+
+                                                    <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleOpenTaskDetail(activeTask)}
+                                                            className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:opacity-90 transition-opacity flex items-center gap-1.5"
+                                                        >
+                                                            <Eye className="w-3.5 h-3.5" />
+                                                            <span>Open Full Task Details</span>
                                                         </button>
                                                         {activeNotification.type === 'estimate_pending' && (
                                                             <Link href={`/studio/${activeWorkspace}/estimates/pending`}
@@ -2227,9 +2434,11 @@ export default function Inbox({
                                     </div>
                                 ) : (
                                     <div className="flex-1 flex flex-col items-center justify-center p-12 text-center text-slate-400">
-                                        <MailOpen className="w-12 h-12 mb-3 text-slate-300 dark:text-slate-600" />
-                                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Select a notification to view details</p>
-                                        <p className="text-xs text-slate-400 mt-1 max-w-xs">Choose an item from the left pane to see its full context, assigned task, and actions.</p>
+                                        <MailOpen className="w-10 h-10 mb-2.5 text-slate-300 dark:text-slate-600" />
+                                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Select a notification</p>
+                                        <p className="text-[11px] text-slate-400 mt-0.5 max-w-xs">
+                                            Choose an item from the left feed to inspect details and take action.
+                                        </p>
                                     </div>
                                 )}
                             </div>
@@ -2245,11 +2454,37 @@ export default function Inbox({
                             {/* Left — Sidebar */}
                             <div className="lg:col-span-4 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full max-h-[calc(100vh-180px)]">
                                 <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
-                                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Team Messages</h3>
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-900/40">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                        Live
+                                    <div>
+                                        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Team Messages</h3>
+                                        <p className="text-[11px] text-slate-400 mt-0.5">Channels and direct conversations</p>
+                                    </div>
+                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/40">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                        Connected
                                     </span>
+                                </div>
+
+                                {/* Search Filter */}
+                                <div className="p-2.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                                    <div className="relative">
+                                        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                        <input
+                                            type="text"
+                                            value={chatSearchQuery}
+                                            onChange={(e) => setChatSearchQuery(e.target.value)}
+                                            placeholder="Search channels or teammates..."
+                                            className="w-full pl-8.5 pr-8 py-1.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-brand transition-colors"
+                                        />
+                                        {chatSearchQuery && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setChatSearchQuery('')}
+                                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                            >
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div className={`${SCROLL_CLS} flex-1 p-3 space-y-4`}>
@@ -2257,7 +2492,9 @@ export default function Inbox({
                                     {/* Channels */}
                                     <div>
                                         <div className="flex items-center justify-between px-2 mb-1.5">
-                                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Channels</p>
+                                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                                Channels {chatSearchQuery && `(${filteredChannels.length})`}
+                                            </p>
                                             {isLeader && (
                                                 <button type="button" onClick={() => setShowCreateChannel(v => !v)} title="Create new channel"
                                                     className="w-5 h-5 rounded-md flex items-center justify-center text-slate-400 hover:text-brand hover:bg-brand/10 transition-colors">
@@ -2289,7 +2526,7 @@ export default function Inbox({
                                         )}
 
                                         <div className="space-y-0.5">
-                                            {sortedChannels.map(ch => {
+                                            {filteredChannels.map(ch => {
                                                 const isActive = selectedChat?.id === ch.id;
                                                 const isProtected = PROTECTED_IDS.has(ch.id);
                                                 return (
@@ -2313,19 +2550,26 @@ export default function Inbox({
                                                     </div>
                                                 );
                                             })}
+                                            {filteredChannels.length === 0 && (
+                                                <p className="text-[11px] text-slate-400 px-3 py-2 italic">
+                                                    {chatSearchQuery ? 'No matching channels' : 'No channels available'}
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
 
                                     {/* Direct Messages */}
                                     <div>
                                         <div className="flex items-center justify-between px-2 mb-1.5">
-                                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Direct Messages</p>
+                                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                                Direct Messages {chatSearchQuery && `(${filteredTeamMembers.length})`}
+                                            </p>
                                             <span className="text-[10px] text-slate-400 font-medium">
-                                                {sortedTeamMembers.filter(m => m.has_conversation || channelActivity[getDmChannelId(currentUser?.id, m.id)] || (selectedChat?.id === getDmChannelId(currentUser?.id, m.id) && messages.length > 0)).length} active
+                                                {filteredTeamMembers.filter(m => m.has_conversation || channelActivity[getDmChannelId(currentUser?.id, m.id)] || (selectedChat?.id === getDmChannelId(currentUser?.id, m.id) && messages.length > 0)).length} active
                                             </span>
                                         </div>
                                         <div className="space-y-0.5">
-                                            {sortedTeamMembers.map(member => {
+                                            {filteredTeamMembers.map(member => {
                                                 const isCurrentUser = currentUser && Number(member.id) === Number(currentUser.id);
                                                 const dmId = getDmChannelId(currentUser?.id, member.id);
                                                 const isActive = selectedChat?.id === dmId;
@@ -2368,8 +2612,10 @@ export default function Inbox({
                                                     </button>
                                                 );
                                             })}
-                                            {teamMembers.length === 0 && (
-                                                <p className="text-[11px] text-slate-400 px-3 py-2">No team members yet.</p>
+                                            {filteredTeamMembers.length === 0 && (
+                                                <p className="text-[11px] text-slate-400 px-3 py-2 italic">
+                                                    {chatSearchQuery ? 'No matching teammates' : 'No team members yet'}
+                                                </p>
                                             )}
                                         </div>
                                     </div>

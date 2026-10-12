@@ -352,4 +352,62 @@ class MemberTaskManagementTest extends TestCase
 
         $response->assertForbidden();
     }
+
+    public function test_member_sees_tasks_assigned_via_assignments_table_on_tasks_index(): void
+    {
+        $task = Task::factory()->create([
+            'project_id' => $this->project->id,
+            'assigned_user_id' => null,
+            'status' => 'in_progress',
+        ]);
+
+        DB::table('assignments')->insert([
+            'task_id' => $task->id,
+            'employee_user_id' => $this->memberUser->id,
+            'status' => 'active',
+            'assigned_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->memberUser);
+
+        $response = $this->get(route('tenant.tasks', ['tenant' => 'test']));
+        $response->assertOk();
+
+        $response->assertInertia(fn ($page) => $page->component('Tenant/Tasks/Index')
+            ->has("tasks.{$this->project->id}", 1)
+            ->where("tasks.{$this->project->id}.0.id", $task->id)
+            ->where("tasks.{$this->project->id}.0.assignee", $this->memberUser->name)
+        );
+    }
+
+    public function test_member_sees_tasks_assigned_via_assignments_table_on_dashboard(): void
+    {
+        $task = Task::factory()->create([
+            'project_id' => $this->project->id,
+            'assigned_user_id' => null,
+            'status' => 'in_progress',
+        ]);
+
+        DB::table('assignments')->insert([
+            'task_id' => $task->id,
+            'employee_user_id' => $this->memberUser->id,
+            'status' => 'active',
+            'assigned_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->memberUser);
+
+        $response = $this->get(route('tenant.dashboard', ['tenant' => 'test']));
+        $response->assertOk();
+
+        $response->assertInertia(fn ($page) => $page->component('Tenant/MemberDashboard')
+            ->has('myTasks', 1)
+            ->where('myTasks.0.id', $task->id)
+            ->where('myTasks.0.is_doer', true)
+        );
+    }
 }

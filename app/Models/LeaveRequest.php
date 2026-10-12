@@ -9,7 +9,7 @@ use Stancl\Tenancy\Database\Concerns\CentralConnection;
 
 class LeaveRequest extends Model
 {
-    use HasFactory, CentralConnection;
+    use CentralConnection, HasFactory;
 
     protected $table = 'leave_requests';
 

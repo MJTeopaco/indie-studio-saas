@@ -53,6 +53,7 @@ class ProfileController extends Controller
             ->get(['tenants.id', 'tenants.name', 'tenants.owner_id'])
             ->map(function ($studio) use ($pendingLeaveRequests) {
                 $pendingReq = $pendingLeaveRequests->get($studio->id);
+
                 return [
                     'id' => $studio->id,
                     'name' => $studio->name,

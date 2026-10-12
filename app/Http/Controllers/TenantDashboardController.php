@@ -128,7 +128,18 @@ class TenantDashboardController extends Controller
             'epic:id,name,color',
             'reviewer',
         ])
-            ->where('assigned_user_id', $user->id)
+            ->where(function ($q) use ($user) {
+                $q->where('assigned_user_id', $user->id);
+
+                if (Schema::hasTable('assignments')) {
+                    $q->orWhereIn('id', function ($sub) use ($user) {
+                        $sub->select('task_id')
+                            ->from('assignments')
+                            ->where('employee_user_id', $user->id)
+                            ->where('status', 'active');
+                    });
+                }
+            })
             ->get();
 
         // Tasks where user is reviewer and currently pending review
@@ -147,7 +158,18 @@ class TenantDashboardController extends Controller
             $sprintRecord = Sprint::where('status', 'active')
                 ->where(function ($q) use ($allowedProjectIds, $user) {
                     $q->whereIn('project_id', $allowedProjectIds)
-                        ->orWhereHas('tasks', fn ($tq) => $tq->where('assigned_user_id', $user->id));
+                        ->orWhereHas('tasks', function ($tq) use ($user) {
+                            $tq->where('assigned_user_id', $user->id);
+
+                            if (Schema::hasTable('assignments')) {
+                                $tq->orWhereIn('id', function ($sub) use ($user) {
+                                    $sub->select('task_id')
+                                        ->from('assignments')
+                                        ->where('employee_user_id', $user->id)
+                                        ->where('status', 'active');
+                                });
+                            }
+                        });
                 })
                 ->latest()
                 ->first();
@@ -336,6 +358,7 @@ class TenantDashboardController extends Controller
             ],
             'projects' => $projects,
             'activeSprint' => $activeSprint,
+            'myTasks' => $formattedMyTasks,
         ]);
     }
 
@@ -700,6 +723,23 @@ class TenantDashboardController extends Controller
             $dueDate = $base->copy()->addWeekdays(max(0, (int) $task->days_until_deadline))->format('Y-m-d');
         }
 
+        $isDoer = false;
+        if ($currentUser) {
+            $isDoer = ((int) $task->assigned_user_id === (int) $currentUser->id);
+            if (! $isDoer && Schema::hasTable('assignments')) {
+                $isDoer = DB::table('assignments')
+                    ->where('task_id', $task->id)
+                    ->where('employee_user_id', $currentUser->id)
+                    ->where('status', 'active')
+                    ->exists();
+            }
+        }
+
+        $assigneeName = $task->assignee?->name;
+        if (! $assigneeName && $isDoer && $currentUser) {
+            $assigneeName = $currentUser->name;
+        }
+
         return [
             'id' => $task->id,
             'project_id' => $task->project_id,
@@ -719,12 +759,12 @@ class TenantDashboardController extends Controller
             'github_link' => $task->github_link,
             'is_critical' => (bool) $task->is_critical,
             'total_float' => $task->total_float !== null ? (float) $task->total_float : null,
-            'assigned_user_id' => $task->assigned_user_id,
-            'assignee' => $task->assignee?->name,
+            'assigned_user_id' => $task->assigned_user_id ?? ($isDoer ? $currentUser?->id : null),
+            'assignee' => $assigneeName,
             'reviewer_user_id' => $task->reviewer_user_id,
             'reviewer' => $task->reviewer?->name,
             'is_reviewer' => $currentUser ? ((int) $task->reviewer_user_id === (int) $currentUser->id) : false,
-            'is_doer' => $currentUser ? ((int) $task->assigned_user_id === (int) $currentUser->id) : false,
+            'is_doer' => $isDoer,
             'sprint_id' => $task->sprint_id,
             'sprint_name' => $task->sprint?->name,
             'epic_id' => $task->epic_id,
@@ -752,6 +792,15 @@ class TenantDashboardController extends Controller
                 ->where(function ($q) use ($user) {
                     $q->where('assigned_user_id', $user->id)
                         ->orWhere('reviewer_user_id', $user->id);
+
+                    if (Schema::hasTable('assignments')) {
+                        $q->orWhereIn('id', function ($sub) use ($user) {
+                            $sub->select('task_id')
+                                ->from('assignments')
+                                ->where('employee_user_id', $user->id)
+                                ->where('status', 'active');
+                        });
+                    }
                 })
                 ->get();
 
@@ -902,8 +951,11 @@ class TenantDashboardController extends Controller
                     $end = $req->leave_end_date ? Carbon::parse($req->leave_end_date) : null;
 
                     $conflicts = $assignedTasks->filter(function ($task) use ($start, $end) {
-                        if (! $task->hard_constraint_date || ! $start || ! $end) return false;
+                        if (! $task->hard_constraint_date || ! $start || ! $end) {
+                            return false;
+                        }
                         $due = Carbon::parse($task->hard_constraint_date);
+
                         return $due->betweenIncluded($start, $end);
                     })->values();
 
@@ -914,7 +966,7 @@ class TenantDashboardController extends Controller
                         'id' => 'leave-req-'.$req->id,
                         'type' => 'leave_request',
                         'title' => "Leave Request: {$reqUser->name}",
-                        'body' => "{$reqUser->name} ({$roleLabel}) requested absence from ".($start ? $start->format('M d, Y') : '').' to '.($end ? $end->format('M d, Y') : '')." ({$calendarDays} calendar day".($calendarDays === 1 ? '' : 's').").".($req->reason ? " Handover: {$req->reason}" : ''),
+                        'body' => "{$reqUser->name} ({$roleLabel}) requested absence from ".($start ? $start->format('M d, Y') : '').' to '.($end ? $end->format('M d, Y') : '')." ({$calendarDays} calendar day".($calendarDays === 1 ? '' : 's').').'.($req->reason ? " Handover: {$req->reason}" : ''),
                         'icon' => 'calendar',
                         'color' => 'amber',
                         'priority' => null,
