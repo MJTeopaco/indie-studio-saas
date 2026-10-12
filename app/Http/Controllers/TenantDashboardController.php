@@ -53,11 +53,90 @@ class TenantDashboardController extends Controller
         return $this->managerDashboard($studio);
     }
 
-    public function aiWorkspace()
+    public function aiWorkspace(): Response
     {
         $studio = Studio::find(tenant('id'));
 
-        return $this->managerDashboard($studio);
+        $projects = [];
+        try {
+            $projects = Project::with(['tasks' => fn ($q) => $q->select('id', 'project_id', 'title')])
+                ->withCount(['projectMembers as members_count', 'tasks'])
+                ->latest()
+                ->get()
+                ->map(function ($project) {
+                    return [
+                        'id' => $project->id,
+                        'name' => $project->name,
+                        'description' => $project->description,
+                        'status' => $project->status,
+                        'members_count' => $project->members_count ?? 0,
+                        'tasks_count' => $project->tasks_count ?? 0,
+                        'tasks' => $project->tasks->map(fn ($t) => ['id' => $t->id, 'title' => $t->title]),
+                    ];
+                });
+        } catch (\Exception $e) {
+            $projects = [];
+        }
+
+        $activeTasks = [];
+        try {
+            $activeTasks = Task::with('assignee')
+                ->whereIn('status', ['todo', 'in_progress', 'review'])
+                ->latest()
+                ->take(10)
+                ->get()
+                ->map(function ($task) {
+                    $gnnMatchScore = null;
+                    try {
+                        $asg = DB::table('assignments')
+                            ->where('task_id', $task->id)
+                            ->where('status', 'active')
+                            ->first();
+                        if ($asg && $asg->match_fit_score !== null) {
+                            $gnnMatchScore = round($asg->match_fit_score * 100).'% Fit';
+                        }
+                    } catch (\Exception $e) {
+                    }
+
+                    return [
+                        'id' => $task->id,
+                        'title' => $task->title,
+                        'classification' => $task->task_classification ?? 'Engineering',
+                        'estimatedHours' => $task->estimated_hours ? $task->estimated_hours.'h' : '8h',
+                        'priority' => $task->priority ?? 'MEDIUM',
+                        'isCriticalPath' => (bool) $task->is_critical,
+                        'assignee' => $task->assignee ? $task->assignee->name : null,
+                        'gnnMatchScore' => $gnnMatchScore,
+                    ];
+                })
+                ->all();
+        } catch (\Exception $e) {
+            $activeTasks = [];
+        }
+
+        $skills = Skill::orderBy('name')->get(['id', 'name', 'category'])->all();
+        $positions = Position::orderBy('name')->get(['id', 'name'])->all();
+
+        $centralMembers = DB::connection(config('tenancy.database.central_connection', 'central'))
+            ->table('studio_members')
+            ->join('users', 'studio_members.user_id', '=', 'users.id')
+            ->where('studio_members.studio_id', tenant('id'))
+            ->select(['users.id', 'users.name', 'users.avatar'])
+            ->get();
+
+        $teamMembers = $centralMembers->map(fn ($m) => ['id' => $m->id, 'name' => $m->name, 'avatar' => $m->avatar])->all();
+
+        return Inertia::render('Tenant/AiWorkspace', [
+            'studio' => [
+                'id' => $studio ? $studio->id : tenant('id'),
+                'name' => $studio ? $studio->name : 'Studio',
+            ],
+            'projects' => $projects,
+            'activeTasks' => $activeTasks,
+            'skills' => $skills,
+            'positions' => $positions,
+            'teamMembers' => $teamMembers,
+        ]);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
