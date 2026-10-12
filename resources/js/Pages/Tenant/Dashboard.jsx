@@ -380,24 +380,6 @@ export default function TenantDashboard({
                             Studio health, sprint throughput, team capacity, and project delivery.
                         </p>
                     </div>
-
-                    <div className="flex items-center gap-2.5">
-                        <Button
-                            variant="outline"
-                            onClick={() => setIsProjectModalOpen(true)}
-                            className="gap-2 shadow-xs"
-                        >
-                            <Plus className="h-4 w-4 text-brand" />
-                            <span>New Project</span>
-                        </Button>
-                        <Button
-                            onClick={() => setIsTaskModalOpen(true)}
-                            className="gap-2 bg-brand hover:bg-brand-dark text-white shadow-xs"
-                        >
-                            <Plus className="h-4 w-4" />
-                            <span>New Task</span>
-                        </Button>
-                    </div>
                 </div>
 
                 {/* ── Number Cards Grid (6 cards) ── */}

@@ -134,18 +134,6 @@ function KanbanColumn({ colId, tasks, onAddTask, onTaskClick, onDragStart, onDro
                     <span className="text-xs font-bold text-gray-800 dark:text-slate-200 uppercase tracking-wide">{cfg.title}</span>
                     <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${cfg.badge}`}>{tasks.length}</span>
                 </div>
-                <div className="flex items-center gap-1">
-                    <button
-                        onClick={() => onAddTask(colId)}
-                        className="p-1 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-200/60 dark:hover:bg-slate-700/60 transition-colors"
-                        title="Add task"
-                    >
-                        <PlusIcon />
-                    </button>
-                    <button className="p-1 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-200/60 dark:hover:bg-slate-700/60 transition-colors">
-                        <MoreIcon />
-                    </button>
-                </div>
             </div>
 
             {/* Cards */}
@@ -165,14 +153,6 @@ function KanbanColumn({ colId, tasks, onAddTask, onTaskClick, onDragStart, onDro
                     </div>
                 )}
             </div>
-
-            {/* Add new */}
-            <button
-                onClick={() => onAddTask(colId)}
-                className="flex items-center gap-2 mx-3 mb-3 mt-1 px-3 py-2 rounded-xl text-xs text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-300 hover:bg-gray-200/50 dark:hover:bg-slate-800/50 transition-colors"
-            >
-                <PlusIcon /> Add new
-            </button>
         </div>
     );
 }

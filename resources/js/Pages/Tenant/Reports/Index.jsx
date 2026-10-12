@@ -462,6 +462,46 @@ export default function ReportsIndex({
         >
             <Head title={`Report Center — ${studioName}`} />
 
+            {/* Print Styles for Executive Report Export */}
+            <style>{`
+                @media print {
+                    body, html {
+                        background: #ffffff !important;
+                        color: #0f172a !important;
+                        height: auto !important;
+                        overflow: visible !important;
+                    }
+                    /* Hide outer layouts, headers, sidebars, buttons, alerts */
+                    aside, nav, header, footer, button, .no-print, [role="navigation"] {
+                        display: none !important;
+                    }
+                    /* Hide everything inside body except the print sheet */
+                    body * {
+                        visibility: hidden;
+                    }
+                    #report-preview-sheet, #report-preview-sheet * {
+                        visibility: visible;
+                    }
+                    #report-preview-sheet {
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 100% !important;
+                        min-width: 100% !important;
+                        max-width: 100% !important;
+                        margin: 0 !important;
+                        padding: 1.5rem !important;
+                        box-shadow: none !important;
+                        border: none !important;
+                        background: #ffffff !important;
+                    }
+                    @page {
+                        margin: 0.5in;
+                        size: ${orientation === 'landscape' ? 'landscape' : 'portrait'};
+                    }
+                }
+            `}</style>
+
             {/* Scrollable Container with high-visibility custom scrollbar */}
             <div className="flex-1 w-full h-full min-h-0 overflow-y-auto custom-scrollbar [scrollbar-gutter:stable] bg-slate-50/50 dark:bg-slate-950/40">
                 <div className="max-w-6xl mx-auto py-6 px-4 sm:px-6 lg:px-8 space-y-6">
