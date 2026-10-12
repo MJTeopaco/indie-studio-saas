@@ -136,4 +136,29 @@ class RoleBasedDashboardTest extends TestCase
             ->where('projects', fn ($projs) => count($projs) === 1 && $projs[0]['id'] === $myProject->id)
         );
     }
+
+    public function test_ai_workspace_route_renders_ai_workspace_page(): void
+    {
+        $manager = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        DB::table('studio_members')->insert([
+            'studio_id' => 'test-studio',
+            'user_id' => $manager->id,
+            'role' => 'owner',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($manager)->get('/studio/test-studio/ai-workspace');
+
+        $response->assertStatus(200);
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Tenant/AiWorkspace')
+            ->has('studio')
+            ->has('projects')
+            ->has('activeTasks')
+            ->has('skills')
+            ->has('positions')
+            ->has('teamMembers')
+        );
+    }
 }
