@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import axios from 'axios';
 import { Link, usePage } from '@inertiajs/react';
 import {
     PanelLeftClose,
@@ -302,9 +303,154 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
     const isMessagesActive = isInboxActive && currentPath.includes('tab=messages');
     const isNotificationsActive = isInboxActive && !isMessagesActive;
 
-    const totalInboxUnread = inboxUnreadBreakdown?.total ?? inboxNotificationCount ?? 0;
-    const notifUnread = inboxUnreadBreakdown?.notifications ?? 0;
-    const msgUnread = inboxUnreadBreakdown?.messages ?? 0;
+    const [liveNotifUnread, setLiveNotifUnread] = useState(() => inboxUnreadBreakdown?.notifications ?? 0);
+    const [liveMsgUnread, setLiveMsgUnread] = useState(() => inboxUnreadBreakdown?.messages ?? 0);
+    const [justUpdated, setJustUpdated] = useState(false);
+
+    // Sync with incoming Inertia page props
+    useEffect(() => {
+        if (typeof inboxUnreadBreakdown?.notifications === 'number') {
+            setLiveNotifUnread(inboxUnreadBreakdown.notifications);
+        }
+        if (typeof inboxUnreadBreakdown?.messages === 'number') {
+            setLiveMsgUnread(inboxUnreadBreakdown.messages);
+        }
+    }, [inboxUnreadBreakdown?.notifications, inboxUnreadBreakdown?.messages]);
+
+    // Live backend unread count fetching
+    const fetchLiveUnreadCount = useCallback(async () => {
+        if (!activeWorkspace) return;
+        try {
+            const res = await axios.get(`/studio/${activeWorkspace}/inbox/unread-count`);
+            if (res.data) {
+                if (typeof res.data.notifications === 'number') {
+                    setLiveNotifUnread(prev => {
+                        if (prev !== res.data.notifications) {
+                            setJustUpdated(true);
+                            setTimeout(() => setJustUpdated(false), 1200);
+                        }
+                        return res.data.notifications;
+                    });
+                }
+                if (typeof res.data.messages === 'number') {
+                    setLiveMsgUnread(prev => {
+                        if (prev !== res.data.messages) {
+                            setJustUpdated(true);
+                            setTimeout(() => setJustUpdated(false), 1200);
+                        }
+                        return res.data.messages;
+                    });
+                }
+            }
+        } catch {
+            // ignore network errors
+        }
+    }, [activeWorkspace]);
+
+    // Periodic heartbeat poll + focus / visibility check (so unread badge pops up in real time without reload or tab switch)
+    useEffect(() => {
+        if (!activeWorkspace) return;
+
+        // Fetch immediately on mount
+        fetchLiveUnreadCount();
+
+        // 3.5s background heartbeat polling
+        const interval = setInterval(() => {
+            if (typeof document !== 'undefined' && !document.hidden) {
+                fetchLiveUnreadCount();
+            }
+        }, 3500);
+
+        const handleFocus = () => fetchLiveUnreadCount();
+        const handleVisibilityChange = () => {
+            if (!document.hidden) fetchLiveUnreadCount();
+        };
+
+        window.addEventListener('focus', handleFocus);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('focus', handleFocus);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [activeWorkspace, fetchLiveUnreadCount]);
+
+    // WebSocket / Reverb real-time event listener
+    useEffect(() => {
+        if (!activeWorkspace || typeof window === 'undefined' || !window.Echo) return;
+
+        const channel = window.Echo.private(`studio.${activeWorkspace}`);
+
+        const handleLiveTrigger = () => {
+            fetchLiveUnreadCount();
+        };
+
+        channel.listen('.message.sent', handleLiveTrigger);
+        channel.listen('.task.status.updated', handleLiveTrigger);
+        channel.listen('.notification.created', handleLiveTrigger);
+
+        return () => {
+            channel.stopListening('.message.sent', handleLiveTrigger);
+            channel.stopListening('.task.status.updated', handleLiveTrigger);
+            channel.stopListening('.notification.created', handleLiveTrigger);
+        };
+    }, [activeWorkspace, fetchLiveUnreadCount]);
+
+    // Real-time custom event listeners for instant 0ms badge updates without reload or tab change
+    useEffect(() => {
+        const handleNotifRead = (e) => {
+            setJustUpdated(true);
+            setTimeout(() => setJustUpdated(false), 1200);
+            if (typeof e.detail?.remainingNotifUnread === 'number') {
+                setLiveNotifUnread(e.detail.remainingNotifUnread);
+            } else {
+                setLiveNotifUnread(prev => Math.max(0, prev - 1));
+            }
+        };
+
+        const handleNotifUnread = (e) => {
+            setJustUpdated(true);
+            setTimeout(() => setJustUpdated(false), 1200);
+            if (typeof e.detail?.remainingNotifUnread === 'number') {
+                setLiveNotifUnread(e.detail.remainingNotifUnread);
+            } else {
+                setLiveNotifUnread(prev => prev + 1);
+            }
+        };
+
+        const handleAllNotifsRead = () => {
+            setJustUpdated(true);
+            setTimeout(() => setJustUpdated(false), 1200);
+            setLiveNotifUnread(0);
+        };
+
+        const handleMsgRead = (e) => {
+            setJustUpdated(true);
+            setTimeout(() => setJustUpdated(false), 1200);
+            if (typeof e.detail?.remainingMsgUnread === 'number') {
+                setLiveMsgUnread(e.detail.remainingMsgUnread);
+            } else {
+                setLiveMsgUnread(prev => Math.max(0, prev - 1));
+            }
+        };
+
+        window.addEventListener('inbox-notification-read', handleNotifRead);
+        window.addEventListener('inbox-notification-unread', handleNotifUnread);
+        window.addEventListener('inbox-notifications-all-read', handleAllNotifsRead);
+        window.addEventListener('inbox-message-read', handleMsgRead);
+
+        return () => {
+            window.removeEventListener('inbox-notification-read', handleNotifRead);
+            window.removeEventListener('inbox-notification-unread', handleNotifUnread);
+            window.removeEventListener('inbox-notifications-all-read', handleAllNotifsRead);
+            window.removeEventListener('inbox-message-read', handleMsgRead);
+        };
+    }, []);
+
+    const totalInboxUnread = liveNotifUnread + liveMsgUnread;
+    const notifUnread = liveNotifUnread;
+    const msgUnread = liveMsgUnread;
 
     const [inboxExpanded, setInboxExpanded] = useState(() => isInboxActive);
     const [collapsedInboxMenuOpen, setCollapsedInboxMenuOpen] = useState(false);
@@ -480,7 +626,9 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                                                 }`}
                                             />
                                             {totalInboxUnread > 0 && (
-                                                <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full text-[8px] font-extrabold text-white bg-rose-500 ring-2 ring-white dark:ring-slate-900 shadow-sm select-none">
+                                                <span className={`absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full text-[8px] font-extrabold text-white bg-rose-500 ring-2 ring-white dark:ring-slate-900 shadow-sm select-none transition-all duration-300 transform ${
+                                                    justUpdated ? 'scale-125 ring-rose-400' : 'scale-100'
+                                                }`}>
                                                     {totalInboxUnread > 9 ? '9+' : totalInboxUnread}
                                                 </span>
                                             )}
@@ -506,7 +654,9 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                                                     <span>Notifications</span>
                                                 </span>
                                                 {notifUnread > 0 && (
-                                                    <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">
+                                                    <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300 transition-all duration-300 transform ${
+                                                        justUpdated ? 'scale-125 ring-2 ring-rose-300' : 'scale-100'
+                                                    }`}>
                                                         {notifUnread}
                                                     </span>
                                                 )}
@@ -525,7 +675,9 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                                                     <span>Messages</span>
                                                 </span>
                                                 {msgUnread > 0 && (
-                                                    <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">
+                                                    <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300 transition-all duration-300 transform ${
+                                                        justUpdated ? 'scale-125 ring-2 ring-rose-300' : 'scale-100'
+                                                    }`}>
                                                         {msgUnread}
                                                     </span>
                                                 )}
@@ -556,7 +708,9 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
 
                                         <div className="flex items-center gap-1.5 shrink-0">
                                             {totalInboxUnread > 0 && (
-                                                <span className="inline-flex items-center justify-center min-w-[1.2rem] h-[1.2rem] px-1 rounded-full text-[9px] font-extrabold text-white bg-rose-500 shadow-2xs">
+                                                <span className={`inline-flex items-center justify-center min-w-[1.2rem] h-[1.2rem] px-1 rounded-full text-[9px] font-extrabold text-white bg-rose-500 shadow-2xs transition-all duration-300 transform ${
+                                                    justUpdated ? 'scale-125' : 'scale-100'
+                                                }`}>
                                                     {totalInboxUnread > 9 ? '9+' : totalInboxUnread}
                                                 </span>
                                             )}
@@ -594,7 +748,9 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                                                     <span>Notifications</span>
                                                 </span>
                                                 {notifUnread > 0 && (
-                                                    <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">
+                                                    <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 transition-all duration-300 transform ${
+                                                        justUpdated ? 'scale-125 ring-2 ring-rose-300' : 'scale-100'
+                                                    }`}>
                                                         {notifUnread}
                                                     </span>
                                                 )}
@@ -613,7 +769,9 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                                                     <span>Messages</span>
                                                 </span>
                                                 {msgUnread > 0 && (
-                                                    <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">
+                                                    <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 transition-all duration-300 transform ${
+                                                        justUpdated ? 'scale-125 ring-2 ring-rose-300' : 'scale-100'
+                                                    }`}>
                                                         {msgUnread}
                                                     </span>
                                                 )}
