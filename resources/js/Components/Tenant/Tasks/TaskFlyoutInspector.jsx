@@ -158,7 +158,7 @@ export default function TaskFlyoutInspector({
                                     <span>Task has buffer float</span>
                                 </div>
                                 {totalFloat !== null && (
-                                    <span className="font-mono font-bold text-text-primary px-2 py-0.5 rounded bg-surface border border-surface-border">
+                                    <span className="font-mono font-bold text-text-primary px-2 py-0.5 rounded-sm bg-surface border border-surface-border">
                                         +{totalFloat}h float
                                     </span>
                                 )}
@@ -268,7 +268,7 @@ export default function TaskFlyoutInspector({
                                                 onClick={() => setSelectedStatus(opt.value)}
                                                 className={`p-2 rounded-xl text-xs font-semibold border transition-all text-left flex items-center justify-between cursor-pointer ${
                                                     selectedStatus === opt.value
-                                                        ? 'bg-brand text-white border-brand shadow-xs'
+                                                        ? 'bg-brand text-white border-brand shadow-2xs'
                                                         : 'bg-surface border-surface-border text-text-muted hover:text-text-primary hover:border-surface-border/80'
                                                 }`}
                                             >
@@ -288,7 +288,7 @@ export default function TaskFlyoutInspector({
                                         value={statusNote}
                                         onChange={(e) => setStatusNote(e.target.value)}
                                         placeholder="e.g., Pull request merged, tests passing"
-                                        className="w-full px-3 py-2 rounded-xl bg-surface border border-surface-border text-xs text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-brand transition-colors"
+                                        className="w-full px-3 py-2 rounded-xl bg-surface border border-surface-border text-xs text-text-primary placeholder:text-text-muted/60 focus:outline-hidden focus:border-brand transition-colors"
                                     />
                                 </div>
                             </div>
@@ -310,7 +310,7 @@ export default function TaskFlyoutInspector({
                             type="button"
                             onClick={handleConfirmStatus}
                             disabled={isSubmitting}
-                            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-bold transition-all shadow-sm shadow-brand/20 active:scale-[0.98] cursor-pointer disabled:opacity-60"
+                            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-bold transition-all shadow-xs shadow-brand/20 active:scale-[0.98] cursor-pointer disabled:opacity-60"
                         >
                             {isSubmitting ? (
                                 <>

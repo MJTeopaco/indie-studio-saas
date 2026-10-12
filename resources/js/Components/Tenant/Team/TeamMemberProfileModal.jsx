@@ -36,7 +36,7 @@ export default function TeamMemberProfileModal({ isOpen, onClose, member, canMan
     const stats = profile.stats || {};
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs">
             <div className="absolute inset-0" onClick={onClose} />
             <div className="relative z-10 w-full max-w-2xl overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
                 <div className="flex items-start justify-between border-b border-gray-100 px-6 py-5 dark:border-slate-800">

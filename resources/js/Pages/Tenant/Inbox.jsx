@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { Head, Link, usePage, router } from '@inertiajs/react';
 import TenantLayout from '@/Layouts/TenantLayout';
 import MemberTaskDetailModal from '@/Components/Tenant/Tasks/MemberTaskDetailModal';
+import LeaveApprovalConfirmDialog from '@/Components/Tenant/LeaveApprovalConfirmDialog';
 import { showToast } from '@/Components/SystemToast';
 import {
     Bell,
@@ -64,9 +65,9 @@ function NotifBadge({ count, size = 'md' }) {
     const label = count > 9 ? '9+' : String(count);
     const sizeCls = size === 'sm'
         ? 'text-[9px] min-w-[1.1rem] h-[1.1rem] px-1'
-        : 'text-[10px] min-w-[1.25rem] h-[1.25rem] px-1.5';
+        : 'text-[10px] min-w-5 h-5 px-1.5';
     return (
-        <span className={`relative inline-flex items-center justify-center ${sizeCls} rounded-full font-extrabold text-white bg-gradient-to-br from-rose-500 to-rose-600 shadow-sm ring-2 ring-rose-400/30 select-none`}>
+        <span className={`relative inline-flex items-center justify-center ${sizeCls} rounded-full font-extrabold text-white bg-linear-to-br from-rose-500 to-rose-600 shadow-xs ring-2 ring-rose-400/30 select-none`}>
             <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-300 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-400 ring-1 ring-white/60" />
@@ -92,7 +93,7 @@ function DeclineLeaveModal({ isOpen, onClose, leaveRequest, onConfirm, isProcess
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 w-full max-w-lg space-y-4">
                 <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
@@ -123,7 +124,7 @@ function DeclineLeaveModal({ isOpen, onClose, leaveRequest, onConfirm, isProcess
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}
                             placeholder="Explain the reason for declining or recommend alternative dates..."
-                            className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-rose-500 placeholder:text-slate-400 resize-none"
+                            className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-rose-500 placeholder:text-slate-400 resize-none"
                         />
                     </div>
 
@@ -138,7 +139,7 @@ function DeclineLeaveModal({ isOpen, onClose, leaveRequest, onConfirm, isProcess
                         <button
                             type="submit"
                             disabled={isProcessing}
-                            className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs disabled:opacity-50 transition-all flex items-center gap-1.5">
+                            className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-2xs disabled:opacity-50 transition-all flex items-center gap-1.5">
                             {isProcessing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                             <span>Confirm Decline</span>
                         </button>
@@ -152,7 +153,7 @@ function DeclineLeaveModal({ isOpen, onClose, leaveRequest, onConfirm, isProcess
 // ── Delete Channel Confirmation Modal ────────────────────────────────────────
 function DeleteChannelModal({ channel, onConfirm, onCancel }) {
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl p-6 w-full max-w-sm space-y-4">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-950/50 flex items-center justify-center shrink-0">
@@ -171,7 +172,7 @@ function DeleteChannelModal({ channel, onConfirm, onCancel }) {
                         Cancel
                     </button>
                     <button type="button" onClick={onConfirm}
-                        className="flex-1 px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-rose-500 to-rose-600 text-white hover:from-rose-600 hover:to-rose-700 transition-all shadow-sm">
+                        className="flex-1 px-4 py-2 rounded-xl text-xs font-bold bg-linear-to-r from-rose-500 to-rose-600 text-white hover:from-rose-600 hover:to-rose-700 transition-all shadow-xs">
                         Delete Channel
                     </button>
                 </div>
@@ -215,7 +216,7 @@ function EmailChatModal({ isOpen, onClose, channelTitle, teamMembers, onSendEmai
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl p-6 w-full max-w-md space-y-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
@@ -246,7 +247,7 @@ function EmailChatModal({ isOpen, onClose, channelTitle, teamMembers, onSendEmai
                             <div>
                                 <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Select Team Member</label>
                                 <select value={selectedMemberId} onChange={handleSelectMember}
-                                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-brand">
+                                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-brand">
                                     <option value="">-- Choose team member or type below --</option>
                                     {teamMembers.map(m => (
                                         <option key={m.id} value={m.id}>{m.name} ({m.email || 'No email'})</option>
@@ -259,14 +260,14 @@ function EmailChatModal({ isOpen, onClose, channelTitle, teamMembers, onSendEmai
                             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Recipient Email Address *</label>
                             <input type="email" required value={recipientEmail} onChange={e => setRecipientEmail(e.target.value)}
                                 placeholder="developer@studio.io"
-                                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-brand" />
+                                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-brand" />
                         </div>
 
                         <div>
                             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Custom Note / Context (Optional)</label>
                             <textarea rows={3} value={customNote} onChange={e => setCustomNote(e.target.value)}
                                 placeholder="Add a note or message context for this email..."
-                                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-brand resize-none" />
+                                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-brand resize-none" />
                         </div>
 
                         <div className="flex items-center gap-2 pt-2">
@@ -275,7 +276,7 @@ function EmailChatModal({ isOpen, onClose, channelTitle, teamMembers, onSendEmai
                                 Cancel
                             </button>
                             <button type="submit" disabled={!recipientEmail.trim() || sendingEmail}
-                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-brand to-indigo-600 text-white hover:from-brand-dark hover:to-indigo-700 transition-all shadow-sm disabled:opacity-40">
+                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-linear-to-r from-brand to-indigo-600 text-white hover:from-brand-dark hover:to-indigo-700 transition-all shadow-xs disabled:opacity-40">
                                 {sendingEmail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
                                 <span>Send Email</span>
                             </button>
@@ -304,7 +305,7 @@ function ForwardMessageModal({ isOpen, onClose, message, channels, teamMembers, 
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl p-6 w-full max-w-md space-y-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
@@ -339,7 +340,7 @@ function ForwardMessageModal({ isOpen, onClose, message, channels, teamMembers, 
                                 setSelectedTarget(e.target.value);
                                 setTargetType(e.target.selectedOptions[0]?.dataset?.type || 'channel');
                             }}
-                            className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-brand">
+                            className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-brand">
                             <option value="">-- Choose Channel or Teammate --</option>
                             <optgroup label="Channels">
                                 {channels.map(ch => (
@@ -360,7 +361,7 @@ function ForwardMessageModal({ isOpen, onClose, message, channels, teamMembers, 
                             Cancel
                         </button>
                         <button type="submit" disabled={!selectedTarget || forwarding}
-                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-brand hover:bg-brand-dark text-white transition-all shadow-sm disabled:opacity-40">
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-brand hover:bg-brand-dark text-white transition-all shadow-xs disabled:opacity-40">
                             {forwarding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Forward className="w-3.5 h-3.5" />}
                             <span>Forward</span>
                         </button>
@@ -382,7 +383,7 @@ function PinnedDrawer({ isOpen, onClose, pinnedMessages, onJumpToMessage, onUnpi
                     <Pin className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
                     <span>Pinned Messages ({pinnedMessages.length})</span>
                 </div>
-                <button type="button" onClick={onClose} className="p-0.5 rounded text-amber-700 dark:text-amber-300 hover:text-amber-900">
+                <button type="button" onClick={onClose} className="p-0.5 rounded-sm text-amber-700 dark:text-amber-300 hover:text-amber-900">
                     <X className="w-3.5 h-3.5" />
                 </button>
             </div>
@@ -398,11 +399,11 @@ function PinnedDrawer({ isOpen, onClose, pinnedMessages, onJumpToMessage, onUnpi
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
                                 <button type="button" onClick={() => onJumpToMessage(pm.id)} title="Jump to message"
-                                    className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 hover:bg-amber-200">
+                                    className="px-2 py-0.5 rounded-sm text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 hover:bg-amber-200">
                                     Jump
                                 </button>
                                 <button type="button" onClick={() => onUnpin(pm)} title="Unpin message"
-                                    className="p-1 rounded text-slate-400 hover:text-rose-500">
+                                    className="p-1 rounded-sm text-slate-400 hover:text-rose-500">
                                     <PinOff className="w-3 h-3" />
                                 </button>
                             </div>
@@ -424,7 +425,7 @@ function UnsendModal({ isOpen, onClose, message, onConfirmUnsend, currentUserId 
     );
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-5 w-full max-w-md space-y-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
@@ -526,7 +527,7 @@ function UnsendModal({ isOpen, onClose, message, onConfirmUnsend, currentUserId 
                         <button
                             type="button"
                             onClick={() => onConfirmUnsend('for_me')}
-                            className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-rose-500 to-rose-600 text-white hover:from-rose-600 hover:to-rose-700 transition-all shadow-sm flex items-center gap-1.5">
+                            className="px-4 py-2 rounded-xl text-xs font-bold bg-linear-to-r from-rose-500 to-rose-600 text-white hover:from-rose-600 hover:to-rose-700 transition-all shadow-xs flex items-center gap-1.5">
                             <Trash2 className="w-3.5 h-3.5" />
                             Unsend for You
                         </button>
@@ -579,7 +580,7 @@ function ChannelAssetsDrawer({ isOpen, onClose, channelTitle, assets, loading, o
                         value={query}
                         onChange={e => setQuery(e.target.value)}
                         placeholder="Search media, files, links, pinned…"
-                        className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-brand"
+                        className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:border-brand"
                     />
                 </div>
             </div>
@@ -684,7 +685,7 @@ function ChannelAssetsDrawer({ isOpen, onClose, channelTitle, assets, loading, o
                                 <a key={idx} href={l.url} target="_blank" rel="noreferrer"
                                     className="block p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-colors text-xs group space-y-1">
                                     <div className="flex items-center justify-between gap-1 text-slate-400 text-[10px]">
-                                        <span className="font-mono bg-slate-200 dark:bg-slate-700 px-1.5 py-0.2 rounded text-[9px] text-slate-700 dark:text-slate-300 font-semibold truncate max-w-[160px]">{l.domain}</span>
+                                        <span className="font-mono bg-slate-200 dark:bg-slate-700 px-1.5 py-0.2 rounded-sm text-[9px] text-slate-700 dark:text-slate-300 font-semibold truncate max-w-[160px]">{l.domain}</span>
                                         <span className="flex items-center gap-1 group-hover:text-brand">Open <ExternalLink className="w-2.5 h-2.5" /></span>
                                     </div>
                                     <p className="text-brand font-semibold truncate leading-tight">{l.url}</p>
@@ -707,7 +708,7 @@ function ChannelAssetsDrawer({ isOpen, onClose, channelTitle, assets, loading, o
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-1.5 min-w-0">
                                             <span className="font-bold text-slate-900 dark:text-slate-100 truncate">{pm.sender}</span>
-                                            <span className="text-[9px] px-1 py-0.2 rounded bg-amber-200/80 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 font-semibold">{pm.role || 'Member'}</span>
+                                            <span className="text-[9px] px-1 py-0.2 rounded-sm bg-amber-200/80 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 font-semibold">{pm.role || 'Member'}</span>
                                         </div>
                                         <div className="flex items-center gap-1.5">
                                             {onJumpToMessage && (
@@ -770,7 +771,7 @@ function ImageLightboxModal({ isOpen, imageUrl, imageName, onClose }) {
                             +
                         </button>
                         <a href={imageUrl} download={imageName || 'image.png'} target="_blank" rel="noreferrer"
-                            className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-brand hover:bg-brand-dark text-white text-xs font-bold transition-all shadow-sm ml-2">
+                            className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-brand hover:bg-brand-dark text-white text-xs font-bold transition-all shadow-xs ml-2">
                             <Download className="w-3.5 h-3.5" />
                             <span>Download</span>
                         </a>
@@ -801,7 +802,7 @@ const SCROLL_CLS = `overflow-y-auto
     [&::-webkit-scrollbar-thumb]:rounded-full
     [&::-webkit-scrollbar-thumb]:bg-brand/40
     hover:[&::-webkit-scrollbar-thumb]:bg-brand/70
-    [scrollbar-width:thin]`;
+    scrollbar-thin`;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function getDmChannelId(userAId, userBId) {
@@ -916,6 +917,7 @@ export default function Inbox({
 
     // Leave approval states
     const [leaveActionProcessingId, setLeaveActionProcessingId] = useState(null);
+    const [approveModalReq, setApproveModalReq] = useState(null);
     const [declineModalReq, setDeclineModalReq] = useState(null);
 
     // Category count metrics
@@ -932,14 +934,17 @@ export default function Inbox({
 
     const handleApproveLeave = (leaveReq) => {
         if (!leaveReq) return;
-        if (!confirm(`Are you sure you want to approve ${leaveReq.user_name}'s leave request for ${leaveReq.leave_start_formatted || leaveReq.leave_start_date} to ${leaveReq.leave_end_formatted || leaveReq.leave_end_date}?`)) {
-            return;
-        }
+        setApproveModalReq(leaveReq);
+    };
+
+    const handleExecuteApproveLeave = (leaveReq) => {
+        if (!leaveReq) return;
         setLeaveActionProcessingId(leaveReq.id);
-        router.post(route('tenant.team.leave-requests.approve', leaveReq.id), {}, {
+        router.post(route('tenant.team.leave-requests.approve', { tenant: workspaceSlug, id: leaveReq.id }), {}, {
             preserveScroll: true,
             onSuccess: () => {
                 showToast(`Leave request approved for ${leaveReq.user_name}.`, 'success');
+                setApproveModalReq(null);
                 setNotificationsList(prev => prev.filter(n => n.id !== `leave-req-${leaveReq.id}`));
             },
             onError: (errs) => {
@@ -954,7 +959,7 @@ export default function Inbox({
 
     const handleConfirmDeclineLeave = (leaveReqId, reason) => {
         setLeaveActionProcessingId(leaveReqId);
-        router.post(route('tenant.team.leave-requests.reject', leaveReqId), {
+        router.post(route('tenant.team.leave-requests.reject', { tenant: workspaceSlug, id: leaveReqId }), {
             rejection_reason: reason,
         }, {
             preserveScroll: true,
@@ -1879,12 +1884,12 @@ export default function Inbox({
                 <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-20 shadow-2xs">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div className="flex items-center gap-3">
-                                <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
+                            <div className="flex items-center gap-3.5">
+                                <div className="flex items-center justify-center w-10 h-10 rounded-2xl bg-linear-to-tr from-brand to-indigo-600 text-white shadow-md shadow-brand/20">
                                     {activeTab === 'notifications' ? (
-                                        <Bell className="w-4 h-4" />
+                                        <Bell className="w-5 h-5" />
                                     ) : (
-                                        <MessageSquare className="w-4 h-4" />
+                                        <MessageSquare className="w-5 h-5" />
                                     )}
                                 </div>
                                 <div>
@@ -1908,6 +1913,27 @@ export default function Inbox({
                             </div>
 
                             <div className="flex items-center gap-3">
+                                {/* Navigation Tabs */}
+                                <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveTab('notifications')}
+                                        className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'notifications' ? 'bg-white dark:bg-slate-900 text-brand shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+                                        <Bell className="w-3.5 h-3.5" />
+                                        <span>Notifications</span>
+                                        {unreadCount > 0 && <NotifBadge count={unreadCount} size="sm" />}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveTab('messages')}
+                                        className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'messages' ? 'bg-white dark:bg-slate-900 text-brand shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+                                        <MessageSquare className="w-3.5 h-3.5" />
+                                        <span>Team Messages</span>
+                                        {totalUnreadMessages > 0 && <NotifBadge count={totalUnreadMessages} size="sm" />}
+                                    </button>
+                                </div>
+
                                 {activeTab === 'notifications' && unreadCount > 0 && (
                                     <button
                                         type="button"
@@ -1931,7 +1957,7 @@ export default function Inbox({
                     {activeTab === 'notifications' && (
                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 min-h-0 items-start">
                             {/* Left — Feed List */}
-                            <div className="lg:col-span-5 flex flex-col bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full max-h-[calc(100vh-175px)]">
+                            <div className="lg:col-span-5 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full max-h-[calc(100vh-175px)]">
                                 {/* Search & Category Filter Header */}
                                 <div className="p-3.5 border-b border-slate-100 dark:border-slate-800 space-y-2.5 shrink-0 bg-slate-50/50 dark:bg-slate-900/50">
                                     <div className="relative">
@@ -1941,7 +1967,7 @@ export default function Inbox({
                                             value={notifSearch}
                                             onChange={e => setNotifSearch(e.target.value)}
                                             placeholder="Search notifications..."
-                                            className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-slate-400"
+                                            className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:border-brand"
                                         />
                                     </div>
 
@@ -1958,9 +1984,9 @@ export default function Inbox({
                                                     key={f.id}
                                                     type="button"
                                                     onClick={() => setNotifFilter(f.id)}
-                                                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
                                                         notifFilter === f.id
-                                                            ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900'
+                                                            ? 'bg-brand text-white shadow-2xs'
                                                             : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 border border-slate-200/80 dark:border-slate-700/80'
                                                     }`}
                                                 >
@@ -1983,7 +2009,7 @@ export default function Inbox({
                                         <button
                                             type="button"
                                             onClick={() => setOnlyUnread(prev => !prev)}
-                                            className={`px-2 py-1 rounded-md text-[10px] font-semibold whitespace-nowrap transition-colors shrink-0 ${
+                                            className={`px-2 py-1 rounded-lg text-[10px] font-semibold whitespace-nowrap transition-colors shrink-0 ${
                                                 onlyUnread
                                                     ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 font-bold'
                                                     : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
@@ -2084,6 +2110,19 @@ export default function Inbox({
                                                                     {notif.leave_request.calendar_days}d absence
                                                                 </span>
                                                             )}
+                                                            {notif.channel_id && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleOpenNotificationChat(notif);
+                                                                    }}
+                                                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-brand/10 text-brand hover:bg-brand/20 transition-colors"
+                                                                >
+                                                                    <span>Open Chat</span>
+                                                                    <ArrowRight className="w-2.5 h-2.5" />
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </div>
 
@@ -2098,11 +2137,11 @@ export default function Inbox({
                             </div>
 
                             {/* Right — Detail / Context Inspection Pane */}
-                            <div className="lg:col-span-7 flex flex-col bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full max-h-[calc(100vh-175px)]">
+                            <div className="lg:col-span-7 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full max-h-[calc(100vh-175px)]">
                                 {activeNotification ? (
                                     <div className="flex flex-col h-full overflow-y-auto">
                                         {/* Inspection Header */}
-                                        <div className="p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+                                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-linear-to-br from-slate-50 to-indigo-50/20 dark:from-slate-900 dark:to-indigo-950/20">
                                             <div className="flex items-start justify-between gap-4">
                                                 <div className="space-y-1">
                                                     <div className="flex items-center gap-2 flex-wrap">
@@ -2124,11 +2163,32 @@ export default function Inbox({
                                                 </div>
 
                                                 <div className="flex items-center gap-2 shrink-0">
+                                                    {activeNotification.channel_id && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleOpenNotificationChat(activeNotification)}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white transition-all shadow-2xs"
+                                                        >
+                                                            <MessageSquare className="w-3.5 h-3.5" />
+                                                            <span>Open Chat</span>
+                                                            <ArrowRight className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
+                                                    {activeTask && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleOpenTaskDetail(activeTask)}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-brand text-white hover:bg-brand-dark transition-all shadow-2xs"
+                                                        >
+                                                            <span>Open Task</span>
+                                                            <ArrowRight className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
                                                     {activeNotification.read ? (
                                                         <button
                                                             type="button"
                                                             onClick={() => setNotificationsList(prev => prev.map(n => n.id === activeNotification.id ? { ...n, read: false } : n))}
-                                                            className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                                                         >
                                                             Mark unread
                                                         </button>
@@ -2136,7 +2196,7 @@ export default function Inbox({
                                                         <button
                                                             type="button"
                                                             onClick={() => markAsRead(activeNotification.id)}
-                                                            className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                                                         >
                                                             Mark read
                                                         </button>
@@ -2162,8 +2222,20 @@ export default function Inbox({
                                                     {/* Requester Identity Card */}
                                                     <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-700 dark:text-slate-200 text-xs">
-                                                                {req.user_name.slice(0, 2).toUpperCase()}
+                                                            <div className="relative">
+                                                                {req.avatar ? (
+                                                                    <img src={req.avatar} alt={req.user_name} className="w-12 h-12 rounded-xl object-cover ring-2 ring-slate-200 dark:ring-slate-700" />
+                                                                ) : (
+                                                                    <div className="w-12 h-12 rounded-xl bg-linear-to-tr from-brand to-indigo-600 text-white font-black text-sm flex items-center justify-center ring-2 ring-slate-200 dark:ring-slate-700">
+                                                                        {req.user_name.slice(0, 2).toUpperCase()}
+                                                                    </div>
+                                                                )}
+                                                                {isLeaderReq && (
+                                                                    <span title="Team Leader request — Requires Owner Approval"
+                                                                        className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white flex items-center justify-center ring-2 ring-white dark:ring-slate-900">
+                                                                        <Crown className="w-2.5 h-2.5" />
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                             <div>
                                                                 <div className="flex items-center gap-2">
@@ -2179,17 +2251,20 @@ export default function Inbox({
                                                         </div>
                                                     </div>
 
-                                                    {/* Leave Details */}
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                        <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 space-y-1.5">
-                                                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                                                Absence Window
+                                                    {/* Leave Duration & Handover Details */}
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                                        <div className="p-4 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 space-y-2">
+                                                            <div className="flex items-center justify-between text-xs font-semibold text-amber-900 dark:text-amber-200">
+                                                                <span className="flex items-center gap-1.5">
+                                                                    <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                                                    Absence Window
+                                                                </span>
+                                                                <span className="px-2 py-0.5 rounded-sm text-[10px] font-mono font-bold bg-amber-200/80 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200">
+                                                                    {req.calendar_days} Calendar Day{req.calendar_days === 1 ? '' : 's'}
+                                                                </span>
                                                             </div>
                                                             <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
                                                                 {req.leave_start_formatted || req.leave_start_date} → {req.leave_end_formatted || req.leave_end_date}
-                                                            </div>
-                                                            <div className="text-[11px] text-slate-500">
-                                                                {req.calendar_days} calendar day{req.calendar_days === 1 ? '' : 's'}
                                                             </div>
                                                         </div>
 
@@ -2218,9 +2293,13 @@ export default function Inbox({
                                                                 </div>
                                                                 <div className="space-y-1 pl-6">
                                                                     {req.conflicting_tasks.map((task) => (
-                                                                        <div key={task.id} className="flex items-center justify-between text-xs py-1 border-b border-amber-200/50 last:border-0">
-                                                                            <span className="font-medium text-slate-800 dark:text-slate-200">{task.title}</span>
-                                                                            <span className="text-[10px] font-mono text-slate-500">Due {task.due_date}</span>
+                                                                        <div key={task.id} className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-rose-500/20 flex items-center justify-between gap-2 text-xs">
+                                                                            <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">{task.title}</span>
+                                                                            <div className="flex items-center gap-2 shrink-0">
+                                                                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-sm uppercase font-bold bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300">
+                                                                                    Due {task.due_date}
+                                                                                </span>
+                                                                            </div>
                                                                         </div>
                                                                     ))}
                                                                 </div>
@@ -2247,10 +2326,13 @@ export default function Inbox({
                                                             type="button"
                                                             disabled={isProcessing}
                                                             onClick={() => handleApproveLeave(req)}
-                                                            className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                                                        >
-                                                            {isProcessing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                                                            <span>Approve Leave</span>
+                                                            className="px-5 py-2.5 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5">
+                                                            {isProcessing ? (
+                                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                            ) : (
+                                                                <Check className="w-3.5 h-3.5" />
+                                                            )}
+                                                            <span>Approve Leave Request</span>
                                                         </button>
                                                     </div>
                                                 </div>
@@ -2272,11 +2354,8 @@ export default function Inbox({
                                                             Channel: {activeNotification.channel_id}
                                                         </span>
                                                     </div>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleOpenNotificationChat(activeNotification)}
-                                                        className="w-full py-2.5 rounded-lg text-xs font-bold bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-                                                    >
+                                                    <button type="button" onClick={() => handleOpenNotificationChat(activeNotification)}
+                                                        className="w-full py-2.5 rounded-xl text-xs font-bold bg-linear-to-r from-brand to-indigo-600 text-white hover:from-brand-dark hover:to-indigo-700 transition-all shadow-xs flex items-center justify-center gap-2">
                                                         <MessageSquare className="w-4 h-4" />
                                                         <span>Open in Messages</span>
                                                         <ArrowRight className="w-3.5 h-3.5" />
@@ -2331,14 +2410,23 @@ export default function Inbox({
                                                             <span>Open Full Task Details</span>
                                                         </button>
                                                         {activeNotification.type === 'estimate_pending' && (
-                                                            <Link
-                                                                href={`/studio/${activeWorkspace}/estimates/pending`}
-                                                                className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white transition-colors flex items-center gap-1.5"
-                                                            >
-                                                                <Sparkles className="w-3.5 h-3.5" />
-                                                                <span>Vote Story Points</span>
+                                                            <Link href={`/studio/${activeWorkspace}/estimates/pending`}
+                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 text-white hover:bg-amber-600 transition-colors shadow-2xs">
+                                                                <Sparkles className="w-3.5 h-3.5" /><span>Vote Story Points Now</span>
                                                             </Link>
                                                         )}
+                                                    </div>
+                                                </div>
+                                                <div className="pt-2">
+                                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Quick Note or Reply</label>
+                                                    <div className="relative">
+                                                        <textarea rows={2} value={quickReplyText} onChange={e => setQuickReplyText(e.target.value)}
+                                                            placeholder="Add a comment or follow-up note..."
+                                                            className="w-full p-3 pr-24 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:border-brand resize-none" />
+                                                        <button type="button" onClick={handleSendQuickReply} disabled={!quickReplyText.trim()}
+                                                            className="absolute right-2 bottom-2.5 px-3 py-1 rounded-lg text-xs font-bold bg-brand text-white disabled:opacity-40 hover:bg-brand-dark transition-all">
+                                                            {quickReplySuccess ? 'Saved!' : 'Reply'}
+                                                        </button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -2364,7 +2452,7 @@ export default function Inbox({
                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0 items-start">
 
                             {/* Left — Sidebar */}
-                            <div className="lg:col-span-4 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden h-full max-h-[calc(100vh-180px)]">
+                            <div className="lg:col-span-4 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full max-h-[calc(100vh-180px)]">
                                 <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
                                     <div>
                                         <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Team Messages</h3>
@@ -2422,14 +2510,14 @@ export default function Inbox({
                                                     <Hash className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                                     <input type="text" value={newChannelName} onChange={e => setNewChannelName(e.target.value)}
                                                         placeholder="channel-name" maxLength={32} autoFocus
-                                                        className="flex-1 bg-transparent text-xs font-semibold text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none" />
+                                                        className="flex-1 bg-transparent text-xs font-semibold text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden" />
                                                     <button type="button" onClick={() => setShowCreateChannel(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                                                         <X className="w-3.5 h-3.5" />
                                                     </button>
                                                 </div>
                                                 <input type="text" value={newChannelDesc} onChange={e => setNewChannelDesc(e.target.value)}
                                                     placeholder="Short description (optional)" maxLength={80}
-                                                    className="w-full bg-transparent text-[11px] text-slate-500 dark:text-slate-400 placeholder-slate-400 focus:outline-none" />
+                                                    className="w-full bg-transparent text-[11px] text-slate-500 dark:text-slate-400 placeholder-slate-400 focus:outline-hidden" />
                                                 <button type="submit" disabled={!newChannelName.trim()}
                                                     className="w-full py-1.5 rounded-lg text-[11px] font-bold bg-brand text-white disabled:opacity-40 hover:bg-brand-dark transition-all">
                                                     Create Channel
@@ -2445,7 +2533,7 @@ export default function Inbox({
                                                     <div key={ch.id} className="group relative">
                                                         <button type="button"
                                                             onClick={() => openChat({ id: ch.id, title: `#${ch.name}`, subtitle: ch.description, type: 'channel' })}
-                                                            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all text-left ${isActive ? 'bg-brand text-white shadow-xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                                                            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all text-left ${isActive ? 'bg-brand text-white shadow-2xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                                                             <Hash className="w-3.5 h-3.5 shrink-0 opacity-70" />
                                                             <span className="truncate flex-1">{ch.name}</span>
                                                             {unreadCounts[ch.id] > 0 && selectedChat?.id !== ch.id && (
@@ -2496,9 +2584,9 @@ export default function Inbox({
                                                             subtitle: `${member.position || 'Developer'} • ${member.role}`,
                                                             type: 'dm',
                                                         })}
-                                                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all text-left ${isActive ? 'bg-brand text-white shadow-xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                                                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all text-left ${isActive ? 'bg-brand text-white shadow-2xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                                                         <div className="relative shrink-0">
-                                                            <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-700 dark:text-slate-200">
+                                                            <div className="w-6 h-6 rounded-full bg-linear-to-br from-slate-300 to-slate-400 dark:from-slate-600 dark:to-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-700 dark:text-slate-200">
                                                                 {member.name.charAt(0)}
                                                             </div>
                                                             <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ring-1 ring-white dark:ring-slate-900 ${hasConv ? 'bg-emerald-500 ring-emerald-300' : 'bg-slate-300 dark:bg-slate-600'}`} />
@@ -2540,11 +2628,11 @@ export default function Inbox({
                                 onDragLeave={handleDragLeave}
                                 onDrop={handleDrop}
                                 onPaste={handlePaste}
-                                className="lg:col-span-8 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden h-[calc(100vh-180px)] relative">
+                                className="lg:col-span-8 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-[calc(100vh-180px)] relative">
 
                                 {!selectedChat ? (
                                     <div className="flex-1 flex flex-col items-center justify-center p-8 text-center select-none h-full bg-slate-50/50 dark:bg-slate-900/50">
-                                        <div className="w-16 h-16 rounded-3xl bg-brand/10 text-brand flex items-center justify-center mb-4 ring-8 ring-brand/5 shadow-xs">
+                                        <div className="w-16 h-16 rounded-3xl bg-brand/10 text-brand flex items-center justify-center mb-4 ring-8 ring-brand/5 shadow-2xs">
                                             <MessageSquare className="w-8 h-8" />
                                         </div>
                                         <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Select a conversation</h3>
@@ -2659,7 +2747,7 @@ export default function Inbox({
                                 {pinnedMessages.length > 0 && (
                                     <div className="bg-amber-50/90 dark:bg-amber-950/40 border-b border-amber-200/70 dark:border-amber-800/50 px-4 py-2 flex items-center justify-between gap-3 shrink-0 text-xs animate-in slide-in-from-top-1 duration-150">
                                         <div className="flex items-center gap-2 min-w-0">
-                                            <div className="w-5 h-5 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                                            <div className="w-5 h-5 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-2xs">
                                                 <Pin className="w-3 h-3" />
                                             </div>
                                             <div className="min-w-0 flex items-center gap-1.5 text-slate-800 dark:text-slate-200 text-xs">
@@ -2716,37 +2804,37 @@ export default function Inbox({
                                                     {!msg.is_unsent ? (
                                                         <div className={`absolute -top-3.5 ${msg.isSelf ? 'right-6' : 'left-6'} z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-0.5 px-1 py-0.5 rounded-lg bg-white dark:bg-slate-800 shadow-md border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400`}>
                                                             <button type="button" onClick={() => handleReply(msg)} title="Reply to message"
-                                                                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-brand transition-colors">
+                                                                className="p-1 rounded-sm hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-brand transition-colors">
                                                                 <CornerUpLeft className="w-3.5 h-3.5" />
                                                             </button>
                                                             <button type="button" onClick={() => handleCopy(msg)} title="Copy message text"
-                                                                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-brand transition-colors">
+                                                                className="p-1 rounded-sm hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-brand transition-colors">
                                                                 {copiedMsgId === msg.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                                                             </button>
                                                             <button type="button" onClick={() => handleOpenForward(msg)} title="Forward message"
-                                                                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-brand transition-colors">
+                                                                className="p-1 rounded-sm hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-brand transition-colors">
                                                                 <Forward className="w-3.5 h-3.5" />
                                                             </button>
                                                             <button type="button" onClick={() => handleTogglePin(msg)} title={msg.is_pinned ? 'Unpin message' : 'Pin message'}
-                                                                className={`p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors ${msg.is_pinned ? 'text-amber-500 font-bold' : 'hover:text-amber-500'}`}>
+                                                                className={`p-1 rounded-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors ${msg.is_pinned ? 'text-amber-500 font-bold' : 'hover:text-amber-500'}`}>
                                                                 {msg.is_pinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
                                                             </button>
                                                             <button type="button" onClick={() => handleRequestUnsend(msg)} title={msg.isSelf ? 'Unsend message' : 'Unsend for you'}
-                                                                className="p-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-600 transition-colors">
+                                                                className="p-1 rounded-sm hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-600 transition-colors">
                                                                 <Trash2 className="w-3.5 h-3.5" />
                                                             </button>
                                                         </div>
                                                     ) : (
                                                         <div className={`absolute -top-3.5 ${msg.isSelf ? 'right-6' : 'left-6'} z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-0.5 px-1 py-0.5 rounded-lg bg-white dark:bg-slate-800 shadow-md border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400`}>
                                                             <button type="button" onClick={() => handleRequestUnsend(msg)} title="Unsend for you"
-                                                                className="p-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-600 transition-colors">
+                                                                className="p-1 rounded-sm hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-600 transition-colors">
                                                                 <Trash2 className="w-3.5 h-3.5" />
                                                             </button>
                                                         </div>
                                                     )}
 
                                                     {/* Avatar */}
-                                                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 flex items-center justify-center text-xs font-bold shrink-0 text-slate-700 dark:text-slate-300">
+                                                    <div className="w-8 h-8 rounded-xl bg-linear-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 flex items-center justify-center text-xs font-bold shrink-0 text-slate-700 dark:text-slate-300">
                                                         {msg.sender.charAt(0)}
                                                     </div>
 
@@ -2808,7 +2896,7 @@ export default function Inbox({
                                                                 {msg.text && (
                                                                     <div className={`p-3 rounded-2xl text-xs leading-relaxed ${
                                                                         msg.is_pinned ? 'ring-1 ring-amber-400/80' : ''
-                                                                    } ${msg.isSelf ? 'bg-gradient-to-br from-brand to-indigo-600 text-white rounded-tr-xs shadow-sm shadow-brand/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-xs'}`}>
+                                                                    } ${msg.isSelf ? 'bg-linear-to-br from-brand to-indigo-600 text-white rounded-tr-xs shadow-xs shadow-brand/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-xs'}`}>
                                                                         {renderFormattedText(msg.text, msg.isSelf)}
                                                                     </div>
                                                                 )}
@@ -2819,7 +2907,7 @@ export default function Inbox({
                                                                 {msg.attachments.map((att, aIdx) => {
                                                                     if (att.type === 'report') {
                                                                         return (
-                                                                            <div key={aIdx} className="w-full max-w-sm rounded-2xl border border-indigo-200/90 dark:border-indigo-900/60 bg-gradient-to-br from-indigo-50/70 via-white to-slate-50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-slate-900 p-4 shadow-sm space-y-3 text-left overflow-hidden">
+                                                                            <div key={aIdx} className="w-full max-w-sm rounded-2xl border border-indigo-200/90 dark:border-indigo-900/60 bg-linear-to-br from-indigo-50/70 via-white to-slate-50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-slate-900 p-4 shadow-xs space-y-3 text-left overflow-hidden">
                                                                                 <div className="flex items-start justify-between gap-3 min-w-0">
                                                                                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                                                                         <div className="w-8 h-8 rounded-xl bg-brand/10 dark:bg-brand/20 text-brand flex items-center justify-center shrink-0">
@@ -2861,7 +2949,7 @@ export default function Inbox({
 
                                                                                 <a
                                                                                     href={att.report_url || `/studio/${workspaceSlug}/reports`}
-                                                                                    className="w-full py-2 px-3 rounded-xl bg-brand hover:bg-brand-dark text-white transition-all text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs"
+                                                                                    className="w-full py-2 px-3 rounded-xl bg-brand hover:bg-brand-dark text-white transition-all text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs"
                                                                                 >
                                                                                     <span>View Full Interactive Report</span>
                                                                                     <ExternalLink className="w-3.5 h-3.5" />
@@ -2872,7 +2960,7 @@ export default function Inbox({
                                                                     if (att.type === 'image') {
                                                                         return (
                                                                             <div key={aIdx} className="space-y-1">
-                                                                                <div className="relative group cursor-pointer overflow-hidden rounded-2xl border border-slate-200/90 dark:border-slate-700/90 shadow-sm bg-slate-100 dark:bg-slate-800/80"
+                                                                                <div className="relative group cursor-pointer overflow-hidden rounded-2xl border border-slate-200/90 dark:border-slate-700/90 shadow-xs bg-slate-100 dark:bg-slate-800/80"
                                                                                     onClick={() => setLightboxImage({ url: att.url, name: att.name })}>
                                                                                     <img
                                                                                         src={att.url}
@@ -2912,7 +3000,7 @@ export default function Inbox({
                                                                                     ? 'bg-white/15 dark:bg-slate-800/90 border-white/20 text-white hover:bg-white/25'
                                                                                     : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750'
                                                                             }`}>
-                                                                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-brand text-white flex items-center justify-center font-extrabold text-[9px] shrink-0 shadow-xs">
+                                                                            <div className="w-9 h-9 rounded-xl bg-linear-to-br from-indigo-500 to-brand text-white flex items-center justify-center font-extrabold text-[9px] shrink-0 shadow-2xs">
                                                                                 {ext.slice(0, 4)}
                                                                             </div>
                                                                             <div className="min-w-0 pr-2">
@@ -3042,11 +3130,11 @@ export default function Inbox({
                                         onChange={handleInputChange}
                                         onPaste={handlePaste}
                                         placeholder="Message"
-                                        className="flex-1 px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-brand" />
+                                        className="flex-1 px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:border-brand" />
 
                                     <button type="submit"
                                         disabled={(!inputMessage.trim() && stagedFiles.length === 0) || sending}
-                                        className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-brand to-indigo-600 text-white disabled:opacity-40 hover:shadow-md hover:shadow-brand/30 transition-all shadow-xs shrink-0">
+                                        className="flex items-center justify-center w-10 h-10 rounded-xl bg-linear-to-br from-brand to-indigo-600 text-white disabled:opacity-40 hover:shadow-md hover:shadow-brand/30 transition-all shadow-2xs shrink-0">
                                         {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                                     </button>
                                 </form>
@@ -3080,13 +3168,24 @@ export default function Inbox({
                 isAdmin={isLeader}
             />
 
-            {/* Decline Leave Request Modal */}
-            <DeclineLeaveModal
+            {/* Custom Leave Approval Confirmation Dialog */}
+            <LeaveApprovalConfirmDialog
+                isOpen={Boolean(approveModalReq)}
+                onClose={() => setApproveModalReq(null)}
+                leaveRequest={approveModalReq}
+                onConfirm={handleExecuteApproveLeave}
+                mode="approve"
+                isLoading={Boolean(leaveActionProcessingId)}
+            />
+
+            {/* Custom Leave Decline Confirmation Dialog (Destructive Style) */}
+            <LeaveApprovalConfirmDialog
                 isOpen={Boolean(declineModalReq)}
                 onClose={() => setDeclineModalReq(null)}
                 leaveRequest={declineModalReq}
                 onConfirm={handleConfirmDeclineLeave}
-                isProcessing={Boolean(leaveActionProcessingId)}
+                mode="reject"
+                isLoading={Boolean(leaveActionProcessingId)}
             />
         </TenantLayout>
     );

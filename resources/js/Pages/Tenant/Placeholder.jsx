@@ -23,7 +23,7 @@ export default function Placeholder({ title, description, status }) {
                     {/* Feature Card */}
                     <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 shadow-xl p-8 lg:p-10">
                         {/* Decorative background grid pattern */}
-                        <div className="absolute inset-0 bg-[linear-gradient(to_right,#007cff04_1px,transparent_1px),linear-gradient(to_bottom,#007cff04_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
+                        <div className="absolute inset-0 bg-[linear-gradient(to_right,#007cff04_1px,transparent_1px),linear-gradient(to_bottom,#007cff04_1px,transparent_1px)] bg-size-[16px_16px] pointer-events-none" />
 
                         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
                             <div className="space-y-4 max-w-xl">

@@ -202,7 +202,7 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
                             {selectedProjectId && (
                                 <Link
                                     href={route('tenant.projects.show', { tenant: activeWorkspace, project: selectedProjectId })}
-                                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-brand text-white hover:bg-brand-light shadow-2xs hover:shadow-xs transition-all active:scale-[0.98] focus-ring"
+                                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-brand text-white hover:bg-brand-light shadow-2xs hover:shadow-2xs transition-all active:scale-[0.98] focus-ring"
                                 >
                                     {hasManagerRights ? (
                                         <>

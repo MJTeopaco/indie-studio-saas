@@ -13,7 +13,7 @@ export default function ResponsiveNavLink({
                 active
                     ? 'border-brand bg-brand-10 text-brand focus:border-brand-dark focus:bg-brand-10 focus:text-brand-dark'
                     : 'border-transparent text-gray-600 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-800 focus:border-gray-300 focus:bg-gray-50 focus:text-gray-800'
-            } text-base font-medium transition duration-150 ease-in-out focus:outline-none ${className}`}
+            } text-base font-medium transition duration-150 ease-in-out focus:outline-hidden ${className}`}
         >
             {children}
         </Link>

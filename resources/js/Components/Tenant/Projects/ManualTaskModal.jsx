@@ -304,7 +304,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
 
     return (
         <div 
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm select-none"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs select-none"
             role="dialog"
             aria-modal="true"
             aria-labelledby="manual-task-modal-title"
@@ -477,7 +477,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
                                                      value={form.status} 
                                                      onChange={event => updateField('status', event.target.value)} 
                                                      disabled={Number(editingTask?.assigned_user_id) !== Number(currentUserId)}
-                                                     className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-slate-700 dark:bg-slate-950 disabled:opacity-50"
+                                                     className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-hidden focus:border-brand dark:border-slate-700 dark:bg-slate-950 disabled:opacity-50"
                                                  >
                                                      {STATUSES.map(status => <option key={status.value} value={status.value}>{status.label}</option>)}
                                                  </select>
@@ -531,7 +531,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
                                                         type="checkbox"
                                                         checked={form.macro_domains[index] === 1}
                                                         onChange={e => handleMacroDomainChange(index, e.target.checked)}
-                                                        className="rounded border-gray-300 text-brand focus-ring"
+                                                        className="rounded-sm border-gray-300 text-brand focus-ring"
                                                     />
                                                     <span className="truncate">{domain}</span>
                                                 </label>
@@ -595,7 +595,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
                                                             <button 
                                                                 type="button" 
                                                                 onClick={() => removeSkill(idx)}
-                                                                className="text-rose-500 hover:text-rose-700 p-1 rounded hover:bg-rose-50"
+                                                                className="text-rose-500 hover:text-rose-700 p-1 rounded-sm hover:bg-rose-50"
                                                             >
                                                                 <Trash2 className="w-3.5 h-3.5" />
                                                             </button>
@@ -622,7 +622,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
                                                         type="checkbox"
                                                         checked={form.depends_on.includes(task.id)}
                                                         onChange={e => handlePredecessorToggle(task.id, e.target.checked)}
-                                                        className="rounded border-gray-300 text-brand focus-ring"
+                                                        className="rounded-sm border-gray-300 text-brand focus-ring"
                                                     />
                                                     <div className="min-w-0">
                                                         <span className="block text-xs font-bold text-gray-800 dark:text-slate-200 truncate">{task.title}</span>
@@ -700,7 +700,7 @@ export default function ManualTaskModal({ isOpen, onClose, project, tenantId, sp
                                                                 type="button"
                                                                 disabled={assigningId !== null}
                                                                 onClick={() => assignDeveloper(candidate.user_id, candidate.score)}
-                                                                className="inline-flex items-center gap-1.5 rounded-xl bg-brand hover:bg-brand-dark disabled:opacity-50 text-white px-3.5 py-1.5 text-xs font-bold transition-all shrink-0 shadow-sm"
+                                                                className="inline-flex items-center gap-1.5 rounded-xl bg-brand hover:bg-brand-dark disabled:opacity-50 text-white px-3.5 py-1.5 text-xs font-bold transition-all shrink-0 shadow-xs"
                                                             >
                                                                 {isAssigning ? (
                                                                     <Loader2 className="w-3.5 h-3.5 animate-spin" />

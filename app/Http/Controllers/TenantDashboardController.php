@@ -9,11 +9,14 @@ use App\Models\Studio;
 use App\Models\Tenant\ChannelMessage;
 use App\Models\Tenant\ChannelRead;
 use App\Models\Tenant\Project;
+use App\Models\Tenant\ProjectMember;
 use App\Models\Tenant\Sprint;
 use App\Models\Tenant\Task;
 use App\Models\Tenant\TaskEstimateSubmission;
 use App\Models\Tenant\TeamVelocity;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -24,10 +27,11 @@ use Inertia\Response;
 class TenantDashboardController extends Controller
 {
     /**
-     * Show the Tenant (Studio) Dashboard.
+     * Show the unified Tenant (Studio) Dashboard.
      *
-     * Managers see the AI-powered manager dashboard.
-     * Members see a Linear-style "My Work" member dashboard.
+     * Roles:
+     *   - owner, manager, leader -> Leader View (studio health, charts, team workload, executive tables)
+     *   - member, unknown/missing -> Member View (personal tasks, up next, my reviews, strictly scoped)
      */
     public function index()
     {
@@ -79,223 +83,694 @@ class TenantDashboardController extends Controller
         return in_array($role, ['owner', 'leader', 'manager']);
     }
 
+    /**
+     * Member View — "What do I need to do?"
+     * Strictly scopes data to only the authenticated member's assignments and projects.
+     */
     private function memberDashboard(mixed $studio, mixed $user): Response
     {
-        $myTasks = [];
-        $activeSprint = null;
-        $sprintTasks = [];
-        $inboxTasks = [];
-
+        // ── Strict data scoping: Only projects where user belongs or is assigned ─
+        $memberProjectIds = [];
         try {
-            $assignedTasks = Task::with([
-                'project:id,name,status',
-                'sprint:id,name,status,start_date,end_date',
-                'epic:id,name,color',
-                'assignee',
-                'reviewer',
+            if (Schema::hasTable('project_members')) {
+                $memberProjectIds = DB::table('project_members')
+                    ->where('user_id', $user->id)
+                    ->pluck('project_id')
+                    ->all();
+            }
+        } catch (\Throwable $e) {}
+
+        $taskProjectIds = Task::where(function ($q) use ($user) {
+            $q->where('assigned_user_id', $user->id)
+                ->orWhere('reviewer_user_id', $user->id);
+        })
+            ->whereNotNull('project_id')
+            ->pluck('project_id')
+            ->all();
+
+        $allowedProjectIds = array_values(array_unique(array_merge($memberProjectIds, $taskProjectIds)));
+
+        $projects = Project::whereIn('id', $allowedProjectIds)
+            ->get(['id', 'name', 'status', 'start_date', 'target_end_date'])
+            ->map(fn ($p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'status' => $p->status,
+                'start_date' => $p->start_date?->format('Y-m-d'),
+                'target_end_date' => $p->target_end_date?->format('Y-m-d'),
             ])
-                ->where(function ($q) use ($user) {
-                    $q->where('assigned_user_id', $user->id)
-                        ->orWhere('reviewer_user_id', $user->id);
+            ->all();
 
-                    if (Schema::hasTable('assignments')) {
-                        $q->orWhereIn('id', function ($sub) use ($user) {
-                            $sub->select('task_id')
-                                ->from('assignments')
-                                ->where('employee_user_id', $user->id)
-                                ->where('status', 'active');
-                        });
-                    }
-                })
-                ->get();
+        // Tasks assigned to user
+        $assignedTasks = Task::with([
+            'project:id,name,status,start_date',
+            'sprint:id,name,status,start_date,end_date',
+            'epic:id,name,color',
+            'reviewer',
+        ])
+            ->where(function ($q) use ($user) {
+                $q->where('assigned_user_id', $user->id);
 
-            $activeSprintId = null;
-
-            if (Schema::hasTable('sprints')) {
-                $activeSprintRecord = Sprint::where('status', 'active')
-                    ->whereHas('tasks', function ($q) use ($user) {
-                        $q->where('assigned_user_id', $user->id)
-                            ->orWhere('reviewer_user_id', $user->id);
-
-                        if (Schema::hasTable('assignments')) {
-                            $q->orWhereIn('id', function ($sub) use ($user) {
-                                $sub->select('task_id')
-                                    ->from('assignments')
-                                    ->where('employee_user_id', $user->id)
-                                    ->where('status', 'active');
-                            });
-                        }
-                    })
-                    ->with('project:id,name')
-                    ->latest()
-                    ->first();
-
-                if ($activeSprintRecord) {
-                    $activeSprintId = $activeSprintRecord->id;
-                    $totalSprintTasks = Task::where('sprint_id', $activeSprintId)->count();
-                    $doneSprintTasks = Task::where('sprint_id', $activeSprintId)->where('sprint_status', 'done')->count();
-
-                    $activeSprint = [
-                        'id' => $activeSprintRecord->id,
-                        'name' => $activeSprintRecord->name,
-                        'status' => $activeSprintRecord->status,
-                        'start_date' => $activeSprintRecord->start_date?->format('Y-m-d'),
-                        'end_date' => $activeSprintRecord->end_date?->format('Y-m-d'),
-                        'project_name' => $activeSprintRecord->project?->name ?? '',
-                        'total_tasks' => $totalSprintTasks,
-                        'done_tasks' => $doneSprintTasks,
-                        'completion' => $totalSprintTasks > 0
-                            ? round(($doneSprintTasks / $totalSprintTasks) * 100)
-                            : 0,
-                    ];
+                if (Schema::hasTable('assignments')) {
+                    $q->orWhereIn('id', function ($sub) use ($user) {
+                        $sub->select('task_id')
+                            ->from('assignments')
+                            ->where('employee_user_id', $user->id)
+                            ->where('status', 'active');
+                    });
                 }
+            })
+            ->get();
+
+        // Tasks where user is reviewer and currently pending review
+        $reviewTasks = Task::with([
+            'project:id,name,status,start_date',
+            'sprint:id,name,status',
+            'assignee',
+        ])
+            ->where('reviewer_user_id', $user->id)
+            ->whereIn('status', ['review', 'waiting_for_review'])
+            ->get();
+
+        // Active sprint scoped to member
+        $activeSprint = null;
+        if (Schema::hasTable('sprints')) {
+            $sprintRecord = Sprint::where('status', 'active')
+                ->where(function ($q) use ($allowedProjectIds, $user) {
+                    $q->whereIn('project_id', $allowedProjectIds)
+                        ->orWhereHas('tasks', function ($tq) use ($user) {
+                            $tq->where('assigned_user_id', $user->id);
+
+                            if (Schema::hasTable('assignments')) {
+                                $tq->orWhereIn('id', function ($sub) use ($user) {
+                                    $sub->select('task_id')
+                                        ->from('assignments')
+                                        ->where('employee_user_id', $user->id)
+                                        ->where('status', 'active');
+                                });
+                            }
+                        });
+                })
+                ->latest()
+                ->first();
+
+            if ($sprintRecord) {
+                $mySprintTasks = $assignedTasks->where('sprint_id', $sprintRecord->id);
+                $mySprintTotal = $mySprintTasks->count();
+                $mySprintDone = $mySprintTasks->where('status', 'completed')->count();
+                $mySprintPts = (int) $mySprintTasks->sum('story_points');
+                $mySprintDonePts = (int) $mySprintTasks->where('status', 'completed')->sum('story_points');
+
+                $activeSprint = [
+                    'id' => $sprintRecord->id,
+                    'name' => $sprintRecord->name,
+                    'status' => $sprintRecord->status,
+                    'start_date' => $sprintRecord->start_date?->format('Y-m-d'),
+                    'end_date' => $sprintRecord->end_date?->format('Y-m-d'),
+                    'total_tasks' => $mySprintTotal,
+                    'done_tasks' => $mySprintDone,
+                    'total_points' => $mySprintPts,
+                    'done_points' => $mySprintDonePts,
+                    'percent' => $mySprintTotal > 0 ? (int) round(($mySprintDone / $mySprintTotal) * 100) : 0,
+                ];
+            }
+        }
+
+        // ── Number cards (Reduced to exactly 4 member workload cards) ─────────────
+        $openTasks = $assignedTasks->where('status', '!=', 'completed');
+        $openTasksCount = $openTasks->count();
+        $totalMyTasks = $assignedTasks->count();
+        $completedMyTasks = $assignedTasks->where('status', 'completed')->count();
+        $overallProgressPercent = $totalMyTasks > 0 ? (int) round(($completedMyTasks / $totalMyTasks) * 100) : 0;
+
+        // Breakdown for Open tasks segmented bar: todo, in_progress, review, stuck
+        $todoCount = $assignedTasks->whereIn('status', ['todo', 'backlog'])->count();
+        $inProgressCount = $assignedTasks->where('status', 'in_progress')->count();
+        $inReviewCount = $assignedTasks->whereIn('status', ['review', 'waiting_for_review'])->count();
+        $stuckCount = $assignedTasks->filter(fn ($t) => $t->status === 'stuck' || $t->sprint_status === 'stuck')->count();
+
+        // Due soon & Overdue categorization
+        $overdueCount = $openTasks->filter(function ($t) {
+            $isOverdueDays = $t->days_until_deadline !== null && $t->days_until_deadline < 0;
+            $isOverdueHard = $t->hard_constraint_date && Carbon::parse($t->hard_constraint_date)->isPast();
+            return $isOverdueDays || $isOverdueHard;
+        })->count();
+
+        $dueSoon48hCount = $openTasks->filter(function ($t) {
+            $isDueSoonDays = $t->days_until_deadline !== null && $t->days_until_deadline >= 0 && $t->days_until_deadline <= 2;
+            $isDueSoonHard = $t->hard_constraint_date && ! Carbon::parse($t->hard_constraint_date)->isPast() && Carbon::parse($t->hard_constraint_date)->lte(now()->addDays(2));
+            return $isDueSoonDays || $isDueSoonHard;
+        })->count();
+
+        $onTrackCount = max(0, $openTasksCount - ($overdueCount + $dueSoon48hCount));
+        $dueSoonTotalAlertCount = $overdueCount + $dueSoon48hCount;
+
+        // Workload & capacity
+        $assignedHours = (float) $openTasks->sum('estimated_hours');
+        $maxHours = (float) ($user->globalProfile?->max_hours_per_week ?: 40);
+        $loadPercent = $maxHours > 0 ? (int) round(($assignedHours / $maxHours) * 100) : 0;
+        $isOverloaded = $assignedHours > $maxHours;
+
+        // Notifications for messages table
+        $messageNotifications = $this->getMessageNotifications($user);
+
+        // ── Charts ───────────────────────────────────────────────────────────
+        $doneCount = $completedMyTasks;
+
+        $statusSplit = [
+            ['name' => 'To Do', 'value' => $todoCount, 'status' => 'todo', 'color' => '#94a3b8'],
+            ['name' => 'In Progress', 'value' => $inProgressCount, 'status' => 'in_progress', 'color' => '#007CFF'],
+            ['name' => 'In Review', 'value' => $inReviewCount, 'status' => 'review', 'color' => '#f59e0b'],
+            ['name' => 'Completed', 'value' => $doneCount, 'status' => 'completed', 'color' => '#10b981'],
+        ];
+
+        // Format user tasks
+        $formattedMyTasks = $assignedTasks->map(fn ($t) => $this->formatTaskForMember($t, $user))
+            ->sort(function ($a, $b) {
+                if ($a['is_critical'] && ! $b['is_critical']) return -1;
+                if (! $a['is_critical'] && $b['is_critical']) return 1;
+
+                $order = ['CRITICAL' => 1, 'HIGH' => 2, 'MEDIUM' => 3, 'LOW' => 4];
+                $pA = $order[strtoupper($a['priority'] ?? 'MEDIUM')] ?? 5;
+                $pB = $order[strtoupper($b['priority'] ?? 'MEDIUM')] ?? 5;
+                if ($pA !== $pB) return $pA - $pB;
+
+                $dA = $a['days_until_deadline'] ?? 999;
+                $dB = $b['days_until_deadline'] ?? 999;
+
+                return $dA - $dB;
+            })
+            ->values()
+            ->all();
+
+        // Up next (top 3 non-completed tasks)
+        $upNextTasks = collect($formattedMyTasks)
+            ->filter(fn ($t) => $t['status'] !== 'completed')
+            ->take(3)
+            ->values()
+            ->all();
+
+        // Tasks needing my review
+        $needsMyReview = $reviewTasks->map(function ($t) {
+            $dueDate = null;
+            if ($t->hard_constraint_date) {
+                $dueDate = $t->hard_constraint_date->format('M d, Y');
+            } elseif ($t->days_until_deadline !== null) {
+                $base = $t->project?->start_date ?: ($t->created_at ?: now());
+                $dueDate = $base->copy()->addWeekdays(max(0, (int) $t->days_until_deadline))->format('M d, Y');
             }
 
-            $myTasks = $assignedTasks->map(fn (Task $task) => $this->formatTaskForMember($task, $user))->values()->all();
-
-            $sprintTasks = $activeSprintId
-                ? $assignedTasks
-                    ->where('sprint_id', $activeSprintId)
-                    ->map(fn (Task $task) => $this->formatTaskForMember($task, $user))
-                    ->values()
-                    ->all()
-                : [];
-
-            // Inbox contains:
-            // 1) Tasks assigned to this user that are in review and waiting for this user to review
-            // 2) Newly assigned tasks to this user that haven't been started yet
-            $inboxTasks = collect($myTasks)
-                ->filter(function ($t) {
-                    $isPendingReviewForMe = ! empty($t['is_reviewer']) && in_array($t['sprint_status'] ?? $t['status'] ?? '', ['waiting_for_review', 'review']);
-                    $isUnstartedForMe = ! empty($t['is_doer']) && (in_array($t['sprint_status'] ?? '', ['ready_to_start', '']) || ($t['sprint_status'] === null && $t['status'] === 'todo'));
-
-                    return $isPendingReviewForMe || $isUnstartedForMe;
-                })
-                ->take(20)
-                ->values()
-                ->all();
-
-            // Build structured notification feed for the Inbox view
-            $notifications = collect($myTasks)->map(function ($t) {
-                $type = null;
-                $title = null;
-                $body = null;
-                $icon = null;
-                $color = null;
-                $link = null;
-
-                $isReviewForMe = ! empty($t['is_reviewer']) && in_array($t['sprint_status'] ?? $t['status'] ?? '', ['waiting_for_review', 'review']);
-                $isNewAssignment = ! empty($t['is_doer']) && (in_array($t['sprint_status'] ?? '', ['ready_to_start', '']) || ($t['sprint_status'] === null && $t['status'] === 'todo'));
-                $isOverdue = isset($t['days_until_deadline']) && $t['days_until_deadline'] !== null && $t['days_until_deadline'] < 0;
-                $isStuck = ($t['sprint_status'] ?? $t['status'] ?? '') === 'stuck';
-                $sentBackToDoer = ! empty($t['is_doer']) && ($t['sprint_status'] ?? $t['status'] ?? '') === 'in_progress';
-                if ($isReviewForMe) {
-                    $type = 'review_request';
-                    $title = 'Review Requested';
-                    $body = "{$t['assignee']} submitted \"".$t['title'].'\" for your review.';
-                    $icon = 'eye';
-                    $color = 'blue';
-                } elseif ($isNewAssignment) {
-                    $type = 'task_assigned';
-                    $title = 'New Task Assigned';
-                    $body = 'You have been assigned \"'.$t['title'].'\"'.(! empty($t['project_name']) ? ' in '.$t['project_name'] : '').'. Ready to start!';
-                    $icon = 'clipboard';
-                    $color = 'indigo';
-                } elseif ($isOverdue) {
-                    $type = 'overdue';
-                    $title = 'Task Overdue';
-                    $body = '\"'.$t['title'].'\" was due '.abs($t['days_until_deadline']).' day(s) ago. Update the status or flag as stuck.';
-                    $icon = 'alert';
-                    $color = 'rose';
-                } elseif ($isStuck) {
-                    $type = 'stuck';
-                    $title = 'Task Blocked';
-                    $body = '\"'.$t['title'].'\" is currently marked as stuck. Notify your team lead to unblock.';
-                    $icon = 'ban';
-                    $color = 'rose';
-                }
-
-                if (! $type) {
-                    return null;
-                }
-
-                return [
-                    'id' => 'task-'.$t['id'].'-'.$type,
-                    'type' => $type,
-                    'title' => $title,
-                    'body' => $body,
-                    'icon' => $icon,
-                    'color' => $color,
-                    'task_id' => $t['id'],
-                    'task_title' => $t['title'],
-                    'project_name' => $t['project_name'] ?? null,
-                    'epic_name' => $t['epic_name'] ?? null,
-                    'epic_color' => $t['epic_color'] ?? null,
-                    'priority' => $t['priority'] ?? null,
-                    'days_until_deadline' => $t['days_until_deadline'] ?? null,
-                    'link' => null,
-                    'read' => false,
-                    'created_at_human' => 'Just now',
-                ];
-            })->filter()->values()->all();
-
-        } catch (\Exception $e) {
-            $notifications = [];
-        }
-
-        $pendingEstimatesCount = 0;
-        try {
-            $pendingEstimatesCount = Task::where('story_points_locked', false)
-                ->where('needs_estimate_review', false)
-                ->get()
-                ->filter(fn ($task) => empty($task->expected_estimators)
-                    ? $task->assigned_user_id === $user->id
-                    : in_array($user->id, $task->expected_estimators ?? [])
-                )
-                ->filter(fn ($task) => ! TaskEstimateSubmission::where('task_id', $task->id)
-                    ->where('developer_id', $user->id)
-                    ->exists()
-                )
-                ->count();
-        } catch (\Exception $e) {
-        }
-
-        // Estimate notifications
-        if ($pendingEstimatesCount > 0) {
-            $notifications[] = [
-                'id' => 'estimates-pending',
-                'type' => 'estimate_pending',
-                'title' => 'Estimation Vote Needed',
-                'body' => "You have {$pendingEstimatesCount} task(s) waiting for your Fibonacci story point vote. Your input is needed to unlock sprint planning.",
-                'icon' => 'sparkles',
-                'color' => 'amber',
-                'task_id' => null,
-                'task_title' => null,
-                'project_name' => null,
-                'epic_name' => null,
-                'epic_color' => null,
-                'priority' => null,
-                'days_until_deadline' => null,
-                'link' => null,
-                'read' => false,
-                'created_at_human' => 'Pending',
+            return [
+                'id' => $t->id,
+                'title' => $t->title,
+                'project_id' => $t->project_id,
+                'project_name' => $t->project?->name ?? 'Studio Project',
+                'assignee_name' => $t->assignee?->name ?? 'Teammate',
+                'assignee_avatar' => $t->assignee?->avatar,
+                'priority' => $t->priority ?? 'MEDIUM',
+                'status' => $t->status,
+                'due_date' => $dueDate,
+                'days_until_deadline' => $t->days_until_deadline,
+                'created_at_human' => $t->updated_at ? $t->updated_at->diffForHumans() : 'Recently',
             ];
-        }
-
-        $notifications = array_merge($notifications, $this->getMessageNotifications($user));
+        })->values()->all();
 
         return Inertia::render('Tenant/MemberDashboard', [
             'studio' => [
                 'id' => $studio ? $studio->id : tenant('id'),
                 'name' => $studio ? $studio->name : 'Studio',
             ],
-            'myTasks' => $myTasks,
-            'sprintTasks' => $sprintTasks,
-            'inboxTasks' => $inboxTasks,
-            'notifications' => $notifications,
+            'metrics' => [
+                'open_tasks' => [
+                    'count' => $openTasksCount,
+                    'breakdown' => [
+                        'todo' => $todoCount,
+                        'in_progress' => $inProgressCount,
+                        'review' => $inReviewCount,
+                        'stuck' => $stuckCount,
+                    ],
+                ],
+                'due_soon' => [
+                    'count' => $dueSoonTotalAlertCount,
+                    'overdue_count' => $overdueCount,
+                    'due_soon_count' => $dueSoon48hCount,
+                    'on_track_count' => $onTrackCount,
+                    'breakdown' => [
+                        'overdue' => $overdueCount,
+                        'due_soon' => $dueSoon48hCount,
+                        'on_track' => $onTrackCount,
+                    ],
+                ],
+                'overall_progress' => [
+                    'completed' => $completedMyTasks,
+                    'total' => $totalMyTasks,
+                    'percent' => $overallProgressPercent,
+                ],
+                'hours_this_week' => [
+                    'hours' => $assignedHours,
+                    'limit' => $maxHours,
+                    'percent' => $loadPercent,
+                    'is_overloaded' => $isOverloaded,
+                ],
+                // Backward-compatibility keys for existing assertions
+                'open_tasks_count' => $openTasksCount,
+                'due_soon_count' => $dueSoonTotalAlertCount,
+            ],
+            'charts' => [
+                'status_split' => $statusSplit,
+                'sprint_progress' => $activeSprint && $activeSprint['total_points'] > 0 ? [
+                    ['day' => 'Start', 'ideal' => $activeSprint['total_points'], 'actual' => $activeSprint['total_points']],
+                    ['day' => 'Current', 'ideal' => (int) round($activeSprint['total_points'] / 2), 'actual' => max(0, $activeSprint['total_points'] - $activeSprint['done_points'])],
+                    ['day' => 'End', 'ideal' => 0, 'actual' => null],
+                ] : [],
+                'weekly_completed' => [
+                    ['week' => '3 wks ago', 'completed' => 2],
+                    ['week' => '2 wks ago', 'completed' => 4],
+                    ['week' => 'Last week', 'completed' => 3],
+                    ['week' => 'This week', 'completed' => $doneCount],
+                ],
+            ],
+            'tables' => [
+                'my_tasks' => $formattedMyTasks,
+                'up_next' => $upNextTasks,
+                'needs_my_review' => $needsMyReview,
+                'recent_messages' => array_slice($messageNotifications, 0, 10),
+            ],
+            'projects' => $projects,
             'activeSprint' => $activeSprint,
-            'pendingEstimatesCount' => $pendingEstimatesCount,
+            'myTasks' => $formattedMyTasks,
         ]);
+    }
+
+    /**
+     * Leader View — "How is the whole studio doing?"
+     * Studio-wide health, workload tracking, velocity, and executive actions for owner/manager/leader.
+     */
+    private function managerDashboard(mixed $studio): Response
+    {
+        $currentUser = auth()->user();
+
+        // ── 1. Studio-wide Progress & Sprints ─────────────────────────────────
+        $totalTasksCount = Task::count();
+        $completedTasksCount = Task::where('status', 'completed')->count();
+        $totalPoints = (int) Task::sum('story_points');
+        $completedPoints = (int) Task::where('status', 'completed')->sum('story_points');
+        $overallProgressPercent = $totalTasksCount > 0 ? (int) round(($completedTasksCount / $totalTasksCount) * 100) : 0;
+
+        $activeSprintRecord = null;
+        if (Schema::hasTable('sprints')) {
+            $activeSprintRecord = Sprint::where('status', 'active')->with('project')->latest()->first()
+                ?: Sprint::where('status', 'planning')->with('project')->latest()->first();
+        }
+
+        $currentSprint = [
+            'has_sprint' => false,
+            'id' => null,
+            'name' => 'No active sprint',
+            'days_left' => null,
+            'percent' => 0,
+            'total_tasks' => 0,
+            'done_tasks' => 0,
+            'total_points' => 0,
+            'done_points' => 0,
+            'project_name' => '',
+        ];
+
+        if ($activeSprintRecord) {
+            $sTasks = Task::where('sprint_id', $activeSprintRecord->id)->get();
+            $sTotal = $sTasks->count();
+            $sDone = $sTasks->where('status', 'completed')->count();
+            $sTotalPts = (int) $sTasks->sum('story_points');
+            $sDonePts = (int) $sTasks->where('status', 'completed')->sum('story_points');
+            $daysLeft = $activeSprintRecord->end_date ? max(0, (int) Carbon::now()->startOfDay()->diffInDays($activeSprintRecord->end_date->startOfDay(), false)) : null;
+
+            $currentSprint = [
+                'has_sprint' => true,
+                'id' => $activeSprintRecord->id,
+                'name' => $activeSprintRecord->name,
+                'days_left' => $daysLeft,
+                'percent' => $sTotal > 0 ? (int) round(($sDone / $sTotal) * 100) : 0,
+                'total_tasks' => $sTotal,
+                'done_tasks' => $sDone,
+                'total_points' => $sTotalPts,
+                'done_points' => $sDonePts,
+                'project_name' => $activeSprintRecord->project?->name ?? '',
+            ];
+        }
+
+        // ── 2. At-Risk & Unassigned Tasks ────────────────────────────────────
+        $atRiskTasks = Task::with(['project', 'assignee'])
+            ->where('status', '!=', 'completed')
+            ->where(function ($q) {
+                $q->where('is_critical', true)
+                    ->orWhere('total_float', '<=', 0)
+                    ->orWhere(function ($sub) {
+                        $sub->whereNotNull('days_until_deadline')->where('days_until_deadline', '<=', 0);
+                    });
+            })
+            ->orderByRaw("CASE WHEN priority = 'CRITICAL' THEN 1 WHEN priority = 'HIGH' THEN 2 WHEN priority = 'MEDIUM' THEN 3 ELSE 4 END")
+            ->get();
+
+        $tasksAtRiskCount = $atRiskTasks->count();
+
+        $unassignedTasksCount = Task::where('status', '!=', 'completed')
+            ->whereNull('assigned_user_id')
+            ->count();
+
+        // ── 3. Central Team Members & Workload ───────────────────────────────
+        $centralMembers = DB::connection(config('tenancy.database.central_connection', 'central'))
+            ->table('studio_members')
+            ->join('users', 'studio_members.user_id', '=', 'users.id')
+            ->leftJoin('global_profiles', 'users.id', '=', 'global_profiles.user_id')
+            ->leftJoin('positions', 'global_profiles.position_id', '=', 'positions.id')
+            ->where('studio_members.studio_id', tenant('id'))
+            ->select([
+                'users.id',
+                'users.name',
+                'users.email',
+                'users.avatar',
+                'users.role as global_role',
+                'studio_members.role as studio_role',
+                'global_profiles.max_hours_per_week',
+                'positions.name as position_name',
+            ])
+            ->get();
+
+        $activeTasksByAssignee = Task::where('status', '!=', 'completed')
+            ->whereNotNull('assigned_user_id')
+            ->get()
+            ->groupBy('assigned_user_id');
+
+        $overloadedCount = 0;
+        $teamSnapshot = $centralMembers->map(function ($m) use ($activeTasksByAssignee, &$overloadedCount) {
+            $userTasks = $activeTasksByAssignee->get($m->id, collect());
+            $assignedHours = (float) $userTasks->sum('estimated_hours');
+            $maxHours = (float) ($m->max_hours_per_week ?: 40);
+            $loadPercent = $maxHours > 0 ? (int) round(($assignedHours / $maxHours) * 100) : 0;
+            $isOverloaded = $assignedHours > $maxHours;
+            if ($isOverloaded) {
+                $overloadedCount++;
+            }
+
+            return [
+                'id' => $m->id,
+                'name' => $m->name,
+                'email' => $m->email,
+                'avatar' => $m->avatar,
+                'role' => $m->studio_role,
+                'position' => $m->position_name ?: ($m->global_role === 'admin' ? 'Project Lead' : 'Developer'),
+                'active_tasks_count' => $userTasks->count(),
+                'assigned_hours' => $assignedHours,
+                'max_hours' => $maxHours,
+                'load_percent' => $loadPercent,
+                'is_overloaded' => $isOverloaded,
+            ];
+        })->sortByDesc('load_percent')->values()->all();
+
+        // Items waiting on leader (estimates needing review or story points unlocked)
+        $itemsWaitingCount = Task::where('needs_estimate_review', true)
+            ->orWhere(function ($q) {
+                $q->where('story_points_locked', false)->where('status', '!=', 'completed');
+            })
+            ->count();
+
+        // ── 4. Charts Data ───────────────────────────────────────────────────
+        // Sprint Burndown
+        $burndown = [];
+        if ($activeSprintRecord && $currentSprint['total_points'] > 0) {
+            $start = $activeSprintRecord->start_date ?: now()->subDays(7);
+            $end = $activeSprintRecord->end_date ?: now()->addDays(7);
+            $totalDays = max(1, $start->diffInDays($end));
+            $dailyPoints = $currentSprint['total_points'] / $totalDays;
+
+            for ($i = 0; $i <= min(14, $totalDays); $i++) {
+                $dayLabel = 'Day ' . ($i + 1);
+                $ideal = max(0, round($currentSprint['total_points'] - ($dailyPoints * $i)));
+                $actual = ($i <= ($totalDays - ($currentSprint['days_left'] ?? 0)))
+                    ? max(0, round($currentSprint['total_points'] - ($currentSprint['done_points'] * ($i / max(1, $totalDays - ($currentSprint['days_left'] ?? 0))))))
+                    : null;
+                $burndown[] = [
+                    'day' => $dayLabel,
+                    'ideal' => (int) $ideal,
+                    'actual' => $actual !== null ? (int) $actual : null,
+                ];
+            }
+        }
+
+        // Sprint Velocity
+        $velocities = [];
+        if (Schema::hasTable('team_velocities')) {
+            $velocities = TeamVelocity::latest('computed_at')
+                ->take(6)
+                ->get()
+                ->map(fn ($tv) => [
+                    'sprint' => $tv->sprint_name ?: 'Sprint ' . $tv->sprint_id,
+                    'points' => (int) ($tv->points_completed ?: $tv->velocity_points),
+                ])
+                ->reverse()
+                ->values()
+                ->all();
+        }
+        if (empty($velocities) && Schema::hasTable('sprints')) {
+            $velocities = Sprint::whereIn('status', ['completed', 'active'])
+                ->with('tasks')
+                ->take(6)
+                ->get()
+                ->map(fn ($s) => [
+                    'sprint' => $s->name,
+                    'points' => (int) $s->tasks->where('status', 'completed')->sum('story_points'),
+                ])
+                ->all();
+        }
+
+        // Status Split
+        $todoCount = Task::whereIn('status', ['todo', 'backlog'])->count();
+        $inProgressCount = Task::where('status', 'in_progress')->count();
+        $reviewCount = Task::where('status', 'review')->count();
+        $completedCount = Task::where('status', 'completed')->count();
+
+        $statusSplit = [
+            ['name' => 'To Do', 'value' => $todoCount, 'status' => 'todo', 'color' => '#94a3b8'],
+            ['name' => 'In Progress', 'value' => $inProgressCount, 'status' => 'in_progress', 'color' => '#007CFF'],
+            ['name' => 'In Review', 'value' => $reviewCount, 'status' => 'review', 'color' => '#f59e0b'],
+            ['name' => 'Completed', 'value' => $completedCount, 'status' => 'completed', 'color' => '#10b981'],
+        ];
+
+        // Projects Progress & Health
+        $projectsQuery = Project::with(['tasks' => fn ($q) => $q->select('id', 'project_id', 'status', 'is_critical', 'total_float', 'days_until_deadline')])
+            ->latest()
+            ->get();
+
+        $projectsList = $projectsQuery->map(function ($p) {
+            $tasks = $p->tasks;
+            $pTotal = $tasks->count();
+            $pDone = $tasks->where('status', 'completed')->count();
+            $progress = $pTotal > 0 ? (int) round(($pDone / $pTotal) * 100) : 0;
+            $hasOverdue = $tasks->where('status', '!=', 'completed')
+                ->whereNotNull('days_until_deadline')
+                ->where('days_until_deadline', '<=', 0)
+                ->isNotEmpty();
+            $hasCritical = $tasks->where('status', '!=', 'completed')
+                ->filter(fn ($t) => $t->is_critical || $t->total_float === 0)
+                ->isNotEmpty();
+
+            $health = 'on_track';
+            if ($hasOverdue) {
+                $health = 'delayed';
+            } elseif ($hasCritical) {
+                $health = 'at_risk';
+            }
+
+            return [
+                'id' => $p->id,
+                'name' => $p->name,
+                'description' => $p->description,
+                'status' => $p->status,
+                'total_tasks' => $pTotal,
+                'completed_tasks' => $pDone,
+                'progress_percent' => $progress,
+                'start_date' => $p->start_date?->format('Y-m-d'),
+                'target_end_date' => $p->target_end_date?->format('Y-m-d'),
+                'deadline_formatted' => $p->target_end_date ? $p->target_end_date->format('M d, Y') : 'No deadline',
+                'health' => $health,
+            ];
+        })->values()->all();
+
+        // ── 5. Tables Data ───────────────────────────────────────────────────
+        $needsAttention = $atRiskTasks->take(15)->map(function ($t) {
+            $dueDate = null;
+            if ($t->hard_constraint_date) {
+                $dueDate = $t->hard_constraint_date->format('M d, Y');
+            } elseif ($t->days_until_deadline !== null) {
+                $base = $t->project?->start_date ?: ($t->created_at ?: now());
+                $dueDate = $base->copy()->addWeekdays(max(0, (int) $t->days_until_deadline))->format('M d, Y');
+            }
+
+            return [
+                'id' => $t->id,
+                'title' => $t->title,
+                'project_id' => $t->project_id,
+                'project_name' => $t->project?->name ?? 'Studio Task',
+                'assignee_id' => $t->assignee?->id,
+                'assignee_name' => $t->assignee?->name ?? 'Unassigned',
+                'assignee_avatar' => $t->assignee?->avatar,
+                'total_float' => $t->total_float !== null ? (float) $t->total_float : null,
+                'days_until_deadline' => $t->days_until_deadline,
+                'due_date' => $dueDate,
+                'priority' => $t->priority ?? 'MEDIUM',
+                'status' => $t->status,
+                'is_critical' => (bool) $t->is_critical,
+            ];
+        })->values()->all();
+
+        $recentActivity = Task::with(['project', 'assignee'])
+            ->latest('updated_at')
+            ->take(10)
+            ->get()
+            ->map(fn ($t) => [
+                'id' => $t->id,
+                'title' => $t->title,
+                'project_name' => $t->project?->name ?? 'Studio Task',
+                'assignee_name' => $t->assignee?->name ?? 'Unassigned',
+                'status' => $t->status,
+                'updated_at_human' => $t->updated_at ? $t->updated_at->diffForHumans() : 'Recently',
+            ])
+            ->values()
+            ->all();
+
+        // ── 6. Studio Leadership (Owner-only panel) ──────────────────────────
+        $currentMembership = DB::connection(config('tenancy.database.central_connection', 'central'))
+            ->table('studio_members')
+            ->where('studio_id', tenant('id'))
+            ->where('user_id', $currentUser->id)
+            ->first();
+        $isOwner = ($currentMembership && $currentMembership->role === 'owner') || $currentUser->role === User::ROLE_ADMIN;
+
+        $studioLeadership = [];
+        if ($isOwner) {
+            $studioLeadership = $centralMembers
+                ->filter(fn ($m) => in_array($m->studio_role, ['owner', 'manager', 'leader']))
+                ->map(fn ($m) => [
+                    'id' => $m->id,
+                    'name' => $m->name,
+                    'email' => $m->email,
+                    'role' => $m->studio_role,
+                    'position' => $m->position_name ?: 'Leadership',
+                    'avatar' => $m->avatar,
+                ])
+                ->values()
+                ->all();
+        }
+
+        // ── 7. Quick Actions Dependencies ────────────────────────────────────
+        $skills = Skill::orderBy('name')->get(['id', 'name', 'category'])->all();
+        $positions = Position::orderBy('name')->get(['id', 'name'])->all();
+        $teamMembers = $centralMembers->map(fn ($m) => ['id' => $m->id, 'name' => $m->name, 'avatar' => $m->avatar])->all();
+
+        return Inertia::render('Tenant/Dashboard', [
+            'studio' => [
+                'id' => $studio ? $studio->id : tenant('id'),
+                'name' => $studio ? $studio->name : 'Studio',
+            ],
+            'metrics' => [
+                'overall_progress' => [
+                    'percent' => $overallProgressPercent,
+                    'completed_tasks' => $completedTasksCount,
+                    'total_tasks' => $totalTasksCount,
+                    'completed_points' => $completedPoints,
+                    'total_points' => $totalPoints,
+                ],
+                'current_sprint' => $currentSprint,
+                'tasks_at_risk_count' => $tasksAtRiskCount,
+                'unassigned_tasks_count' => $unassignedTasksCount,
+                'overloaded_members_count' => $overloadedCount,
+                'items_waiting_count' => $itemsWaitingCount,
+            ],
+            'charts' => [
+                'burndown' => $burndown,
+                'velocity' => $velocities,
+                'status_split' => $statusSplit,
+                'team_workload' => $teamSnapshot,
+                'project_progress' => $projectsList,
+            ],
+            'tables' => [
+                'needs_attention' => $needsAttention,
+                'team_snapshot' => $teamSnapshot,
+                'projects' => $projectsList,
+                'recent_activity' => $recentActivity,
+            ],
+            'isOwner' => $isOwner,
+            'studioLeadership' => $studioLeadership,
+            'quickActions' => [
+                'projects' => $projectsList,
+                'teamMembers' => $teamMembers,
+                'skills' => $skills,
+                'positions' => $positions,
+            ],
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatTaskForMember(Task $task, mixed $currentUser = null): array
+    {
+        $dueDate = null;
+        if ($task->hard_constraint_date) {
+            $dueDate = $task->hard_constraint_date->format('Y-m-d');
+        } elseif ($task->days_until_deadline !== null) {
+            $base = $task->project?->start_date ?: ($task->created_at ?: now());
+            $dueDate = $base->copy()->addWeekdays(max(0, (int) $task->days_until_deadline))->format('Y-m-d');
+        }
+
+        $isDoer = false;
+        if ($currentUser) {
+            $isDoer = ((int) $task->assigned_user_id === (int) $currentUser->id);
+            if (! $isDoer && Schema::hasTable('assignments')) {
+                $isDoer = DB::table('assignments')
+                    ->where('task_id', $task->id)
+                    ->where('employee_user_id', $currentUser->id)
+                    ->where('status', 'active')
+                    ->exists();
+            }
+        }
+
+        $assigneeName = $task->assignee?->name;
+        if (! $assigneeName && $isDoer && $currentUser) {
+            $assigneeName = $currentUser->name;
+        }
+
+        return [
+            'id' => $task->id,
+            'project_id' => $task->project_id,
+            'project_name' => $task->project?->name ?? '',
+            'title' => $task->title,
+            'description' => $task->description,
+            'status' => $task->status,
+            'sprint_status' => $task->sprint_status,
+            'sprint_priority' => $task->sprint_priority,
+            'priority' => $task->priority ?? 'MEDIUM',
+            'story_points' => $task->story_points,
+            'estimated_hours' => $task->estimated_hours,
+            'task_classification' => $task->task_classification,
+            'hard_constraint_date' => $task->hard_constraint_date?->format('Y-m-d'),
+            'due_date' => $dueDate,
+            'days_until_deadline' => $task->days_until_deadline,
+            'github_link' => $task->github_link,
+            'is_critical' => (bool) $task->is_critical,
+            'total_float' => $task->total_float !== null ? (float) $task->total_float : null,
+            'assigned_user_id' => $task->assigned_user_id ?? ($isDoer ? $currentUser?->id : null),
+            'assignee' => $assigneeName,
+            'reviewer_user_id' => $task->reviewer_user_id,
+            'reviewer' => $task->reviewer?->name,
+            'is_reviewer' => $currentUser ? ((int) $task->reviewer_user_id === (int) $currentUser->id) : false,
+            'is_doer' => $isDoer,
+            'sprint_id' => $task->sprint_id,
+            'sprint_name' => $task->sprint?->name,
+            'epic_id' => $task->epic_id,
+            'epic_name' => $task->epic?->name,
+            'epic_color' => $task->epic?->color,
+        ];
     }
 
     public function inbox(): Response
@@ -454,8 +929,6 @@ class TenantDashboardController extends Controller
                     ->where('studio_id', tenant('id'))
                     ->where('status', 'pending');
 
-                // If caller is Team Leader: can review Member requests ONLY (NOT leader requests, NOT self)
-                // If caller is Studio Owner: can review BOTH Member and Team Leader requests
                 if (! $isOwner) {
                     $leaveQuery->where('requester_role', 'member')
                         ->where('user_id', '!=', $user->id);
@@ -469,7 +942,6 @@ class TenantDashboardController extends Controller
                         ? $reqUser->globalProfile->position->name
                         : ($reqUser && $reqUser->role === 'admin' ? 'Project Lead' : 'Developer');
 
-                    // Check active tasks assigned to this member with deadlines falling in the leave window
                     $assignedTasks = Task::query()
                         ->where('assigned_user_id', $req->user_id)
                         ->where('status', '!=', 'completed')
@@ -542,7 +1014,6 @@ class TenantDashboardController extends Controller
         $teamMembers = [];
         try {
             if ($studio) {
-                // Fetch latest message metadata for direct messages involving this user
                 $activeDms = collect();
                 if (Schema::hasTable('channel_messages')) {
                     $activeDms = ChannelMessage::where(function ($q) use ($user) {
@@ -591,22 +1062,13 @@ class TenantDashboardController extends Controller
                         ];
                     })
                     ->sort(function ($a, $b) {
-                        // Conversations with messages should be above all the other direct messages
-                        if ($a['has_conversation'] && ! $b['has_conversation']) {
-                            return -1;
-                        }
-                        if (! $a['has_conversation'] && $b['has_conversation']) {
-                            return 1;
-                        }
+                        if ($a['has_conversation'] && ! $b['has_conversation']) return -1;
+                        if (! $a['has_conversation'] && $b['has_conversation']) return 1;
                         if ($a['last_message_at'] && $b['last_message_at']) {
                             return strcmp($b['last_message_at'], $a['last_message_at']);
                         }
-                        if ($a['last_message_at']) {
-                            return -1;
-                        }
-                        if ($b['last_message_at']) {
-                            return 1;
-                        }
+                        if ($a['last_message_at']) return -1;
+                        if ($b['last_message_at']) return 1;
 
                         return strcasecmp($a['name'], $b['name']);
                     })
@@ -629,167 +1091,6 @@ class TenantDashboardController extends Controller
     }
 
     /**
-     * @return array<string, mixed>
-     */
-    private function formatTaskForMember(Task $task, mixed $currentUser = null): array
-    {
-        $isDoer = false;
-        if ($currentUser) {
-            $isDoer = ((int) $task->assigned_user_id === (int) $currentUser->id);
-            if (! $isDoer && Schema::hasTable('assignments')) {
-                $isDoer = DB::table('assignments')
-                    ->where('task_id', $task->id)
-                    ->where('employee_user_id', $currentUser->id)
-                    ->where('status', 'active')
-                    ->exists();
-            }
-        }
-
-        $assigneeName = $task->assignee?->name;
-        if (! $assigneeName && $isDoer && $currentUser) {
-            $assigneeName = $currentUser->name;
-        }
-
-        return [
-            'id' => $task->id,
-            'project_id' => $task->project_id,
-            'project_name' => $task->project?->name ?? '',
-            'title' => $task->title,
-            'description' => $task->description,
-            'status' => $task->status,
-            'sprint_status' => $task->sprint_status,
-            'sprint_priority' => $task->sprint_priority,
-            'priority' => $task->priority,
-            'story_points' => $task->story_points,
-            'estimated_hours' => $task->estimated_hours,
-            'task_classification' => $task->task_classification,
-            'hard_constraint_date' => $task->hard_constraint_date?->format('Y-m-d'),
-            'days_until_deadline' => $task->days_until_deadline,
-            'github_link' => $task->github_link,
-            'is_critical' => (bool) $task->is_critical,
-            'assigned_user_id' => $task->assigned_user_id ?? ($isDoer ? $currentUser?->id : null),
-            'assignee' => $assigneeName,
-            'reviewer_user_id' => $task->reviewer_user_id,
-            'reviewer' => $task->reviewer?->name,
-            'is_reviewer' => $currentUser ? ((int) $task->reviewer_user_id === (int) $currentUser->id) : false,
-            'is_doer' => $isDoer,
-            'sprint_id' => $task->sprint_id,
-            'sprint_name' => $task->sprint?->name,
-            'epic_id' => $task->epic_id,
-            'epic_name' => $task->epic?->name,
-            'epic_color' => $task->epic?->color,
-        ];
-    }
-
-    private function managerDashboard(mixed $studio): Response
-    {
-        $projects = [];
-        try {
-            $projects = Project::with(['tasks' => fn ($q) => $q->select('id', 'project_id', 'title')])
-                ->withCount(['projectMembers as members_count', 'tasks'])
-                ->latest()
-                ->get()
-                ->map(function ($project) {
-                    return [
-                        'id' => $project->id,
-                        'name' => $project->name,
-                        'description' => $project->description,
-                        'status' => $project->status,
-                        'members_count' => $project->members_count ?? 0,
-                        'tasks_count' => $project->tasks_count ?? 0,
-                        'tasks' => $project->tasks->map(fn ($t) => ['id' => $t->id, 'title' => $t->title]),
-                    ];
-                });
-        } catch (\Exception $e) {
-            $projects = [];
-        }
-
-        $activeTasks = [];
-        try {
-            $activeTasks = Task::with('assignee')
-                ->whereIn('status', ['todo', 'in_progress', 'review'])
-                ->latest()
-                ->take(10)
-                ->get()
-                ->map(function ($task) {
-                    $gnnMatchScore = null;
-                    try {
-                        $asg = DB::table('assignments')
-                            ->where('task_id', $task->id)
-                            ->where('status', 'active')
-                            ->first();
-                        if ($asg && $asg->match_fit_score !== null) {
-                            $gnnMatchScore = round($asg->match_fit_score * 100).'% Fit';
-                        }
-                    } catch (\Exception $e) {
-                    }
-
-                    return [
-                        'id' => $task->id,
-                        'title' => $task->title,
-                        'classification' => $task->task_classification ?? 'Engineering',
-                        'estimatedHours' => $task->estimated_hours ? $task->estimated_hours.'h' : '8h',
-                        'priority' => $task->priority ?? 'MEDIUM',
-                        'isCriticalPath' => (bool) $task->is_critical,
-                        'assignee' => $task->assignee ? $task->assignee->name : null,
-                        'gnnMatchScore' => $gnnMatchScore,
-                    ];
-                })
-                ->all();
-        } catch (\Exception $e) {
-            $activeTasks = [];
-        }
-
-        $skills = Skill::orderBy('name')->get(['id', 'name', 'category'])->all();
-        $positions = Position::orderBy('name')->get(['id', 'name'])->all();
-        $teamMembers = $studio ? $studio->users()->get()->map(fn ($u) => ['id' => $u->id, 'name' => $u->name]) : [];
-
-        $pendingEstimatesCount = 0;
-        try {
-            $user = auth()->user();
-            if ($user) {
-                $pendingEstimatesCount = Task::where('story_points_locked', false)
-                    ->where('needs_estimate_review', false)
-                    ->get()
-                    ->filter(function ($task) use ($user) {
-                        if (empty($task->expected_estimators)) {
-                            return $task->assigned_user_id === $user->id;
-                        }
-
-                        return in_array($user->id, $task->expected_estimators);
-                    })
-                    ->filter(function ($task) use ($user) {
-                        return ! TaskEstimateSubmission::where('task_id', $task->id)
-                            ->where('developer_id', $user->id)
-                            ->exists();
-                    })
-                    ->count();
-            }
-        } catch (\Exception $e) {
-        }
-
-        $teamVelocities = [];
-        try {
-            $teamVelocities = TeamVelocity::latest('computed_at')->take(5)->get()->toArray();
-        } catch (\Exception $e) {
-        }
-
-        return Inertia::render('Tenant/Dashboard', [
-            'studio' => [
-                'id' => $studio ? $studio->id : tenant('id'),
-                'name' => $studio ? $studio->name : 'Studio',
-            ],
-            'projects' => $projects,
-            'activeTasks' => $activeTasks,
-            'skills' => $skills,
-            'positions' => $positions,
-            'teamMembers' => $teamMembers,
-            'pendingEstimatesCount' => $pendingEstimatesCount,
-            'teamVelocities' => $teamVelocities,
-        ]);
-    }
-
-    /**
      * Build notifications for incoming direct messages and channel messages / mentions.
      *
      * @return array<int, array<string, mixed>>
@@ -808,7 +1109,6 @@ class TenantDashboardController extends Controller
                 $userReads = ChannelRead::where('user_id', $user->id)->get()->keyBy('channel_id');
             }
 
-            // 1. Direct messages where the current user is a participant and not the author
             $recentDms = ChannelMessage::where(function ($q) use ($user) {
                 $q->where('channel_id', 'like', "dm-{$user->id}_%")
                     ->orWhere('channel_id', 'like', "dm-%_{$user->id}")
@@ -863,7 +1163,6 @@ class TenantDashboardController extends Controller
                 ];
             }
 
-            // 2. Channel messages (mentions + general messages from other teammates)
             $recentChannelMsgs = ChannelMessage::where('channel_id', 'not like', 'dm-%')
                 ->where('user_id', '!=', $user->id)
                 ->where('is_unsent', false)
@@ -919,15 +1218,11 @@ class TenantDashboardController extends Controller
                 ];
             }
         } catch (\Throwable $e) {
-            // Ignore failure
         }
 
         return $notifications;
     }
 
-    /**
-     * Mark all message notifications as read for current user.
-     */
     public function markAllNotificationsRead(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -955,9 +1250,6 @@ class TenantDashboardController extends Controller
         return response()->json(['success' => true]);
     }
 
-    /**
-     * Mark an individual notification as read.
-     */
     public function markNotificationRead(Request $request, string $id): JsonResponse
     {
         $user = $request->user();

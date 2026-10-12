@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from '@inertiajs/react';
 import {
     X,
     Calendar,
@@ -57,7 +58,7 @@ function ConfirmDialog({ isOpen, title, message, confirmLabel, confirmColor = 'b
         emerald: 'bg-emerald-600 hover:bg-emerald-700 text-white',
     };
     return (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-100">
+        <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-100">
             <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4">
                 <h4 className="text-base font-bold text-slate-900 dark:text-slate-100">{title}</h4>
                 <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{message}</p>
@@ -73,7 +74,7 @@ function ConfirmDialog({ isOpen, title, message, confirmLabel, confirmColor = 'b
                     <button
                         type="button"
                         onClick={onConfirm}
-                        className={`px-5 py-2 rounded-xl text-xs font-bold shadow-sm transition-all ${colorMap[confirmColor]}`}
+                        className={`px-5 py-2 rounded-xl text-xs font-bold shadow-xs transition-all ${colorMap[confirmColor]}`}
                     >
                         {confirmLabel}
                     </button>
@@ -159,7 +160,7 @@ export default function MemberTaskDetailModal({ isOpen, onClose, task, tenantId,
     // ── Action buttons depending on current status and role ──────────────────
 
     const renderActionButtons = () => {
-        const btnBase = 'flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm';
+        const btnBase = 'flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs';
 
         if (currentStatus === 'todo') {
             if (!isDoer) return <p className="text-xs text-slate-400 text-center py-2">You are not the assigned doer for this task.</p>;
@@ -403,7 +404,7 @@ export default function MemberTaskDetailModal({ isOpen, onClose, task, tenantId,
                                     value={githubLink}
                                     onChange={(e) => setGithubLink(e.target.value)}
                                     placeholder="https://github.com/organization/repo/pull/123"
-                                    className="w-full pl-9 pr-10 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-brand transition-all"
+                                    className="w-full pl-9 pr-10 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-hidden focus:border-brand transition-all"
                                 />
                                 {githubLink && (
                                     <a

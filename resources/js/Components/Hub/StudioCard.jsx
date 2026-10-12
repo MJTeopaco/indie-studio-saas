@@ -42,13 +42,13 @@ export default function StudioCard({ studio, role = 'Member' }) {
 
     return (
         <Link
-            href={`/studio/${studio.id}/overview`}
-            className="group relative flex flex-col justify-between rounded-2xl border border-surface-border bg-surface-elevated/85 hover:bg-surface-elevated shadow-xs hover:shadow-md hover:border-brand/40 transition-all duration-200 ease-out hover:-translate-y-0.5 overflow-hidden focus-ring p-5 sm:p-6 cursor-pointer"
+            href={`/studio/${studio.id}/dashboard`}
+            className="group relative flex flex-col justify-between rounded-2xl border border-surface-border bg-surface-elevated/85 hover:bg-surface-elevated shadow-2xs hover:shadow-md hover:border-brand/40 transition-all duration-200 ease-out hover:-translate-y-0.5 overflow-hidden focus-ring p-5 sm:p-6 cursor-pointer"
         >
             <div>
                 {/* Row 1: Studio avatar tile on left, kebab menu on right */}
                 <div className="flex items-start justify-between gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-brand/10 border border-brand/20 group-hover:bg-brand/20 group-hover:border-brand/40 flex items-center justify-center flex-shrink-0 transition-all duration-200 overflow-hidden shadow-2xs">
+                    <div className="w-12 h-12 rounded-xl bg-brand/10 border border-brand/20 group-hover:bg-brand/20 group-hover:border-brand/40 flex items-center justify-center shrink-0 transition-all duration-200 overflow-hidden shadow-2xs">
                         {studio.logo ? (
                             <img
                                 src={studio.logo}
@@ -80,7 +80,7 @@ export default function StudioCard({ studio, role = 'Member' }) {
                                         <button
                                             type="button"
                                             onClick={copyInviteLink}
-                                            className="block w-full px-4 py-2 text-left text-xs leading-5 text-text-primary hover:bg-surface transition duration-150 ease-in-out focus:outline-none focus:bg-surface cursor-pointer"
+                                            className="block w-full px-4 py-2 text-left text-xs leading-5 text-text-primary hover:bg-surface transition duration-150 ease-in-out focus:outline-hidden focus:bg-surface cursor-pointer"
                                         >
                                             {copying ? 'Copied code!' : 'Copy invite code'}
                                         </button>

@@ -32,7 +32,7 @@ export default function EventPill({ title, type = 'task', compact = false }) {
     }
 
     return (
-        <span className={`flex items-center gap-1 px-1.5 py-px rounded text-[9px] font-semibold truncate ${style}`}>
+        <span className={`flex items-center gap-1 px-1.5 py-px rounded-sm text-[9px] font-semibold truncate ${style}`}>
             <span className={`w-1 h-1 rounded-full shrink-0 ${dot}`} />
             <span className="truncate">{title}</span>
         </span>

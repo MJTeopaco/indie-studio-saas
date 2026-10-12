@@ -270,7 +270,7 @@ export default function CreateProjectModal({ isOpen, onClose, onCreate, onCreate
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white bg-brand hover:bg-brand-light shadow-2xs hover:shadow-xs disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer focus-ring"
+                            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white bg-brand hover:bg-brand-light shadow-2xs hover:shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer focus-ring"
                         >
                             {isSubmitting ? (
                                 <>

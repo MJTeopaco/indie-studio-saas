@@ -26,10 +26,10 @@ export default function Docs({ studio, projects = [], reports = [], initialRepor
 
             <div className="max-w-5xl mx-auto py-10 px-4 sm:px-6 lg:px-8 space-y-8">
                 {/* Notice banner directing to the new Report Center */}
-                <div className="bg-gradient-to-r from-indigo-900 to-slate-900 text-white rounded-2xl p-8 border border-indigo-800 shadow-xl relative overflow-hidden">
+                <div className="bg-linear-to-r from-indigo-900 to-slate-900 text-white rounded-2xl p-8 border border-indigo-800 shadow-xl relative overflow-hidden">
                     <div className="absolute top-0 right-0 -mt-10 -mr-10 w-48 h-48 bg-brand/20 rounded-full blur-3xl pointer-events-none" />
                     <div className="relative z-10 max-w-2xl space-y-4">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-brand text-white shadow-sm">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-brand text-white shadow-xs">
                             <Sparkles className="w-3.5 h-3.5" /> WorkSync Report Center
                         </span>
                         <h2 className="text-2xl font-bold tracking-tight text-white font-heading">
@@ -52,7 +52,7 @@ export default function Docs({ studio, projects = [], reports = [], initialRepor
 
                 {/* Information cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-3">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-3">
                         <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-brand flex items-center justify-center">
                             <FileText className="w-5 h-5" />
                         </div>
@@ -64,7 +64,7 @@ export default function Docs({ studio, projects = [], reports = [], initialRepor
                         </p>
                     </div>
 
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-3">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-3">
                         <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center">
                             <Archive className="w-5 h-5" />
                         </div>

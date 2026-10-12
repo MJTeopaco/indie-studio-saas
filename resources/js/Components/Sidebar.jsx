@@ -143,19 +143,19 @@ function NavItem({ icon: Icon, label, href = '#', active = false, badge = null, 
                 isCollapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2.25'
             } rounded-xl text-sm font-medium transition-all duration-200 focus-ring ${
                 active
-                    ? 'bg-brand-10 text-brand font-semibold shadow-xs'
-                    : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 hover:dark:bg-slate-800/50 hover:text-gray-900 hover:dark:text-slate-200'
+                    ? 'bg-brand-10 text-brand font-semibold shadow-2xs'
+                    : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800/50 hover:text-gray-900 dark:hover:text-slate-200'
             }`}
         >
             <div className="relative shrink-0 flex items-center justify-center">
                 <Icon
                     className={`w-5 h-5 shrink-0 transition-transform duration-200 group-hover:scale-105 ${
-                        active ? 'text-brand' : 'text-gray-500 dark:text-slate-400 group-hover:text-gray-900 group-hover:dark:text-slate-200'
+                        active ? 'text-brand' : 'text-gray-500 dark:text-slate-400 group-hover:text-gray-900 dark:group-hover:text-slate-200'
                     }`}
                 />
                 {/* Collapsed notification badge — shows mini count instead of plain dot */}
                 {isCollapsed && badge && isNotif && (
-                    <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full text-[8px] font-extrabold text-white bg-gradient-to-br from-rose-500 to-rose-600 ring-2 ring-white dark:ring-slate-900 shadow-sm select-none">
+                    <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full text-[8px] font-extrabold text-white bg-linear-to-br from-rose-500 to-rose-600 ring-2 ring-white dark:ring-slate-900 shadow-xs select-none">
                         {/* Pulse dot */}
                         <span className="absolute -top-0.5 -right-0.5 flex h-1.5 w-1.5">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-300 opacity-75" />
@@ -176,7 +176,7 @@ function NavItem({ icon: Icon, label, href = '#', active = false, badge = null, 
                     {badge && (
                         isNotif ? (
                             /* Premium gradient notification badge */
-                            <span className="relative inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-[9px] font-extrabold text-white bg-gradient-to-br from-rose-500 to-rose-600 shadow-sm ring-2 ring-rose-400/30 select-none">
+                            <span className="relative inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-[9px] font-extrabold text-white bg-linear-to-br from-rose-500 to-rose-600 shadow-xs ring-2 ring-rose-400/30 select-none">
                                 {/* Live pulse dot */}
                                 <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-300 opacity-75" />
@@ -318,15 +318,15 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
     const dashboardLinks = isManager
         ? [
             {
-                label: 'Overview',
+                label: 'Dashboard',
                 icon: PremiumDashboardIcon,
-                href: `${baseHref}/overview`,
-                active: currentPath.includes('/overview'),
+                href: `${baseHref}/dashboard`,
+                active: currentPath.includes('/dashboard') && !currentPath.includes('/ai-workspace'),
             },
         ]
         : [
             {
-                label: 'My Work',
+                label: 'Dashboard',
                 icon: PremiumDashboardIcon,
                 href: `${baseHref}/dashboard`,
                 active: (currentPath.includes('/dashboard') || currentPath.includes('/my-work') || currentPath === baseHref) && !isInboxActive,
@@ -369,7 +369,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                 label: 'AI Workspace',
                 icon: PremiumAutomationIcon,
                 href: `${baseHref}/ai-workspace`,
-                active: currentPath.includes('/ai-workspace') || (currentPath.includes('/dashboard') && isManager && !currentPath.includes('/overview')),
+                active: currentPath.includes('/ai-workspace'),
             },
         ]
         : [];
@@ -407,8 +407,8 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
             {/* 1. Brand Header (Search removed for streamlined vertical height) */}
             <div className="p-4 flex items-center justify-between border-b border-gray-100 dark:border-slate-800/50">
                 <Link
-                    href={`${baseHref}/overview`}
-                    className="flex items-center gap-2.5 overflow-hidden focus:outline-none"
+                    href={`${baseHref}/dashboard`}
+                    className="flex items-center gap-2.5 overflow-hidden focus:outline-hidden"
                     title={studioName}
                 >
                     <ApplicationLogo
@@ -438,7 +438,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
             </div>
 
             {/* 2. Primary Navigation with Collapsible Accordion Categories */}
-            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] scrollbar-none">
                 {/* 1. Workspace Category */}
                 <div className="space-y-0.5">
                     <CategoryHeader
@@ -711,7 +711,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                                                             className={`flex items-center gap-2 pl-9 pr-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-200 border-l-2 ${
                                                                 isProjectActive
                                                                     ? 'border-brand text-brand bg-brand-10/40 font-semibold'
-                                                                    : 'border-transparent text-gray-500 dark:text-slate-400 hover:bg-gray-50 hover:dark:bg-slate-800/30 hover:text-gray-900 hover:dark:text-slate-200'
+                                                                    : 'border-transparent text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-800/30 hover:text-gray-900 dark:hover:text-slate-200'
                                                             }`}
                                                         >
                                                             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
@@ -778,7 +778,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                             onClick={() => toggleTheme(false)}
                             className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
                                 !isDark
-                                    ? 'bg-white text-gray-900 shadow-sm font-semibold'
+                                    ? 'bg-white text-gray-900 shadow-xs font-semibold'
                                     : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'
                             }`}
                         >
@@ -790,7 +790,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                             onClick={() => toggleTheme(true)}
                             className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
                                 isDark
-                                    ? 'bg-slate-700 text-slate-100 shadow-sm font-semibold'
+                                    ? 'bg-slate-700 text-slate-100 shadow-xs font-semibold'
                                     : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'
                             }`}
                         >
@@ -816,12 +816,12 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                             <span>Profile Settings</span>
                         </Link>
                         <Link
-                            href={route('dashboard')}
+                            href={route('central.hub')}
                             className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/70 transition-colors"
                             onClick={() => setProfileMenuOpen(false)}
                         >
                             <LayoutGrid className="w-3.5 h-3.5 text-brand" />
-                            <span>Switch Studio (Hub)</span>
+                            <span>Central Hub</span>
                         </Link>
                         <div className="my-1 border-t border-gray-100 dark:border-slate-800/80" />
                         <Link
@@ -844,16 +844,19 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                             type="button"
                             onClick={() => setProfileMenuOpen(!profileMenuOpen)}
                             title={`${user?.name || 'User'} (${currentUserRole || user?.role || 'Member'}) — Click for options`}
-                            className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand cursor-pointer hover:opacity-90 transition-opacity"
+                            className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-xs focus:outline-hidden focus-visible:ring-2 focus-visible:ring-brand cursor-pointer hover:opacity-90 transition-opacity"
                         >
                             {(user?.name || 'U').charAt(0).toUpperCase()}
                         </button>
                         <Link
-                            href={route('dashboard')}
-                            className="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-slate-800/70 hover:bg-brand/10 hover:border-brand/30 border border-transparent text-gray-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-light transition-all duration-150 cursor-pointer"
-                            title="Return to Central Hub"
+                            href={route('logout')}
+                            method="post"
+                            as="button"
+                            aria-label="Log out"
+                            title="Log out"
+                            className="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-slate-800/70 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:border-rose-300 border border-transparent text-gray-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 transition-all duration-150 cursor-pointer"
                         >
-                            <LayoutGrid className="w-4 h-4" />
+                            <LogOut className="w-4 h-4" />
                         </Link>
                     </div>
                 ) : (
@@ -861,10 +864,10 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                         <button
                             type="button"
                             onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-                            className="flex items-center gap-2.5 min-w-0 flex-1 text-left focus:outline-none rounded-lg p-1 hover:bg-white/60 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
+                            className="flex items-center gap-2.5 min-w-0 flex-1 text-left focus:outline-hidden rounded-lg p-1 hover:bg-white/60 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
                             title="Click for account options"
                         >
-                            <div className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-sm">
+                            <div className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-xs">
                                 {(user?.name || 'U').charAt(0).toUpperCase()}
                             </div>
                             <div className="min-w-0 flex-1">
@@ -877,11 +880,14 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                             </div>
                         </button>
                         <Link
-                            href={route('dashboard')}
-                            className="p-2 rounded-xl bg-white dark:bg-slate-700/60 hover:bg-brand/10 dark:hover:bg-brand/20 hover:border-brand/30 border border-gray-200/80 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand-light transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] shadow-2xs hover:shadow-xs shrink-0 ml-1.5 cursor-pointer"
-                            title="Return to Central Hub"
+                            href={route('logout')}
+                            method="post"
+                            as="button"
+                            aria-label="Log out"
+                            title="Log out"
+                            className="p-2 rounded-xl bg-white dark:bg-slate-700/60 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:border-rose-300 border border-gray-200/80 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] shadow-2xs hover:shadow-2xs shrink-0 ml-1.5 cursor-pointer"
                         >
-                            <LayoutGrid className="w-4 h-4" />
+                            <LogOut className="w-4 h-4" />
                         </Link>
                     </div>
                 )}

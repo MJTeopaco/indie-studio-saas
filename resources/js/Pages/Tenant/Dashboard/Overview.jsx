@@ -167,7 +167,7 @@ export default function Overview({ projects: propProjects = [], stats: propStats
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
                         <div className="flex items-center gap-3">
                             {/* Blue Square Rounded Icon */}
-                            <div className="w-8 h-8 rounded-xl bg-brand text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+                            <div className="w-8 h-8 rounded-xl bg-brand text-white flex items-center justify-center font-bold text-sm shadow-2xs shrink-0">
                                 {studioName.charAt(0).toUpperCase()}
                             </div>
 
@@ -361,7 +361,7 @@ export default function Overview({ projects: propProjects = [], stats: propStats
                                     <div className="flex-1 h-8 rounded-lg bg-surface border border-surface-border/60 relative overflow-hidden flex items-center">
                                         {/* Primary Blue Gantt Bar */}
                                         <div
-                                            className="h-5 rounded-md bg-brand shadow-xs absolute transition-all duration-300 flex items-center px-2 cursor-pointer hover:opacity-90"
+                                            className="h-5 rounded-md bg-brand shadow-2xs absolute transition-all duration-300 flex items-center px-2 cursor-pointer hover:opacity-90"
                                             style={{
                                                 left: `${p.startOffset}%`,
                                                 width: `${p.barLength}%`,
@@ -372,7 +372,7 @@ export default function Overview({ projects: propProjects = [], stats: propStats
                                         {/* Secondary Gray Milestone / Buffer Bar */}
                                         {p.secondStart && p.secondLength && (
                                             <div
-                                                className="h-5 rounded-md bg-slate-400 dark:bg-slate-600 shadow-xs absolute transition-all duration-300 flex items-center px-2 cursor-pointer hover:opacity-90"
+                                                className="h-5 rounded-md bg-slate-400 dark:bg-slate-600 shadow-2xs absolute transition-all duration-300 flex items-center px-2 cursor-pointer hover:opacity-90"
                                                 style={{
                                                     left: `${p.secondStart}%`,
                                                     width: `${p.secondLength}%`,

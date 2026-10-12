@@ -77,7 +77,7 @@ export default function RightSidebar({
     onDeleteChat
 }) {
     return (
-        <aside className="w-80 lg:w-96 border-l border-gray-200 dark:border-slate-800 bg-gray-50/60 dark:bg-slate-900/50 hidden lg:flex flex-col flex-shrink-0 h-full">
+        <aside className="w-80 lg:w-96 border-l border-gray-200 dark:border-slate-800 bg-gray-50/60 dark:bg-slate-900/50 hidden lg:flex flex-col shrink-0 h-full">
             {/* Sidebar Header */}
             <div className="p-6 pb-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -102,7 +102,7 @@ export default function RightSidebar({
                     type="button"
                     onClick={onNewChat}
                     disabled={isLoading}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-brand text-white font-semibold text-sm shadow-sm hover:bg-brand-dark transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed group"
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-brand text-white font-semibold text-sm shadow-xs hover:bg-brand-dark transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed group"
                 >
                     {isLoading ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -122,7 +122,7 @@ export default function RightSidebar({
             </div>
 
             {/* Scrollable List Container */}
-            <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-1 scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 {sessions.length > 0 ? (
                     sessions.map((session) => (
                         <ChatHistoryItem 
@@ -135,7 +135,7 @@ export default function RightSidebar({
                     ))
                 ) : (
                     <div className="flex flex-col items-center justify-center py-12 text-center text-gray-400 dark:text-slate-500 px-4">
-                        <div className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 flex items-center justify-center mb-4 shadow-sm">
+                        <div className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 flex items-center justify-center mb-4 shadow-xs">
                             <Bot className="w-6 h-6 text-brand/60" />
                         </div>
                         <p className="text-sm font-semibold text-gray-600 dark:text-slate-300 mb-1">No chats yet</p>

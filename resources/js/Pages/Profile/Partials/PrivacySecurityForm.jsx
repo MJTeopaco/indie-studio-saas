@@ -122,7 +122,7 @@ export default function PrivacySecurityForm() {
             {/* 1. Password Update Card — Uniform structure with Personal Info */}
             <form 
                 onSubmit={handleUpdatePassword} 
-                className="bg-white dark:bg-[#0B0F17] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl shadow-xs overflow-hidden divide-y divide-slate-100 dark:divide-slate-800/70"
+                className="bg-white dark:bg-[#0B0F17] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl shadow-2xs overflow-hidden divide-y divide-slate-100 dark:divide-slate-800/70"
             >
                 {/* Header Row */}
                 <div className="p-6 sm:p-7 flex items-center justify-between">
@@ -277,7 +277,7 @@ export default function PrivacySecurityForm() {
                     <button
                         type="submit"
                         disabled={pwProcessing}
-                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-semibold shadow-xs disabled:opacity-50 transition-all cursor-pointer"
+                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-semibold shadow-2xs disabled:opacity-50 transition-all cursor-pointer"
                     >
                         {pwProcessing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                         <span>Save Password</span>
@@ -286,7 +286,7 @@ export default function PrivacySecurityForm() {
             </form>
 
             {/* 2. Danger Zone Container — High-end destructive container */}
-            <div className="bg-white dark:bg-[#0B0F17] border border-rose-200/90 dark:border-rose-900/40 rounded-2xl shadow-xs overflow-hidden divide-y divide-rose-100 dark:divide-rose-950/40">
+            <div className="bg-white dark:bg-[#0B0F17] border border-rose-200/90 dark:border-rose-900/40 rounded-2xl shadow-2xs overflow-hidden divide-y divide-rose-100 dark:divide-rose-950/40">
                 <div className="p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-start gap-3">
                         <div className="w-9 h-9 rounded-xl bg-rose-500/10 text-rose-500 border border-rose-500/20 flex items-center justify-center shrink-0 mt-0.5">
@@ -305,7 +305,7 @@ export default function PrivacySecurityForm() {
                     <button
                         type="button"
                         onClick={() => setConfirmingDeletion(true)}
-                        className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-xs transition-colors shrink-0 cursor-pointer self-start sm:self-auto"
+                        className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-2xs transition-colors shrink-0 cursor-pointer self-start sm:self-auto"
                     >
                         Delete Account
                     </button>
@@ -314,7 +314,7 @@ export default function PrivacySecurityForm() {
 
             {/* Frontend Account Deletion Modal (Portaled) */}
             {confirmingDeletion && createPortal(
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+                <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
                     <div 
                         className="relative w-full max-w-md bg-white dark:bg-[#0B0F17] border border-rose-200 dark:border-rose-900/50 rounded-2xl shadow-2xl p-6 sm:p-7 overflow-hidden space-y-5"
                         onClick={(e) => e.stopPropagation()}
@@ -376,7 +376,7 @@ export default function PrivacySecurityForm() {
                                 <button
                                     type="submit"
                                     disabled={delProcessing}
-                                    className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-xs disabled:opacity-50 transition-all cursor-pointer"
+                                    className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-2xs disabled:opacity-50 transition-all cursor-pointer"
                                 >
                                     {delProcessing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                                     <span>Confirm Account Deletion</span>

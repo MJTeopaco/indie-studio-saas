@@ -43,7 +43,7 @@ export default function CreateStudioModal({
                 <button
                     type="button"
                     onClick={openModal}
-                    className={`inline-flex items-center justify-center gap-2 rounded-xl border border-transparent bg-brand hover:bg-brand-light active:bg-brand-dark px-4 py-2.5 text-xs sm:text-sm font-heading font-semibold text-white shadow-xs hover:shadow-md transition-all duration-150 active:scale-[0.98] focus-ring cursor-pointer ${className}`}
+                    className={`inline-flex items-center justify-center gap-2 rounded-xl border border-transparent bg-brand hover:bg-brand-light active:bg-brand-dark px-4 py-2.5 text-xs sm:text-sm font-heading font-semibold text-white shadow-2xs hover:shadow-md transition-all duration-150 active:scale-[0.98] focus-ring cursor-pointer ${className}`}
                 >
                     <Plus className="w-4 h-4" />
                     <span>{triggerText}</span>
