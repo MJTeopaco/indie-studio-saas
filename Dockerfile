@@ -10,7 +10,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
 
 # Copy source files needed for the build
-COPY vite.config.js tailwind.config.js postcss.config.js jsconfig.json ./
+COPY vite.config.js jsconfig.json ./
 COPY resources/ resources/
 COPY public/ public/
 
@@ -69,7 +69,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN a2enmod rewrite headers
 
 # Point DocumentRoot at Laravel's public/ directory
-ENV APACHE_DOCUMENT_ROOT /var/www/html/public
+ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
 
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' \
         /etc/apache2/sites-available/*.conf \
