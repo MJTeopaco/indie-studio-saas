@@ -914,6 +914,8 @@ export default function Inbox({
     );
     const [selectedTask, setSelectedTask] = useState(null);
     const [detailModalOpen, setDetailModalOpen] = useState(false);
+    const [quickReplyText, setQuickReplyText] = useState('');
+    const [quickReplySuccess, setQuickReplySuccess] = useState(false);
 
     // Leave approval states
     const [leaveActionProcessingId, setLeaveActionProcessingId] = useState(null);
@@ -1843,6 +1845,7 @@ export default function Inbox({
     const handleSendQuickReply = () => {
         if (!quickReplyText.trim()) return;
         setQuickReplySuccess(true);
+        showToast('Quick note saved.', 'success');
         setTimeout(() => { setQuickReplySuccess(false); setQuickReplyText(''); }, 2000);
     };
 
@@ -1869,7 +1872,7 @@ export default function Inbox({
     };
 
     return (
-        <TenantLayout studioName={studio.name}>
+        <TenantLayout studioName={studio?.name || 'Studio'}>
             <Head title="Inbox • SprintStudio" />
 
             {channelToDelete && (
@@ -2073,6 +2076,7 @@ export default function Inbox({
                                                     key={notif.id}
                                                     onClick={() => {
                                                         setSelectedNotifId(notif.id);
+                                                        setQuickReplyText('');
                                                         markAsRead(notif.id);
                                                         if (notif.channel_id) {
                                                             markChannelRead(notif.channel_id);
@@ -2106,7 +2110,7 @@ export default function Inbox({
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center justify-between gap-1 mb-0.5">
                                                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                                                {notif.type.replace('_', ' ')}
+                                                                {notif.type?.replace('_', ' ') || 'Notification'}
                                                             </span>
                                                             <span className="text-[10px] text-slate-400 font-mono">
                                                                 {notif.created_at_human}
@@ -2175,7 +2179,7 @@ export default function Inbox({
                                                 <div className="space-y-1">
                                                     <div className="flex items-center gap-2 flex-wrap">
                                                         <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                                                            {activeNotification.type.replace('_', ' ')}
+                                                            {activeNotification.type?.replace('_', ' ') || 'Notification'}
                                                         </span>
                                                         {activeNotification.project_name && (
                                                             <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
