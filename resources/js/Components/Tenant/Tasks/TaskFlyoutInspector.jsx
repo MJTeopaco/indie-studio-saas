@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
     X,
+    Calendar,
     CheckCircle2,
-    Clock,
+    CheckSquare,
+    SlidersHorizontal,
     Flame,
-    Cpu,
     Check,
-    Loader2
+    Loader2,
+    MessageSquare,
+    Clock
 } from 'lucide-react';
 import { showToast } from '@/Components/SystemToast';
 
@@ -14,8 +17,15 @@ const SPRINT_STATUS_OPTIONS = [
     { value: 'todo', label: 'To Do' },
     { value: 'in_progress', label: 'In Progress' },
     { value: 'review', label: 'Under Review' },
-    { value: 'completed', label: 'Completed' },
+    { value: 'completed', label: 'Done' },
     { value: 'stuck', label: 'Blocked / Stuck' },
+];
+
+const PRIORITY_OPTIONS = [
+    { value: 'Low', label: 'Low' },
+    { value: 'Medium', label: 'Medium' },
+    { value: 'High', label: 'High' },
+    { value: 'Critical', label: 'Critical' },
 ];
 
 export default function TaskFlyoutInspector({
@@ -23,17 +33,35 @@ export default function TaskFlyoutInspector({
     task,
     onClose,
     onUpdateStatus,
+    updateTask,
     canManage = false,
     currentUserId = null,
+    teamMembers = [],
 }) {
-    const [selectedStatus, setSelectedStatus] = useState(task?.status || 'todo');
-    const [statusNote, setStatusNote] = useState('');
+    const [activeTab, setActiveTab] = useState('details');
+    const [selectedStatus, setSelectedStatus] = useState(task?.status || task?.sprint_status || 'todo');
+    const [selectedPriority, setSelectedPriority] = useState(task?.priority || 'Medium');
+    const [selectedAssignee, setSelectedAssignee] = useState(
+        typeof task?.assignee === 'string' ? task?.assignee : (task?.assignee?.name || task?.assigned_user_id || '')
+    );
+    const [storyPoints, setStoryPoints] = useState(task?.story_points ?? '');
+    const [commentText, setCommentText] = useState('');
+    const [comments, setComments] = useState([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         if (task) {
             setSelectedStatus(task.status || task.sprint_status || 'todo');
-            setStatusNote('');
+            setSelectedPriority(task.priority || 'Medium');
+            setSelectedAssignee(
+                typeof task.assignee === 'string' ? task.assignee : (task.assignee?.name || task.assigned_user_id || '')
+            );
+            setStoryPoints(task.story_points ?? '');
+            setCommentText('');
+            setComments(task.comments || [
+                { id: 1, user: 'System', text: 'Task logged and scheduled in sprint', time: '1d ago' },
+                { id: 2, user: task.assignee?.name || 'Assignee', text: 'Started preliminary analysis and branch setup', time: '4h ago' }
+            ]);
         }
     }, [task]);
 
@@ -41,7 +69,7 @@ export default function TaskFlyoutInspector({
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.key === 'Escape' && isOpen) {
-                onClose();
+                onClose?.();
             }
         };
         window.addEventListener('keydown', handleKeyDown);
@@ -50,282 +78,776 @@ export default function TaskFlyoutInspector({
 
     if (!isOpen || !task) return null;
 
+    const taskKey = task.task_key || `TASK-${String(task.id).padStart(3, '0')}`;
+    const projectName = task.project_name || task.project?.name || 'StudioSprint Core';
+    const isCompleted = selectedStatus === 'completed' || selectedStatus === 'done';
+
     const isCritical = Boolean(
         task.is_critical || (task.total_float !== null && task.total_float !== undefined && Number(task.total_float) <= 0)
     );
-
     const totalFloat = task.total_float !== null && task.total_float !== undefined ? Number(task.total_float) : null;
-    const es = task.es !== null && task.es !== undefined ? Number(task.es) : null;
-    const ef = task.ef !== null && task.ef !== undefined ? Number(task.ef) : null;
-    const ls = task.ls !== null && task.ls !== undefined ? Number(task.ls) : null;
-    const lf = task.lf !== null && task.lf !== undefined ? Number(task.lf) : null;
+    const dueDateDisplay = task.hard_constraint_date 
+        ? String(task.hard_constraint_date).split('T')[0] 
+        : (task.due_date || task.dueDate || 'Sprint Target');
 
-    const handleConfirmStatus = async () => {
-        if (!onUpdateStatus) {
-            showToast(`Status updated to ${selectedStatus}`, 'success');
-            onClose();
-            return;
+    // Safe inline updater
+    const handleFieldChange = async (field, value) => {
+        const patch = { [field]: value };
+        if (field === 'status' || field === 'sprint_status') {
+            setSelectedStatus(value);
+        } else if (field === 'priority') {
+            setSelectedPriority(value);
+        } else if (field === 'story_points') {
+            setStoryPoints(value);
+        } else if (field === 'assignee' || field === 'assigned_user_id') {
+            setSelectedAssignee(value);
         }
 
-        setIsSubmitting(true);
         try {
-            await onUpdateStatus(task, selectedStatus, statusNote);
-            setIsSubmitting(false);
-            onClose();
+            if (typeof updateTask === 'function') {
+                await updateTask(task.id, patch);
+            } else if (typeof onUpdateStatus === 'function' && (field === 'status' || field === 'sprint_status')) {
+                await onUpdateStatus(task, value);
+            }
         } catch (err) {
-            setIsSubmitting(false);
-            showToast(err.message || 'Failed to update task status.', 'error');
+            console.error('Failed to update task property', err);
+            showToast('Failed to update task property', 'error');
         }
     };
 
+    const handleMarkComplete = async () => {
+        if (isCompleted) return;
+        setIsSubmitting(true);
+        try {
+            setSelectedStatus('completed');
+            if (typeof updateTask === 'function') {
+                await updateTask(task.id, { status: 'completed', sprint_status: 'done' });
+            } else if (typeof onUpdateStatus === 'function') {
+                await onUpdateStatus(task, 'completed', 'Marked complete via inspector');
+            }
+            showToast('Task marked as complete', 'success');
+        } catch (err) {
+            showToast('Failed to mark task complete', 'error');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleAddComment = (e) => {
+        e?.preventDefault();
+        const trimmed = commentText.trim();
+        if (!trimmed) return;
+        const newEntry = {
+            id: Date.now(),
+            user: 'You',
+            text: trimmed,
+            time: 'Just now'
+        };
+        setComments(prev => [...prev, newEntry]);
+        setCommentText('');
+        showToast('Comment added', 'success');
+    };
+
+    // Parse acceptance criteria
+    const rawCriteria = task.acceptance_criteria || [
+        'Deterministic CPM start & finish conditions met',
+        'Story point estimation reviewed with engineering team',
+        'Branch pull request submitted with zero regressions'
+    ];
+    const acceptanceItems = Array.isArray(rawCriteria) 
+        ? rawCriteria 
+        : String(rawCriteria).split('\n').filter(Boolean);
+
     return (
-        <div className="fixed inset-0 z-50 overflow-hidden" aria-labelledby="flyout-title" role="dialog" aria-modal="true">
-            {/* Backdrop Scrim */}
+        <div 
+            className="fixed inset-0 z-50 overflow-hidden" 
+            aria-labelledby="task-drawer-title" 
+            role="dialog" 
+            aria-modal="true"
+        >
+            {/* Embedded styles for responsive <= 480px compaction */}
+            <style>{`
+                @media (max-width: 480px) {
+                    .task-drawer-sheet {
+                        width: 100vw !important;
+                        max-width: 100vw !important;
+                    }
+                    .task-drawer-heading {
+                        padding: 14px 16px 10px !important;
+                    }
+                    .task-drawer-tabs {
+                        padding: 0 16px !important;
+                    }
+                    .task-drawer-section {
+                        padding: 12px 16px !important;
+                    }
+                    .task-drawer-footer {
+                        padding: 10px 16px max(10px, env(safe-area-inset-bottom)) 16px !important;
+                    }
+                }
+            `}</style>
+
+            {/* Darkened & heavily blurred backdrop scrim so sidebar is seen clearly as an overlay */}
             <div
-                className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-200"
+                className="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-md transition-opacity duration-200"
                 onClick={onClose}
                 aria-hidden="true"
             />
 
-            <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-                <div className="w-screen max-w-xl bg-surface-elevated border-l border-surface-border shadow-2xl flex flex-col h-full transform transition-all ease-in-out duration-200">
-                    
-                    {/* ── Top Bar / Header ── */}
-                    <div className="p-5 border-b border-surface-border flex items-center justify-between gap-4 bg-surface/50 shrink-0">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                            <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-surface border border-surface-border text-text-muted shrink-0">
-                                #{task.id}
-                            </span>
-                            {task.task_classification && (
-                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-brand/10 text-brand dark:text-brand-light border border-brand/20 truncate">
-                                    {task.task_classification}
-                                </span>
-                            )}
-                            {task.story_points !== null && task.story_points !== undefined && (
-                                <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-400 border border-purple-500/20 shrink-0">
-                                    {task.story_points} SP
-                                </span>
-                            )}
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-[10px] text-text-muted hidden sm:inline font-mono">ESC to close</span>
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                className="p-1.5 rounded-xl text-text-muted hover:text-text-primary hover:bg-surface border border-transparent hover:border-surface-border transition-colors cursor-pointer"
-                                aria-label="Close flyout inspector"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
+            {/* Right-Side Drawer Sheet */}
+            <div
+                className="task-drawer-sheet fixed inset-y-0 right-0 z-50 flex flex-col transform transition-all duration-200 ease-in-out"
+                style={{
+                    width: 'min(100%, 400px)',
+                    height: '100dvh',
+                    backgroundColor: 'var(--elevated)',
+                    borderLeft: '1px solid var(--border)',
+                    boxShadow: '-12px 0 32px -4px rgba(0, 0, 0, 0.45), -4px 0 12px -2px rgba(0, 0, 0, 0.2)'
+                }}
+            >
+                {/* ── Topline (height: 50px) ── */}
+                <div
+                    className="relative flex items-center justify-between shrink-0"
+                    style={{
+                        height: '50px',
+                        padding: '0 54px 0 20px',
+                        borderBottom: '1px solid var(--border)',
+                        backgroundColor: 'var(--elevated)'
+                    }}
+                >
+                    <div className="flex items-center gap-2 min-w-0">
+                        <span
+                            className="font-bold tracking-wider uppercase shrink-0"
+                            style={{
+                                fontSize: '10px',
+                                fontFamily: 'var(--font-mono)',
+                                color: 'var(--foreground)'
+                            }}
+                        >
+                            {taskKey}
+                        </span>
+                        <span
+                            className="truncate uppercase font-medium"
+                            style={{
+                                fontSize: '9px',
+                                color: 'var(--muted-foreground)'
+                            }}
+                        >
+                            Task details
+                        </span>
                     </div>
 
-                    {/* ── Scrollable Inspector Body ── */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+                    <span
+                        className="text-[9px] uppercase font-mono tracking-wider hidden sm:inline"
+                        style={{ color: 'var(--muted-foreground)' }}
+                    >
+                        ESC to close
+                    </span>
 
-                        {/* Title & Description */}
-                        <div className="space-y-2">
-                            <h2 id="flyout-title" className="font-heading text-xl font-bold text-text-primary leading-snug">
-                                {task.title}
-                            </h2>
-                            {task.description ? (
-                                <p className="text-sm text-text-muted leading-relaxed whitespace-pre-line">
-                                    {task.description}
-                                </p>
-                            ) : (
-                                <p className="text-xs text-text-muted italic">No detailed specification provided.</p>
-                            )}
-                        </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        aria-label="Close task details"
+                        className="absolute right-4 top-3.5 p-1 rounded-md transition-colors cursor-pointer"
+                        style={{
+                            color: 'var(--muted-foreground)',
+                            backgroundColor: 'transparent'
+                        }}
+                    >
+                        <X style={{ width: '13px', height: '13px' }} />
+                    </button>
+                </div>
 
-                        {/* ── Critical Path Awareness Banner ── */}
-                        {isCritical ? (
-                            <div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 p-4 space-y-1.5 animate-in fade-in-50 duration-200">
-                                <div className="flex items-center gap-2 text-rose-500 dark:text-rose-400">
-                                    <Flame className="w-4 h-4 shrink-0 animate-pulse" />
-                                    <span className="font-heading text-xs font-bold uppercase tracking-wider">
-                                        Zero-Float Critical Path Task
-                                    </span>
-                                </div>
-                                <p className="text-xs text-rose-300/90 leading-relaxed pl-6">
-                                    Total float is <strong>0 hours</strong>. Any delay on this task will directly push back the milestone delivery date.
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="rounded-2xl border border-surface-border bg-surface/60 p-3.5 flex items-center justify-between text-xs text-text-muted">
-                                <div className="flex items-center gap-2">
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                                    <span>Task has buffer float</span>
-                                </div>
-                                {totalFloat !== null && (
-                                    <span className="font-mono font-bold text-text-primary px-2 py-0.5 rounded-sm bg-surface border border-surface-border">
-                                        +{totalFloat}h float
-                                    </span>
-                                )}
-                            </div>
+                {/* ── Heading (padding: 16px 20px 12px) ── */}
+                <div
+                    className="task-drawer-heading shrink-0"
+                    style={{
+                        padding: '16px 20px 12px',
+                        borderBottom: '1px solid var(--border)',
+                        backgroundColor: 'var(--elevated)'
+                    }}
+                >
+                    <p
+                        className="truncate font-medium uppercase tracking-wider"
+                        style={{
+                            fontSize: '10px',
+                            marginBottom: '5px',
+                            color: 'var(--muted-foreground)'
+                        }}
+                    >
+                        {projectName}
+                    </p>
+
+                    <h2
+                        id="task-drawer-title"
+                        className="font-semibold tracking-tight"
+                        style={{
+                            fontSize: '17px',
+                            lineHeight: 1.4,
+                            color: 'var(--foreground)'
+                        }}
+                    >
+                        {task.title}
+                    </h2>
+
+                    <div
+                        className="flex items-center gap-1.5 flex-wrap"
+                        style={{ marginTop: '10px' }}
+                    >
+                        {task.task_classification && (
+                            <span
+                                className="font-semibold px-2 py-0.5 rounded-[4px] border"
+                                style={{
+                                    fontSize: '9px',
+                                    backgroundColor: 'var(--card)',
+                                    borderColor: 'var(--border)',
+                                    color: 'var(--muted-foreground)'
+                                }}
+                            >
+                                {task.task_classification}
+                            </span>
                         )}
+                        {task.story_points !== null && task.story_points !== undefined && (
+                            <span
+                                className="font-semibold px-2 py-0.5 rounded-[4px] border"
+                                style={{
+                                    fontSize: '9px',
+                                    fontFamily: 'var(--font-mono)',
+                                    backgroundColor: 'var(--card)',
+                                    borderColor: 'var(--border)',
+                                    color: 'var(--primary)'
+                                }}
+                            >
+                                {task.story_points} pts
+                            </span>
+                        )}
+                        <span
+                            className="font-semibold px-2 py-0.5 rounded-[4px] border uppercase"
+                            style={{
+                                fontSize: '9px',
+                                backgroundColor: 'var(--card)',
+                                borderColor: 'var(--border)',
+                                color: isCritical ? 'var(--warning)' : 'var(--muted-foreground)'
+                            }}
+                        >
+                            {selectedPriority}
+                        </span>
+                    </div>
+                </div>
 
-                        {/* ── CPM / PERT Schedule Matrix ── */}
-                        <div className="rounded-2xl border border-surface-border bg-surface/40 p-4 space-y-3">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <Cpu className="w-4 h-4 text-brand" />
-                                    <h3 className="font-heading text-xs font-bold uppercase tracking-wider text-text-primary">
-                                        CPM / PERT Schedule Matrix
-                                    </h3>
-                                </div>
-                                <span className="text-[10px] text-text-muted font-mono">Deterministic Engine</span>
-                            </div>
+                {/* ── Tabs (height: 36px, gap: 16px) ── */}
+                <div
+                    className="task-drawer-tabs flex items-center shrink-0"
+                    role="tablist"
+                    style={{
+                        gap: '16px',
+                        padding: '0 20px',
+                        borderBottom: '1px solid var(--border)',
+                        backgroundColor: 'var(--elevated)'
+                    }}
+                >
+                    <button
+                        type="button"
+                        role="tab"
+                        id="tab-details"
+                        aria-selected={activeTab === 'details'}
+                        aria-controls="panel-details"
+                        onClick={() => setActiveTab('details')}
+                        className="text-[11px] font-medium transition-colors cursor-pointer relative"
+                        style={{
+                            height: '36px',
+                            paddingBottom: '9px',
+                            borderBottom: activeTab === 'details' ? '2px solid var(--primary)' : '2px solid transparent',
+                            color: activeTab === 'details' ? 'var(--primary)' : 'var(--muted-foreground)',
+                            fontWeight: activeTab === 'details' ? 600 : 500
+                        }}
+                    >
+                        Details
+                    </button>
 
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
-                                <div className="p-3 rounded-xl bg-surface border border-surface-border/80" title="The soonest this task can begin based on prerequisites.">
-                                    <span className="block text-[10px] uppercase font-bold text-text-muted tracking-wider">Earliest Start (ES)</span>
-                                    <span className="font-mono text-sm font-bold text-text-primary mt-0.5 block">
-                                        {es !== null ? `${es}h` : '—'}
-                                    </span>
-                                </div>
-                                <div className="p-3 rounded-xl bg-surface border border-surface-border/80" title="The soonest this task can finish based on prerequisites.">
-                                    <span className="block text-[10px] uppercase font-bold text-text-muted tracking-wider">Earliest Finish (EF)</span>
-                                    <span className="font-mono text-sm font-bold text-text-primary mt-0.5 block">
-                                        {ef !== null ? `${ef}h` : '—'}
-                                    </span>
-                                </div>
-                                <div className="p-3 rounded-xl bg-surface border border-surface-border/80" title="The latest date this task can start without delaying the target release.">
-                                    <span className="block text-[10px] uppercase font-bold text-text-muted tracking-wider">Latest Start (LS)</span>
-                                    <span className="font-mono text-sm font-bold text-text-primary mt-0.5 block">
-                                        {ls !== null ? `${ls}h` : '—'}
-                                    </span>
-                                </div>
-                                <div className="p-3 rounded-xl bg-surface border border-surface-border/80" title="Hours or days this task can slip before it impacts the project deadline.">
-                                    <span className="block text-[10px] uppercase font-bold text-text-muted tracking-wider">Schedule Buffer</span>
-                                    <span className={`font-mono text-sm font-bold mt-0.5 block ${isCritical ? 'text-rose-500' : 'text-emerald-500'}`}>
-                                        {totalFloat !== null ? `${totalFloat}h` : '—'}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
+                    <button
+                        type="button"
+                        role="tab"
+                        id="tab-activity"
+                        aria-selected={activeTab === 'activity'}
+                        aria-controls="panel-activity"
+                        onClick={() => setActiveTab('activity')}
+                        className="text-[11px] font-medium transition-colors cursor-pointer relative flex items-center gap-1.5"
+                        style={{
+                            height: '36px',
+                            paddingBottom: '9px',
+                            borderBottom: activeTab === 'activity' ? '2px solid var(--primary)' : '2px solid transparent',
+                            color: activeTab === 'activity' ? 'var(--primary)' : 'var(--muted-foreground)',
+                            fontWeight: activeTab === 'activity' ? 600 : 500
+                        }}
+                    >
+                        <span>Activity</span>
+                        <span
+                            className="px-1.5 py-0.2 rounded-full font-mono text-[9px]"
+                            style={{
+                                backgroundColor: 'var(--card)',
+                                color: 'var(--muted-foreground)',
+                                border: '1px solid var(--border)'
+                            }}
+                        >
+                            {comments.length}
+                        </span>
+                    </button>
+                </div>
 
-                        {/* ── Personnel & Workload ── */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                            <div className="p-3.5 rounded-xl border border-surface-border bg-surface/40 space-y-2">
-                                <span className="font-heading font-semibold text-text-muted uppercase tracking-wider text-[10px] block">
-                                    Assignee & Reviewer
-                                </span>
-                                <div className="flex items-center gap-2 text-text-primary">
-                                    <div className="w-6 h-6 rounded-full bg-brand text-white text-[10px] font-bold flex items-center justify-center shrink-0">
-                                        {(task.assignee?.name || task.assignee || 'U').charAt(0).toUpperCase()}
-                                    </div>
-                                    <div className="min-w-0">
-                                        <p className="font-medium truncate">{task.assignee?.name || task.assignee || 'Unassigned'}</p>
-                                        <p className="text-[10px] text-text-muted">
-                                            {task.reviewer ? `Reviewer: ${task.reviewer?.name || task.reviewer}` : 'No peer reviewer'}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="p-3.5 rounded-xl border border-surface-border bg-surface/40 space-y-2">
-                                <span className="font-heading font-semibold text-text-muted uppercase tracking-wider text-[10px] block">
-                                    Workload & Priority
-                                </span>
-                                <div className="space-y-1">
-                                    <div className="flex justify-between">
-                                        <span className="text-text-muted">Estimated Hours:</span>
-                                        <span className="font-mono font-bold text-text-primary">{task.estimated_hours || 0}h</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-text-muted">Difficulty:</span>
-                                        <span className="font-medium text-text-primary">{task.task_difficulty || 'Medium'}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-text-muted">Priority:</span>
-                                        <span className="font-medium text-text-primary">{task.priority || 'Medium'}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* ── Status Transition & Confirmation Box ── */}
-                        <div className="rounded-2xl border border-brand/30 bg-brand/5 p-4 sm:p-5 space-y-4">
-                            <div className="flex items-center justify-between">
-                                <h3 className="font-heading text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
-                                    <Check className="w-4 h-4 text-brand" />
-                                    <span>Advance Task Status</span>
+                {/* ── Middle Scrollable Region ── */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar">
+                    {activeTab === 'details' ? (
+                        <div id="panel-details" role="tabpanel" aria-labelledby="tab-details">
+                            {/* Section 1: Properties */}
+                            <div
+                                className="task-drawer-section"
+                                style={{
+                                    padding: '14px 20px',
+                                    borderBottom: '1px solid var(--border)'
+                                }}
+                            >
+                                <h3
+                                    className="font-semibold uppercase tracking-wider flex items-center gap-1.5"
+                                    style={{
+                                        fontSize: '10px',
+                                        marginBottom: '10px',
+                                        color: 'var(--muted-foreground)'
+                                    }}
+                                >
+                                    <SlidersHorizontal style={{ width: '12px', height: '12px' }} />
+                                    <span>Properties</span>
                                 </h3>
-                                <span className="text-[10px] text-text-muted font-mono">Confirmation</span>
+
+                                <div className="space-y-1.5">
+                                    {/* Assignee */}
+                                    <div
+                                        className="grid items-center gap-2"
+                                        style={{
+                                            gridTemplateColumns: '1fr 1.35fr',
+                                            minHeight: '34px'
+                                        }}
+                                    >
+                                        <label
+                                            htmlFor="prop-assignee"
+                                            className="font-medium"
+                                            style={{
+                                                fontSize: '10px',
+                                                color: 'var(--muted-foreground)'
+                                            }}
+                                        >
+                                            Assignee
+                                        </label>
+                                        <select
+                                            id="prop-assignee"
+                                            value={selectedAssignee}
+                                            onChange={(e) => handleFieldChange('assignee', e.target.value)}
+                                            className="rounded-[6px] outline-none transition-colors cursor-pointer"
+                                            style={{
+                                                fontSize: '10px',
+                                                padding: '5px 8px',
+                                                backgroundColor: 'var(--card)',
+                                                border: '1px solid var(--border)',
+                                                color: 'var(--foreground)'
+                                            }}
+                                        >
+                                            <option value="">Unassigned</option>
+                                            {selectedAssignee && !teamMembers.some(m => m.name === selectedAssignee) && (
+                                                <option value={selectedAssignee}>{selectedAssignee}</option>
+                                            )}
+                                            {teamMembers.map(m => (
+                                                <option key={m.id || m.name} value={m.name || m.id}>{m.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Priority */}
+                                    <div
+                                        className="grid items-center gap-2"
+                                        style={{
+                                            gridTemplateColumns: '1fr 1.35fr',
+                                            minHeight: '34px'
+                                        }}
+                                    >
+                                        <label
+                                            htmlFor="prop-priority"
+                                            className="font-medium"
+                                            style={{
+                                                fontSize: '10px',
+                                                color: 'var(--muted-foreground)'
+                                            }}
+                                        >
+                                            Priority
+                                        </label>
+                                        <select
+                                            id="prop-priority"
+                                            value={selectedPriority}
+                                            onChange={(e) => handleFieldChange('priority', e.target.value)}
+                                            className="rounded-[6px] outline-none transition-colors cursor-pointer"
+                                            style={{
+                                                fontSize: '10px',
+                                                padding: '5px 8px',
+                                                backgroundColor: 'var(--card)',
+                                                border: '1px solid var(--border)',
+                                                color: 'var(--foreground)'
+                                            }}
+                                        >
+                                            {PRIORITY_OPTIONS.map(opt => (
+                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Story Points */}
+                                    <div
+                                        className="grid items-center gap-2"
+                                        style={{
+                                            gridTemplateColumns: '1fr 1.35fr',
+                                            minHeight: '34px'
+                                        }}
+                                    >
+                                        <label
+                                            htmlFor="prop-points"
+                                            className="font-medium"
+                                            style={{
+                                                fontSize: '10px',
+                                                color: 'var(--muted-foreground)'
+                                            }}
+                                        >
+                                            Story Points
+                                        </label>
+                                        <input
+                                            id="prop-points"
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            value={storyPoints}
+                                            onChange={(e) => handleFieldChange('story_points', e.target.value ? Number(e.target.value) : '')}
+                                            placeholder="—"
+                                            className="rounded-[6px] outline-none transition-colors"
+                                            style={{
+                                                width: '56px',
+                                                fontSize: '10px',
+                                                fontFamily: 'var(--font-mono)',
+                                                padding: '5px 8px',
+                                                backgroundColor: 'var(--card)',
+                                                border: '1px solid var(--border)',
+                                                color: 'var(--foreground)',
+                                                textAlign: 'right'
+                                            }}
+                                        />
+                                    </div>
+                                </div>
                             </div>
 
-                            <div className="space-y-3">
-                                <div>
-                                    <label className="block text-[11px] font-semibold text-text-muted mb-1.5">
-                                        Select Target State
-                                    </label>
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                        {SPRINT_STATUS_OPTIONS.map((opt) => (
+                            {/* Section 2: Schedule */}
+                            <div
+                                className="task-drawer-section"
+                                style={{
+                                    padding: '14px 20px',
+                                    borderBottom: '1px solid var(--border)'
+                                }}
+                            >
+                                <h3
+                                    className="font-semibold uppercase tracking-wider flex items-center gap-1.5"
+                                    style={{
+                                        fontSize: '10px',
+                                        marginBottom: '10px',
+                                        color: 'var(--muted-foreground)'
+                                    }}
+                                >
+                                    <Clock style={{ width: '12px', height: '12px' }} />
+                                    <span>Schedule</span>
+                                </h3>
+
+                                <div
+                                    style={{
+                                        padding: '9px 12px',
+                                        borderRadius: '6px',
+                                        backgroundColor: 'var(--card)',
+                                        border: '1px solid var(--border)'
+                                    }}
+                                >
+                                    <div className="flex items-center gap-2.5">
+                                        <Calendar
+                                            style={{
+                                                width: '17px',
+                                                height: '17px',
+                                                color: 'var(--primary)'
+                                            }}
+                                            className="shrink-0"
+                                        />
+                                        <div className="min-w-0">
+                                            <span
+                                                className="block font-bold tracking-tight"
+                                                style={{
+                                                    fontSize: '15px',
+                                                    fontFamily: 'var(--font-mono)',
+                                                    color: 'var(--foreground)'
+                                                }}
+                                            >
+                                                {dueDateDisplay}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div
+                                        className="flex items-center gap-1.5 leading-tight"
+                                        style={{
+                                            marginTop: '10px',
+                                            fontSize: '9.5px',
+                                            color: isCritical ? 'var(--warning)' : 'var(--muted-foreground)'
+                                        }}
+                                    >
+                                        {isCritical ? (
+                                            <>
+                                                <Flame style={{ width: '12px', height: '12px' }} className="shrink-0" />
+                                                <span>Zero-float critical path task. Any slip delays milestone.</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <CheckCircle2 style={{ width: '12px', height: '12px' }} className="shrink-0 text-emerald-500" />
+                                                <span>
+                                                    Schedule buffer: {totalFloat !== null ? `+${totalFloat}h float` : 'On track with slack'}
+                                                </span>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Section 3: Acceptance Criteria */}
+                            <div
+                                className="task-drawer-section"
+                                style={{
+                                    padding: '14px 20px',
+                                    borderBottom: '1px solid var(--border)'
+                                }}
+                            >
+                                <h3
+                                    className="font-semibold uppercase tracking-wider flex items-center gap-1.5"
+                                    style={{
+                                        fontSize: '10px',
+                                        marginBottom: '10px',
+                                        color: 'var(--muted-foreground)'
+                                    }}
+                                >
+                                    <CheckSquare style={{ width: '12px', height: '12px' }} />
+                                    <span>Acceptance criteria</span>
+                                </h3>
+
+                                <div
+                                    className="flex flex-col"
+                                    style={{ gap: '7px' }}
+                                >
+                                    {acceptanceItems.map((item, idx) => (
+                                        <div
+                                            key={idx}
+                                            className="flex items-start gap-2 leading-snug"
+                                            style={{
+                                                fontSize: '10px',
+                                                color: 'var(--foreground)'
+                                            }}
+                                        >
+                                            <span
+                                                className="w-1.5 h-1.5 rounded-full shrink-0 mt-1"
+                                                style={{ backgroundColor: 'var(--primary)' }}
+                                            />
+                                            <span>{item}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Section 4: Task Status Grid */}
+                            <div
+                                className="task-drawer-section"
+                                style={{
+                                    padding: '14px 20px',
+                                    borderBottom: '1px solid var(--border)'
+                                }}
+                            >
+                                <h3
+                                    className="font-semibold uppercase tracking-wider flex items-center gap-1.5"
+                                    style={{
+                                        fontSize: '10px',
+                                        marginBottom: '10px',
+                                        color: 'var(--muted-foreground)'
+                                    }}
+                                >
+                                    <CheckCircle2 style={{ width: '12px', height: '12px' }} />
+                                    <span>Task status</span>
+                                </h3>
+
+                                <div
+                                    className="grid grid-cols-2"
+                                    style={{ gap: '6px' }}
+                                >
+                                    {SPRINT_STATUS_OPTIONS.map((opt) => {
+                                        const isSelected = selectedStatus === opt.value;
+                                        return (
                                             <button
                                                 key={opt.value}
                                                 type="button"
-                                                onClick={() => setSelectedStatus(opt.value)}
-                                                className={`p-2 rounded-xl text-xs font-semibold border transition-all text-left flex items-center justify-between cursor-pointer ${
-                                                    selectedStatus === opt.value
-                                                        ? 'bg-brand text-white border-brand shadow-2xs'
-                                                        : 'bg-surface border-surface-border text-text-muted hover:text-text-primary hover:border-surface-border/80'
-                                                }`}
+                                                onClick={() => handleFieldChange('status', opt.value)}
+                                                className="px-2.5 rounded-[6px] text-left flex items-center justify-between transition-colors shadow-none cursor-pointer"
+                                                style={{
+                                                    height: '32px',
+                                                    fontSize: '9px',
+                                                    fontWeight: isSelected ? 600 : 500,
+                                                    backgroundColor: isSelected
+                                                        ? 'color-mix(in oklch, var(--primary) 12%, var(--card))'
+                                                        : 'var(--card)',
+                                                    border: isSelected
+                                                        ? '1px solid var(--primary)'
+                                                        : '1px solid var(--border)',
+                                                    color: 'var(--foreground)'
+                                                }}
                                             >
-                                                <span>{opt.label}</span>
-                                                {selectedStatus === opt.value && <Check className="w-3.5 h-3.5 shrink-0" />}
+                                                <span className="truncate">{opt.label}</span>
+                                                {isSelected && (
+                                                    <Check
+                                                        style={{
+                                                            width: '12px',
+                                                            height: '12px',
+                                                            color: 'var(--primary)'
+                                                        }}
+                                                        className="shrink-0"
+                                                    />
+                                                )}
                                             </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-[11px] font-semibold text-text-muted mb-1.5">
-                                        Transition Note / Review Context (Optional)
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={statusNote}
-                                        onChange={(e) => setStatusNote(e.target.value)}
-                                        placeholder="e.g., Pull request merged, tests passing"
-                                        className="w-full px-3 py-2 rounded-xl bg-surface border border-surface-border text-xs text-text-primary placeholder:text-text-muted/60 focus:outline-hidden focus:border-brand transition-colors"
-                                    />
+                                        );
+                                    })}
                                 </div>
                             </div>
                         </div>
+                    ) : (
+                        <div id="panel-activity" role="tabpanel" aria-labelledby="tab-activity" className="p-4 sm:p-5 space-y-4">
+                            {/* Activity Feed Entries */}
+                            <div className="space-y-2.5">
+                                {comments.map((entry) => (
+                                    <div
+                                        key={entry.id}
+                                        style={{
+                                            padding: '10px 0',
+                                            gap: '10px',
+                                            fontSize: '10px',
+                                            borderBottom: '1px solid var(--border)'
+                                        }}
+                                        className="flex flex-col"
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-semibold text-[var(--foreground)]">{entry.user}</span>
+                                            <span style={{ fontSize: '9px' }} className="text-[var(--muted-foreground)] font-mono">{entry.time}</span>
+                                        </div>
+                                        <p className="text-[var(--foreground)] leading-relaxed">{entry.text}</p>
+                                    </div>
+                                ))}
+                            </div>
 
-                    </div>
+                            {/* Comment Composer */}
+                            <form onSubmit={handleAddComment} style={{ marginTop: '12px' }}>
+                                <label htmlFor="comment-composer" className="sr-only">Add comment</label>
+                                <textarea
+                                    id="comment-composer"
+                                    rows={2}
+                                    value={commentText}
+                                    onChange={(e) => setCommentText(e.target.value)}
+                                    placeholder="Add an activity update or review note..."
+                                    className="w-full rounded-[6px] outline-none transition-colors"
+                                    style={{
+                                        fontSize: '11px',
+                                        padding: '8px 10px',
+                                        backgroundColor: 'var(--card)',
+                                        border: '1px solid var(--border)',
+                                        color: 'var(--foreground)',
+                                        resize: 'none'
+                                    }}
+                                />
 
-                    {/* ── Footer Actions ── */}
-                    <div className="p-4 sm:p-5 border-t border-surface-border bg-surface/70 flex items-center justify-end gap-3 shrink-0">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            disabled={isSubmitting}
-                            className="px-4 py-2 rounded-xl border border-surface-border bg-surface hover:bg-surface-elevated text-xs font-semibold text-text-muted hover:text-text-primary transition-colors cursor-pointer"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleConfirmStatus}
-                            disabled={isSubmitting}
-                            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-bold transition-all shadow-xs shadow-brand/20 active:scale-[0.98] cursor-pointer disabled:opacity-60"
-                        >
-                            {isSubmitting ? (
-                                <>
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                    <span>Updating...</span>
-                                </>
-                            ) : (
-                                <>
-                                    <Check className="w-3.5 h-3.5" />
-                                    <span>Confirm Status Change</span>
-                                </>
-                            )}
-                        </button>
-                    </div>
+                                <div
+                                    className="flex items-center justify-between"
+                                    style={{ marginTop: '8px' }}
+                                >
+                                    <span
+                                        style={{ fontSize: '9px' }}
+                                        className="text-[var(--muted-foreground)] font-mono"
+                                    >
+                                        Preview activity
+                                    </span>
 
+                                    <button
+                                        type="submit"
+                                        disabled={!commentText.trim()}
+                                        className="font-medium rounded-[6px] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                        style={{
+                                            height: '28px',
+                                            fontSize: '10px',
+                                            padding: '0 12px',
+                                            backgroundColor: 'var(--primary)',
+                                            color: '#ffffff'
+                                        }}
+                                    >
+                                        Post Note
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+                </div>
+
+                {/* ── Sticky Action Footer (padding: 10px 20px, buttons: height 34px) ── */}
+                <div
+                    className="task-drawer-footer shrink-0 flex items-center justify-end gap-2.5"
+                    style={{
+                        padding: '10px 20px',
+                        borderTop: '1px solid var(--border)',
+                        backgroundColor: 'var(--elevated)'
+                    }}
+                >
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="font-medium rounded-[6px] transition-colors cursor-pointer"
+                        style={{
+                            height: '34px',
+                            fontSize: '11px',
+                            padding: '0 14px',
+                            backgroundColor: 'var(--card)',
+                            border: '1px solid var(--border)',
+                            color: 'var(--foreground)'
+                        }}
+                    >
+                        Close
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={handleMarkComplete}
+                        disabled={isCompleted || isSubmitting}
+                        className="font-semibold rounded-[6px] transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{
+                            height: '34px',
+                            fontSize: '11px',
+                            padding: '0 16px',
+                            backgroundColor: 'var(--primary)',
+                            color: '#ffffff'
+                        }}
+                    >
+                        {isSubmitting ? (
+                            <>
+                                <Loader2 style={{ width: '12px', height: '12px' }} className="animate-spin" />
+                                <span>Updating...</span>
+                            </>
+                        ) : isCompleted ? (
+                            <>
+                                <Check style={{ width: '12px', height: '12px' }} />
+                                <span>Completed</span>
+                            </>
+                        ) : (
+                            <span>Mark complete</span>
+                        )}
+                    </button>
                 </div>
             </div>
         </div>

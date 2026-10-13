@@ -7,6 +7,7 @@ import TimelineView from '@/Components/Tenant/Tasks/TimelineView';
 import DueView      from '@/Components/Tenant/Tasks/DueView';
 import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
 import MemberTaskDetailModal from '@/Components/Tenant/Tasks/MemberTaskDetailModal';
+import TaskFlyoutInspector from '@/Components/Tenant/Tasks/TaskFlyoutInspector';
 import { Search, ChevronDown, PackageX, Plus, Filter } from 'lucide-react';
 
 // ── View Tab Config ───────────────────────────────────────────────────────────
@@ -120,16 +121,45 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
         });
     }, [rawTasks, searchQuery, selectedPriority]);
 
-    // Open task details/editing modal
+    // Open task details drawer sheet
     const handleTaskClick = (task) => {
         setSelectedTask(task);
-        setTaskModalOpen(true);
     };
 
     // Open task creation modal
     const handleNewTask = () => {
         setSelectedTask(null);
         setTaskModalOpen(true);
+    };
+
+    // Inline update handler for Task Details Drawer
+    const handleUpdateTask = (taskId, patch) => {
+        setLocalTasksMap(prev => {
+            const copy = { ...prev };
+            for (const pid of Object.keys(copy)) {
+                copy[pid] = copy[pid].map(t =>
+                    t.id === taskId ? { ...t, ...patch } : t
+                );
+            }
+            return copy;
+        });
+
+        if (selectedTask && selectedTask.id === taskId) {
+            setSelectedTask(prev => prev ? { ...prev, ...patch } : null);
+        }
+
+        const targetProject = selectedTask?.project_id || projects[0]?.id;
+        if (targetProject) {
+            router.patch(
+                route('tenant.projects.tasks.update', {
+                    tenant: activeWorkspace,
+                    project: targetProject,
+                    task: taskId,
+                }),
+                patch,
+                { preserveScroll: true, preserveState: true }
+            );
+        }
     };
 
     // Callback when moving cards in BoardView
@@ -385,35 +415,28 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
                 />
             )}
 
-            {/* Modal for creating or editing task */}
-            {taskModalOpen && (
-                hasManagerRights ? (
-                    <ManualTaskModal
-                        isOpen={taskModalOpen}
-                        onClose={() => { setTaskModalOpen(false); setSelectedTask(null); }}
-                        project={projects.find(p => p.id === selectedTask?.project_id) || selectedProject || projects[0]}
-                        editingTask={selectedTask}
-                        tenantId={activeWorkspace}
-                    />
-                ) : (
-                    selectedTask && (
-                        <MemberTaskDetailModal
-                            isOpen={taskModalOpen}
-                            onClose={() => { setTaskModalOpen(false); setSelectedTask(null); }}
-                            task={selectedTask}
-                            tenantId={activeWorkspace}
-                            currentUserId={usePage().props.auth?.user?.id}
-                            onTaskUpdated={(updatedTask) => {
-                                setLocalTasksMap(prev => {
-                                    const copy = { ...prev };
-                                    const projectList = copy[updatedTask.project_id] || [];
-                                    copy[updatedTask.project_id] = projectList.map(t => t.id === updatedTask.id ? { ...t, ...updatedTask } : t);
-                                    return copy;
-                                });
-                            }}
-                        />
-                    )
-                )
+            {/* Task Details Drawer Sheet */}
+            {selectedTask && (
+                <TaskFlyoutInspector
+                    isOpen={Boolean(selectedTask)}
+                    task={selectedTask}
+                    onClose={() => setSelectedTask(null)}
+                    updateTask={handleUpdateTask}
+                    onUpdateStatus={(t, newStatus) => handleStatusChange(t, newStatus)}
+                    canManage={hasManagerRights}
+                    currentUserId={usePage().props.auth?.user?.id}
+                />
+            )}
+
+            {/* Modal for creating a new task */}
+            {taskModalOpen && !selectedTask && (
+                <ManualTaskModal
+                    isOpen={taskModalOpen}
+                    onClose={() => setTaskModalOpen(false)}
+                    project={selectedProject || projects[0]}
+                    editingTask={null}
+                    tenantId={activeWorkspace}
+                />
             )}
         </TenantLayout>
     );

@@ -30,7 +30,6 @@ const ChevronIcon = ({ isOpen }) => (
 const STATUS_MAP = {
     todo:        { label: 'To Do',       dot: 'bg-gray-400',    text: 'text-gray-500 dark:text-slate-400' },
     in_progress: { label: 'In Progress', dot: 'bg-indigo-500',  text: 'text-indigo-600 dark:text-indigo-400' },
-    stuck:       { label: 'Stuck',       dot: 'bg-rose-500',    text: 'text-rose-600 dark:text-rose-400' },
     review:      { label: 'In Review',   dot: 'bg-amber-500',   text: 'text-amber-600 dark:text-amber-400' },
     in_review:   { label: 'In Review',   dot: 'bg-amber-500',   text: 'text-amber-600 dark:text-amber-400' },
     completed:   { label: 'Completed',   dot: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' },

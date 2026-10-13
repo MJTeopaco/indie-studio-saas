@@ -115,14 +115,18 @@ layer(base);
     --foreground: #0f172a;
     --card: #ffffff;
     --card-foreground: #0f172a;
+    --elevated: #ffffff;
+    --subtle: #f8fafc;
     --popover: #ffffff;
     --popover-foreground: #0f172a;
     --primary: #007cff;
+    --primary-hover: #3396ff;
     --primary-foreground: #ffffff;
     --secondary: #f1f5f9;
     --secondary-foreground: #0f172a;
     --muted: #f1f5f9;
     --muted-foreground: #64748b;
+    --warning: #f59e0b;
     --accent: #f1f5f9;
     --accent-foreground: #0f172a;
     --destructive: #f43f5e;
@@ -131,6 +135,8 @@ layer(base);
     --input: #e2e8f0;
     --ring: #007cff;
     --radius: 0.75rem;
+    --font-sans: 'Montserrat', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
     /* Shadcn Chart Colors (Light) */
     --chart-1: #007cff; /* Blue */
@@ -149,25 +155,31 @@ layer(base);
     --color-text-muted: #94a3b8; /* muted text (slate-400) */
 
     /* Shadcn Theme Variables (Dark) */
-    --background: #0f172a;
+    --background: #0a0e17;
     --foreground: #f1f5f9;
-    --card: #1e293b;
+    --card: #161f30;
     --card-foreground: #f1f5f9;
+    --elevated: #111827;
+    --subtle: #0f172a;
     --popover: #1e293b;
     --popover-foreground: #f1f5f9;
     --primary: #007cff;
+    --primary-hover: #3396ff;
     --primary-foreground: #ffffff;
     --secondary: #1e293b;
     --secondary-foreground: #f1f5f9;
     --muted: #1e293b;
     --muted-foreground: #94a3b8;
+    --warning: #fbbf24;
     --accent: #1e293b;
     --accent-foreground: #f1f5f9;
     --destructive: #f43f5e;
     --destructive-foreground: #ffffff;
-    --border: #334155;
-    --input: #334155;
+    --border: #1e293b;
+    --input: #1e293b;
     --ring: #007cff;
+    --font-sans: 'Montserrat', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
     /* Shadcn Chart Colors (Dark) */
     --chart-1: #3396ff; /* Blue light */
