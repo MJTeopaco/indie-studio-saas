@@ -865,7 +865,7 @@ class TenantProjectController extends Controller
             $newStatus = $validated['status'] ?? null;
             $currentStatus = $taskModel->status;
 
-            if ($currentStatus === 'review' && $newStatus === 'completed' && ! $isReviewer) {
+            if ($currentStatus === 'review' && $newStatus === 'completed' && $hasReviewer && ! $isReviewer) {
                 abort(403, 'Only the assigned reviewer can mark this task as done.');
             }
 
@@ -921,6 +921,15 @@ class TenantProjectController extends Controller
             if (isset($map[$validated['status']])) {
                 $validated['sprint_status'] = $map[$validated['status']];
             }
+        }
+
+        $newStatus = $validated['status'] ?? null;
+        if ($newStatus === 'completed') {
+            $validated['completed_at'] = now();
+            $validated['completed_by_user_id'] = $user?->id ?? $taskModel->assigned_user_id;
+        } elseif ($newStatus !== null && $newStatus !== 'completed' && $taskModel->status === 'completed') {
+            $validated['completed_at'] = null;
+            $validated['completed_by_user_id'] = null;
         }
 
         $oldAssignedId = $taskModel->assigned_user_id;
@@ -1236,7 +1245,7 @@ class TenantProjectController extends Controller
             $hasReviewer = ! empty($taskModel->reviewer_user_id);
 
             // Only assigned reviewer or manager can mark done from review
-            if (in_array($currentSprintStatus, ['waiting_for_review', 'pending_deploy']) && $newSprintStatus === 'done' && ! $isReviewer) {
+            if (in_array($currentSprintStatus, ['waiting_for_review', 'pending_deploy']) && $newSprintStatus === 'done' && $hasReviewer && ! $isReviewer) {
                 return response()->json([
                     'message' => 'Only the assigned reviewer can mark this task as done.',
                 ], 403);

@@ -92,6 +92,21 @@ export default function TaskFlyoutInspector({
         ? String(task.hard_constraint_date).split('T')[0] 
         : (task.due_date || task.dueDate || 'Sprint Target');
 
+    const hasReviewer = Boolean(task?.reviewer_user_id || task?.reviewer);
+    const isReviewer = Boolean(
+        currentUserId && task?.reviewer_user_id && Number(task.reviewer_user_id) === Number(currentUserId)
+    );
+    const isDoer = Boolean(
+        currentUserId && (
+            (task?.assigned_user_id && Number(task.assigned_user_id) === Number(currentUserId)) ||
+            (task?.assignee?.id && Number(task.assignee.id) === Number(currentUserId))
+        )
+    );
+    const canMarkDone = Boolean(canManage || isReviewer || (!hasReviewer && isDoer));
+    const reviewerDisplayName = typeof task?.reviewer === 'string' 
+        ? task.reviewer 
+        : (task?.reviewer?.name || 'the assigned reviewer');
+
     const cpaInfo = resolveCpaStatus({
         totalFloat,
         isCritical: task.is_critical,
@@ -103,6 +118,13 @@ export default function TaskFlyoutInspector({
 
     // Safe inline updater
     const handleFieldChange = async (field, value) => {
+        if ((field === 'status' || field === 'sprint_status') && (value === 'completed' || value === 'done')) {
+            if (!canMarkDone) {
+                showToast(`Only ${reviewerDisplayName} or a manager can mark this task as done.`, 'warning');
+                return;
+            }
+        }
+
         const patch = { [field]: value };
         if (field === 'status' || field === 'sprint_status') {
             setSelectedStatus(value);
@@ -128,6 +150,10 @@ export default function TaskFlyoutInspector({
 
     const handleMarkComplete = async () => {
         if (isCompleted) return;
+        if (!canMarkDone) {
+            showToast(`Only ${reviewerDisplayName} or a manager can mark this task as done.`, 'warning');
+            return;
+        }
         setIsSubmitting(true);
         try {
             setSelectedStatus('completed');
@@ -705,12 +731,16 @@ export default function TaskFlyoutInspector({
                                 >
                                     {SPRINT_STATUS_OPTIONS.map((opt) => {
                                         const isSelected = selectedStatus === opt.value;
+                                        const isDoneOpt = opt.value === 'completed';
+                                        const isOptDisabled = isDoneOpt && !canMarkDone;
                                         return (
                                             <button
                                                 key={opt.value}
                                                 type="button"
                                                 onClick={() => handleFieldChange('status', opt.value)}
-                                                className="px-2.5 rounded-[6px] text-left flex items-center justify-between transition-colors shadow-none cursor-pointer"
+                                                disabled={isOptDisabled}
+                                                title={isOptDisabled ? `Only ${reviewerDisplayName} or a manager can mark this task as done.` : ''}
+                                                className={`px-2.5 rounded-[6px] text-left flex items-center justify-between transition-colors shadow-none ${isOptDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
                                                 style={{
                                                     height: '32px',
                                                     fontSize: '9px',
@@ -844,7 +874,8 @@ export default function TaskFlyoutInspector({
                     <button
                         type="button"
                         onClick={handleMarkComplete}
-                        disabled={isCompleted || isSubmitting}
+                        disabled={isCompleted || isSubmitting || !canMarkDone}
+                        title={!canMarkDone ? `Only ${reviewerDisplayName} or a manager can mark this task as done.` : ''}
                         className="font-semibold rounded-[6px] transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{
                             height: '34px',
@@ -864,6 +895,8 @@ export default function TaskFlyoutInspector({
                                 <Check style={{ width: '12px', height: '12px' }} />
                                 <span>Completed</span>
                             </>
+                        ) : !canMarkDone ? (
+                            <span>Awaiting Reviewer</span>
                         ) : (
                             <span>Mark Complete</span>
                         )}

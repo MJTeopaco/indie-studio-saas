@@ -9,6 +9,7 @@ import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
 import MemberTaskDetailModal from '@/Components/Tenant/Tasks/MemberTaskDetailModal';
 import TaskFlyoutInspector from '@/Components/Tenant/Tasks/TaskFlyoutInspector';
 import { Search, ChevronDown, PackageX, Plus, Filter } from 'lucide-react';
+import { showToast } from '@/Components/SystemToast';
 
 // ── View Tab Config ───────────────────────────────────────────────────────────
 const VIEWS = [
@@ -169,7 +170,17 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
                     task: taskId,
                 }),
                 augmentedPatch,
-                { preserveScroll: true, preserveState: true }
+                {
+                    preserveScroll: true,
+                    preserveState: true,
+                    onError: (errors) => {
+                        setLocalTasksMap(tasks);
+                        const msg = typeof errors === 'string'
+                            ? errors
+                            : Object.values(errors || {})[0] || 'Failed to update task';
+                        showToast(msg, 'error');
+                    },
+                }
             );
         }
     };
@@ -209,8 +220,12 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
             {
                 preserveScroll: true,
                 preserveState: true,
-                onError: () => {
+                onError: (errors) => {
                     setLocalTasksMap(tasks);
+                    const msg = typeof errors === 'string'
+                        ? errors
+                        : Object.values(errors || {})[0] || 'Failed to update task position';
+                    showToast(msg, 'error');
                 },
             }
         );

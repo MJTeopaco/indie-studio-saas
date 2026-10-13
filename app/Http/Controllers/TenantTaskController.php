@@ -313,7 +313,7 @@ class TenantTaskController extends Controller
             $currentStatus = $taskModel->status;
 
             // Only the reviewer (or manager) can mark "in review" tasks as completed
-            if ($currentStatus === 'review' && $newStatus === 'completed' && ! $isReviewer) {
+            if ($currentStatus === 'review' && $newStatus === 'completed' && $hasReviewer && ! $isReviewer) {
                 abort(403, 'Only the assigned reviewer can mark this task as done.');
             }
 
