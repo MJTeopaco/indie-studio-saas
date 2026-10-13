@@ -44,38 +44,38 @@ function formatHeaderDay(date, isFirstOrNewMonth) {
 const THEME_PALETTES = [
     {
         // Purple / Mauve
-        bar: 'bg-purple-100/90 border-purple-300 text-purple-900 hover:bg-purple-200/90 dark:bg-purple-950/40 dark:border-purple-500/40 dark:text-purple-200 dark:hover:bg-purple-900/50',
-        badge: 'bg-white/90 border-purple-200 text-purple-800 dark:bg-purple-950/80 dark:border-purple-500/50 dark:text-purple-200',
+        bar: 'bg-purple-200/95 border-purple-400 text-purple-950 hover:bg-purple-300 dark:bg-purple-900/85 dark:border-purple-400/90 dark:text-purple-100 dark:hover:bg-purple-800/90',
+        badge: 'bg-white/95 border-purple-300 text-purple-950 dark:bg-black/60 dark:border-purple-400/40 dark:text-purple-100',
         indicator: 'bg-purple-500',
     },
     {
         // Blue / Indigo
-        bar: 'bg-blue-100/90 border-blue-300 text-blue-900 hover:bg-blue-200/90 dark:bg-blue-950/40 dark:border-blue-500/40 dark:text-blue-200 dark:hover:bg-blue-900/50',
-        badge: 'bg-white/90 border-blue-200 text-blue-800 dark:bg-blue-950/80 dark:border-blue-500/50 dark:text-blue-200',
+        bar: 'bg-blue-200/95 border-blue-400 text-blue-950 hover:bg-blue-300 dark:bg-blue-900/85 dark:border-blue-400/90 dark:text-blue-100 dark:hover:bg-blue-800/90',
+        badge: 'bg-white/95 border-blue-300 text-blue-950 dark:bg-black/60 dark:border-blue-400/40 dark:text-blue-100',
         indicator: 'bg-blue-500',
     },
     {
         // Cyan / Sky
-        bar: 'bg-cyan-100/90 border-cyan-300 text-cyan-900 hover:bg-cyan-200/90 dark:bg-cyan-950/40 dark:border-cyan-500/40 dark:text-cyan-200 dark:hover:bg-cyan-900/50',
-        badge: 'bg-white/90 border-cyan-200 text-cyan-800 dark:bg-cyan-950/80 dark:border-cyan-500/50 dark:text-cyan-200',
+        bar: 'bg-cyan-200/95 border-cyan-400 text-cyan-950 hover:bg-cyan-300 dark:bg-cyan-900/85 dark:border-cyan-400/90 dark:text-cyan-100 dark:hover:bg-cyan-800/90',
+        badge: 'bg-white/95 border-cyan-300 text-cyan-950 dark:bg-black/60 dark:border-cyan-400/40 dark:text-cyan-100',
         indicator: 'bg-cyan-500',
     },
     {
         // Emerald / Green
-        bar: 'bg-emerald-100/90 border-emerald-300 text-emerald-900 hover:bg-emerald-200/90 dark:bg-emerald-950/40 dark:border-emerald-500/40 dark:text-emerald-200 dark:hover:bg-emerald-900/50',
-        badge: 'bg-white/90 border-emerald-200 text-emerald-800 dark:bg-emerald-950/80 dark:border-emerald-500/50 dark:text-emerald-200',
+        bar: 'bg-emerald-200/95 border-emerald-400 text-emerald-950 hover:bg-emerald-300 dark:bg-emerald-900/85 dark:border-emerald-400/90 dark:text-emerald-100 dark:hover:bg-emerald-800/90',
+        badge: 'bg-white/95 border-emerald-300 text-emerald-950 dark:bg-black/60 dark:border-emerald-400/40 dark:text-emerald-100',
         indicator: 'bg-emerald-500',
     },
     {
         // Amber / Orange
-        bar: 'bg-amber-100/90 border-amber-300 text-amber-900 hover:bg-amber-200/90 dark:bg-amber-950/40 dark:border-amber-500/40 dark:text-amber-200 dark:hover:bg-amber-900/50',
-        badge: 'bg-white/90 border-amber-200 text-amber-800 dark:bg-amber-950/80 dark:border-amber-500/50 dark:text-amber-200',
+        bar: 'bg-amber-200/95 border-amber-400 text-amber-950 hover:bg-amber-300 dark:bg-amber-900/85 dark:border-amber-400/90 dark:text-amber-100 dark:hover:bg-amber-800/90',
+        badge: 'bg-white/95 border-amber-300 text-amber-950 dark:bg-black/60 dark:border-amber-400/40 dark:text-amber-100',
         indicator: 'bg-amber-500',
     },
     {
         // Rose / Coral
-        bar: 'bg-rose-100/90 border-rose-300 text-rose-900 hover:bg-rose-200/90 dark:bg-rose-950/40 dark:border-rose-500/40 dark:text-rose-200 dark:hover:bg-rose-900/50',
-        badge: 'bg-white/90 border-rose-200 text-rose-800 dark:bg-rose-950/80 dark:border-rose-500/50 dark:text-rose-200',
+        bar: 'bg-rose-200/95 border-rose-400 text-rose-950 hover:bg-rose-300 dark:bg-rose-900/85 dark:border-rose-400/90 dark:text-rose-100 dark:hover:bg-rose-800/90',
+        badge: 'bg-white/95 border-rose-300 text-rose-950 dark:bg-black/60 dark:border-rose-400/40 dark:text-rose-100',
         indicator: 'bg-rose-500',
     },
 ];
@@ -369,13 +369,13 @@ export default function TimelineView({ tasks = [], onTaskClick }) {
                                 <div
                                     key={task.id || rowIndex}
                                     style={{ height: `${ROW_HEIGHT}px` }}
-                                    className="flex items-center border-b border-slate-200/60 dark:border-slate-800/60 hover:bg-slate-50/60 dark:hover:bg-slate-850/40 transition-colors group relative"
+                                    className="flex items-center border-b border-slate-200/60 dark:border-slate-800/60 group relative"
                                 >
                                     {/* Sticky Left Column: Task / Milestone Title */}
                                     <div
                                         style={{ width: `${LEFT_COL_W}px` }}
                                         onClick={() => onTaskClick?.(task)}
-                                        className="shrink-0 px-5 flex items-center gap-2.5 h-full sticky left-0 z-20 bg-surface-elevated group-hover:bg-slate-50/90 dark:bg-slate-950 dark:group-hover:bg-slate-900 border-r border-surface-border dark:border-slate-800/90 transition-colors cursor-pointer shadow-[4px_0_12px_-4px_rgba(0,0,0,0.08)] dark:shadow-[4px_0_12px_-4px_rgba(0,0,0,0.4)]"
+                                        className="shrink-0 px-5 flex items-center gap-2.5 h-full sticky left-0 z-20 bg-surface-elevated dark:bg-slate-950 hover:bg-slate-100/50 dark:hover:bg-slate-900/60 border-r border-surface-border dark:border-slate-800/90 transition-colors cursor-pointer shadow-[4px_0_12px_-4px_rgba(0,0,0,0.08)] dark:shadow-[4px_0_12px_-4px_rgba(0,0,0,0.4)]"
                                     >
                                         <div className={`w-2 h-2 rounded-full shrink-0 ${palette.indicator}`} />
                                         <div className="min-w-0 flex-1">
@@ -425,12 +425,6 @@ export default function TimelineView({ tasks = [], onTaskClick }) {
                                                 <span>{pts} pts</span>
                                             </span>
 
-                                            {/* Task Name inside bar if space allows */}
-                                            {barWidth > 200 && (
-                                                <span className="text-[11px] font-medium truncate opacity-90">
-                                                    {task.title}
-                                                </span>
-                                            )}
                                         </div>
                                     </div>
                                 </div>
