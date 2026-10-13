@@ -29,6 +29,17 @@ export default function AvailabilityForm({
         joinedStudios.length > 0 ? joinedStudios[0].id : ''
     );
 
+    const selectedStudio = joinedStudios.find(s => s.id === statusStudioId);
+
+    // Keep currentStatus synchronized with incoming props and scope selection
+    useEffect(() => {
+        if (statusScope === 'specific' && selectedStudio) {
+            setCurrentStatus(selectedStudio.working_status || 'active');
+        } else {
+            setCurrentStatus(user.working_status || 'active');
+        }
+    }, [statusScope, statusStudioId, selectedStudio, user.working_status]);
+
     // Modal state (Single unified modal)
     const [isAbsenceModalOpen, setIsAbsenceModalOpen] = useState(false);
     const [absenceInitialType, setAbsenceInitialType] = useState('leave');
@@ -49,6 +60,49 @@ export default function AvailabilityForm({
             setCurrentPage(totalPages);
         }
     }, [totalPages, currentPage]);
+
+    // Detect scheduled upcoming approved leave (starts after today's date)
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    const upcomingApprovedLeave = React.useMemo(() => {
+        // 1. Look in leaveHistory for approved leave requests that start after today
+        const matchingHistory = leaveHistory.find(item => {
+            if (item.request_type !== 'leave' || item.status !== 'approved') return false;
+            if (!item.leave_start_date) return false;
+            if (statusScope === 'specific' && item.studio_id !== statusStudioId) return false;
+            return item.leave_start_date > todayStr;
+        });
+
+        if (matchingHistory) {
+            return {
+                id: matchingHistory.id,
+                startDate: matchingHistory.leave_start_date,
+                endDate: matchingHistory.leave_end_date,
+                studioName: matchingHistory.studio_name,
+                reason: matchingHistory.reason,
+            };
+        }
+
+        // 2. Fallback to studio pivot / user model dates
+        const targetStart = statusScope === 'specific'
+            ? selectedStudio?.leave_start_date
+            : user.leave_start_date;
+        const targetEnd = statusScope === 'specific'
+            ? selectedStudio?.leave_end_date
+            : user.leave_end_date;
+
+        if (targetStart && targetStart > todayStr) {
+            return {
+                id: null,
+                startDate: targetStart,
+                endDate: targetEnd,
+                studioName: statusScope === 'specific' ? selectedStudio?.name : 'All Studios',
+                reason: null,
+            };
+        }
+
+        return null;
+    }, [leaveHistory, statusScope, statusStudioId, selectedStudio, user.leave_start_date, user.leave_end_date, todayStr]);
 
     // Extract pending leave and emergency requests from studios
     const pendingLeaveRequests = joinedStudios
@@ -267,6 +321,46 @@ export default function AvailabilityForm({
                     )}
                 </div>
 
+                {/* Upcoming Approved Leave Callout */}
+                {upcomingApprovedLeave && currentStatus === 'active' && (
+                    <div className="p-4 rounded-xl border border-sky-200 dark:border-sky-900/60 bg-sky-50/70 dark:bg-sky-950/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                        <div className="flex items-start sm:items-center gap-3 min-w-0">
+                            <div className="p-2 rounded-lg bg-sky-100 dark:bg-sky-900/50 text-sky-600 dark:text-sky-400 shrink-0">
+                                <Calendar className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-bold text-sky-950 dark:text-sky-200">
+                                        Upcoming Approved Leave ({upcomingApprovedLeave.studioName})
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-200/80 dark:bg-sky-800/80 text-sky-800 dark:text-sky-200">
+                                        Scheduled
+                                    </span>
+                                </div>
+                                <p className="text-sky-800/80 dark:text-sky-300/80 mt-0.5">
+                                    Starts {formatDate(upcomingApprovedLeave.startDate)} → Concludes {formatDate(upcomingApprovedLeave.endDate)}. You remain Active until the leave begins.
+                                </p>
+                            </div>
+                        </div>
+
+                        {upcomingApprovedLeave.id && (
+                            <button
+                                type="button"
+                                disabled={cancellingRequestId === upcomingApprovedLeave.id}
+                                onClick={() => handleWithdrawRequest(upcomingApprovedLeave.id, 'leave')}
+                                className="font-semibold text-xs px-2.5 py-1 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 transition-colors cursor-pointer shrink-0 inline-flex items-center gap-1 disabled:opacity-50"
+                            >
+                                {cancellingRequestId === upcomingApprovedLeave.id ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                    <XCircle className="w-3 h-3" />
+                                )}
+                                <span>Cancel Leave</span>
+                            </button>
+                        )}
+                    </div>
+                )}
+
                 {/* Pending Request Alert Callouts (If any request is awaiting review) */}
                 {(hasPendingEmergency || hasPendingLeave) && (
                     <div className="space-y-2 pt-1">
@@ -469,6 +563,21 @@ export default function AvailabilityForm({
                                                                     <XCircle className="w-3 h-3" />
                                                                 )}
                                                                 <span>Withdraw</span>
+                                                            </button>
+                                                        ) : (row.status === 'approved' && row.request_type === 'leave' && row.leave_start_date && row.leave_start_date > todayStr) ? (
+                                                            <button
+                                                                type="button"
+                                                                disabled={cancellingRequestId === row.id}
+                                                                onClick={() => handleWithdrawRequest(row.id, 'leave')}
+                                                                className="text-xs font-semibold px-2.5 py-1 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 transition-colors cursor-pointer inline-flex items-center gap-1 disabled:opacity-50"
+                                                                title="Cancel upcoming scheduled leave"
+                                                            >
+                                                                {cancellingRequestId === row.id ? (
+                                                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                                                ) : (
+                                                                    <XCircle className="w-3 h-3" />
+                                                                )}
+                                                                <span>Cancel</span>
                                                             </button>
                                                         ) : (
                                                             <span className="text-slate-400 font-semibold">—</span>

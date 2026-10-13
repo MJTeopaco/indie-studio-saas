@@ -296,23 +296,32 @@ class ProfileController extends Controller
                         ->where('status', 'pending')
                         ->update(['status' => 'cancelled']);
 
+                    $today = now()->toDateString();
+                    $startDate = $leaveStart ? Carbon::parse($leaveStart)->toDateString() : $today;
+                    $endDate = $leaveEnd ? Carbon::parse($leaveEnd)->toDateString() : $startDate;
+                    $effectiveStatus = ($today >= $startDate && $today <= $endDate) ? 'on_leave' : 'active';
+
                     DB::table('studio_members')
                         ->where('user_id', $user->id)
                         ->where('studio_id', $request->studio_id)
                         ->update([
-                            'working_status' => 'on_leave',
+                            'working_status' => $effectiveStatus,
                             'leave_start_date' => $leaveStart,
                             'leave_end_date' => $leaveEnd,
                             'leave_request_status' => 'none',
                             'updated_at' => now(),
                         ]);
 
-                    $user->working_status = 'on_leave';
+                    $user->working_status = $effectiveStatus;
                     $user->leave_start_date = $leaveStart;
                     $user->leave_end_date = $leaveEnd;
                     $user->save();
 
-                    return Redirect::route('profile.edit')->with('status', 'working-status-updated:Working status updated to On Leave.');
+                    $msg = $effectiveStatus === 'on_leave'
+                        ? 'Working status updated to On Leave.'
+                        : 'Leave scheduled starting '.Carbon::parse($leaveStart)->format('M d, Y').'. Operational status remains Active until then.';
+
+                    return Redirect::route('profile.edit')->with('status', 'working-status-updated:'.$msg);
                 }
 
                 // Member or Leader: submit leave request for approval (replaces existing pending leave)
@@ -426,6 +435,11 @@ class ProfileController extends Controller
             $isLeader = in_array($role, ['leader', 'manager']);
 
             if ($status === 'on_leave') {
+                $today = now()->toDateString();
+                $startDate = $leaveStart ? Carbon::parse($leaveStart)->toDateString() : $today;
+                $endDate = $leaveEnd ? Carbon::parse($leaveEnd)->toDateString() : $startDate;
+                $effectiveStatus = ($today >= $startDate && $today <= $endDate) ? 'on_leave' : 'active';
+
                 if ($isOwner) {
                     LeaveRequest::where('user_id', $user->id)
                         ->where('studio_id', $membership->studio_id)
@@ -436,7 +450,7 @@ class ProfileController extends Controller
                     DB::table('studio_members')
                         ->where('id', $membership->id)
                         ->update([
-                            'working_status' => 'on_leave',
+                            'working_status' => $effectiveStatus,
                             'leave_start_date' => $leaveStart,
                             'leave_end_date' => $leaveEnd,
                             'leave_request_status' => 'none',
@@ -489,7 +503,14 @@ class ProfileController extends Controller
         }
 
         if ($status !== 'on_leave' || $directUpdatedCount > 0) {
-            $user->working_status = $status;
+            $effectiveStatus = 'active';
+            if ($status === 'on_leave') {
+                $today = now()->toDateString();
+                $startDate = $leaveStart ? Carbon::parse($leaveStart)->toDateString() : $today;
+                $endDate = $leaveEnd ? Carbon::parse($leaveEnd)->toDateString() : $startDate;
+                $effectiveStatus = ($today >= $startDate && $today <= $endDate) ? 'on_leave' : 'active';
+            }
+            $user->working_status = $effectiveStatus;
             $user->leave_start_date = $status === 'on_leave' ? $leaveStart : null;
             $user->leave_end_date = $status === 'on_leave' ? $leaveEnd : null;
             $user->save();
@@ -756,28 +777,49 @@ class ProfileController extends Controller
     }
 
     /**
-     * Cancel / withdraw an active pending leave or emergency request.
+     * Cancel / withdraw an active pending leave or upcoming scheduled approved leave.
      */
     public function cancelLeaveRequest(Request $request, int $id): RedirectResponse
     {
+        $today = now()->toDateString();
         $leaveReq = LeaveRequest::where('id', $id)
             ->where('user_id', $request->user()->id)
-            ->where('status', 'pending')
+            ->where(function ($q) use ($today) {
+                $q->where('status', 'pending')
+                    ->orWhere(function ($q2) use ($today) {
+                        $q2->where('status', 'approved')
+                            ->where('request_type', LeaveRequest::TYPE_LEAVE)
+                            ->where('leave_start_date', '>', $today);
+                    });
+            })
             ->firstOrFail();
 
+        $wasApproved = $leaveReq->status === 'approved';
         $leaveReq->update(['status' => 'cancelled']);
 
         DB::table('studio_members')
             ->where('user_id', $request->user()->id)
             ->where('studio_id', $leaveReq->studio_id)
             ->update([
+                'working_status' => 'active',
+                'leave_start_date' => null,
+                'leave_end_date' => null,
                 'leave_request_status' => 'none',
                 'updated_at' => now(),
             ]);
 
-        $typeLabel = $leaveReq->request_type === 'emergency' ? 'Emergency declaration' : 'Leave request';
+        $user = $request->user();
+        if ($user->leave_start_date && Carbon::parse($user->leave_start_date)->toDateString() === Carbon::parse($leaveReq->leave_start_date)->toDateString()) {
+            $user->working_status = 'active';
+            $user->leave_start_date = null;
+            $user->leave_end_date = null;
+            $user->save();
+        }
 
-        return Redirect::route('profile.edit')->with('status', "leave-request-cancelled:{$typeLabel} has been withdrawn.");
+        $typeLabel = $leaveReq->request_type === 'emergency' ? 'Emergency declaration' : 'Leave request';
+        $actionVerb = $wasApproved ? 'cancelled' : 'withdrawn';
+
+        return Redirect::route('profile.edit')->with('status', "leave-request-cancelled:{$typeLabel} has been {$actionVerb}.");
     }
 
     /**

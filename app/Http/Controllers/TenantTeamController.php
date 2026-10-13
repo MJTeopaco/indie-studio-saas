@@ -23,6 +23,9 @@ class TenantTeamController extends Controller
      */
     public function index(): Response
     {
+        // Automatically synchronize any studio member leaves (activate ongoing, expire concluded, keep future active)
+        User::resolveStudioMembersLeaveStatus(tenant('id'));
+
         $studio = Studio::with(['users.globalProfile.position', 'users.globalProfile.skills'])->find(tenant('id'));
         $studioName = $studio ? $studio->name : 'Studio';
 
@@ -311,10 +314,17 @@ class TenantTeamController extends Controller
             'reviewed_at' => now(),
         ]);
 
-        $targetStatus = $leaveReq->request_type === LeaveRequest::TYPE_EMERGENCY ? 'emergency' : 'on_leave';
+        $today = now()->toDateString();
+        if ($leaveReq->request_type === LeaveRequest::TYPE_EMERGENCY) {
+            $targetStatus = 'emergency';
+        } else {
+            $startDate = $leaveReq->leave_start_date ? Carbon::parse($leaveReq->leave_start_date)->toDateString() : $today;
+            $endDate = $leaveReq->leave_end_date ? Carbon::parse($leaveReq->leave_end_date)->toDateString() : $startDate;
+            $targetStatus = ($today >= $startDate && $today <= $endDate) ? 'on_leave' : 'active';
+        }
 
         // Update studio member record
-        \DB::connection(config('tenancy.database.central_connection', 'central'))
+        DB::connection(config('tenancy.database.central_connection', 'central'))
             ->table('studio_members')
             ->where('studio_id', tenant('id'))
             ->where('user_id', $leaveReq->user_id)
@@ -327,15 +337,25 @@ class TenantTeamController extends Controller
             ]);
 
         // Synchronize central users table
-        User::where('id', $leaveReq->user_id)->update([
-            'working_status' => $targetStatus,
-            'leave_start_date' => $leaveReq->leave_start_date,
-            'leave_end_date' => $leaveReq->leave_end_date,
-        ]);
+        $userRecord = User::find($leaveReq->user_id);
+        if ($userRecord) {
+            $userRecord->leave_start_date = $leaveReq->leave_start_date;
+            $userRecord->leave_end_date = $leaveReq->leave_end_date;
+            if ($userRecord->working_status !== 'emergency') {
+                $userRecord->working_status = $targetStatus;
+            }
+            $userRecord->save();
+        }
 
-        $typeLabel = $leaveReq->request_type === LeaveRequest::TYPE_EMERGENCY ? 'Emergency declaration' : 'Leave request';
+        $typeLabel = $leaveReq->request_type === LeaveRequest::TYPE_EMERGENCY
+            ? 'Emergency declaration'
+            : ($targetStatus === 'active' ? 'Upcoming leave request' : 'Leave request');
 
-        return redirect()->back()->with('status', "leave-approved:{$typeLabel} approved successfully.");
+        $statusMsg = $targetStatus === 'active'
+            ? "Leave request approved. Scheduled absence starts on ".Carbon::parse($leaveReq->leave_start_date)->format('M d, Y')." (member remains Active until then)."
+            : "{$typeLabel} approved successfully.";
+
+        return redirect()->back()->with('status', "leave-approved:{$statusMsg}");
     }
 
     /**
