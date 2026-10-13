@@ -345,39 +345,11 @@ class ReportDataService
 
     /**
      * Check if a user can view an archived report.
+     * Report archive strictly shows only what each user generated preview, be it member or team leader.
      */
     public function canAccessReport(User $user, Report $report, ?string $tenantId = null): bool
     {
-        if ($this->isLeaderOrManager($user, $tenantId)) {
-            return true;
-        }
-
-        // User generated the report
-        if ($report->created_by_user_id === (int) $user->id) {
-            return true;
-        }
-
-        // User is the subject of the personal report
-        if ($report->employee_user_id === (int) $user->id) {
-            return true;
-        }
-
-        // Member reports for other employees are forbidden
-        if ($report->employee_user_id !== null && $report->employee_user_id !== (int) $user->id) {
-            return false;
-        }
-
-        // If it's a team audit/history or team performance report, members without manage rights cannot see
-        if (in_array($report->type, ['task_audit', 'team_performance', 'workload_assignment', 'individual_performance'], true)) {
-            return false;
-        }
-
-        // Project or sprint report: verify project authorization
-        if ($report->project_id) {
-            return $this->isAuthorizedForProject($user, $report->project_id, $tenantId);
-        }
-
-        return false;
+        return $report->created_by_user_id !== null && (int) $report->created_by_user_id === (int) $user->id;
     }
 
     /**

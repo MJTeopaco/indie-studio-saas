@@ -11,6 +11,13 @@ class CentralDashboardController extends Controller
     {
         $user = $request->user();
 
+        // If member belongs to a single studio and is not viewing hub explicitly, route to their studio home
+        if (! $request->has('hub') && $user->ownedStudios()->count() === 0 && $user->joinedStudios()->count() === 1) {
+            $studio = $user->joinedStudios()->first();
+
+            return redirect()->to("/studio/{$studio->id}/dashboard");
+        }
+
         return Inertia::render('CentralHub', [
             'ownedStudios' => $user->ownedStudios()->withCount('users')->get(['tenants.id', 'tenants.name', 'tenants.created_at']),
             'joinedStudios' => $user->joinedStudios()

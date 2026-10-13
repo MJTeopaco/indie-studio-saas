@@ -2,20 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\LeaveRequest;
+use App\Models\NotificationRead;
 use App\Models\Position;
 use App\Models\Skill;
 use App\Models\Studio;
 use App\Models\Tenant\ChannelMessage;
 use App\Models\Tenant\ChannelRead;
 use App\Models\Tenant\Project;
-use App\Models\Tenant\ProjectMember;
 use App\Models\Tenant\Sprint;
 use App\Models\Tenant\Task;
 use App\Models\Tenant\TaskEstimateSubmission;
 use App\Models\Tenant\TeamVelocity;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -177,7 +179,8 @@ class TenantDashboardController extends Controller
                     ->pluck('project_id')
                     ->all();
             }
-        } catch (\Throwable $e) {}
+        } catch (\Throwable $e) {
+        }
 
         $taskProjectIds = Task::where(function ($q) use ($user) {
             $q->where('assigned_user_id', $user->id)
@@ -292,12 +295,14 @@ class TenantDashboardController extends Controller
         $overdueCount = $openTasks->filter(function ($t) {
             $isOverdueDays = $t->days_until_deadline !== null && $t->days_until_deadline < 0;
             $isOverdueHard = $t->hard_constraint_date && Carbon::parse($t->hard_constraint_date)->isPast();
+
             return $isOverdueDays || $isOverdueHard;
         })->count();
 
         $dueSoon48hCount = $openTasks->filter(function ($t) {
             $isDueSoonDays = $t->days_until_deadline !== null && $t->days_until_deadline >= 0 && $t->days_until_deadline <= 2;
             $isDueSoonHard = $t->hard_constraint_date && ! Carbon::parse($t->hard_constraint_date)->isPast() && Carbon::parse($t->hard_constraint_date)->lte(now()->addDays(2));
+
             return $isDueSoonDays || $isDueSoonHard;
         })->count();
 
@@ -326,13 +331,19 @@ class TenantDashboardController extends Controller
         // Format user tasks
         $formattedMyTasks = $assignedTasks->map(fn ($t) => $this->formatTaskForMember($t, $user))
             ->sort(function ($a, $b) {
-                if ($a['is_critical'] && ! $b['is_critical']) return -1;
-                if (! $a['is_critical'] && $b['is_critical']) return 1;
+                if ($a['is_critical'] && ! $b['is_critical']) {
+                    return -1;
+                }
+                if (! $a['is_critical'] && $b['is_critical']) {
+                    return 1;
+                }
 
                 $order = ['CRITICAL' => 1, 'HIGH' => 2, 'MEDIUM' => 3, 'LOW' => 4];
                 $pA = $order[strtoupper($a['priority'] ?? 'MEDIUM')] ?? 5;
                 $pB = $order[strtoupper($b['priority'] ?? 'MEDIUM')] ?? 5;
-                if ($pA !== $pB) return $pA - $pB;
+                if ($pA !== $pB) {
+                    return $pA - $pB;
+                }
 
                 $dA = $a['days_until_deadline'] ?? 999;
                 $dB = $b['days_until_deadline'] ?? 999;
@@ -374,11 +385,59 @@ class TenantDashboardController extends Controller
             ];
         })->values()->all();
 
+        // ── Monday.com Home Page Experience (Recently Visited, Update Feed Inbox, Profile Checklist) ──
+        $tenantId = tenant('id') ?? ($studio ? $studio->id : 'default');
+        $studioName = $studio ? $studio->name : 'SprintStudio';
+        $primaryProject = collect($projects)->first();
+        $primaryProjectId = $primaryProject['id'] ?? null;
+        $primaryProjectName = $primaryProject['name'] ?? 'Workspace';
+
+        $recentBoards = [
+            [
+                'id' => 'sprints',
+                'title' => 'Sprints',
+                'type' => 'sprints',
+                'breadcrumb' => "{$studioName} > {$primaryProjectName} > Sprints",
+                'url' => $primaryProjectId ? url("/studio/{$tenantId}/projects/{$primaryProjectId}") : url("/studio/{$tenantId}/tasks"),
+                'project_id' => $primaryProjectId,
+            ],
+            [
+                'id' => 'tasks',
+                'title' => 'Tasks',
+                'type' => 'tasks',
+                'breadcrumb' => "{$studioName} > {$primaryProjectName} > Tasks",
+                'url' => url("/studio/{$tenantId}/tasks"),
+                'project_id' => $primaryProjectId,
+            ],
+            [
+                'id' => 'epics',
+                'title' => 'Epics',
+                'type' => 'epics',
+                'breadcrumb' => "{$studioName} > {$primaryProjectName} > Epics",
+                'url' => url("/studio/{$tenantId}/overview"),
+                'project_id' => $primaryProjectId,
+            ],
+            [
+                'id' => 'reports',
+                'title' => 'Retrospectives',
+                'type' => 'reports',
+                'breadcrumb' => "{$studioName} > {$primaryProjectName} > Retrospectives",
+                'url' => url("/studio/{$tenantId}/reports"),
+                'project_id' => $primaryProjectId,
+            ],
+        ];
+
+        $updateFeed = $this->getMemberUpdateFeed($user, $tenantId, $assignedTasks, $reviewTasks);
+        $unreadFeedCount = count(array_filter($updateFeed, fn ($f) => ! $f['is_read']));
+
         return Inertia::render('Tenant/MemberDashboard', [
             'studio' => [
                 'id' => $studio ? $studio->id : tenant('id'),
                 'name' => $studio ? $studio->name : 'Studio',
             ],
+            'recentBoards' => $recentBoards,
+            'updateFeed' => $updateFeed,
+            'unreadFeedCount' => $unreadFeedCount,
             'metrics' => [
                 'open_tasks' => [
                     'count' => $openTasksCount,
@@ -607,7 +666,7 @@ class TenantDashboardController extends Controller
             $dailyPoints = $currentSprint['total_points'] / $totalDays;
 
             for ($i = 0; $i <= min(14, $totalDays); $i++) {
-                $dayLabel = 'Day ' . ($i + 1);
+                $dayLabel = 'Day '.($i + 1);
                 $ideal = max(0, round($currentSprint['total_points'] - ($dailyPoints * $i)));
                 $actual = ($i <= ($totalDays - ($currentSprint['days_left'] ?? 0)))
                     ? max(0, round($currentSprint['total_points'] - ($currentSprint['done_points'] * ($i / max(1, $totalDays - ($currentSprint['days_left'] ?? 0))))))
@@ -627,7 +686,7 @@ class TenantDashboardController extends Controller
                 ->take(6)
                 ->get()
                 ->map(fn ($tv) => [
-                    'sprint' => $tv->sprint_name ?: 'Sprint ' . $tv->sprint_id,
+                    'sprint' => $tv->sprint_name ?: 'Sprint '.$tv->sprint_id,
                     'points' => (int) ($tv->points_completed ?: $tv->velocity_points),
                 ])
                 ->reverse()
@@ -881,8 +940,24 @@ class TenantDashboardController extends Controller
         $studio = Studio::find(tenant('id'));
         $user = auth()->user();
 
+        $readNotifIds = [];
+        if (Schema::hasTable('channel_reads')) {
+            $readNotifIds = ChannelRead::where('user_id', $user->id)
+                ->where('channel_id', 'like', 'notif:%')
+                ->pluck('channel_id')
+                ->map(fn ($cid) => substr($cid, 6))
+                ->all();
+        }
+
         $myTasks = [];
         $notifications = [];
+
+        $readNotificationIds = Schema::hasTable('notification_reads')
+            ? NotificationRead::where('user_id', $user->id)->pluck('notification_id')->all()
+            : [];
+
+        $readNotificationIds = array_values(array_unique(array_merge($readNotificationIds, $readNotifIds)));
+        $readNotifIds = $readNotificationIds;
 
         try {
             $assignedTasks = Task::with([
@@ -909,7 +984,7 @@ class TenantDashboardController extends Controller
 
             $myTasks = $assignedTasks->map(fn (Task $task) => $this->formatTaskForMember($task, $user))->values()->all();
 
-            $notifications = collect($myTasks)->map(function ($t) {
+            $notifications = collect($myTasks)->map(function ($t) use ($readNotificationIds) {
                 $type = null;
                 $title = null;
                 $body = null;
@@ -951,8 +1026,10 @@ class TenantDashboardController extends Controller
                     return null;
                 }
 
+                $notifId = 'task-'.$t['id'].'-'.$type;
+
                 return [
-                    'id' => 'task-'.$t['id'].'-'.$type,
+                    'id' => $notifId,
                     'type' => $type,
                     'title' => $title,
                     'body' => $body,
@@ -966,7 +1043,7 @@ class TenantDashboardController extends Controller
                     'epic_color' => $t['epic_color'] ?? null,
                     'priority' => $t['priority'] ?? null,
                     'days_until_deadline' => $t['days_until_deadline'] ?? null,
-                    'read' => false,
+                    'read' => in_array($notifId, $readNotificationIds),
                     'created_at_human' => 'Today',
                 ];
             })->filter()->values()->all();
@@ -1007,12 +1084,12 @@ class TenantDashboardController extends Controller
                 'epic_color' => null,
                 'priority' => 'high',
                 'days_until_deadline' => null,
-                'read' => false,
+                'read' => in_array('estimates-pending', $readNotificationIds),
                 'created_at_human' => 'Pending',
             ];
         }
 
-        $notifications = array_merge($notifications, $this->getMessageNotifications($user));
+        $notifications = array_merge($notifications, $this->getMessageNotifications($user, $readNotificationIds));
 
         // Leave Requests for Authorized Reviewers (Team Leaders & Studio Owners)
         try {
@@ -1039,7 +1116,7 @@ class TenantDashboardController extends Controller
 
                 $rawRequests = $leaveQuery->latest()->get();
 
-                $leaveNotifications = $rawRequests->map(function ($req) {
+                $leaveNotifications = $rawRequests->map(function ($req) use ($readNotificationIds) {
                     $reqUser = $req->user;
                     $reqPos = $reqUser && $reqUser->globalProfile && $reqUser->globalProfile->position
                         ? $reqUser->globalProfile->position->name
@@ -1063,15 +1140,21 @@ class TenantDashboardController extends Controller
                     })->values();
 
                     $calendarDays = $start && $end ? $start->diffInDays($end) + 1 : 0;
+                    $isEmergency = ($req->request_type ?? 'leave') === 'emergency';
                     $roleLabel = $req->requester_role === 'leader' ? 'Team Leader' : 'Team Member';
+                    $notifId = 'leave-req-'.$req->id;
+                    $title = $isEmergency ? "🚨 Emergency Declared: {$reqUser->name}" : "Leave Request: {$reqUser->name}";
+                    $body = $isEmergency
+                        ? "{$reqUser->name} ({$roleLabel}) declared an operational emergency: \"{$req->reason}\"".($end ? ' (Est. return: '.$end->format('M d, Y').')' : '')
+                        : "{$reqUser->name} ({$roleLabel}) requested absence from ".($start ? $start->format('M d, Y') : '').' to '.($end ? $end->format('M d, Y') : '')." ({$calendarDays} calendar day".($calendarDays === 1 ? '' : 's').').'.($req->reason ? " Handover: {$req->reason}" : '');
 
                     return [
-                        'id' => 'leave-req-'.$req->id,
-                        'type' => 'leave_request',
-                        'title' => "Leave Request: {$reqUser->name}",
-                        'body' => "{$reqUser->name} ({$roleLabel}) requested absence from ".($start ? $start->format('M d, Y') : '').' to '.($end ? $end->format('M d, Y') : '')." ({$calendarDays} calendar day".($calendarDays === 1 ? '' : 's').').'.($req->reason ? " Handover: {$req->reason}" : ''),
-                        'icon' => 'calendar',
-                        'color' => 'amber',
+                        'id' => $notifId,
+                        'type' => $isEmergency ? 'emergency_declaration' : 'leave_request',
+                        'title' => $title,
+                        'body' => $body,
+                        'icon' => $isEmergency ? 'ban' : 'calendar',
+                        'color' => $isEmergency ? 'rose' : 'amber',
                         'priority' => null,
                         'task_id' => null,
                         'task_title' => null,
@@ -1104,7 +1187,7 @@ class TenantDashboardController extends Controller
                                 'due_date' => $t->hard_constraint_date ? Carbon::parse($t->hard_constraint_date)->format('M d, Y') : 'No deadline',
                             ])->all(),
                         ],
-                        'read' => false,
+                        'read' => in_array($notifId, $readNotificationIds),
                         'created_at_human' => $req->created_at ? $req->created_at->diffForHumans() : 'Pending',
                     ];
                 })->all();
@@ -1165,19 +1248,47 @@ class TenantDashboardController extends Controller
                         ];
                     })
                     ->sort(function ($a, $b) {
-                        if ($a['has_conversation'] && ! $b['has_conversation']) return -1;
-                        if (! $a['has_conversation'] && $b['has_conversation']) return 1;
+                        if ($a['has_conversation'] && ! $b['has_conversation']) {
+                            return -1;
+                        }
+                        if (! $a['has_conversation'] && $b['has_conversation']) {
+                            return 1;
+                        }
                         if ($a['last_message_at'] && $b['last_message_at']) {
                             return strcmp($b['last_message_at'], $a['last_message_at']);
                         }
-                        if ($a['last_message_at']) return -1;
-                        if ($b['last_message_at']) return 1;
+                        if ($a['last_message_at']) {
+                            return -1;
+                        }
+                        if ($b['last_message_at']) {
+                            return 1;
+                        }
 
                         return strcasecmp($a['name'], $b['name']);
                     })
                     ->values()
                     ->all();
             }
+        } catch (\Exception $e) {
+        }
+
+        try {
+            $messageNotifications = $this->getMessageNotifications($user, $readNotificationIds);
+            $notifications = array_merge($notifications, $messageNotifications);
+
+            // Sort notifications: unread first, then preserve recent order
+            usort($notifications, function ($a, $b) {
+                $aRead = ! empty($a['read']);
+                $bRead = ! empty($b['read']);
+                if (! $aRead && $bRead) {
+                    return -1;
+                }
+                if ($aRead && ! $bRead) {
+                    return 1;
+                }
+
+                return 0;
+            });
         } catch (\Exception $e) {
         }
 
@@ -1196,15 +1307,20 @@ class TenantDashboardController extends Controller
     /**
      * Build notifications for incoming direct messages and channel messages / mentions.
      *
+     * @param  array<int, string>  $readNotificationIds
      * @return array<int, array<string, mixed>>
      */
-    public function getMessageNotifications(User $user): array
+    public function getMessageNotifications(User $user, array $readNotificationIds = []): array
     {
         $notifications = [];
 
         try {
             if (! Schema::hasTable('channel_messages')) {
                 return [];
+            }
+
+            if (empty($readNotificationIds) && Schema::hasTable('notification_reads')) {
+                $readNotificationIds = NotificationRead::where('user_id', $user->id)->pluck('notification_id')->all();
             }
 
             $userReads = collect();
@@ -1242,8 +1358,11 @@ class TenantDashboardController extends Controller
                     }
                 }
 
+                $notifId = 'msg-'.$dm->id;
+                $isRead = $isRead || in_array($notifId, $readNotificationIds);
+
                 $notifications[] = [
-                    'id' => 'msg-'.$dm->id,
+                    'id' => $notifId,
                     'type' => 'direct_message',
                     'title' => "Message from {$dm->sender_name}",
                     'body' => $snippet,
@@ -1297,8 +1416,11 @@ class TenantDashboardController extends Controller
                     }
                 }
 
+                $notifId = ($isMention ? 'mention-' : 'channel-').$chMsg->id;
+                $isRead = $isRead || in_array($notifId, $readNotificationIds);
+
                 $notifications[] = [
-                    'id' => ($isMention ? 'mention-' : 'channel-').$chMsg->id,
+                    'id' => $notifId,
                     'type' => $isMention ? 'channel_mention' : 'channel_message',
                     'title' => $isMention ? "Mentioned in {$chTitle}" : "New message in {$chTitle}",
                     'body' => "{$chMsg->sender_name}: \"{$snippet}\"",
@@ -1326,39 +1448,343 @@ class TenantDashboardController extends Controller
         return $notifications;
     }
 
-    public function markAllNotificationsRead(Request $request): JsonResponse
+    /**
+     * Build rich Monday.com-style update feed for member home page.
+     */
+    private function getMemberUpdateFeed(User $user, ?string $tenantId, $assignedTasks, $reviewTasks): array
+    {
+        $feed = [];
+        $tenantId = $tenantId ?: (tenant('id') ?: 'default');
+
+        // 1. Channel messages & direct messages
+        try {
+            if (Schema::hasTable('channel_messages')) {
+                $userReads = collect();
+                if (Schema::hasTable('channel_reads')) {
+                    $userReads = ChannelRead::where('user_id', $user->id)->get()->keyBy('channel_id');
+                }
+
+                $readNotificationIds = [];
+                if (Schema::hasTable('notification_reads')) {
+                    $readNotificationIds = NotificationRead::where('user_id', $user->id)->pluck('notification_id')->all();
+                }
+
+                $msgs = ChannelMessage::where('user_id', '!=', $user->id)
+                    ->where('is_unsent', false)
+                    ->where(function ($q) use ($user) {
+                        $q->whereNull('deleted_for_user_ids')
+                            ->orWhereJsonDoesntContain('deleted_for_user_ids', (int) $user->id);
+                    })
+                    ->orderBy('created_at', 'desc')
+                    ->limit(30)
+                    ->get();
+
+                foreach ($msgs as $m) {
+                    $isDm = str_starts_with($m->channel_id, 'dm-');
+                    if ($isDm) {
+                        $parts = explode('-', str_replace('dm-', '', $m->channel_id));
+                        $uIds = explode('_', $parts[0] ?? '');
+                        if (! in_array((string) $user->id, $uIds, true)) {
+                            continue;
+                        }
+                    }
+
+                    $isMention = (! empty($m->mentions) && in_array((int) $user->id, $m->mentions))
+                        || str_contains(strtolower($m->body), '@'.strtolower($user->name));
+
+                    $chTitle = $isDm ? 'Direct Message' : (str_starts_with($m->channel_id, 'ch-') ? '#'.str_replace('ch-', '', $m->channel_id) : '#'.$m->channel_id);
+
+                    $userRead = $userReads->get($m->channel_id);
+                    $isRead = false;
+                    if ($userRead) {
+                        if ($userRead->last_read_message_id && $m->id <= $userRead->last_read_message_id) {
+                            $isRead = true;
+                        } elseif ($userRead->last_read_at && $m->created_at <= $userRead->last_read_at) {
+                            $isRead = true;
+                        }
+                    }
+
+                    $notifId = 'msg-'.$m->id;
+                    $isRead = $isRead || in_array($notifId, $readNotificationIds);
+
+                    $initials = collect(explode(' ', $m->sender_name))->map(fn ($p) => substr($p, 0, 1))->take(2)->join('');
+
+                    $feed[] = [
+                        'id' => $notifId,
+                        'feed_type' => $isMention ? 'mention' : ($isDm ? 'direct_message' : 'channel_message'),
+                        'title' => $isMention ? "{$m->sender_name} mentioned you in {$chTitle}" : ($isDm ? "Direct message from {$m->sender_name}" : "{$m->sender_name} posted in {$chTitle}"),
+                        'context_name' => $chTitle,
+                        'context_type' => $isDm ? 'dm' : 'channel',
+                        'context_url' => url("/studio/{$tenantId}/inbox"),
+                        'channel_id' => $m->channel_id,
+                        'task_id' => null,
+                        'author' => [
+                            'id' => $m->user_id,
+                            'name' => $m->sender_name,
+                            'avatar' => null,
+                            'role' => $m->sender_role ?? 'Team Member',
+                            'initials' => strtoupper($initials ?: 'U'),
+                        ],
+                        'body' => $m->body,
+                        'attachments' => $m->attachments ?? [],
+                        'created_at' => $m->created_at?->toIso8601String() ?? now()->toIso8601String(),
+                        'created_at_human' => $m->created_at?->diffForHumans() ?? 'Recently',
+                        'is_read' => (bool) $isRead,
+                        'is_mention' => (bool) $isMention,
+                        'likes_count' => 0,
+                        'is_liked' => false,
+                    ];
+                }
+            }
+        } catch (\Throwable $e) {
+            // Ignore fallback
+        }
+
+        // 2. Task Assignments
+        try {
+            $readNotificationIds = Schema::hasTable('notification_reads')
+                ? NotificationRead::where('user_id', $user->id)->pluck('notification_id')->all()
+                : [];
+
+            foreach ($assignedTasks->take(10) as $t) {
+                $notifId = "task-{$t->id}-assigned";
+                $isRead = in_array($notifId, $readNotificationIds) || in_array("task-{$t->id}-task_assigned", $readNotificationIds);
+                $projectName = $t->project?->name ?? 'Studio Project';
+
+                $feed[] = [
+                    'id' => $notifId,
+                    'feed_type' => 'task_assigned',
+                    'title' => "You were assigned to: {$t->title}",
+                    'context_name' => "Tasks > {$projectName} > #{$t->id}",
+                    'context_type' => 'task',
+                    'context_url' => url("/studio/{$tenantId}/tasks"),
+                    'channel_id' => null,
+                    'task_id' => $t->id,
+                    'task' => [
+                        'id' => $t->id,
+                        'title' => $t->title,
+                        'status' => $t->status,
+                        'priority' => $t->priority ?? 'MEDIUM',
+                    ],
+                    'author' => [
+                        'id' => null,
+                        'name' => 'Sprint Automation',
+                        'avatar' => null,
+                        'role' => 'Project Lead',
+                        'initials' => 'SA',
+                    ],
+                    'body' => "You have been assigned to '{$t->title}' ({$t->estimated_hours}h estimated). Priority: {$t->priority}.",
+                    'attachments' => [],
+                    'created_at' => $t->created_at?->toIso8601String() ?? now()->toIso8601String(),
+                    'created_at_human' => $t->created_at?->diffForHumans() ?? 'Recently',
+                    'is_read' => (bool) $isRead,
+                    'is_mention' => false,
+                    'likes_count' => 0,
+                    'is_liked' => false,
+                ];
+            }
+
+            foreach ($reviewTasks->take(10) as $rt) {
+                $notifId = "task-{$rt->id}-review_request";
+                $isRead = in_array($notifId, $readNotificationIds);
+                $assigneeName = $rt->assignee?->name ?? 'Teammate';
+                $initials = collect(explode(' ', $assigneeName))->map(fn ($p) => substr($p, 0, 1))->take(2)->join('');
+
+                $feed[] = [
+                    'id' => $notifId,
+                    'feed_type' => 'task_review',
+                    'title' => "Code review requested on: {$rt->title}",
+                    'context_name' => "Review Queue > #{$rt->id}",
+                    'context_type' => 'task',
+                    'context_url' => url("/studio/{$tenantId}/tasks"),
+                    'channel_id' => null,
+                    'task_id' => $rt->id,
+                    'task' => [
+                        'id' => $rt->id,
+                        'title' => $rt->title,
+                        'status' => $rt->status,
+                        'priority' => $rt->priority ?? 'MEDIUM',
+                    ],
+                    'author' => [
+                        'id' => $rt->assignee?->id,
+                        'name' => $assigneeName,
+                        'avatar' => $rt->assignee?->avatar,
+                        'role' => 'Developer',
+                        'initials' => strtoupper($initials ?: 'DEV'),
+                    ],
+                    'body' => "{$assigneeName} moved Task #{$rt->id} ('{$rt->title}') to Review and requested your verification.",
+                    'attachments' => [],
+                    'created_at' => $rt->updated_at?->toIso8601String() ?? now()->toIso8601String(),
+                    'created_at_human' => $rt->updated_at?->diffForHumans() ?? 'Recently',
+                    'is_read' => (bool) $isRead,
+                    'is_mention' => true,
+                    'likes_count' => 0,
+                    'is_liked' => false,
+                ];
+            }
+        } catch (\Throwable $e) {
+            // Ignore fallback
+        }
+
+        // Sort descending by created_at
+        usort($feed, fn ($a, $b) => strcmp($b['created_at'], $a['created_at']));
+
+        return array_values($feed);
+    }
+
+    public function unreadCount(Request $request): JsonResponse
+    {
+        $counts = HandleInertiaRequests::getInboxUnreadCounts($request->user());
+
+        return response()->json($counts);
+    }
+
+    public function markAllNotificationsRead(Request $request): JsonResponse|RedirectResponse
     {
         $user = $request->user();
 
-        if (Schema::hasTable('channel_reads') && Schema::hasTable('channel_messages')) {
-            $activeChannels = ChannelMessage::where('created_at', '>=', now()->subDays(14))
-                ->select('channel_id', DB::raw('MAX(id) as max_id'))
-                ->groupBy('channel_id')
-                ->get();
+        if (Schema::hasTable('channel_reads')) {
+            if (Schema::hasTable('channel_messages')) {
+                $activeChannels = ChannelMessage::where('created_at', '>=', now()->subDays(14))
+                    ->select('channel_id', DB::raw('MAX(id) as max_id'))
+                    ->groupBy('channel_id')
+                    ->get();
 
-            foreach ($activeChannels as $ch) {
+                foreach ($activeChannels as $ch) {
+                    ChannelRead::updateOrCreate(
+                        [
+                            'channel_id' => $ch->channel_id,
+                            'user_id' => $user->id,
+                        ],
+                        [
+                            'last_read_message_id' => $ch->max_id,
+                            'last_read_at' => now(),
+                        ]
+                    );
+                }
+            }
+
+            if (Schema::hasTable('tasks')) {
+                $assignedTaskIds = Task::where('assigned_user_id', $user->id)
+                    ->orWhere('reviewer_user_id', $user->id)
+                    ->pluck('id');
+
+                foreach ($assignedTaskIds as $tId) {
+                    foreach (['task_assigned', 'review_request', 'overdue', 'stuck'] as $tType) {
+                        ChannelRead::updateOrCreate(
+                            [
+                                'channel_id' => "notif:task-{$tId}-{$tType}",
+                                'user_id' => $user->id,
+                            ],
+                            [
+                                'last_read_at' => now(),
+                            ]
+                        );
+                    }
+                }
+
                 ChannelRead::updateOrCreate(
                     [
-                        'channel_id' => $ch->channel_id,
+                        'channel_id' => 'notif:estimates-pending',
                         'user_id' => $user->id,
                     ],
                     [
-                        'last_read_message_id' => $ch->max_id,
                         'last_read_at' => now(),
                     ]
                 );
             }
+
+            if (Schema::hasTable('leave_requests')) {
+                $pendingLeaveIds = LeaveRequest::where('studio_id', tenant('id'))
+                    ->where('status', 'pending')
+                    ->pluck('id');
+
+                foreach ($pendingLeaveIds as $lId) {
+                    ChannelRead::updateOrCreate(
+                        [
+                            'channel_id' => "notif:leave-req-{$lId}",
+                            'user_id' => $user->id,
+                        ],
+                        [
+                            'last_read_at' => now(),
+                        ]
+                    );
+                }
+            }
+        }
+
+        if (Schema::hasTable('notification_reads')) {
+            $notifIds = [];
+
+            $tasksQuery = Task::where('assigned_user_id', $user->id)
+                ->orWhere('reviewer_user_id', $user->id);
+
+            if (Schema::hasTable('assignments')) {
+                $tasksQuery->orWhereIn('id', function ($sub) use ($user) {
+                    $sub->select('task_id')
+                        ->from('assignments')
+                        ->where('employee_user_id', $user->id)
+                        ->where('status', 'active');
+                });
+            }
+            $tasks = $tasksQuery->get();
+
+            foreach ($tasks as $t) {
+                $notifIds[] = "task-{$t->id}-review_request";
+                $notifIds[] = "task-{$t->id}-task_assigned";
+                $notifIds[] = "task-{$t->id}-overdue";
+                $notifIds[] = "task-{$t->id}-stuck";
+            }
+            $notifIds[] = 'estimates-pending';
+
+            if (Schema::hasTable('leave_requests')) {
+                $leaveReqs = LeaveRequest::where('studio_id', tenant('id'))->where('status', 'pending')->pluck('id');
+                foreach ($leaveReqs as $lId) {
+                    $notifIds[] = "leave-req-{$lId}";
+                }
+            }
+
+            if (Schema::hasTable('channel_messages')) {
+                $recentMsgs = ChannelMessage::where('created_at', '>=', now()->subDays(14))->limit(100)->get();
+                foreach ($recentMsgs as $m) {
+                    $notifIds[] = "msg-{$m->id}";
+                    $notifIds[] = "channel-{$m->id}";
+                    $notifIds[] = "mention-{$m->id}";
+                }
+            }
+
+            $now = now();
+            $records = array_map(fn ($nid) => [
+                'user_id' => $user->id,
+                'notification_id' => $nid,
+                'read_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ], array_unique($notifIds));
+
+            if (! empty($records)) {
+                NotificationRead::upsert(
+                    $records,
+                    ['user_id', 'notification_id'],
+                    ['read_at', 'updated_at']
+                );
+            }
+        }
+
+        if ($request->header('X-Inertia')) {
+            return back();
         }
 
         return response()->json(['success' => true]);
     }
 
-    public function markNotificationRead(Request $request, string $id): JsonResponse
+    public function markNotificationRead(Request $request, string $tenant, ?string $id = null): JsonResponse|RedirectResponse
     {
         $user = $request->user();
+        $targetId = $id ?? $tenant;
 
-        if (str_starts_with($id, 'msg-') || str_starts_with($id, 'channel-') || str_starts_with($id, 'mention-')) {
-            $msgId = (int) preg_replace('/^[a-z]+-/', '', $id);
+        if (str_starts_with($targetId, 'msg-') || str_starts_with($targetId, 'channel-') || str_starts_with($targetId, 'mention-')) {
+            $msgId = (int) preg_replace('/^[a-z]+-/', '', $targetId);
             $msg = ChannelMessage::find($msgId);
             if ($msg && Schema::hasTable('channel_reads')) {
                 $latestId = ChannelMessage::where('channel_id', $msg->channel_id)->max('id') ?? $msg->id;
@@ -1373,6 +1799,66 @@ class TenantDashboardController extends Controller
                     ]
                 );
             }
+        } elseif (Schema::hasTable('channel_reads')) {
+            ChannelRead::updateOrCreate(
+                [
+                    'channel_id' => 'notif:'.$targetId,
+                    'user_id' => $user->id,
+                ],
+                [
+                    'last_read_at' => now(),
+                ]
+            );
+        }
+
+        if (Schema::hasTable('notification_reads')) {
+            NotificationRead::updateOrCreate(
+                [
+                    'user_id' => $user->id,
+                    'notification_id' => $targetId,
+                ],
+                [
+                    'read_at' => now(),
+                ]
+            );
+        }
+
+        if ($request->header('X-Inertia')) {
+            return back();
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    public function markNotificationUnread(Request $request, string $tenant, ?string $id = null): JsonResponse|RedirectResponse
+    {
+        $user = $request->user();
+        $targetId = $id ?? $tenant;
+
+        if (Schema::hasTable('channel_reads')) {
+            if (str_starts_with($targetId, 'msg-') || str_starts_with($targetId, 'channel-') || str_starts_with($targetId, 'mention-')) {
+                $msgId = (int) preg_replace('/^[a-z]+-/', '', $targetId);
+                $msg = ChannelMessage::find($msgId);
+                if ($msg) {
+                    ChannelRead::where('channel_id', $msg->channel_id)
+                        ->where('user_id', $user->id)
+                        ->delete();
+                }
+            } else {
+                ChannelRead::where('channel_id', 'notif:'.$targetId)
+                    ->where('user_id', $user->id)
+                    ->delete();
+            }
+        }
+
+        if (Schema::hasTable('notification_reads')) {
+            NotificationRead::where('user_id', $user->id)
+                ->where('notification_id', $targetId)
+                ->delete();
+        }
+
+        if ($request->header('X-Inertia')) {
+            return back();
         }
 
         return response()->json(['success' => true]);

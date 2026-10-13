@@ -121,6 +121,7 @@ class TenantDocsTest extends TestCase
             'target_name' => 'Sprint 0',
             'metrics' => ['total_tasks' => 0],
             'created_by' => $this->user->name,
+            'created_by_user_id' => $this->user->id,
         ]);
 
         $response = $this->actingAs($this->user)->delete(

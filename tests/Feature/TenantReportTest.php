@@ -341,6 +341,7 @@ class TenantReportTest extends TestCase
             'type' => 'project',
             'target_name' => 'Test RPG Project',
             'created_by' => 'Studio Lead',
+            'created_by_user_id' => $this->user->id,
             'metrics' => [
                 'title' => 'Q3 Velocity Benchmark',
                 'scope' => 'project',

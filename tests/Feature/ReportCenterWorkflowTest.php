@@ -238,4 +238,102 @@ class ReportCenterWorkflowTest extends TestCase
         $response->assertHeader('content-type', 'application/pdf');
         $this->assertStringStartsWith('%PDF-', $response->streamedContent());
     }
+
+    public function test_report_archive_only_shows_reports_generated_by_authenticated_user_for_both_member_and_leader(): void
+    {
+        $leaderReport = Report::create([
+            'name' => 'Manager Executive Summary',
+            'type' => 'project_summary',
+            'project_id' => $this->authorizedProject->id,
+            'created_by' => $this->leaderUser->name,
+            'created_by_user_id' => $this->leaderUser->id,
+            'target_name' => $this->authorizedProject->name,
+            'metrics' => ['title' => 'Manager Executive Summary', 'total_tasks' => 5],
+        ]);
+
+        $memberReport = Report::create([
+            'name' => 'Member Individual Review',
+            'type' => 'my_performance',
+            'project_id' => $this->authorizedProject->id,
+            'employee_user_id' => $this->memberUser->id,
+            'created_by' => $this->memberUser->name,
+            'created_by_user_id' => $this->memberUser->id,
+            'target_name' => $this->memberUser->name,
+            'metrics' => ['title' => 'Member Individual Review', 'total_tasks' => 2],
+        ]);
+
+        // Member visits reports index
+        $memberResponse = $this->actingAs($this->memberUser)->get(
+            route('tenant.reports', ['tenant' => 'test-studio'])
+        );
+        $memberResponse->assertStatus(200);
+        $memberArchivedReports = $memberResponse->original->getData()['page']['props']['archivedReports'];
+        $memberArchivedIds = collect($memberArchivedReports)->pluck('id')->all();
+
+        $this->assertContains($memberReport->id, $memberArchivedIds);
+        $this->assertNotContains($leaderReport->id, $memberArchivedIds, 'Member must not see team manager archived report');
+
+        // Leader visits reports index
+        $leaderResponse = $this->actingAs($this->leaderUser)->get(
+            route('tenant.reports', ['tenant' => 'test-studio'])
+        );
+        $leaderResponse->assertStatus(200);
+        $leaderArchivedReports = $leaderResponse->original->getData()['page']['props']['archivedReports'];
+        $leaderArchivedIds = collect($leaderArchivedReports)->pluck('id')->all();
+
+        $this->assertContains($leaderReport->id, $leaderArchivedIds);
+        $this->assertNotContains($memberReport->id, $leaderArchivedIds, 'Leader must not see member archived report');
+    }
+
+    public function test_generating_preview_automatically_archives_into_users_own_report_archive(): void
+    {
+        $response = $this->actingAs($this->memberUser)->getJson(
+            route('tenant.reports.data', [
+                'tenant' => 'test-studio',
+                'type' => 'my_performance',
+                'employee_user_id' => $this->memberUser->id,
+            ])
+        );
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('success', true);
+        $response->assertJsonStructure(['data', 'archived_report' => ['id', 'name', 'created_by_user_id']]);
+        $archivedId = $response->json('archived_report.id');
+
+        $this->assertDatabaseHas('reports', [
+            'id' => $archivedId,
+            'created_by_user_id' => $this->memberUser->id,
+        ]);
+    }
+
+    public function test_user_cannot_download_or_export_another_users_archived_report(): void
+    {
+        $leaderReport = Report::create([
+            'name' => 'Manager Secret Report',
+            'type' => 'project_summary',
+            'project_id' => $this->authorizedProject->id,
+            'created_by' => $this->leaderUser->name,
+            'created_by_user_id' => $this->leaderUser->id,
+            'target_name' => $this->authorizedProject->name,
+            'metrics' => ['title' => 'Manager Secret Report', 'total_tasks' => 10],
+        ]);
+
+        // Member attempts to download manager's report as PDF
+        $downloadResponse = $this->actingAs($this->memberUser)->getJson(
+            route('tenant.reports.download-pdf', [
+                'tenant' => 'test-studio',
+                'archived_id' => $leaderReport->id,
+            ])
+        );
+        $downloadResponse->assertStatus(403);
+
+        // Member attempts to export manager's report as CSV
+        $exportResponse = $this->actingAs($this->memberUser)->get(
+            route('tenant.reports.export-csv', [
+                'tenant' => 'test-studio',
+                'archived_id' => $leaderReport->id,
+            ])
+        );
+        $exportResponse->assertStatus(403);
+    }
 }

@@ -4,11 +4,7 @@ import {
     Camera, 
     Trash2, 
     Pencil, 
-    ChevronDown, 
-    Loader2, 
-    AlertCircle,
-    X,
-    Sparkles
+    Loader2
 } from 'lucide-react';
 import InputError from '@/Components/InputError';
 import { showToast } from '@/Components/SystemToast';
@@ -38,7 +34,7 @@ export default function PersonalInfoForm({
     const [isSkillModalOpen, setIsSkillModalOpen] = useState(false);
 
     // Primary form data (User personal information)
-    const { data, setData, patch, errors, processing } = useForm({
+    const { data, setData, patch, errors, processing, recentlySuccessful } = useForm({
         name: user.name || '',
         email: user.email || '',
         position_id: profile?.position_id || '',
@@ -107,7 +103,7 @@ export default function PersonalInfoForm({
     const handleSaveProfile = (e) => {
         e.preventDefault();
 
-        // Update personal information
+
         patch(route('profile.update'), {
             preserveScroll: true,
             onSuccess: () => {
@@ -128,7 +124,7 @@ export default function PersonalInfoForm({
                     Personal Information
                 </h1>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Manage your identity, technical matrix, and real-time availability.
+                    Manage your identity, display name, and technical skill matrix.
                 </p>
             </div>
 
@@ -340,15 +336,16 @@ export default function PersonalInfoForm({
                     </div>
                 </div>
 
-                {/* Save Changes Footer */}
-                <div className="p-4 sm:p-5 bg-slate-50/50 dark:bg-slate-900/30 flex items-center justify-between gap-3">
+                {/* Form Actions Footer */}
+                <div className="p-6 sm:p-7 bg-slate-50/50 dark:bg-slate-900/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Ensure all profile details are saved before navigating away.
+                        Ensure all changes are saved before navigating away.
                     </p>
+
                     <button
                         type="submit"
                         disabled={processing}
-                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-semibold shadow-2xs disabled:opacity-50 transition-all cursor-pointer"
+                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-brand hover:bg-brand-light active:bg-brand-dark text-white text-xs font-semibold shadow-2xs hover:shadow-md disabled:opacity-50 transition-all cursor-pointer"
                     >
                         {processing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                         <span>Save Personal Information</span>

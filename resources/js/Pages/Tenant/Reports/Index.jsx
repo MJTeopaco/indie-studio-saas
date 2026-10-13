@@ -59,8 +59,12 @@ export default function ReportsIndex({
     const [report, setReport] = useState(null);
     const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
-    // Archive state
-    const [archivedReports, setArchivedReports] = useState(initialArchivedReports || []);
+    // Archive state — strictly scoped to reports created by current user
+    const [archivedReports, setArchivedReports] = useState(() => {
+        const list = initialArchivedReports || [];
+        if (!currentUser?.id) return list;
+        return list.filter(r => !r.created_by_user_id || Number(r.created_by_user_id) === Number(currentUser.id));
+    });
     const [archiveSearch, setArchiveSearch] = useState('');
     const [archiveTypeFilter, setArchiveTypeFilter] = useState('all');
     const [archiveProjectFilter, setArchiveProjectFilter] = useState('all');
@@ -207,11 +211,22 @@ export default function ReportsIndex({
             });
 
             if (response.data?.success && response.data?.data) {
-                setReport(response.data.data);
+                const archivedId = response.data.archived_report?.id;
+                setReport({
+                    ...response.data.data,
+                    id: archivedId || response.data.data.id,
+                    archived_id: archivedId,
+                });
+                if (response.data.archived_report) {
+                    setArchivedReports(prev => [
+                        response.data.archived_report,
+                        ...prev.filter(r => r.id !== response.data.archived_report.id),
+                    ]);
+                }
                 setStepDirection('forward');
                 setWizardStep(3);
                 setMaxStep(3);
-                showToast('Executive report preview generated.', 'success');
+                showToast('Executive report preview generated and saved to archive.', 'success');
             } else {
                 showToast('Unable to compile report data for the selected parameters.', 'warning');
             }
@@ -222,58 +237,69 @@ export default function ReportsIndex({
         }
     };
 
-    // Download PDF handler
-    const handleDownloadPdf = (targetReport = report, targetOrientation = orientation) => {
+    // Download PDF handler - direct server download without print dialog popup
+    const handleDownloadPdf = async (targetReport = report, targetOrientation = orientation) => {
         if (!targetReport) {
             showToast('No report available to download.', 'warning');
             return;
         }
 
-        const executeDownload = () => {
-            const element = document.getElementById('report-preview-sheet');
-            if (!element || !window.html2pdf) {
-                window.location.href = route('tenant.reports.download-pdf', {
-                    tenant: activeWorkspace,
-                    type: targetReport.type || selectedTypeKey,
-                    project_id: selectedProjectId || undefined,
-                    employee_user_id: selectedEmployeeId || undefined,
-                    orientation: targetOrientation,
-                });
-                return;
-            }
+        try {
+            showToast('Generating executive PDF report...', 'info');
 
-            const rawTitle = targetReport.title || 'WorkSync_Executive_Report';
-            const cleanFilename = `${rawTitle.toLowerCase().replace(/[^a-z0-9]/gi, '_')}.pdf`;
-            const opt = {
-                margin: [0.25, 0.25, 0.25, 0.25],
-                filename: cleanFilename,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: {
-                    scale: 2,
-                    useCORS: true,
-                    logging: false,
-                    backgroundColor: '#ffffff',
-                    scrollX: 0,
-                    scrollY: 0,
-                },
-                jsPDF: { unit: 'in', format: 'letter', orientation: targetOrientation },
-                pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+            const params = {
+                tenant: activeWorkspace,
+                orientation: targetOrientation,
             };
 
-            window.html2pdf().set(opt).from(element).save()
-                .then(() => showToast('Executive report PDF downloaded.', 'success'))
-                .catch(() => window.print());
-        };
+            if (targetReport.archived_id) {
+                params.archived_id = targetReport.archived_id;
+            } else if (targetReport.id && (targetReport.metrics || typeof targetReport.id === 'number')) {
+                params.archived_id = targetReport.id;
+            } else {
+                params.type = targetReport.type || selectedTypeKey;
+                if (selectedProjectId) params.project_id = selectedProjectId;
+                if (selectedSprintId) params.sprint_id = selectedSprintId;
+                if (selectedSprintIds && selectedSprintIds.length > 0) params.sprint_ids = selectedSprintIds;
+                if (selectedEmployeeId) params.employee_user_id = selectedEmployeeId;
+                if (startDate) params.start_date = startDate;
+                if (endDate) params.end_date = endDate;
+            }
 
-        if (window.html2pdf) {
-            executeDownload();
-        } else {
-            const script = document.createElement('script');
-            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-            script.onload = executeDownload;
-            document.body.appendChild(script);
+            const downloadUrl = route('tenant.reports.download-pdf', params);
+
+            const response = await axios.get(downloadUrl, {
+                responseType: 'blob',
+            });
+
+            // Extract filename from Content-Disposition header if present
+            let filename = `${(targetReport.title || 'report').toLowerCase().replace(/[^a-z0-9]/gi, '_')}.pdf`;
+            const disposition = response.headers['content-disposition'];
+            if (disposition) {
+                const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                if (match && match[1]) {
+                    filename = match[1].replace(/['"]/g, '');
+                }
+            }
+
+            // Create download link and trigger direct file download
+            const blob = new Blob([response.data], { type: 'application/pdf' });
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(blobUrl);
+
+            showToast('Executive report PDF downloaded successfully.', 'success');
+        } catch (error) {
+            console.error('PDF download error:', error);
+            showToast(error.response?.data?.message || 'Failed to download report PDF.', 'error');
         }
     };
+
 
     // Email sharing handler
     const handleSendEmail = async (e) => {
@@ -1532,13 +1558,7 @@ export default function ReportsIndex({
                                                                 <button
                                                                     type="button"
                                                                     title="Download PDF"
-                                                                    onClick={() => {
-                                                                        window.location.href = route('tenant.reports.download-pdf', {
-                                                                            tenant: activeWorkspace,
-                                                                            archived_id: r.id,
-                                                                            orientation: r.orientation || 'portrait',
-                                                                        });
-                                                                    }}
+                                                                    onClick={() => handleDownloadPdf(r, r.orientation || 'portrait')}
                                                                     className="p-1.5 rounded-lg text-brand hover:bg-brand/10 transition-colors cursor-pointer"
                                                                 >
                                                                     <Download className="w-4 h-4" />

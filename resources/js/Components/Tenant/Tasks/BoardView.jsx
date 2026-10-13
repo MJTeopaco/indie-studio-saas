@@ -104,9 +104,9 @@ function TaskCard({ task, onClick, onDragStart }) {
 const COLUMN_CONFIG = {
     todo:        { title: 'To Do',       badge: 'bg-gray-200 text-gray-600 dark:bg-slate-700 dark:text-slate-300',         dot: 'bg-gray-400' },
     in_progress: { title: 'In Progress', badge: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400', dot: 'bg-indigo-500' },
-    stuck:       { title: 'Stuck',       badge: 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',       dot: 'bg-rose-500' },
     review:      { title: 'In Review',   badge: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',    dot: 'bg-amber-500' },
     completed:   { title: 'Completed',   badge: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400', dot: 'bg-emerald-500' },
+    stuck:       { title: 'Stuck',       badge: 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',        dot: 'bg-rose-500' },
 };
 
 function KanbanColumn({ colId, tasks, onAddTask, onTaskClick, onDragStart, onDropTask, isDropTarget, onDragOverCol, onDragLeaveCol }) {
@@ -182,9 +182,9 @@ export default function BoardView({ tasks = [], onTaskClick, onStatusChange }) {
     const tasksByCol = {
         todo:        tasks.filter(t => t.status === 'todo'),
         in_progress: tasks.filter(t => t.status === 'in_progress'),
-        stuck:       tasks.filter(t => t.status === 'stuck'),
         review:      tasks.filter(t => t.status === 'review' || t.status === 'in_review'),
         completed:   tasks.filter(t => t.status === 'completed'),
+        stuck:       tasks.filter(t => t.status === 'stuck' || t.sprint_status === 'stuck'),
     };
 
     return (

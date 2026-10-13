@@ -34,6 +34,8 @@ import {
     AtSign,
     Mail,
     Check,
+    CheckCheck,
+    CheckCircle2,
     CornerUpLeft,
     Copy,
     Forward,
@@ -847,6 +849,52 @@ function renderFormattedText(text, isSelf) {
     });
 }
 
+const TYPE_CONFIG = {
+    review_request: {
+        label: 'Code Review',
+        badgeClass: 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border border-sky-200/80 dark:border-sky-800/60',
+    },
+    task_assigned: {
+        label: 'Assignment',
+        badgeClass: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60',
+    },
+    leave_request: {
+        label: 'Leave Request',
+        badgeClass: 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/60',
+    },
+    estimate_pending: {
+        label: 'Estimation',
+        badgeClass: 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200/80 dark:border-purple-800/60',
+    },
+    overdue: {
+        label: 'Overdue',
+        badgeClass: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/60',
+    },
+    stuck: {
+        label: 'Blocked',
+        badgeClass: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/60',
+    },
+    direct_message: {
+        label: 'Direct Message',
+        badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60',
+    },
+    channel_mention: {
+        label: 'Mention',
+        badgeClass: 'bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300 border border-violet-200/80 dark:border-violet-800/60',
+    },
+    channel_message: {
+        label: 'Channel',
+        badgeClass: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700',
+    },
+};
+
+function getTypeConfig(type) {
+    return TYPE_CONFIG[type] || {
+        label: (type || 'Notice').replace(/_/g, ' '),
+        badgeClass: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700',
+    };
+}
+
 export default function Inbox({
     studio,
     notifications: initialNotifications = [],
@@ -874,13 +922,22 @@ export default function Inbox({
     const handleTabChange = useCallback((newTab) => {
         setActiveTab(newTab);
         if (typeof window !== 'undefined') {
-            router.get(
-                `/studio/${workspaceSlug}/inbox`,
-                { tab: newTab },
-                { preserveState: true, preserveScroll: true, replace: true }
-            );
+            const url = new URL(window.location.href);
+            url.searchParams.set('tab', newTab);
+            window.history.replaceState({}, '', url.toString());
+            window.dispatchEvent(new CustomEvent('inbox-tab-changed', { detail: { tab: newTab } }));
         }
     }, [workspaceSlug]);
+
+    useEffect(() => {
+        const handleInboxTabEvent = (e) => {
+            if (e.detail?.tab && e.detail.tab !== activeTab) {
+                setActiveTab(e.detail.tab);
+            }
+        };
+        window.addEventListener('inbox-tab-changed', handleInboxTabEvent);
+        return () => window.removeEventListener('inbox-tab-changed', handleInboxTabEvent);
+    }, [activeTab]);
 
     // Sync tab when navigating via Sidebar dropdown or browser history
     useEffect(() => {
@@ -916,6 +973,8 @@ export default function Inbox({
     );
     const [selectedTask, setSelectedTask] = useState(null);
     const [detailModalOpen, setDetailModalOpen] = useState(false);
+    const [quickReplyText, setQuickReplyText] = useState('');
+    const [quickReplySuccess, setQuickReplySuccess] = useState(false);
 
     // Leave approval states
     const [leaveActionProcessingId, setLeaveActionProcessingId] = useState(null);
@@ -980,25 +1039,67 @@ export default function Inbox({
         });
     };
 
-    const markAsRead = async (id) => {
-        setNotificationsList(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-        try {
-            await axios.post(`/studio/${workspaceSlug}/notifications/${id}/read`);
-            router.reload({ only: ['inboxNotificationCount', 'inboxUnreadBreakdown'] });
-        } catch {
-            // ignore
+    const markAsRead = (id) => {
+        let remainingNotifs = 0;
+        setNotificationsList(prev => {
+            const next = prev.map(n => n.id === id ? { ...n, read: true } : n);
+            remainingNotifs = next.filter(n => !n.read).length;
+            return next;
+        });
+
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('inbox-notification-read', {
+                detail: { id, remainingNotifUnread: remainingNotifs }
+            }));
+        }
+
+        axios.post(`/studio/${workspaceSlug}/notifications/${id}/read`).catch(() => {});
+    };
+
+    const markAsUnread = (id) => {
+        let remainingNotifs = 0;
+        setNotificationsList(prev => {
+            const next = prev.map(n => n.id === id ? { ...n, read: false } : n);
+            remainingNotifs = next.filter(n => !n.read).length;
+            return next;
+        });
+
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('inbox-notification-unread', {
+                detail: { id, remainingNotifUnread: remainingNotifs }
+            }));
+        }
+
+        axios.post(`/studio/${workspaceSlug}/notifications/${id}/unread`)
+            .then(() => {
+                router.reload({ only: ['inboxNotificationCount', 'inboxUnreadBreakdown'] });
+            })
+            .catch(() => {});
+    };
+
+    const toggleRead = (id, currentRead, e) => {
+        e?.stopPropagation();
+        if (currentRead) {
+            markAsUnread(id);
+        } else {
+            markAsRead(id);
         }
     };
 
     const markAllAsRead = async () => {
         setNotificationsList(prev => prev.map(n => ({ ...n, read: true })));
         setUnreadCounts({});
-        try {
-            await axios.post(`/studio/${workspaceSlug}/notifications/read-all`);
-            router.reload({ only: ['inboxNotificationCount', 'inboxUnreadBreakdown'] });
-        } catch {
-            // ignore
+
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('inbox-notifications-all-read'));
+            window.dispatchEvent(new CustomEvent('inbox-message-read', { detail: { remainingMsgUnread: 0 } }));
         }
+
+        axios.post(`/studio/${workspaceSlug}/notifications/read-all`)
+            .then(() => {
+                showToast('All notifications marked as read', 'success');
+            })
+            .catch(() => {});
     };
 
     const filteredNotifications = useMemo(() => {
@@ -1079,21 +1180,37 @@ export default function Inbox({
         if (!workspaceSlug || !channelId) return;
 
         // 1. Immediately zero-out unread count for this channel in local state
-        setUnreadCounts(prev => ({ ...prev, [channelId]: 0 }));
+        setUnreadCounts(prev => {
+            const next = { ...prev, [channelId]: 0 };
+            const remainingMsgs = Object.values(next).reduce((acc, count) => acc + (Number(count) || 0), 0);
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('inbox-message-read', {
+                    detail: { channelId, remainingMsgUnread: remainingMsgs }
+                }));
+            }
+            return next;
+        });
 
         // 2. Mark any notifications related to this channel as read in UI immediately
-        setNotificationsList(prev => prev.map(n => {
-            if (n.channel_id === channelId || n.id === `msg-${channelId}` || (n.channel_id && n.channel_id.replace(/^ch-/, '') === channelId.replace(/^ch-/, ''))) {
-                return { ...n, read: true };
+        setNotificationsList(prev => {
+            const next = prev.map(n => {
+                if (n.channel_id === channelId || n.id === `msg-${channelId}` || (n.channel_id && n.channel_id.replace(/^ch-/, '') === channelId.replace(/^ch-/, ''))) {
+                    return { ...n, read: true };
+                }
+                return n;
+            });
+            const remainingNotifs = next.filter(n => !n.read).length;
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('inbox-notification-read', {
+                    detail: { remainingNotifUnread: remainingNotifs }
+                }));
             }
-            return n;
-        }));
+            return next;
+        });
 
         try {
             // 3. Persist read receipt to backend
             await axios.post(`/studio/${workspaceSlug}/channels/${channelId}/read`);
-            // 4. Reload Inertia shared props so sidebar badge updates immediately!
-            router.reload({ only: ['inboxNotificationCount'] });
         } catch {
             // ignore
         }
@@ -1139,8 +1256,22 @@ export default function Inbox({
     const photoInputRef = useRef(null);
     const chatEndRef = useRef(null);
     const chatContainerRef = useRef(null);
+    const isInitialLoadRef = useRef(true);
     const [showScrollDown, setShowScrollDown] = useState(false);
+    const [newMessagesWhileScrolled, setNewMessagesWhileScrolled] = useState(0);
+    const isInitialChatOpenRef = useRef(true);
     const pollingRef = useRef(null);
+
+    const scrollToBottom = useCallback((smooth = true) => {
+        const el = chatContainerRef.current;
+        if (!el) return;
+        el.scrollTo({
+            top: el.scrollHeight,
+            behavior: smooth ? 'smooth' : 'auto',
+        });
+        setShowScrollDown(false);
+        setNewMessagesWhileScrolled(0);
+    }, []);
 
     const pinnedMessages = useMemo(() => messages.filter(m => m.is_pinned && !m.is_unsent), [messages]);
 
@@ -1276,12 +1407,21 @@ export default function Inbox({
             const res = await axios.get(url);
             setMessages(res.data.messages ?? []);
             setLastId(res.data.last_id ?? null);
+            requestAnimationFrame(() => {
+                scrollToBottom(false);
+            });
+            setTimeout(() => {
+                scrollToBottom(false);
+            }, 50);
         } catch (err) {
             console.error('Failed to load channel messages:', err);
         } finally {
             setLoadingMessages(false);
+            setTimeout(() => {
+                scrollToBottom(false);
+            }, 100);
         }
-    }, [workspaceSlug]);
+    }, [workspaceSlug, scrollToBottom]);
 
     // Poll for new messages & updated messages (pins, unsends, etc.)
     const pollMessages = useCallback(async () => {
@@ -1330,11 +1470,15 @@ export default function Inbox({
             setLastId(null);
             return;
         }
+        isInitialChatOpenRef.current = true;
+        isInitialLoadRef.current = true;
         setMessages([]);
         setLastId(null);
         setReplyingTo(null);
         setShowPinnedDrawer(false);
         setShowAssetsPanel(false);
+        setShowScrollDown(false);
+        setNewMessagesWhileScrolled(0);
         markChannelRead(selectedChat.id);
         loadMessages(selectedChat.id, true);
     }, [selectedChat?.id, markChannelRead, loadMessages]);
@@ -1418,23 +1562,51 @@ export default function Inbox({
         };
     }, [workspaceSlug, selectedChat?.id]);
 
-    // Auto-scroll to bottom on new message
+    // Auto-scroll to bottom on chat open or when user is near bottom
     useEffect(() => {
         const el = chatContainerRef.current;
-        if (!el) return;
-        const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-        if (distFromBottom < 150) {
-            chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }
-    }, [messages]);
+        if (!el || messages.length === 0) return;
 
-    const handleChatScroll = () => {
+        if (isInitialChatOpenRef.current) {
+            isInitialChatOpenRef.current = false;
+            requestAnimationFrame(() => scrollToBottom(false));
+            setTimeout(() => scrollToBottom(false), 40);
+            setTimeout(() => scrollToBottom(false), 140);
+            return;
+        }
+
+        const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+        if (distFromBottom < 160) {
+            scrollToBottom(true);
+        } else {
+            setShowScrollDown(true);
+            setNewMessagesWhileScrolled(prev => prev + 1);
+        }
+    }, [messages, scrollToBottom]);
+
+    const handleChatScroll = useCallback(() => {
         const el = chatContainerRef.current;
         if (!el) return;
-        setShowScrollDown(el.scrollHeight - el.scrollTop - el.clientHeight > 80);
-    };
+        if (isInitialLoadRef.current) {
+            el.scrollTop = el.scrollHeight;
+            isInitialLoadRef.current = false;
+            return;
+        }
+        const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+        if (distFromBottom > 140) {
+            setShowScrollDown(true);
+        } else {
+            setShowScrollDown(false);
+            setNewMessagesWhileScrolled(0);
+        }
+    }, []);
 
-    const scrollToBottom = () => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Keep parent layout scrolled to top so child chat elements never push ancestor containers
+    useEffect(() => {
+        const mainEl = document.getElementById('main-content');
+        if (mainEl && mainEl.scrollTop > 0) mainEl.scrollTop = 0;
+        if (typeof window !== 'undefined' && window.scrollY > 0) window.scrollTo(0, 0);
+    }, [activeTab, selectedChat?.id]);
 
     // ── Load Channel Shared Assets ───────────────────────────────────────────
     const loadAssets = useCallback(async (channelId) => {
@@ -1579,9 +1751,17 @@ export default function Inbox({
     };
 
     const jumpToMessage = (msgId) => {
-        const el = document.getElementById(`msg-${msgId}`);
-        if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const targetEl = document.getElementById(`msg-${msgId}`);
+        const container = chatContainerRef.current;
+        if (targetEl && container) {
+            const containerRect = container.getBoundingClientRect();
+            const targetRect = targetEl.getBoundingClientRect();
+            const offset = (targetRect.top - containerRect.top) + container.scrollTop - (container.clientHeight / 2) + (targetEl.clientHeight / 2);
+            container.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
+            setHighlightedMsgId(msgId);
+            setTimeout(() => setHighlightedMsgId(null), 2200);
+        } else if (targetEl) {
+            targetEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             setHighlightedMsgId(msgId);
             setTimeout(() => setHighlightedMsgId(null), 2200);
         }
@@ -1757,6 +1937,9 @@ export default function Inbox({
                 });
                 setLastId(newMsg.id);
             }
+            setTimeout(() => {
+                scrollToBottom(true);
+            }, 30);
         } catch (err) {
             console.error('Failed to send message:', err);
             setInputMessage(body);
@@ -1791,7 +1974,7 @@ export default function Inbox({
     // ── Jump to chat from notification ───────────────────────────────────────
     const handleOpenNotificationChat = (notif) => {
         if (!notif?.channel_id) return;
-        setActiveTab('messages');
+        handleTabChange('messages');
         const isDm = notif.channel_id.startsWith('dm-');
         if (isDm) {
             openChat({
@@ -1816,6 +1999,7 @@ export default function Inbox({
     const handleSendQuickReply = () => {
         if (!quickReplyText.trim()) return;
         setQuickReplySuccess(true);
+        showToast('Quick note saved.', 'success');
         setTimeout(() => { setQuickReplySuccess(false); setQuickReplyText(''); }, 2000);
     };
 
@@ -1842,7 +2026,7 @@ export default function Inbox({
     };
 
     return (
-        <TenantLayout studioName={studio.name}>
+        <TenantLayout studioName={studio?.name || 'Studio'}>
             <Head title="Inbox • SprintStudio" />
 
             {channelToDelete && (
@@ -1880,41 +2064,45 @@ export default function Inbox({
                 forwarding={sending}
             />
 
-            <div className="flex flex-col flex-1 min-h-0 h-full bg-slate-50/60 dark:bg-slate-950 text-slate-800 dark:text-slate-100 overflow-hidden">
+            <div className="flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/60 dark:bg-slate-950 text-slate-800 dark:text-slate-100">
 
                 {/* ── Top Header ── */}
-                <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0 z-20 shadow-2xs">
+                <div className="shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 z-20 shadow-2xs">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div className="flex items-center gap-3.5">
-                                <div className="flex items-center justify-center w-10 h-10 rounded-2xl bg-linear-to-tr from-brand to-indigo-600 text-white shadow-md shadow-brand/20">
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-2xs">
                                     {activeTab === 'notifications' ? (
-                                        <Bell className="w-5 h-5" />
+                                        <Bell className="w-4 h-4" />
                                     ) : (
-                                        <MessageSquare className="w-5 h-5" />
+                                        <MessageSquare className="w-4 h-4" />
                                     )}
                                 </div>
                                 <div>
-                                    <div className="flex items-center gap-2.5">
-                                        <h1 className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-                                            {activeTab === 'notifications' ? 'Notifications' : 'Team Messages'}
+                                    <div className="flex items-center gap-2">
+                                        <h1 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+                                            {activeTab === 'notifications' ? 'Inbox Notifications' : 'Team Messages'}
                                         </h1>
                                         {activeTab === 'notifications' && unreadCount > 0 && (
-                                            <NotifBadge count={unreadCount} size="sm" />
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand/10 text-brand dark:bg-brand/20 dark:text-brand-300">
+                                                {unreadCount} unread
+                                            </span>
                                         )}
                                         {activeTab === 'messages' && totalUnreadMessages > 0 && (
-                                            <NotifBadge count={totalUnreadMessages} size="sm" />
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand/10 text-brand dark:bg-brand/20 dark:text-brand-300">
+                                                {totalUnreadMessages} unread
+                                            </span>
                                         )}
                                     </div>
-                                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
                                         {activeTab === 'notifications'
-                                            ? 'Personal notifications, review requests, and updates'
-                                            : 'Channels and team direct conversations'}
+                                            ? 'Review requests, assignments, approvals & studio updates'
+                                             : 'Channels and team direct conversations'}
                                     </p>
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2.5">
                                 {/* Navigation Tabs */}
                                 <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
                                     <button
@@ -1923,7 +2111,9 @@ export default function Inbox({
                                         className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'notifications' ? 'bg-white dark:bg-slate-900 text-brand shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
                                         <Bell className="w-3.5 h-3.5" />
                                         <span>Notifications</span>
-                                        {unreadCount > 0 && <NotifBadge count={unreadCount} size="sm" />}
+                                        {unreadCount > 0 && (
+                                            <span className="w-1.5 h-1.5 rounded-full bg-brand" />
+                                        )}
                                     </button>
 
                                     <button
@@ -1932,7 +2122,9 @@ export default function Inbox({
                                         className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'messages' ? 'bg-white dark:bg-slate-900 text-brand shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
                                         <MessageSquare className="w-3.5 h-3.5" />
                                         <span>Team Messages</span>
-                                        {totalUnreadMessages > 0 && <NotifBadge count={totalUnreadMessages} size="sm" />}
+                                        {totalUnreadMessages > 0 && (
+                                            <span className="w-1.5 h-1.5 rounded-full bg-brand" />
+                                        )}
                                     </button>
                                 </div>
 
@@ -1940,9 +2132,10 @@ export default function Inbox({
                                     <button
                                         type="button"
                                         onClick={markAllAsRead}
-                                        className="text-xs font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 transition-colors px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs"
+                                        className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100 transition-colors px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs"
                                     >
-                                        Mark all as read
+                                        <CheckCheck className="w-3.5 h-3.5 text-brand" />
+                                        <span>Mark all as read</span>
                                     </button>
                                 )}
                             </div>
@@ -1951,17 +2144,17 @@ export default function Inbox({
                 </div>
 
                 {/* ── Main View Area ── */}
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 w-full flex-1 min-h-0 flex flex-col overflow-hidden">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 w-full flex-1 min-h-0 flex flex-col overflow-y-auto lg:overflow-hidden">
 
                     {/* ================================================================
                         NOTIFICATIONS TAB
                     ================================================================ */}
                     {activeTab === 'notifications' && (
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 min-h-0 h-full items-stretch overflow-hidden">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 min-h-0 items-stretch h-full">
                             {/* Left — Feed List */}
                             <div className="lg:col-span-5 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full min-h-0">
                                 {/* Search & Category Filter Header */}
-                                <div className="p-3.5 border-b border-slate-100 dark:border-slate-800 space-y-2.5 shrink-0 bg-slate-50/50 dark:bg-slate-900/50">
+                                <div className="p-3 border-b border-slate-100 dark:border-slate-800 space-y-2.5 shrink-0 bg-slate-50/40 dark:bg-slate-900/40">
                                     <div className="relative">
                                         <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                                         <input
@@ -1969,8 +2162,17 @@ export default function Inbox({
                                             value={notifSearch}
                                             onChange={e => setNotifSearch(e.target.value)}
                                             placeholder="Search notifications..."
-                                            className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:border-brand"
+                                            className="w-full pl-9 pr-8 py-1.5 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:border-brand"
                                         />
+                                        {notifSearch && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setNotifSearch('')}
+                                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                            >
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        )}
                                     </div>
 
                                     {/* Category Filter Pills */}
@@ -1978,27 +2180,25 @@ export default function Inbox({
                                         <div className="flex items-center gap-1 overflow-x-auto pb-0.5 [scrollbar-width:none]">
                                             {[
                                                 { id: 'all', label: 'All', count: notificationsList.length },
-                                                { id: 'action', label: 'Action Required', count: actionRequiredCount, highlight: actionRequiredCount > 0 },
-                                                { id: 'messages', label: 'Mentions & Chats', count: messagesNotifCount },
+                                                { id: 'action', label: 'Action Required', count: actionRequiredCount },
+                                                { id: 'messages', label: 'Messages', count: messagesNotifCount },
                                                 { id: 'alerts', label: 'Alerts', count: alertsNotifCount },
                                             ].map(f => (
                                                 <button
                                                     key={f.id}
                                                     type="button"
                                                     onClick={() => setNotifFilter(f.id)}
-                                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
                                                         notifFilter === f.id
-                                                            ? 'bg-brand text-white shadow-2xs'
+                                                            ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-2xs font-semibold'
                                                             : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 border border-slate-200/80 dark:border-slate-700/80'
                                                     }`}
                                                 >
                                                     <span>{f.label}</span>
                                                     {f.count > 0 && (
-                                                        <span className={`px-1 py-0.2 rounded-full text-[9px] font-mono font-bold ${
+                                                        <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-mono font-semibold ${
                                                             notifFilter === f.id
-                                                                ? 'bg-white/20 text-white dark:bg-black/20 dark:text-black'
-                                                                : f.highlight
-                                                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                                                                ? 'bg-white/20 dark:bg-black/20 text-current'
                                                                 : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
                                                         }`}>
                                                             {f.count}
@@ -2013,7 +2213,7 @@ export default function Inbox({
                                             onClick={() => setOnlyUnread(prev => !prev)}
                                             className={`px-2 py-1 rounded-lg text-[10px] font-semibold whitespace-nowrap transition-colors shrink-0 ${
                                                 onlyUnread
-                                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 font-bold'
+                                                    ? 'bg-brand/10 text-brand dark:bg-brand/20 dark:text-brand-300 font-bold'
                                                     : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
                                             }`}
                                         >
@@ -2023,114 +2223,121 @@ export default function Inbox({
                                 </div>
 
                                 {/* Notification List */}
-                                <div className="divide-y divide-slate-100 dark:divide-slate-800 overflow-y-auto flex-1">
+                                <div className="divide-y divide-slate-100 dark:divide-slate-800/80 overflow-y-auto flex-1 min-h-0 p-1">
                                     {filteredNotifications.length === 0 ? (
                                         <div className="py-20 px-6 text-center flex flex-col items-center gap-2.5">
                                             <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
-                                                <MailOpen className="w-5 h-5" />
+                                                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                                             </div>
                                             <div>
-                                                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No notifications in this view</p>
+                                                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">All caught up</p>
                                                 <p className="text-[11px] text-slate-400 mt-0.5">
-                                                    {notifSearch || onlyUnread || notifFilter !== 'all' ? 'Try adjusting your search or filters.' : 'You are all caught up!'}
+                                                    {notifSearch || onlyUnread || notifFilter !== 'all' ? 'No notifications match your current filter.' : 'Zero unread notifications in your inbox.'}
                                                 </p>
                                             </div>
                                         </div>
                                     ) : (
                                         filteredNotifications.map(notif => {
-                                            const NIcon = iconMap[notif.icon] || Bell;
                                             const isSelected = selectedNotifId === notif.id;
+                                            const typeConfig = getTypeConfig(notif.type);
 
                                             return (
                                                 <div
                                                     key={notif.id}
                                                     onClick={() => {
                                                         setSelectedNotifId(notif.id);
-                                                        markAsRead(notif.id);
+                                                        setQuickReplyText('');
+                                                        if (!notif.read) {
+                                                            markAsRead(notif.id);
+                                                        }
                                                         if (notif.channel_id) {
                                                             markChannelRead(notif.channel_id);
                                                         }
                                                     }}
-                                                    className={`p-3.5 cursor-pointer transition-all relative flex items-start gap-3 border-l-2 ${
+                                                    className={`group relative p-3 rounded-xl cursor-pointer transition-all duration-150 m-1 border ${
                                                         isSelected
-                                                            ? 'bg-slate-100/80 dark:bg-slate-800/80 border-l-slate-900 dark:border-l-slate-100'
+                                                            ? 'bg-slate-100/90 dark:bg-slate-800/80 border-slate-300/80 dark:border-slate-700 shadow-2xs'
                                                             : !notif.read
-                                                            ? 'bg-white dark:bg-slate-900 border-l-blue-500 hover:bg-slate-50 dark:hover:bg-slate-800/40'
-                                                            : 'bg-slate-50/30 dark:bg-slate-900/30 border-l-transparent hover:bg-slate-50 dark:hover:bg-slate-800/40 opacity-80'
+                                                            ? 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/60 dark:hover:bg-slate-850/60'
+                                                            : 'bg-white/50 dark:bg-slate-900/40 border-transparent hover:border-slate-200/60 dark:hover:border-slate-800/60 hover:bg-slate-50/40 dark:hover:bg-slate-850/40 opacity-75 hover:opacity-100'
                                                     }`}
                                                 >
-                                                    {/* Notification Type Icon */}
-                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border mt-0.5 ${
-                                                        notif.type === 'leave_request'
-                                                            ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/60 text-amber-700 dark:text-amber-400'
-                                                            : notif.type === 'review_request'
-                                                            ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800/60 text-blue-700 dark:text-blue-400'
-                                                            : notif.type === 'estimate_pending'
-                                                            ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800/60 text-purple-700 dark:text-purple-400'
-                                                            : notif.type === 'overdue' || notif.type === 'stuck'
-                                                            ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-400'
-                                                            : notif.type === 'direct_message' || notif.type === 'channel_mention'
-                                                            ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-400'
-                                                            : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
-                                                    }`}>
-                                                        <NIcon className="w-4 h-4" />
-                                                    </div>
-
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center justify-between gap-1 mb-0.5">
-                                                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                                                {(notif.type || 'notification').replace(/_/g, ' ')}
-                                                            </span>
-                                                            <span className="text-[10px] text-slate-400 font-mono">
-                                                                {notif.created_at_human}
-                                                            </span>
-                                                        </div>
-
-                                                        <h4 className={`text-xs truncate ${!notif.read ? 'font-bold text-slate-900 dark:text-slate-100' : 'font-medium text-slate-700 dark:text-slate-300'}`}>
-                                                            {notif.title}
-                                                        </h4>
-
-                                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
-                                                            {notif.body}
-                                                        </p>
-
-                                                        {/* Metadata Tags */}
-                                                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                                                            {notif.project_name && (
-                                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                                                                    <FolderGit2 className="w-2.5 h-2.5 opacity-60" />
-                                                                    <span>{notif.project_name}</span>
-                                                                </span>
-                                                            )}
-                                                            {notif.priority && notif.type !== 'leave_request' && (
-                                                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                                                                    {notif.priority}
-                                                                </span>
-                                                            )}
-                                                            {notif.type === 'leave_request' && notif.leave_request && (
-                                                                <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.2 rounded border border-amber-200/60 dark:border-amber-800/40">
-                                                                    {notif.leave_request.calendar_days}d absence
-                                                                </span>
-                                                            )}
-                                                            {notif.channel_id && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        handleOpenNotificationChat(notif);
-                                                                    }}
-                                                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-brand/10 text-brand hover:bg-brand/20 transition-colors"
-                                                                >
-                                                                    <span>Open Chat</span>
-                                                                    <ArrowRight className="w-2.5 h-2.5" />
-                                                                </button>
+                                                    <div className="flex items-start gap-2.5">
+                                                        {/* Status dot */}
+                                                        <div className="mt-1 shrink-0 flex items-center justify-center w-3 h-3">
+                                                            {!notif.read ? (
+                                                                <span className="w-2 h-2 rounded-full bg-brand ring-4 ring-brand/15" />
+                                                            ) : (
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600" />
                                                             )}
                                                         </div>
-                                                    </div>
 
-                                                    {!notif.read && (
-                                                        <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0 mt-1" />
-                                                    )}
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center justify-between gap-1 mb-1">
+                                                                <span className={`inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium ${typeConfig.badgeClass}`}>
+                                                                    {typeConfig.label}
+                                                                </span>
+                                                                <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                                                                    {notif.created_at_human}
+                                                                </span>
+                                                            </div>
+
+                                                            <h4 className={`text-xs truncate leading-snug ${!notif.read ? 'font-semibold text-slate-900 dark:text-slate-100' : 'font-medium text-slate-700 dark:text-slate-300'}`}>
+                                                                {notif.title}
+                                                            </h4>
+
+                                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                                                                {notif.body}
+                                                            </p>
+
+                                                            {/* Metadata Tags */}
+                                                            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                                                                {notif.project_name && (
+                                                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                                                        <FolderGit2 className="w-2.5 h-2.5 opacity-60" />
+                                                                        <span>{notif.project_name}</span>
+                                                                    </span>
+                                                                )}
+                                                                {notif.priority && notif.type !== 'leave_request' && (
+                                                                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                                                        {notif.priority}
+                                                                    </span>
+                                                                )}
+                                                                {notif.type === 'leave_request' && notif.leave_request && (
+                                                                    <span className="text-[10px] font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.2 rounded border border-amber-200/60 dark:border-amber-800/40">
+                                                                        {notif.leave_request.calendar_days}d absence
+                                                                    </span>
+                                                                )}
+                                                                {notif.channel_id && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleOpenNotificationChat(notif);
+                                                                        }}
+                                                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-brand/10 text-brand hover:bg-brand/20 transition-colors"
+                                                                    >
+                                                                        <span>Chat</span>
+                                                                        <ArrowRight className="w-2.5 h-2.5" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Quick toggle read button on hover */}
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => toggleRead(notif.id, notif.read, e)}
+                                                            title={notif.read ? "Mark as unread" : "Mark as read"}
+                                                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 shrink-0"
+                                                        >
+                                                            {notif.read ? (
+                                                                <Mail className="w-3.5 h-3.5" />
+                                                            ) : (
+                                                                <Check className="w-3.5 h-3.5 text-brand" />
+                                                            )}
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             );
                                         })
@@ -2141,17 +2348,17 @@ export default function Inbox({
                             {/* Right — Detail / Context Inspection Pane */}
                             <div className="lg:col-span-7 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full min-h-0">
                                 {activeNotification ? (
-                                    <div className="flex flex-col h-full overflow-y-auto">
+                                    <div className="flex flex-col h-full overflow-y-auto min-h-0">
                                         {/* Inspection Header */}
-                                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-linear-to-br from-slate-50 to-indigo-50/20 dark:from-slate-900 dark:to-indigo-950/20">
+                                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
                                             <div className="flex items-start justify-between gap-4">
-                                                <div className="space-y-1">
+                                                <div className="space-y-1.5 flex-1 min-w-0">
                                                     <div className="flex items-center gap-2 flex-wrap">
-                                                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                                                            {(activeNotification.type || 'notification').replace(/_/g, ' ')}
+                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${getTypeConfig(activeNotification.type).badgeClass}`}>
+                                                            {getTypeConfig(activeNotification.type).label}
                                                         </span>
                                                         {activeNotification.project_name && (
-                                                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                                            <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                                                                 {activeNotification.project_name}
                                                             </span>
                                                         )}
@@ -2159,7 +2366,7 @@ export default function Inbox({
                                                             {activeNotification.created_at_human}
                                                         </span>
                                                     </div>
-                                                    <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 leading-tight">
+                                                    <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 leading-snug">
                                                         {activeNotification.title}
                                                     </h2>
                                                 </div>
@@ -2169,18 +2376,17 @@ export default function Inbox({
                                                         <button
                                                             type="button"
                                                             onClick={() => handleOpenNotificationChat(activeNotification)}
-                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white transition-all shadow-2xs"
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-2xs"
                                                         >
                                                             <MessageSquare className="w-3.5 h-3.5" />
                                                             <span>Open Chat</span>
-                                                            <ArrowRight className="w-3.5 h-3.5" />
                                                         </button>
                                                     )}
                                                     {activeTask && (
                                                         <button
                                                             type="button"
                                                             onClick={() => handleOpenTaskDetail(activeTask)}
-                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-brand text-white hover:bg-brand-dark transition-all shadow-2xs"
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand text-white hover:bg-brand-dark transition-all shadow-2xs"
                                                         >
                                                             <span>Open Task</span>
                                                             <ArrowRight className="w-3.5 h-3.5" />
@@ -2189,25 +2395,27 @@ export default function Inbox({
                                                     {activeNotification.read ? (
                                                         <button
                                                             type="button"
-                                                            onClick={() => setNotificationsList(prev => prev.map(n => n.id === activeNotification.id ? { ...n, read: false } : n))}
-                                                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                            onClick={() => toggleRead(activeNotification.id, true)}
+                                                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                                                         >
-                                                            Mark unread
+                                                            <Mail className="w-3.5 h-3.5" />
+                                                            <span>Mark unread</span>
                                                         </button>
                                                     ) : (
                                                         <button
                                                             type="button"
-                                                            onClick={() => markAsRead(activeNotification.id)}
-                                                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                            onClick={() => toggleRead(activeNotification.id, false)}
+                                                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                                                         >
-                                                            Mark read
+                                                            <Check className="w-3.5 h-3.5 text-brand" />
+                                                            <span>Mark read</span>
                                                         </button>
                                                     )}
                                                 </div>
                                             </div>
 
                                             {/* Description text */}
-                                            <div className="mt-3.5 p-3.5 rounded-lg bg-white dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 text-xs text-slate-700 dark:text-slate-200 leading-relaxed">
+                                            <div className="mt-3.5 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
                                                 {activeNotification.body}
                                             </div>
                                         </div>
@@ -2477,7 +2685,7 @@ export default function Inbox({
                         TEAM MESSAGES TAB
                     ================================================================ */}
                     {activeTab === 'messages' && (
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0 h-full items-stretch overflow-hidden">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 min-h-0 h-full items-stretch overflow-hidden">
 
                             {/* Left — Sidebar */}
                             <div className="lg:col-span-4 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full min-h-0">
@@ -2515,7 +2723,7 @@ export default function Inbox({
                                     </div>
                                 </div>
 
-                                <div className={`${SCROLL_CLS} flex-1 p-3 space-y-4`}>
+                                <div className={`${SCROLL_CLS} flex-1 min-h-0 p-3 space-y-4`}>
 
                                     {/* Channels */}
                                     <div>
@@ -2805,7 +3013,7 @@ export default function Inbox({
 
                                 {/* Messages Feed */}
                                 <div ref={chatContainerRef} onScroll={handleChatScroll}
-                                    className={`${SCROLL_CLS} flex-1 p-6 space-y-4`}>
+                                    className={`${SCROLL_CLS} flex-1 min-h-0 p-6 space-y-4`}>
 
                                     {loadingMessages ? (
                                         <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-400">
@@ -3053,12 +3261,24 @@ export default function Inbox({
                                     <div ref={chatEndRef} />
                                 </div>
 
-                                {/* Scroll-to-bottom button */}
+                                {/* Popping Scroll-to-Bottom Button with Arrow & Unread Badge */}
                                 {showScrollDown && (
-                                    <div className="absolute bottom-24 right-6 z-10">
-                                        <button type="button" onClick={scrollToBottom}
-                                            className="flex items-center justify-center w-8 h-8 rounded-full bg-brand text-white shadow-lg hover:bg-brand-dark transition-all">
-                                            <ChevronDown className="w-4 h-4" />
+                                    <div className="absolute bottom-24 right-6 sm:right-8 z-30 animate-in fade-in zoom-in-75 slide-in-from-bottom-2 duration-200">
+                                        <button
+                                            type="button"
+                                            onClick={() => scrollToBottom(true)}
+                                            title="Jump down to latest chat"
+                                            className="flex items-center gap-2 px-3 py-2 rounded-full bg-slate-900/95 dark:bg-white/95 text-white dark:text-slate-900 shadow-xl hover:shadow-2xl border border-slate-700/60 dark:border-slate-200/80 backdrop-blur-md transition-all duration-200 transform hover:scale-105 active:scale-95 cursor-pointer group select-none"
+                                        >
+                                            <div className="w-5 h-5 rounded-full bg-brand text-white flex items-center justify-center shrink-0 shadow-xs">
+                                                <ChevronDown className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-y-0.5" />
+                                            </div>
+                                            <span className="text-xs font-bold tracking-tight">Latest</span>
+                                            {newMessagesWhileScrolled > 0 && (
+                                                <span className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full text-[9px] font-extrabold bg-rose-500 text-white shadow-xs animate-pulse">
+                                                    {newMessagesWhileScrolled > 9 ? '9+' : newMessagesWhileScrolled}
+                                                </span>
+                                            )}
                                         </button>
                                     </div>
                                 )}

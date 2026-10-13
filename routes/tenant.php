@@ -11,7 +11,6 @@ use App\Http\Controllers\MLEngineIntegrationController;
 use App\Http\Controllers\TenantDashboardController;
 use App\Http\Controllers\TenantDocsController;
 use App\Http\Controllers\TenantEpicGroupController;
-use App\Http\Controllers\TenantOverviewController;
 use App\Http\Controllers\TenantProjectController;
 use App\Http\Controllers\TenantReportController;
 use App\Http\Controllers\TenantScheduleController;
@@ -49,15 +48,22 @@ Route::prefix('/studio/{tenant}')->middleware([
     Route::get('/my-work', fn () => redirect()->route('tenant.dashboard', ['tenant' => tenant('id') ?? request()->route('tenant')]))
         ->name('tenant.my-work');
 
+    Route::get('/home', fn () => redirect()->route('tenant.dashboard', ['tenant' => tenant('id') ?? request()->route('tenant')]))
+        ->name('tenant.home');
+
     Route::get('/overview', fn () => redirect()->route('tenant.dashboard', ['tenant' => tenant('id') ?? request()->route('tenant')]))
         ->name('tenant.overview');
 
     Route::get('/inbox', [TenantDashboardController::class, 'inbox'])
         ->name('tenant.inbox');
+    Route::get('/inbox/unread-count', [TenantDashboardController::class, 'unreadCount'])
+        ->name('tenant.inbox.unread-count');
     Route::post('/notifications/read-all', [TenantDashboardController::class, 'markAllNotificationsRead'])
         ->name('tenant.notifications.read-all');
     Route::post('/notifications/{id}/read', [TenantDashboardController::class, 'markNotificationRead'])
         ->name('tenant.notifications.read');
+    Route::post('/notifications/{id}/unread', [TenantDashboardController::class, 'markNotificationUnread'])
+        ->name('tenant.notifications.unread');
 
     Route::get('/tasks', [TenantTaskController::class, 'index'])
         ->name('tenant.tasks');

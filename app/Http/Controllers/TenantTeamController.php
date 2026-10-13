@@ -278,9 +278,9 @@ class TenantTeamController extends Controller
      * - Member request: can be approved by Leader or Owner.
      * - Leader request: can ONLY be approved by Owner.
      */
-    public function approveLeaveRequest(Request $request, $tenantOrId, $id = null): RedirectResponse
+    public function approveLeaveRequest(Request $request, $id, $extra = null): RedirectResponse
     {
-        $id = $id ?? $tenantOrId;
+        $targetId = $extra ?? $id ?? $request->route('id');
         $currentUserMember = \DB::connection(config('tenancy.database.central_connection', 'central'))
             ->table('studio_members')
             ->where('studio_id', tenant('id'))
@@ -291,7 +291,7 @@ class TenantTeamController extends Controller
         $isOwner = $callerRole === 'owner' || (auth()->check() && auth()->user()->role === User::ROLE_ADMIN);
         $isLeader = in_array($callerRole, ['leader', 'manager']);
 
-        $leaveReq = LeaveRequest::where('id', $id)
+        $leaveReq = LeaveRequest::where('id', $targetId)
             ->where('studio_id', tenant('id'))
             ->where('status', 'pending')
             ->firstOrFail();
@@ -311,20 +311,31 @@ class TenantTeamController extends Controller
             'reviewed_at' => now(),
         ]);
 
+        $targetStatus = $leaveReq->request_type === LeaveRequest::TYPE_EMERGENCY ? 'emergency' : 'on_leave';
+
         // Update studio member record
         \DB::connection(config('tenancy.database.central_connection', 'central'))
             ->table('studio_members')
             ->where('studio_id', tenant('id'))
             ->where('user_id', $leaveReq->user_id)
             ->update([
-                'working_status' => 'on_leave',
+                'working_status' => $targetStatus,
                 'leave_start_date' => $leaveReq->leave_start_date,
                 'leave_end_date' => $leaveReq->leave_end_date,
                 'leave_request_status' => 'approved',
                 'updated_at' => now(),
             ]);
 
-        return redirect()->back()->with('status', 'leave-approved:Leave request approved successfully.');
+        // Synchronize central users table
+        User::where('id', $leaveReq->user_id)->update([
+            'working_status' => $targetStatus,
+            'leave_start_date' => $leaveReq->leave_start_date,
+            'leave_end_date' => $leaveReq->leave_end_date,
+        ]);
+
+        $typeLabel = $leaveReq->request_type === LeaveRequest::TYPE_EMERGENCY ? 'Emergency declaration' : 'Leave request';
+
+        return redirect()->back()->with('status', "leave-approved:{$typeLabel} approved successfully.");
     }
 
     /**
@@ -333,9 +344,9 @@ class TenantTeamController extends Controller
      * - Member request: can be rejected by Leader or Owner.
      * - Leader request: can ONLY be rejected by Owner.
      */
-    public function rejectLeaveRequest(Request $request, $tenantOrId, $id = null): RedirectResponse
+    public function rejectLeaveRequest(Request $request, $id, $extra = null): RedirectResponse
     {
-        $id = $id ?? $tenantOrId;
+        $targetId = $extra ?? $id ?? $request->route('id');
         $currentUserMember = \DB::connection(config('tenancy.database.central_connection', 'central'))
             ->table('studio_members')
             ->where('studio_id', tenant('id'))
@@ -346,7 +357,7 @@ class TenantTeamController extends Controller
         $isOwner = $callerRole === 'owner' || (auth()->check() && auth()->user()->role === User::ROLE_ADMIN);
         $isLeader = in_array($callerRole, ['leader', 'manager']);
 
-        $leaveReq = LeaveRequest::where('id', $id)
+        $leaveReq = LeaveRequest::where('id', $targetId)
             ->where('studio_id', tenant('id'))
             ->where('status', 'pending')
             ->firstOrFail();

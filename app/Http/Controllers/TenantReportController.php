@@ -72,9 +72,10 @@ class TenantReportController extends Controller
         // Available report types tailored to role
         $availableReportTypes = $this->reportDataService->getAvailableReportTypes($user, $tenantId);
 
-        // Fetch archived reports filtered strictly by user authorization
-        $allArchivedReports = Report::latest()->get();
-        $accessibleArchivedReports = $allArchivedReports
+        // Fetch archived reports filtered strictly by user authorization (creator only)
+        $accessibleArchivedReports = Report::where('created_by_user_id', $user->id)
+            ->latest()
+            ->get()
             ->filter(fn (Report $r) => $this->reportDataService->canAccessReport($user, $r, $tenantId))
             ->map(fn (Report $r) => [
                 'id' => $r->id,
@@ -182,9 +183,36 @@ class TenantReportController extends Controller
 
         $reportData['orientation'] = $validated['orientation'] ?? 'portrait';
 
+        // Save generated preview into user's personal report archive
+        $targetName = $reportData['title'] ?? ($reportData['project_name'] ?? ($reportData['employee']['name'] ?? 'Report'));
+        $archivedReport = Report::create([
+            'name' => $reportData['title'] ?? 'Generated Report',
+            'type' => $type,
+            'project_id' => $projectId,
+            'employee_user_id' => $employeeUserId,
+            'target_name' => $targetName,
+            'orientation' => $validated['orientation'] ?? 'portrait',
+            'created_by' => $user->name,
+            'created_by_user_id' => $user->id,
+            'metrics' => $reportData,
+        ]);
+
         return response()->json([
             'success' => true,
             'data' => $reportData,
+            'archived_report' => [
+                'id' => $archivedReport->id,
+                'name' => $archivedReport->name,
+                'type' => $archivedReport->type,
+                'project_id' => $archivedReport->project_id,
+                'employee_user_id' => $archivedReport->employee_user_id,
+                'target_name' => $archivedReport->target_name,
+                'orientation' => $archivedReport->orientation,
+                'created_by' => $archivedReport->created_by,
+                'created_by_user_id' => $archivedReport->created_by_user_id,
+                'created_at' => $archivedReport->created_at->toIso8601String(),
+                'metrics' => $archivedReport->metrics,
+            ],
         ]);
     }
 
@@ -258,16 +286,16 @@ class TenantReportController extends Controller
     /**
      * Delete an archived report.
      */
-    public function deleteReport(Request $request, $tenant, $reportId)
+    public function deleteReport(Request $request, $report = null, $extra = null)
     {
-        $tenantId = tenant('id') ?? (string) $tenant;
+        $tenantId = tenant('id') ?? (string) $request->route('tenant');
         $user = $request->user();
 
-        $report = Report::findOrFail($reportId);
+        $targetReportId = $extra ?? $report ?? $request->route('report') ?? $request->route('reportId');
+        $report = Report::findOrFail($targetReportId);
 
-        // Authorization: Creator or Leader/Manager can delete
-        $isLeader = $this->reportDataService->isLeaderOrManager($user, $tenantId);
-        if (! $isLeader && $report->created_by_user_id !== (int) $user->id) {
+        // Authorization: Only the creator can delete their archived report
+        if ((int) $report->created_by_user_id !== (int) $user->id) {
             return response()->json([
                 'success' => false,
                 'message' => 'You do not have permission to delete this archived report.',
@@ -305,6 +333,9 @@ class TenantReportController extends Controller
                 return response()->json(['message' => 'Unauthorized access to archived report.'], 403);
             }
             $reportData = $report->metrics;
+            if (is_array($reportData)) {
+                $reportData['id'] = $report->id;
+            }
             $orientation = $report->orientation ?: $orientation;
         } else {
             $type = $request->query('type', 'project_summary');
@@ -534,6 +565,9 @@ class TenantReportController extends Controller
         $report = null;
         if ($request->has('archived_id')) {
             $r = Report::findOrFail($request->query('archived_id'));
+            if (! $this->reportDataService->canAccessReport($user, $r, $tenantId)) {
+                abort(403, 'Unauthorized access to archived report.');
+            }
             $report = $r->metrics;
         } else {
             $type = $request->query('type', 'project_summary');
