@@ -800,6 +800,54 @@ class TenantDashboardController extends Controller
             ->values()
             ->all();
 
+        $upcomingTasks = Task::with(['project', 'assignee'])
+            ->where('status', '!=', 'completed')
+            ->orderByRaw("CASE WHEN hard_constraint_date IS NOT NULL THEN hard_constraint_date ELSE '9999-12-31' END ASC")
+            ->orderByRaw("CASE WHEN days_until_deadline IS NOT NULL THEN days_until_deadline ELSE 999 END ASC")
+            ->latest('updated_at')
+            ->take(12)
+            ->get()
+            ->map(function ($t) {
+                $dueDate = null;
+                if ($t->hard_constraint_date) {
+                    $dueDate = $t->hard_constraint_date->format('M d');
+                } elseif ($t->days_until_deadline !== null) {
+                    $base = $t->project?->start_date ?: ($t->created_at ?: now());
+                    $dueDate = $base->copy()->addWeekdays(max(0, (int) $t->days_until_deadline))->format('M d');
+                }
+
+                $rawProj = $t->project?->name ?? 'Studio Project';
+                $words = preg_split('/\s+/', trim($rawProj));
+                $projectKey = '';
+                if (count($words) >= 2) {
+                    foreach (array_slice($words, 0, 3) as $w) {
+                        $projectKey .= strtoupper(substr($w, 0, 1));
+                    }
+                } else {
+                    $projectKey = strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $rawProj) ?: 'PRJ', 0, 3));
+                }
+                $taskKey = $t->task_key ?? "{$projectKey}-".str_pad((string) $t->id, 3, '0', STR_PAD_LEFT);
+
+                return [
+                    'id' => $t->id,
+                    'task_key' => $taskKey,
+                    'title' => $t->title,
+                    'project_id' => $t->project_id,
+                    'project_name' => $rawProj,
+                    'assignee_id' => $t->assignee?->id,
+                    'assignee_name' => $t->assignee?->name ?? 'Unassigned',
+                    'assignee_avatar' => $t->assignee?->avatar,
+                    'priority' => $t->priority ?? 'MEDIUM',
+                    'status' => $t->status,
+                    'due_date' => $dueDate ?: 'No date',
+                    'story_points' => $t->story_points,
+                    'is_critical' => (bool) $t->is_critical,
+                    'total_float' => $t->total_float !== null ? (float) $t->total_float : null,
+                ];
+            })
+            ->values()
+            ->all();
+
         // ── 6. Studio Leadership (Owner-only panel) ──────────────────────────
         $currentMembership = DB::connection(config('tenancy.database.central_connection', 'central'))
             ->table('studio_members')
@@ -860,6 +908,7 @@ class TenantDashboardController extends Controller
                 'team_snapshot' => $teamSnapshot,
                 'projects' => $projectsList,
                 'recent_activity' => $recentActivity,
+                'upcoming_tasks' => $upcomingTasks,
             ],
             'isOwner' => $isOwner,
             'studioLeadership' => $studioLeadership,

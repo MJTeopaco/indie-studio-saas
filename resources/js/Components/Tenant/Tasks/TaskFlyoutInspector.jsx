@@ -9,9 +9,11 @@ import {
     Check,
     Loader2,
     MessageSquare,
-    Clock
+    Clock,
+    AlertTriangle
 } from 'lucide-react';
 import { showToast } from '@/Components/SystemToast';
+import { resolveCpaStatus } from '@/lib/cpaTerminology';
 
 const SPRINT_STATUS_OPTIONS = [
     { value: 'todo', label: 'To Do' },
@@ -89,6 +91,15 @@ export default function TaskFlyoutInspector({
     const dueDateDisplay = task.hard_constraint_date 
         ? String(task.hard_constraint_date).split('T')[0] 
         : (task.due_date || task.dueDate || 'Sprint Target');
+
+    const cpaInfo = resolveCpaStatus({
+        totalFloat,
+        isCritical: task.is_critical,
+        dueDate: task.hard_constraint_date || task.due_date || task.dueDate,
+        daysUntilDeadline: task.days_until_deadline,
+        dependentCount: task.dependent_tasks_count || task.downstream_count || 0,
+        status: selectedStatus,
+    });
 
     // Safe inline updater
     const handleFieldChange = async (field, value) => {
@@ -189,14 +200,14 @@ export default function TaskFlyoutInspector({
 
             {/* Darkened & heavily blurred backdrop scrim so sidebar is seen clearly as an overlay */}
             <div
-                className="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-md transition-opacity duration-200"
+                className="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-md animate-backdrop-in"
                 onClick={onClose}
                 aria-hidden="true"
             />
 
-            {/* Right-Side Drawer Sheet */}
+            {/* Right-Side Drawer Sheet with smooth slide-in popup animation */}
             <div
-                className="task-drawer-sheet fixed inset-y-0 right-0 z-50 flex flex-col transform transition-all duration-200 ease-in-out"
+                className="task-drawer-sheet fixed inset-y-0 right-0 z-50 flex flex-col transform animate-drawer-in"
                 style={{
                     width: 'min(100%, 400px)',
                     height: '100dvh',
@@ -233,7 +244,7 @@ export default function TaskFlyoutInspector({
                                 color: 'var(--muted-foreground)'
                             }}
                         >
-                            Task details
+                            Task Details
                         </span>
                     </div>
 
@@ -562,57 +573,66 @@ export default function TaskFlyoutInspector({
 
                                 <div
                                     style={{
-                                        padding: '9px 12px',
-                                        borderRadius: '6px',
+                                        padding: '10px 12px',
+                                        borderRadius: '8px',
                                         backgroundColor: 'var(--card)',
                                         border: '1px solid var(--border)'
                                     }}
                                 >
-                                    <div className="flex items-center gap-2.5">
-                                        <Calendar
-                                            style={{
-                                                width: '17px',
-                                                height: '17px',
-                                                color: 'var(--primary)'
-                                            }}
-                                            className="shrink-0"
-                                        />
-                                        <div className="min-w-0">
-                                            <span
-                                                className="block font-bold tracking-tight"
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <Calendar
                                                 style={{
-                                                    fontSize: '15px',
-                                                    fontFamily: 'var(--font-mono)',
-                                                    color: 'var(--foreground)'
+                                                    width: '16px',
+                                                    height: '16px',
+                                                    color: 'var(--primary)'
                                                 }}
+                                                className="shrink-0"
+                                            />
+                                            <span
+                                                className="block font-bold tracking-tight text-sm font-mono"
+                                                style={{ color: 'var(--foreground)' }}
                                             >
                                                 {dueDateDisplay}
                                             </span>
                                         </div>
+                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${cpaInfo.badgeClass}`}>
+                                            {cpaInfo.label}
+                                        </span>
                                     </div>
 
+                                    {/* Consequence statement */}
                                     <div
-                                        className="flex items-center gap-1.5 leading-tight"
-                                        style={{
-                                            marginTop: '10px',
-                                            fontSize: '9.5px',
-                                            color: isCritical ? 'var(--warning)' : 'var(--muted-foreground)'
-                                        }}
+                                        className="flex items-start gap-1.5 leading-snug mt-2 text-[10.5px]"
                                     >
-                                        {isCritical ? (
-                                            <>
-                                                <Flame style={{ width: '12px', height: '12px' }} className="shrink-0" />
-                                                <span>Zero-float critical path task. Any slip delays milestone.</span>
-                                            </>
+                                        {cpaInfo.tier === 'emergency' ? (
+                                            <AlertTriangle style={{ width: '13px', height: '13px' }} className="shrink-0 text-rose-500 mt-0.5" />
+                                        ) : cpaInfo.tier === 'vigilance' ? (
+                                            <Flame style={{ width: '13px', height: '13px' }} className="shrink-0 text-amber-500 mt-0.5" />
+                                        ) : cpaInfo.tier === 'safe' ? (
+                                            <CheckCircle2 style={{ width: '13px', height: '13px' }} className="shrink-0 text-emerald-500 mt-0.5" />
                                         ) : (
-                                            <>
-                                                <CheckCircle2 style={{ width: '12px', height: '12px' }} className="shrink-0 text-emerald-500" />
-                                                <span>
-                                                    Schedule buffer: {totalFloat !== null ? `+${totalFloat}h float` : 'On track with slack'}
-                                                </span>
-                                            </>
+                                            <Clock style={{ width: '13px', height: '13px' }} className="shrink-0 text-amber-500 mt-0.5" />
                                         )}
+                                        <span className="text-slate-600 dark:text-slate-300 font-medium">
+                                            {cpaInfo.consequence}
+                                        </span>
                                     </div>
+
+                                    {/* Action Invitation Card */}
+                                    {cpaInfo.actionPrompt && (
+                                        <div
+                                            className="mt-2.5 pt-2 border-t flex items-start gap-1.5"
+                                            style={{ borderColor: 'var(--border)' }}
+                                        >
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-brand shrink-0 mt-0.5">
+                                                Next Step:
+                                            </span>
+                                            <span className="text-[11px] font-semibold text-slate-800 dark:text-slate-100">
+                                                {cpaInfo.actionPrompt}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -633,7 +653,7 @@ export default function TaskFlyoutInspector({
                                     }}
                                 >
                                     <CheckSquare style={{ width: '12px', height: '12px' }} />
-                                    <span>Acceptance criteria</span>
+                                    <span>Acceptance Criteria</span>
                                 </h3>
 
                                 <div
@@ -676,7 +696,7 @@ export default function TaskFlyoutInspector({
                                     }}
                                 >
                                     <CheckCircle2 style={{ width: '12px', height: '12px' }} />
-                                    <span>Task status</span>
+                                    <span>Task Status</span>
                                 </h3>
 
                                 <div
@@ -747,7 +767,7 @@ export default function TaskFlyoutInspector({
 
                             {/* Comment Composer */}
                             <form onSubmit={handleAddComment} style={{ marginTop: '12px' }}>
-                                <label htmlFor="comment-composer" className="sr-only">Add comment</label>
+                                <label htmlFor="comment-composer" className="sr-only">Add Comment</label>
                                 <textarea
                                     id="comment-composer"
                                     rows={2}
@@ -773,7 +793,7 @@ export default function TaskFlyoutInspector({
                                         style={{ fontSize: '9px' }}
                                         className="text-[var(--muted-foreground)] font-mono"
                                     >
-                                        Preview activity
+                                        Preview Activity
                                     </span>
 
                                     <button
@@ -845,7 +865,7 @@ export default function TaskFlyoutInspector({
                                 <span>Completed</span>
                             </>
                         ) : (
-                            <span>Mark complete</span>
+                            <span>Mark Complete</span>
                         )}
                     </button>
                 </div>

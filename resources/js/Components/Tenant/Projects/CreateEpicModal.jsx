@@ -48,7 +48,7 @@ export default function CreateEpicModal({ isOpen, onClose, onSubmit, isSubmittin
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs" onClick={onClose}>
             <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900 border border-gray-100 dark:border-slate-800" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4 dark:border-slate-800">
-                    <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">{epic ? 'Update Epic' : 'Create new epic'}</h2>
+                    <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">{epic ? 'Update Epic' : 'Create New Epic'}</h2>
                     <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
                         <X className="h-5 w-5" />
                     </button>
@@ -56,7 +56,7 @@ export default function CreateEpicModal({ isOpen, onClose, onSubmit, isSubmittin
                 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="mb-1 block text-sm font-bold text-gray-700 dark:text-slate-300">Epic name</label>
+                        <label className="mb-1 block text-sm font-bold text-gray-700 dark:text-slate-300">Epic Name</label>
                         <input 
                             type="text" 
                             required

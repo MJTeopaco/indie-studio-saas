@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Montserrat:wght@400;500;600&display=swap')
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Montserrat:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap')
 layer(base);
 
 @import 'tailwindcss';
@@ -40,6 +40,25 @@ layer(base);
   --font-heading:
     Poppins, ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
     'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-mono:
+    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --color-overview-bg: var(--overview-bg);
+  --color-overview-card: var(--overview-card);
+  --color-overview-elevated: var(--overview-elevated);
+  --color-overview-primary: var(--overview-primary);
+  --color-overview-primary-hover: var(--overview-primary-hover);
+  --color-overview-primary-fg: var(--overview-primary-fg);
+  --color-overview-secondary: var(--overview-secondary);
+  --color-overview-muted-surface: var(--overview-muted-surface);
+  --color-overview-fg: var(--overview-fg);
+  --color-overview-muted-fg: var(--overview-muted-fg);
+  --color-overview-subtle-fg: var(--overview-subtle-fg);
+  --color-overview-border: var(--overview-border);
+  --color-overview-success: var(--overview-success);
+  --color-overview-warning: var(--overview-warning);
+  --color-overview-critical: var(--overview-critical);
+  --color-overview-cyan: var(--overview-cyan);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -60,6 +79,12 @@ layer(base);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  --color-cyan: var(--cyan);
+  --color-pink: var(--pink);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-critical: var(--critical);
 
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
@@ -138,6 +163,12 @@ layer(base);
     --font-sans: 'Montserrat', system-ui, sans-serif;
     --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
+    /* Semantic Design Tokens */
+    --cyan: #06b6d4;
+    --pink: #ec4899;
+    --success: #10b981;
+    --critical: #f43f5e;
+
     /* Shadcn Chart Colors (Light) */
     --chart-1: #007cff; /* Blue */
     --chart-2: #10b981; /* Emerald */
@@ -145,6 +176,24 @@ layer(base);
     --chart-4: #f43f5e; /* Rose */
     --chart-5: #6366f1; /* Indigo */
     --chart-6: #06b6d4; /* Cyan */
+
+    /* Studio Overview Semantic Tokens (Light Fallback) */
+    --overview-bg: #f8fafc;
+    --overview-card: #ffffff;
+    --overview-elevated: #f1f5f9;
+    --overview-primary: #007cff;
+    --overview-primary-hover: #3396ff;
+    --overview-primary-fg: #ffffff;
+    --overview-secondary: #e2e8f0;
+    --overview-muted-surface: #f1f5f9;
+    --overview-fg: #0f172a;
+    --overview-muted-fg: #64748b;
+    --overview-subtle-fg: #94a3b8;
+    --overview-border: #e2e8f0;
+    --overview-success: #10b981;
+    --overview-warning: #f59e0b;
+    --overview-critical: #f43f5e;
+    --overview-cyan: #06b6d4;
   }
 
   .dark {
@@ -181,6 +230,12 @@ layer(base);
     --font-sans: 'Montserrat', system-ui, sans-serif;
     --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
+    /* Semantic Design Tokens (Dark) */
+    --cyan: #22d3ee;
+    --pink: #f472b6;
+    --success: #34d399;
+    --critical: #fb7185;
+
     /* Shadcn Chart Colors (Dark) */
     --chart-1: #3396ff; /* Blue light */
     --chart-2: #34d399; /* Emerald light */
@@ -188,6 +243,24 @@ layer(base);
     --chart-4: #fb7185; /* Rose light */
     --chart-5: #818cf8; /* Indigo light */
     --chart-6: #22d3ee; /* Cyan light */
+
+    /* Studio Overview Semantic Tokens (Dark Reference OKLCH) */
+    --overview-bg: oklch(.163 .021 263);
+    --overview-card: oklch(.207 .025 262);
+    --overview-elevated: oklch(.19 .023 264);
+    --overview-primary: oklch(.601 .216 257);
+    --overview-primary-hover: oklch(.672 .181 255);
+    --overview-primary-fg: oklch(1 0 0);
+    --overview-secondary: oklch(.263 .032 260);
+    --overview-muted-surface: oklch(.23 .025 261);
+    --overview-fg: oklch(.968 .006 255);
+    --overview-muted-fg: oklch(.685 .025 258);
+    --overview-subtle-fg: oklch(.51 .025 260);
+    --overview-border: oklch(.29 .024 261);
+    --overview-success: oklch(.696 .149 163);
+    --overview-warning: oklch(.769 .165 72);
+    --overview-critical: oklch(.637 .208 25);
+    --overview-cyan: oklch(.715 .136 216);
   }
 }
 
@@ -241,6 +314,35 @@ layer(base);
   background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 50%, transparent 100%);
   background-size: 800px 100%;
   animation: shimmer 1.6s infinite linear;
+}
+
+/* Sidebar Task Inspector Drawer Animations */
+@keyframes drawerSlideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes backdropFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-drawer-in {
+  animation: drawerSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-backdrop-in {
+  animation: backdropFadeIn 0.25s ease-out forwards;
 }
 
 /* ── System-wide custom scrollbar ─────────────────────────────────────────── */

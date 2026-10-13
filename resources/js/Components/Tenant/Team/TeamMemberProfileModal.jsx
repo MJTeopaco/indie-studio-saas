@@ -1,31 +1,31 @@
 import React from 'react';
-import { Calendar, Clock3, Activity, Sparkles, FolderKanban, StickyNote, Settings, X } from 'lucide-react';
+import {
+    Calendar,
+    Clock3,
+    Activity,
+    Sparkles,
+    FolderKanban,
+    StickyNote,
+    Settings,
+    X,
+    CheckCircle2,
+    AlertCircle,
+} from 'lucide-react';
+import Modal from '@/Components/Modal';
+import { Avatar, AvatarFallback, AvatarImage } from '@/Components/UI/avatar';
+import { Badge } from '@/Components/UI/badge';
+import { Button } from '@/Components/UI/button';
+import { IconButton } from '@/Components/UI/IconButton';
+import { SectionHeader } from '@/Components/UI/SectionHeader';
+import { cn } from '@/lib/utils';
 
-const healthStyles = {
-    success: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-    warning: 'bg-amber-100 text-amber-700 border-amber-200',
-    danger: 'bg-rose-100 text-rose-700 border-rose-200',
-};
-
-const projectHealthStyles = {
-    success: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-    danger: 'bg-rose-100 text-rose-700 border-rose-200',
-};
-
-function InfoRow({ icon: Icon, label, value }) {
-    return (
-        <div className="flex items-center justify-between gap-4 border-b border-gray-100 py-3 text-sm dark:border-slate-800">
-            <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400">
-                <Icon className="h-4 w-4" />
-                <span>{label}</span>
-            </div>
-            <span className="font-semibold text-gray-900 dark:text-slate-100">{value}</span>
-        </div>
-    );
-}
-
-export default function TeamMemberProfileModal({ isOpen, onClose, member, canManage = false }) {
-    if (!isOpen || !member) {
+export default function TeamMemberProfileModal({
+    isOpen,
+    onClose,
+    member,
+    canManage = false,
+}) {
+    if (!member) {
         return null;
     }
 
@@ -34,146 +34,292 @@ export default function TeamMemberProfileModal({ isOpen, onClose, member, canMan
     const skills = Array.isArray(profile.skillset) ? profile.skillset : [];
     const projects = Array.isArray(profile.projects) ? profile.projects : [];
     const stats = profile.stats || {};
+    const initial = (member.name || 'U').charAt(0).toUpperCase();
+
+    const healthBadgeClass =
+        health.tone === 'danger'
+            ? 'border-[var(--critical)]/30 bg-[var(--critical)]/10 text-[var(--critical)]'
+            : health.tone === 'warning'
+            ? 'border-[var(--warning)]/30 bg-[var(--warning)]/10 text-[var(--warning)]'
+            : 'border-[var(--success)]/30 bg-[var(--success)]/10 text-[var(--success)]';
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs">
-            <div className="absolute inset-0" onClick={onClose} />
-            <div className="relative z-10 w-full max-w-2xl overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-                <div className="flex items-start justify-between border-b border-gray-100 px-6 py-5 dark:border-slate-800">
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand text-xl font-bold text-white">
-                            {member.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
+        <Modal show={isOpen} onClose={onClose} maxWidth="xl">
+            <div className="bg-[var(--card)] text-[var(--foreground)] rounded-xl border border-[var(--border)] overflow-hidden flex flex-col max-h-[85vh]">
+                {/* 1. Modal Header */}
+                <div className="flex items-center justify-between p-4 sm:p-5 border-b border-[var(--border)] shrink-0">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <Avatar className="h-10 w-10 rounded-full border border-[var(--border)] shrink-0">
+                            {member.avatar_url && (
+                                <AvatarImage src={member.avatar_url} alt={member.name} />
+                            )}
+                            <AvatarFallback className="bg-[var(--secondary)] text-[var(--foreground)] text-sm font-bold font-mono">
+                                {initial}
+                            </AvatarFallback>
+                        </Avatar>
+
+                        <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                                <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{member.name}</h2>
-                                <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${healthStyles[health.tone] || healthStyles.success}`}>
+                                <h3 className="font-heading text-sm sm:text-base font-bold text-[var(--foreground)] truncate">
+                                    {member.name}
+                                </h3>
+                                <Badge
+                                    className={cn(
+                                        'text-[10px] font-medium px-2 py-0.5 rounded-full border shrink-0',
+                                        healthBadgeClass
+                                    )}
+                                >
                                     {health.label}
-                                </span>
+                                </Badge>
                                 {member.working_status === 'on_leave' && (
-                                    <span className="rounded-full border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                                    <Badge
+                                        variant="warning"
+                                        className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-[var(--warning)]/30 bg-[var(--warning)]/10 text-[var(--warning)] shrink-0"
+                                    >
                                         On Leave {member.leave_end_date ? `(Until ${member.leave_end_date})` : ''}
-                                    </span>
+                                    </Badge>
                                 )}
                                 {member.leave_request_status === 'pending' && (
-                                    <span className="rounded-full border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                                        Leave Pending Review
-                                    </span>
+                                    <Badge
+                                        variant="warning"
+                                        className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-[var(--warning)]/30 bg-[var(--warning)]/10 text-[var(--warning)] shrink-0"
+                                    >
+                                        Leave Pending
+                                    </Badge>
                                 )}
                                 {member.working_status === 'emergency' && (
-                                    <span className="rounded-full border border-rose-300 dark:border-rose-500/40 bg-rose-50 dark:bg-rose-500/10 px-2.5 py-0.5 text-xs font-semibold text-rose-700 dark:text-rose-300">
+                                    <Badge
+                                        variant="destructive"
+                                        className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-[var(--critical)]/30 bg-[var(--critical)]/10 text-[var(--critical)] shrink-0"
+                                    >
                                         Emergency Absence
-                                    </span>
+                                    </Badge>
                                 )}
                             </div>
-                            <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">{member.position}</p>
+                            <p className="text-[11px] text-[var(--muted-foreground)] truncate mt-0.5">
+                                {member.position || member.role || 'Contributor'} • Joined {member.joined_at || 'Recently'}
+                            </p>
                         </div>
                     </div>
-                    <button
-                        type="button"
+
+                    <IconButton
+                        aria-label="Close passport"
+                        variant="ghost"
+                        size="sm"
                         onClick={onClose}
-                        className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-slate-800"
                     >
-                        <X className="h-4 w-4" />
-                    </button>
+                        <X className="w-4 h-4" />
+                    </IconButton>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4 border-b border-gray-100 bg-gray-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-800/40">
-                    <div>
-                        <p className="text-xs text-gray-500 dark:text-slate-400">Utilization Rate</p>
-                        <p className="mt-1 text-3xl font-bold text-gray-900 dark:text-slate-100">{profile.utilization_rate ?? 0}%</p>
-                    </div>
-                    <div>
-                        <p className="text-xs text-gray-500 dark:text-slate-400">Avg Update Time</p>
-                        <p className="mt-1 text-3xl font-bold text-gray-900 dark:text-slate-100">{profile.avg_update_time || '0h'}</p>
-                    </div>
-                    <div>
-                        <p className="text-xs text-gray-500 dark:text-slate-400">Revision Rate</p>
-                        <p className="mt-1 text-3xl font-bold text-gray-900 dark:text-slate-100">{profile.revision_rate ?? 0}%</p>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4 border-b border-gray-100 px-6 py-4 dark:border-slate-800">
-                    <div>
-                        <p className="text-xs text-gray-500 dark:text-slate-400">Assigned Tasks</p>
-                        <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-slate-100">{stats.total_tasks ?? 0}</p>
-                    </div>
-                    <div>
-                        <p className="text-xs text-gray-500 dark:text-slate-400">Active Tasks</p>
-                        <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-slate-100">{stats.active_tasks ?? 0}</p>
-                    </div>
-                    <div>
-                        <p className="text-xs text-gray-500 dark:text-slate-400">Completed Tasks</p>
-                        <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-slate-100">{stats.completed_tasks ?? 0}</p>
-                    </div>
-                </div>
-
-                <div className="px-6 pb-4">
-                    <InfoRow icon={Calendar} label="Next Availability Date" value={profile.next_availability_date || 'N/A'} />
-                    <InfoRow icon={Activity} label="Last Active" value={profile.last_active || 'N/A'} />
-                    <InfoRow icon={Clock3} label="Last Update Sent" value={profile.last_update_sent || 'N/A'} />
-                    <div className="flex items-start justify-between gap-4 border-b border-gray-100 py-3 text-sm dark:border-slate-800">
-                        <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400">
-                            <Sparkles className="h-4 w-4" />
-                            <span>Skillset</span>
+                {/* 2. Scrollable Body */}
+                <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
+                    {/* Performance & Capacity Strip */}
+                    <div className="grid grid-cols-3 gap-2 p-3 rounded-lg bg-[var(--secondary)]/60 border border-[var(--border)] text-center">
+                        <div>
+                            <p className="text-[10px] uppercase tracking-wider text-[var(--muted-foreground)] font-medium">
+                                Utilization
+                            </p>
+                            <p className="font-mono text-base font-bold text-[var(--foreground)] mt-0.5">
+                                {profile.utilization_rate ?? 0}%
+                            </p>
                         </div>
-                        <div className="flex flex-wrap justify-end gap-2">
-                            {skills.length ? skills.map(skill => (
-                                <span key={skill.id} className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700">
-                                    {skill.name}
+                        <div className="border-x border-[var(--border)]">
+                            <p className="text-[10px] uppercase tracking-wider text-[var(--muted-foreground)] font-medium">
+                                Avg Turnaround
+                            </p>
+                            <p className="font-mono text-base font-bold text-[var(--foreground)] mt-0.5">
+                                {profile.avg_update_time || '0h'}
+                            </p>
+                        </div>
+                        <div>
+                            <p className="text-[10px] uppercase tracking-wider text-[var(--muted-foreground)] font-medium">
+                                Revision Rate
+                            </p>
+                            <p className="font-mono text-base font-bold text-[var(--foreground)] mt-0.5">
+                                {profile.revision_rate ?? 0}%
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Task Execution Matrix */}
+                    <div className="grid grid-cols-3 gap-2 p-3 rounded-lg bg-[var(--secondary)]/40 border border-[var(--border)] text-center">
+                        <div>
+                            <p className="text-[10px] uppercase tracking-wider text-[var(--muted-foreground)] font-medium">
+                                Total Tasks
+                            </p>
+                            <p className="font-mono text-sm font-semibold text-[var(--foreground)] mt-0.5">
+                                {stats.total_tasks ?? 0}
+                            </p>
+                        </div>
+                        <div className="border-x border-[var(--border)]">
+                            <p className="text-[10px] uppercase tracking-wider text-[var(--muted-foreground)] font-medium">
+                                Active Tasks
+                            </p>
+                            <p className="font-mono text-sm font-semibold text-[var(--primary)] mt-0.5">
+                                {stats.active_tasks ?? 0}
+                            </p>
+                        </div>
+                        <div>
+                            <p className="text-[10px] uppercase tracking-wider text-[var(--muted-foreground)] font-medium">
+                                Completed
+                            </p>
+                            <p className="font-mono text-sm font-semibold text-[var(--success)] mt-0.5">
+                                {stats.completed_tasks ?? 0}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Availability & Activity */}
+                    <div className="space-y-2">
+                        <SectionHeader
+                            icon={Calendar}
+                            title="Availability & Activity"
+                            description="Recent check-ins and delivery schedule."
+                        />
+                        <div className="space-y-1.5 text-xs">
+                            <div className="flex items-center justify-between py-1 border-b border-[var(--border)]/60">
+                                <span className="text-[11px] text-[var(--muted-foreground)] flex items-center gap-1.5">
+                                    <Calendar className="w-3.5 h-3.5 text-[var(--primary)]" /> Next Available
                                 </span>
-                            )) : (
-                                <span className="text-xs text-gray-400 dark:text-slate-500">No skills recorded</span>
+                                <span className="font-mono text-[11px] font-medium text-[var(--foreground)]">
+                                    {profile.next_availability_date || 'Immediate'}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between py-1 border-b border-[var(--border)]/60">
+                                <span className="text-[11px] text-[var(--muted-foreground)] flex items-center gap-1.5">
+                                    <Activity className="w-3.5 h-3.5 text-[var(--success)]" /> Last Active
+                                </span>
+                                <span className="text-[11px] text-[var(--foreground)]">
+                                    {profile.last_active || 'N/A'}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between py-1 border-b border-[var(--border)]/60">
+                                <span className="text-[11px] text-[var(--muted-foreground)] flex items-center gap-1.5">
+                                    <Clock3 className="w-3.5 h-3.5 text-[var(--warning)]" /> Last Update Sent
+                                </span>
+                                <span className="text-[11px] text-[var(--foreground)]">
+                                    {profile.last_update_sent || 'N/A'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Skill Matrix */}
+                    <div className="space-y-2">
+                        <SectionHeader
+                            icon={Sparkles}
+                            title="Skill Matrix"
+                            description="Demonstrated technical proficiencies and tooling."
+                        />
+                        <div className="flex flex-wrap gap-1.5">
+                            {skills.length > 0 ? (
+                                skills.map((skill) => (
+                                    <span
+                                        key={skill.id || skill.name}
+                                        className="text-[10px] bg-[var(--secondary)] border border-[var(--border)] text-[var(--foreground)] px-2 py-1 rounded-[4px] font-medium flex items-center gap-1.5"
+                                    >
+                                        <span>{skill.name}</span>
+                                        {skill.proficiency_level > 0 && (
+                                            <span className="text-[9px] font-mono text-[var(--primary)] font-bold">
+                                                L{skill.proficiency_level}
+                                            </span>
+                                        )}
+                                    </span>
+                                ))
+                            ) : (
+                                <p className="text-xs text-[var(--muted-foreground)] italic">
+                                    No skills recorded in developer passport.
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Project Memberships */}
+                    <div className="space-y-2">
+                        <SectionHeader
+                            icon={FolderKanban}
+                            title={`Assigned Projects (${projects.length})`}
+                            description="Active initiatives and deliverables."
+                        />
+                        <div className="space-y-1.5">
+                            {projects.length > 0 ? (
+                                projects.map((project) => {
+                                    const open = project.task_open_count ?? 0;
+                                    const done = project.task_completed_count ?? 0;
+                                    const isExpiring = project.health_tone === 'danger';
+
+                                    return (
+                                        <div
+                                            key={project.id}
+                                            className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-[var(--secondary)]/40 border border-[var(--border)] text-xs"
+                                        >
+                                            <div className="min-w-0">
+                                                <p className="font-medium text-[var(--foreground)] truncate">
+                                                    {project.name}
+                                                </p>
+                                                <p className="text-[10px] text-[var(--muted-foreground)] font-mono mt-0.5">
+                                                    {done} completed / {open + done} assigned tasks
+                                                </p>
+                                            </div>
+                                            <Badge
+                                                className={cn(
+                                                    'text-[9px] font-medium px-2 py-0.5 rounded-full border shrink-0',
+                                                    isExpiring
+                                                        ? 'border-[var(--critical)]/30 bg-[var(--critical)]/10 text-[var(--critical)]'
+                                                        : 'border-[var(--success)]/30 bg-[var(--success)]/10 text-[var(--success)]'
+                                                )}
+                                            >
+                                                {project.health || 'On track'}
+                                            </Badge>
+                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <p className="text-xs text-[var(--muted-foreground)] italic">
+                                    No active project memberships yet.
+                                </p>
                             )}
                         </div>
                     </div>
                 </div>
 
-                <div className="px-6 pb-6">
-                    <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-slate-300">
-                        <FolderKanban className="h-4 w-4" />
-                        <span>{projects.length} Project{projects.length === 1 ? '' : 's'}</span>
-                    </div>
-                    <div className="space-y-2">
-                        {projects.length ? projects.map(project => (
-                            <div key={project.id} className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-800/40">
-                                <div>
-                                    <span className="font-semibold text-gray-900 dark:text-slate-100">{project.name}</span>
-                                    <p className="mt-0.5 text-xs text-gray-500 dark:text-slate-400">
-                                        {project.task_completed_count ?? 0} done / {((project.task_open_count ?? 0) + (project.task_completed_count ?? 0))} assigned
-                                    </p>
-                                </div>
-                                <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-semibold ${projectHealthStyles[project.health_tone] || projectHealthStyles.success}`}>
-                                    {project.health}
-                                </span>
-                            </div>
-                        )) : (
-                            <div className="rounded-xl border border-dashed border-gray-200 px-3 py-4 text-sm text-gray-500 dark:border-slate-700 dark:text-slate-400">
-                                No project memberships yet.
-                            </div>
+                {/* 3. Modal Actions Row (Right-aligned at bottom) */}
+                <div className="flex items-center justify-between p-4 sm:p-5 border-t border-[var(--border)] shrink-0 bg-[var(--card)]">
+                    <div className="flex items-center gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-3 text-xs font-heading font-medium gap-1.5 border-[var(--border)]"
+                        >
+                            <StickyNote className="w-3.5 h-3.5" />
+                            <span>Notes</span>
+                        </Button>
+                        {canManage && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-3 text-xs font-heading font-medium gap-1.5 border-[var(--border)]"
+                            >
+                                <Settings className="w-3.5 h-3.5" />
+                                <span>Settings</span>
+                            </Button>
                         )}
                     </div>
-                </div>
 
-                <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4 dark:border-slate-800">
-                    <button
+                    <Button
                         type="button"
-                        className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 dark:border-slate-700 dark:text-slate-200"
+                        variant="secondary"
+                        size="sm"
+                        onClick={onClose}
+                        className="h-8 px-4 text-xs font-heading font-medium"
                     >
-                        <StickyNote className="h-4 w-4" />
-                        Notes
-                    </button>
-                    {canManage && (
-                        <button
-                            type="button"
-                            className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 dark:border-slate-700 dark:text-slate-200"
-                        >
-                            <Settings className="h-4 w-4" />
-                            Edit Settings
-                        </button>
-                    )}
+                        Close
+                    </Button>
                 </div>
             </div>
-        </div>
+        </Modal>
     );
 }

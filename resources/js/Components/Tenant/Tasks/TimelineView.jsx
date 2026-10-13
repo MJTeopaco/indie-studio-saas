@@ -6,12 +6,14 @@ import {
     Clock, 
     User, 
     AlertCircle, 
+    AlertTriangle,
     CheckCircle2, 
     Flame, 
     Layers,
     ZoomIn,
     ZoomOut
 } from 'lucide-react';
+import { resolveCpaStatus } from '@/lib/cpaTerminology';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function parseDate(str) {
@@ -269,12 +271,12 @@ export default function TimelineView({ tasks = [], onTaskClick }) {
                 >
                     {/* ── HEADER ROW ── */}
                     <div className="flex items-stretch border-b border-surface-border dark:border-slate-800 bg-surface/80 dark:bg-slate-900/90 sticky top-0 z-30 backdrop-blur-md">
-                        {/* Sticky Left Header: Task / milestone */}
+                        {/* Sticky Left Header: Task / Milestone */}
                         <div 
                             style={{ width: `${LEFT_COL_W}px` }}
                             className="shrink-0 px-5 py-3 flex items-center font-bold text-xs text-text-muted dark:text-slate-400 uppercase tracking-wider font-heading sticky left-0 z-40 bg-surface dark:bg-slate-900 border-r border-surface-border dark:border-slate-800/90 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.1)] dark:shadow-[4px_0_12px_-4px_rgba(0,0,0,0.5)]"
                         >
-                            Task / milestone
+                            Task / Milestone
                         </div>
 
                         {/* Date Columns Header: Oct 9 | 10 | 11 | 12 ... */}
@@ -491,12 +493,49 @@ export default function TimelineView({ tasks = [], onTaskClick }) {
                             </div>
                         )}
 
-                        {hoveredTask.is_critical && (
-                            <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-amber-400 bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-800/50">
-                                <Flame className="w-3 h-3" />
-                                <span>Critical Path Task (Bottleneck)</span>
-                            </div>
-                        )}
+                        {hoveredTask && (() => {
+                            const cpa = resolveCpaStatus({
+                                totalFloat: hoveredTask.total_float,
+                                isCritical: hoveredTask.is_critical,
+                                dueDate: hoveredTask.due_date,
+                                daysUntilDeadline: hoveredTask.days_until_deadline,
+                                status: hoveredTask.status,
+                            });
+
+                            if (cpa.tier === 'emergency') {
+                                return (
+                                    <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-rose-400 bg-rose-950/40 px-1.5 py-0.5 rounded border border-rose-800/50">
+                                        <AlertTriangle className="w-3 h-3 text-rose-400" />
+                                        <span>Release Blocker (Delaying Launch)</span>
+                                    </div>
+                                );
+                            }
+                            if (cpa.tier === 'vigilance') {
+                                return (
+                                    <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-amber-400 bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-800/50">
+                                        <Flame className="w-3 h-3 text-amber-400" />
+                                        <span>Zero Leeway (Milestone Pacing)</span>
+                                    </div>
+                                );
+                            }
+                            if (cpa.tier === 'tight') {
+                                return (
+                                    <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-amber-300 bg-amber-950/30 px-1.5 py-0.5 rounded border border-amber-700/40">
+                                        <Clock className="w-3 h-3 text-amber-400" />
+                                        <span>Tight Leeway ({cpa.sublabel})</span>
+                                    </div>
+                                );
+                            }
+                            if (cpa.tier === 'safe') {
+                                return (
+                                    <div className="flex items-center gap-1 mt-1 text-[10px] font-medium text-emerald-400 bg-emerald-950/30 px-1.5 py-0.5 rounded border border-emerald-800/40">
+                                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                        <span>Safe Buffer ({cpa.sublabel})</span>
+                                    </div>
+                                );
+                            }
+                            return null;
+                        })()}
                     </div>
                 </div>
             )}

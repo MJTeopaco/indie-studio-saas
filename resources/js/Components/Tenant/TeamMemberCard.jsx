@@ -1,90 +1,149 @@
 import React from 'react';
-import { ChevronRight } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/Components/UI/avatar';
+import { Badge } from '@/Components/UI/badge';
+import { Progress } from '@/Components/UI/progress';
+import { Button } from '@/Components/UI/button';
+import { cn } from '@/lib/utils';
 
 /**
- * TeamMemberCard — Renders a styled profile card for a team member.
+ * TeamMemberCard — Sleek compact panel card for team members.
+ * Conforms to StudioSprint design token standards (10-11px compact UI, 1px var(--border)).
  */
-export default function TeamMemberCard({ member, index, status, badgeClass, department, onSelect }) {
-    const phone = `(${201 + index}) 555-010${index}`;
-    const isClickable = typeof onSelect === 'function';
-    const handleSelect = () => {
-        if (isClickable) {
-            onSelect(member);
+export default function TeamMemberCard({
+    member,
+    onSelect,
+    className,
+}) {
+    if (!member) return null;
+
+    // Extract workload and capacity
+    const stats = member.profile?.stats || {};
+    const maxHours = Number(stats.max_hours_per_week ?? member.max_hours_per_week ?? 40);
+    const rawWorkload = Number(stats.active_load_hours ?? member.weekly_hours ?? member.workload ?? 0);
+    const workloadHours = Math.round(rawWorkload * 10) / 10;
+
+    const isOverCapacity = workloadHours > maxHours || member.working_status === 'emergency';
+    const progressVal = maxHours > 0 ? Math.min(100, Math.round((workloadHours / maxHours) * 100)) : 0;
+
+    // Extract skill tags
+    const skills = React.useMemo(() => {
+        if (Array.isArray(member.profile?.skillset) && member.profile.skillset.length > 0) {
+            return member.profile.skillset.map((s) => (typeof s === 'object' ? s.name : s)).filter(Boolean);
         }
-    };
+        if (Array.isArray(member.skills) && member.skills.length > 0) {
+            return member.skills.map((s) => (typeof s === 'object' ? s.name : s)).filter(Boolean);
+        }
+        if (typeof member.skills === 'string' && member.skills.trim()) {
+            return member.skills.split(',').map((s) => s.trim()).filter(Boolean);
+        }
+        return [];
+    }, [member]);
+
+    const initial = (member.name || 'U').charAt(0).toUpperCase();
+    const roleText = member.position || member.role || 'Contributor';
 
     return (
         <div
-            className={`group rounded-2xl bg-white dark:bg-slate-800/40 border border-gray-200 dark:border-slate-800 p-5 shadow-xs transition-all duration-200 relative flex flex-col justify-between ${isClickable ? 'hover:shadow-lg cursor-pointer' : ''}`}
-            role={isClickable ? 'button' : undefined}
-            tabIndex={isClickable ? 0 : undefined}
-            onClick={handleSelect}
-            onKeyDown={isClickable ? (event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    handleSelect();
-                }
-            } : undefined}
+            className={cn(
+                'group rounded-[10px] bg-[var(--card)] border border-[var(--border)] p-[14px_16px] flex flex-col gap-2 h-full transition-all hover:border-[var(--primary)]/40 relative',
+                className
+            )}
         >
-            <div>
-                {/* Header avatar & Status badge */}
-                <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center text-sm font-bold shadow-xs">
-                        {member.name.charAt(0).toUpperCase()}
-                    </div>
-                    <span className={`rounded-full text-[10px] px-2 py-0.5 font-bold uppercase ${badgeClass}`}>
-                        {status}
+            {/* 1. Top row: 32px avatar + availability badge */}
+            <div className="flex items-center justify-between gap-2">
+                <Avatar className="h-8 w-8 rounded-full border border-[var(--border)] shrink-0">
+                    {member.avatar_url && (
+                        <AvatarImage src={member.avatar_url} alt={member.name} />
+                    )}
+                    <AvatarFallback className="bg-[var(--secondary)] text-[var(--foreground)] text-xs font-bold font-mono">
+                        {initial}
+                    </AvatarFallback>
+                </Avatar>
+
+                <Badge
+                    variant={isOverCapacity ? 'warning' : 'success'}
+                    className={cn(
+                        'text-[10px] font-medium px-2 py-0.5 rounded-full border shrink-0',
+                        isOverCapacity
+                            ? 'border-[var(--warning)]/30 bg-[var(--warning)]/10 text-[var(--warning)]'
+                            : 'border-[var(--success)]/30 bg-[var(--success)]/10 text-[var(--success)]'
+                    )}
+                >
+                    {isOverCapacity ? 'At capacity' : 'Available'}
+                </Badge>
+            </div>
+
+            {/* 2. Member name (13px, medium weight) */}
+            <div className="min-w-0">
+                <h3
+                    className="text-[13px] font-medium text-[var(--foreground)] truncate leading-tight group-hover:text-[var(--primary)] transition-colors"
+                    title={member.name}
+                >
+                    {member.name}
+                </h3>
+
+                {/* 3. Role (10px, muted) */}
+                <p
+                    className="text-[10px] text-[var(--muted-foreground)] truncate mt-0.5"
+                    title={roleText}
+                >
+                    {roleText}
+                </p>
+            </div>
+
+            {/* 4. Workload row: Weekly workload label + mono Xh/Yh + slim Progress */}
+            <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-[var(--muted-foreground)]">Weekly workload</span>
+                    <span className="font-mono text-[var(--foreground)] font-medium">
+                        {workloadHours}h / {maxHours}h
                     </span>
                 </div>
-
-                {/* Names */}
-                <div className="mt-4">
-                    <h4 className="font-heading text-base font-bold text-gray-900 dark:text-slate-100 truncate group-hover:text-brand dark:group-hover:text-brand-light transition-colors">
-                        {member.name}
-                    </h4>
-                    <p className="text-xs text-text-muted font-sans mt-0.5 truncate">
-                        {member.position}
-                    </p>
-                </div>
-
-                {/* Divider */}
-                <div className="my-4 border-t border-gray-100 dark:border-slate-800/50"></div>
-
-                {/* Department & Join Date */}
-                <div className="grid grid-cols-2 gap-2 text-xs font-sans text-text-muted">
-                    <div>
-                        <span className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold block">
-                            Department
-                        </span>
-                        <span className="font-semibold text-gray-900 dark:text-slate-200">
-                            {department}
-                        </span>
-                    </div>
-                    <div>
-                        <span className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold block">
-                            Joining
-                        </span>
-                        <span className="font-semibold text-gray-900 dark:text-slate-200">
-                            {member.joined_at}
-                        </span>
-                    </div>
-                </div>
-
-                {/* Email & Phone */}
-                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800/50 space-y-1 text-xs font-sans">
-                    <p className="text-text-muted truncate hover:text-brand dark:hover:text-brand-light cursor-pointer">
-                        {member.email}
-                    </p>
-                    <p className="text-text-muted">
-                        {phone}
-                    </p>
-                </div>
+                <Progress
+                    value={progressVal}
+                    className="h-1 bg-[var(--secondary)] rounded-full overflow-hidden"
+                    indicatorClassName={
+                        isOverCapacity ? 'bg-[var(--warning)]' : 'bg-[var(--primary)]'
+                    }
+                />
             </div>
 
-            {/* Action Link Arrow */}
-            <div className="absolute bottom-4 right-4 text-slate-400 dark:text-slate-500 group-hover:text-brand dark:group-hover:text-brand-light transition-colors">
-                <ChevronRight className="w-5 h-5 transition-transform group-hover:translate-x-0.5" />
+            {/* 5. Skill tags: small pill chips (9px, muted background, 3px radius, wrap) */}
+            <div className="flex flex-wrap gap-1.5 min-h-[22px] items-start pt-1">
+                {skills.length > 0 ? (
+                    skills.slice(0, 5).map((skill, idx) => (
+                        <span
+                            key={idx}
+                            className="text-[9px] bg-[var(--secondary)] text-[var(--muted-foreground)] px-1.5 py-0.5 rounded-[3px] font-medium leading-tight"
+                        >
+                            {skill}
+                        </span>
+                    ))
+                ) : (
+                    <span className="text-[9px] text-[var(--muted-foreground)]/50 italic">
+                        No skills listed
+                    </span>
+                )}
+                {skills.length > 5 && (
+                    <span className="text-[9px] bg-[var(--secondary)]/60 text-[var(--muted-foreground)] px-1 py-0.5 rounded-[3px] font-mono">
+                        +{skills.length - 5}
+                    </span>
+                )}
             </div>
+
+            {/* 6. Full-width ghost "View profile →" button pinned to card bottom via margin-top: auto */}
+            <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => onSelect && onSelect(member)}
+                className="w-full mt-auto text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--secondary)] justify-center h-7 py-1 px-2 rounded-lg transition-colors border border-transparent hover:border-[var(--border)] cursor-pointer"
+            >
+                <span>View profile</span>
+                <span className="ml-1 text-[var(--primary)] transition-transform group-hover:translate-x-0.5">
+                    →
+                </span>
+            </Button>
         </div>
     );
 }

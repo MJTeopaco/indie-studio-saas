@@ -2871,7 +2871,7 @@ export default function Inbox({
                                         <div className="w-16 h-16 rounded-3xl bg-brand/10 text-brand flex items-center justify-center mb-4 ring-8 ring-brand/5 shadow-2xs">
                                             <MessageSquare className="w-8 h-8" />
                                         </div>
-                                        <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Select a conversation</h3>
+                                        <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Select a Conversation</h3>
                                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-sm leading-relaxed">
                                             Choose a channel or direct message from the left sidebar to open the chat room. Messages will only be marked as seen after being opened.
                                         </p>

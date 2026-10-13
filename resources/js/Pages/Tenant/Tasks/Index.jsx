@@ -15,11 +15,11 @@ const VIEWS = [
     { key: 'board',    label: 'Board' },
     { key: 'list',     label: 'List' },
     { key: 'timeline', label: 'Timeline' },
-    { key: 'due',      label: 'Due tasks' },
+    { key: 'due',      label: 'Due Tasks' },
 ];
 
 const PRIORITIES = [
-    { key: 'all',      label: 'All priorities' },
+    { key: 'all',      label: 'All Priorities' },
     { key: 'critical', label: 'Critical' },
     { key: 'high',     label: 'High' },
     { key: 'medium',   label: 'Medium' },
@@ -206,17 +206,17 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
 
     return (
         <TenantLayout studioName={studio?.name || 'Studio'}>
-            <Head title={selectedProject ? `Tasks — ${selectedProject.name}` : "All tasks"} />
+            <Head title={selectedProject ? `Tasks — ${selectedProject.name}` : "All Tasks"} />
 
             <div className="flex-1 flex flex-col overflow-hidden bg-surface text-text-primary">
 
-                {/* ── Page Header: All tasks + Subtitle + New task CTA ── */}
+                {/* ── Page Header: All Tasks + Subtitle + New Task CTA ── */}
                 <div className="px-6 pt-5 pb-4 bg-surface-elevated/70 border-b border-surface-border shrink-0">
                     <div className="flex items-center justify-between gap-4 flex-wrap">
                         {/* Title and Subtitle */}
                         <div>
                             <h1 className="text-xl sm:text-2xl font-bold text-text-primary dark:text-slate-100 tracking-tight font-heading">
-                                {selectedProject ? selectedProject.name : 'All tasks'}
+                                {selectedProject ? selectedProject.name : 'All Tasks'}
                             </h1>
                             <p className="text-xs sm:text-sm text-text-muted mt-0.5">
                                 {selectedProject 
@@ -233,7 +233,7 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
                                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand hover:bg-brand-light text-white text-xs font-bold transition-all shadow-xs hover:shadow-md cursor-pointer focus-ring"
                             >
                                 <Plus className="w-4 h-4" />
-                                <span>New task</span>
+                                <span>New Task</span>
                             </button>
                         )}
                     </div>
@@ -286,7 +286,7 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
                                         className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface dark:bg-slate-900 border border-surface-border dark:border-slate-800 text-xs font-semibold text-text-primary hover:border-brand/50 transition-all focus-ring cursor-pointer shadow-2xs"
                                     >
                                         <span className="truncate max-w-[140px]">
-                                            {selectedProject ? selectedProject.name : 'All projects'}
+                                            {selectedProject ? selectedProject.name : 'All Projects'}
                                         </span>
                                         <ChevronDown className="w-3.5 h-3.5 text-text-muted shrink-0" />
                                     </button>
@@ -300,7 +300,7 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
                                                     selectedProjectId === 'all' ? 'bg-brand/10 text-brand font-bold' : 'text-text-primary hover:bg-surface dark:hover:bg-slate-800'
                                                 }`}
                                             >
-                                                All projects
+                                                All Projects
                                             </button>
                                             <div className="border-t border-surface-border dark:border-slate-800 my-0.5" />
                                             {projects.map(p => (
@@ -331,7 +331,7 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
                                     className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface dark:bg-slate-900 border border-surface-border dark:border-slate-800 text-xs font-semibold text-text-primary hover:border-brand/50 transition-all focus-ring cursor-pointer shadow-2xs"
                                 >
                                     <span className="capitalize">
-                                        {PRIORITIES.find(p => p.key === selectedPriority)?.label || 'All priorities'}
+                                        {PRIORITIES.find(p => p.key === selectedPriority)?.label || 'All Priorities'}
                                     </span>
                                     <ChevronDown className="w-3.5 h-3.5 text-text-muted shrink-0" />
                                 </button>
