@@ -11,12 +11,13 @@ class CentralDashboardController extends Controller
     {
         $user = $request->user();
 
-        return Inertia::render('Dashboard', [
+        return Inertia::render('CentralHub', [
             'ownedStudios' => $user->ownedStudios()->withCount('users')->get(['tenants.id', 'tenants.name', 'tenants.created_at']),
             'joinedStudios' => $user->joinedStudios()
                 ->where('tenants.owner_id', '!=', $user->id)
                 ->withCount('users')
                 ->get(['tenants.id', 'tenants.name', 'tenants.created_at']),
+            'canCreateStudio' => $user->canCreateStudio(),
         ]);
     }
 }

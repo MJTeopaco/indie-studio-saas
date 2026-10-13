@@ -14,8 +14,11 @@ Route::get('/', function () {
     ]);
 });
 
+// Temporary redirect from old central dashboard route
+Route::redirect('/dashboard', '/central');
+
 Route::middleware(['auth', 'verified', 'requires.onboarding'])->group(function () {
-    Route::get('/dashboard', [CentralDashboardController::class, 'index'])->name('dashboard');
+    Route::get('/central', [CentralDashboardController::class, 'index'])->name('central.hub');
 
     // Hub actions
     Route::post('/hub/studio', [HubController::class, 'createStudio'])->name('hub.studio.store');
@@ -34,6 +37,13 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar.update');
+    Route::delete('/profile/avatar', [ProfileController::class, 'destroyAvatar'])->name('profile.avatar.destroy');
+    Route::post('/profile/skills', [ProfileController::class, 'updateSkills'])->name('profile.skills.update');
+    Route::post('/profile/working-status', [ProfileController::class, 'updateWorkingStatus'])->name('profile.working-status.update');
+    Route::post('/profile/emergency-status', [ProfileController::class, 'declareEmergency'])->name('profile.emergency-status.store');
+    Route::post('/profile/working-status/instant', [ProfileController::class, 'instantStatusUpdate'])->name('profile.working-status.instant');
+    Route::delete('/profile/leave-requests/{id}', [ProfileController::class, 'cancelLeaveRequest'])->name('profile.leave-requests.cancel');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 

@@ -95,7 +95,7 @@ class MLEngineIntegrationController extends Controller
         ]);
 
         $description = $validated['description'];
-        $generator   = $this->mlService->streamDecomposeProject($description);
+        $generator = $this->mlService->streamDecomposeProject($description);
 
         return response()->stream(function () use ($generator) {
             foreach ($generator as $chunk) {
@@ -106,10 +106,10 @@ class MLEngineIntegrationController extends Controller
                 flush();
             }
         }, 200, [
-            'Content-Type'      => 'text/event-stream',
-            'Cache-Control'     => 'no-cache',
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
             'X-Accel-Buffering' => 'no',
-            'Connection'        => 'keep-alive',
+            'Connection' => 'keep-alive',
         ]);
     }
 
@@ -127,7 +127,7 @@ class MLEngineIntegrationController extends Controller
         ]);
 
         $description = $validated['description'];
-        $generator   = $this->mlService->streamDecomposeProjectHierarchically($description);
+        $generator = $this->mlService->streamDecomposeProjectHierarchically($description);
 
         return response()->stream(function () use ($generator) {
             foreach ($generator as $chunk) {
@@ -138,10 +138,10 @@ class MLEngineIntegrationController extends Controller
                 flush();
             }
         }, 200, [
-            'Content-Type'      => 'text/event-stream',
-            'Cache-Control'     => 'no-cache',
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
             'X-Accel-Buffering' => 'no',
-            'Connection'        => 'keep-alive',
+            'Connection' => 'keep-alive',
         ]);
     }
 
@@ -175,7 +175,7 @@ class MLEngineIntegrationController extends Controller
             'current_user_id' => auth()->id(),
         ];
 
-        if (!empty($validated['project_id'])) {
+        if (! empty($validated['project_id'])) {
             $context['project_id'] = $validated['project_id'];
             $project = Project::find($validated['project_id']);
             if ($project) {
@@ -203,8 +203,8 @@ class MLEngineIntegrationController extends Controller
         $context['projects'] = (clone $projectQuery)->get(['id', 'name', 'status'])->toArray();
 
         // Calculate stats via SQL aggregations
-        $taskQuery = \App\Models\Tenant\Task::query();
-        if (!empty($validated['project_id'])) {
+        $taskQuery = Task::query();
+        if (! empty($validated['project_id'])) {
             $taskQuery->where('project_id', $validated['project_id']);
         }
 
@@ -214,7 +214,7 @@ class MLEngineIntegrationController extends Controller
             ->whereNotNull('hard_constraint_date')
             ->whereDate('hard_constraint_date', '<', now())
             ->count();
-            
+
         $byStatus = (clone $taskQuery)
             ->selectRaw('status, count(*) as total')
             ->groupBy('status')

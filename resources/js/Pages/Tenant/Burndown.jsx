@@ -19,13 +19,13 @@ export default function Burndown({ burndownData = [], studioName }) {
                     </div>
 
                     {burndownData.length === 0 ? (
-                        <div className="bg-white dark:bg-slate-800 rounded-xl p-8 text-center shadow-sm border border-gray-200 dark:border-slate-700">
+                        <div className="bg-white dark:bg-slate-800 rounded-xl p-8 text-center shadow-xs border border-gray-200 dark:border-slate-700">
                             <p className="text-gray-500 dark:text-gray-400">No active projects found.</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {burndownData.map((project) => (
-                                <div key={project.project_id} className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-slate-700">
+                                <div key={project.project_id} className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-xs border border-gray-200 dark:border-slate-700">
                                     <h2 className="text-lg font-heading font-semibold text-gray-900 dark:text-white flex items-center justify-between">
                                         {project.project_name}
                                         <span className="text-xs font-normal px-2.5 py-1 rounded-full bg-brand-10 text-brand">

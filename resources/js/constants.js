@@ -55,36 +55,36 @@ export const TASK_CLASSIFICATIONS_GROUPED = [
 
 export const TASK_TYPE_CLASSES = {
   // 1. PURPLE Family (Planning & Architecture)
-  "Product Requirements & Analysis": "bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20",
-  "Sprint & Roadmap Planning": "bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20",
-  "Market Viability Research": "bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20",
-  "System Architecture Design": "bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20",
-  "System Mechanics Planning": "bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20",
-  "UI/UX Prototyping & Wireframing": "bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20",
+  "Product Requirements & Analysis": "bg-purple-50 text-purple-700 border border-purple-100 dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20",
+  "Sprint & Roadmap Planning": "bg-purple-50 text-purple-700 border border-purple-100 dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20",
+  "Market Viability Research": "bg-purple-50 text-purple-700 border border-purple-100 dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20",
+  "System Architecture Design": "bg-purple-50 text-purple-700 border border-purple-100 dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20",
+  "System Mechanics Planning": "bg-purple-50 text-purple-700 border border-purple-100 dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20",
+  "UI/UX Prototyping & Wireframing": "bg-purple-50 text-purple-700 border border-purple-100 dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20",
 
   // 2. BLUE Family (Development)
-  "Feature Implementation": "bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20",
-  "Algorithm Optimization & Refactoring": "bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20",
-  "Bug Resolution & Hotfixing": "bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20",
-  "Third-Party API Setup": "bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20",
+  "Feature Implementation": "bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20",
+  "Algorithm Optimization & Refactoring": "bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20",
+  "Bug Resolution & Hotfixing": "bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20",
+  "Third-Party API Setup": "bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20",
 
   // 3. AMBER Family (AI & Data Science)
-  "Data Pre-processing & Pipeline Engineering": "bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20",
-  "Model Training & Fine-Tuning": "bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20",
-  "LLM Prompt Engineering & RAG Integration": "bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20",
-  "Algorithm Evaluation & Benchmarking": "bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20",
+  "Data Pre-processing & Pipeline Engineering": "bg-amber-50 text-amber-700 border border-amber-100 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20",
+  "Model Training & Fine-Tuning": "bg-amber-50 text-amber-700 border border-amber-100 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20",
+  "LLM Prompt Engineering & RAG Integration": "bg-amber-50 text-amber-700 border border-amber-100 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20",
+  "Algorithm Evaluation & Benchmarking": "bg-amber-50 text-amber-700 border border-amber-100 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20",
   
   // 4. GREEN Family (QA & Testing)
-  "Unit & Integration Testing": "bg-green-100 text-green-800 border border-green-200 dark:bg-green-500/10 dark:text-green-300 dark:border-green-500/20",
-  "Peer Code Review": "bg-green-100 text-green-800 border border-green-200 dark:bg-green-500/10 dark:text-green-300 dark:border-green-500/20",
-  "Hardware-in-the-Loop Testing": "bg-green-100 text-green-800 border border-green-200 dark:bg-green-500/10 dark:text-green-300 dark:border-green-500/20",
+  "Unit & Integration Testing": "bg-green-50 text-green-700 border border-green-100 dark:bg-green-500/10 dark:text-green-300 dark:border-green-500/20",
+  "Peer Code Review": "bg-green-50 text-green-700 border border-green-100 dark:bg-green-500/10 dark:text-green-300 dark:border-green-500/20",
+  "Hardware-in-the-Loop Testing": "bg-green-50 text-green-700 border border-green-100 dark:bg-green-500/10 dark:text-green-300 dark:border-green-500/20",
   
   // 5. TEAL Family (Hardware & Game Dev)
-  "Hardware Sensor Integration": "bg-teal-100 text-teal-800 border border-teal-200 dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/20",
-  "Game Engine Logic & Asset Integration": "bg-teal-100 text-teal-800 border border-teal-200 dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/20",
+  "Hardware Sensor Integration": "bg-teal-50 text-teal-700 border border-teal-100 dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/20",
+  "Game Engine Logic & Asset Integration": "bg-teal-50 text-teal-700 border border-teal-100 dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/20",
 
   // 6. ROSE Family (DevOps & Infrastructure)
-  "Client-Based Environment Provisioning": "bg-rose-100 text-rose-800 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20",
-  "Container Orchestration & Deployment": "bg-rose-100 text-rose-800 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20",
-  "DevSecOps & Security Auditing": "bg-rose-100 text-rose-800 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20",
+  "Client-Based Environment Provisioning": "bg-rose-50 text-rose-700 border border-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20",
+  "Container Orchestration & Deployment": "bg-rose-50 text-rose-700 border border-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20",
+  "DevSecOps & Security Auditing": "bg-rose-50 text-rose-700 border border-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20",
 };

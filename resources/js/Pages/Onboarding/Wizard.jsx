@@ -1,14 +1,16 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm } from '@inertiajs/react';
-import { useState } from 'react';
-import WizardCard from '@/Components/Onboarding/WizardCard';
-import ProgressIndicator from '@/Components/Onboarding/ProgressIndicator';
+import React, { useState } from 'react';
+import { Head, useForm, usePage } from '@inertiajs/react';
+import OnboardingSplitLayout from '@/Components/Onboarding/OnboardingSplitLayout';
+import OnboardingPreviewShowcase from '@/Components/Onboarding/OnboardingPreviewShowcase';
 import StepOneIdentity from '@/Components/Onboarding/StepOneIdentity';
 import StepTwoSkills from '@/Components/Onboarding/StepTwoSkills';
 import StepThreeLogistics from '@/Components/Onboarding/StepThreeLogistics';
 import WizardNavigation from '@/Components/Onboarding/WizardNavigation';
 
-export default function Wizard({ positions, skills }) {
+export default function Wizard({ positions = [], skills = {} }) {
+    const { auth } = usePage().props;
+    const userName = auth?.user?.name || 'Developer';
+
     const [currentStep, setCurrentStep] = useState(1);
 
     const { data, setData, post, processing, errors, clearErrors, setError } = useForm({
@@ -63,7 +65,6 @@ export default function Wizard({ positions, skills }) {
         e.preventDefault();
         clearErrors();
         
-        // Final client validation for Step 3
         let hasErrors = false;
         if (!data.max_hours_per_week) {
             setError('max_hours_per_week', 'Please select your weekly capacity.');
@@ -79,51 +80,83 @@ export default function Wizard({ positions, skills }) {
         }
     };
 
+    const stepHeadings = {
+        1: {
+            title: `Welcome, ${userName}!`,
+            subtitle: (
+                <div className="space-y-1">
+                    <p className="text-xs sm:text-sm font-bold text-brand uppercase tracking-wider font-mono">
+                        Core Professional Identity
+                    </p>
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                        Set up your developer passport for AI capacity matching and team coordination.
+                    </p>
+                </div>
+            )
+        },
+        2: {
+            title: "The Vector Skill Matrix",
+            subtitle: "Rate your technical proficiency to power GNN recommendation models."
+        },
+        3: {
+            title: "Availability & Logistics",
+            subtitle: "Define your weekly capacity and timezone for automated sprint scheduling."
+        }
+    };
+
     return (
-        <AuthenticatedLayout>
-            <Head title="Developer Passport Setup" />
+        <OnboardingSplitLayout
+            title={stepHeadings[currentStep].title}
+            subtitle={stepHeadings[currentStep].subtitle}
+            currentStep={currentStep}
+            totalSteps={3}
+            showStepper={true}
+            rightContent={
+                <OnboardingPreviewShowcase
+                    step={currentStep}
+                    data={data}
+                    positions={positions}
+                />
+            }
+        >
+            <Head title="Developer Passport Setup — StudioSprint" />
 
-            <div className="py-12 px-4 sm:px-6 lg:px-8 flex justify-center">
-                <WizardCard currentStep={currentStep}>
-                    <ProgressIndicator currentStep={currentStep} totalSteps={3} />
-                    
-                    <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-                        <div className="min-h-[300px]">
-                            {currentStep === 1 && (
-                                <StepOneIdentity 
-                                    data={data} 
-                                    setData={setData} 
-                                    errors={errors} 
-                                    positions={positions} 
-                                />
-                            )}
-                            {currentStep === 2 && (
-                                <StepTwoSkills 
-                                    data={data} 
-                                    setData={setData} 
-                                    errors={errors} 
-                                    skills={skills} 
-                                />
-                            )}
-                            {currentStep === 3 && (
-                                <StepThreeLogistics 
-                                    data={data} 
-                                    setData={setData} 
-                                    errors={errors} 
-                                />
-                            )}
-                        </div>
-
-                        <WizardNavigation 
-                            currentStep={currentStep} 
-                            totalSteps={3}
-                            onNext={handleNext}
-                            onBack={handleBack}
-                            processing={processing}
+            <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="min-h-[280px]">
+                    {currentStep === 1 && (
+                        <StepOneIdentity 
+                            data={data} 
+                            setData={setData} 
+                            errors={errors} 
+                            positions={positions} 
                         />
-                    </form>
-                </WizardCard>
-            </div>
-        </AuthenticatedLayout>
+                    )}
+                    {currentStep === 2 && (
+                        <StepTwoSkills 
+                            data={data} 
+                            setData={setData} 
+                            errors={errors} 
+                            skills={skills} 
+                        />
+                    )}
+                    {currentStep === 3 && (
+                        <StepThreeLogistics 
+                            data={data} 
+                            setData={setData} 
+                            errors={errors} 
+                        />
+                    )}
+                </div>
+
+                <WizardNavigation 
+                    currentStep={currentStep} 
+                    totalSteps={3}
+                    onNext={handleNext}
+                    onBack={handleBack}
+                    processing={processing}
+                    canSubmit={Boolean(data.max_hours_per_week && data.timezone)}
+                />
+            </form>
+        </OnboardingSplitLayout>
     );
 }

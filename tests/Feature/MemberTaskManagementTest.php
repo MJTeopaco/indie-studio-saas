@@ -126,7 +126,7 @@ class MemberTaskManagementTest extends TestCase
         $response->assertForbidden();
     }
 
-    public function test_member_cannot_move_task_back_to_todo_once_started(): void
+    public function test_member_can_move_task_back_to_todo_once_started(): void
     {
         $task = Task::factory()->create([
             'project_id' => $this->project->id,
@@ -144,10 +144,11 @@ class MemberTaskManagementTest extends TestCase
             'sprint_status' => 'ready_to_start',
         ]);
 
-        $response->assertStatus(422);
+        $response->assertOk();
 
         $task->refresh();
-        $this->assertEquals('in_progress', $task->status);
+        $this->assertEquals('todo', $task->status);
+        $this->assertEquals('ready_to_start', $task->sprint_status);
     }
 
     public function test_member_can_mark_task_as_stuck_during_in_progress(): void
@@ -350,5 +351,63 @@ class MemberTaskManagementTest extends TestCase
         ]);
 
         $response->assertForbidden();
+    }
+
+    public function test_member_sees_tasks_assigned_via_assignments_table_on_tasks_index(): void
+    {
+        $task = Task::factory()->create([
+            'project_id' => $this->project->id,
+            'assigned_user_id' => null,
+            'status' => 'in_progress',
+        ]);
+
+        DB::table('assignments')->insert([
+            'task_id' => $task->id,
+            'employee_user_id' => $this->memberUser->id,
+            'status' => 'active',
+            'assigned_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->memberUser);
+
+        $response = $this->get(route('tenant.tasks', ['tenant' => 'test']));
+        $response->assertOk();
+
+        $response->assertInertia(fn ($page) => $page->component('Tenant/Tasks/Index')
+            ->has("tasks.{$this->project->id}", 1)
+            ->where("tasks.{$this->project->id}.0.id", $task->id)
+            ->where("tasks.{$this->project->id}.0.assignee", $this->memberUser->name)
+        );
+    }
+
+    public function test_member_sees_tasks_assigned_via_assignments_table_on_dashboard(): void
+    {
+        $task = Task::factory()->create([
+            'project_id' => $this->project->id,
+            'assigned_user_id' => null,
+            'status' => 'in_progress',
+        ]);
+
+        DB::table('assignments')->insert([
+            'task_id' => $task->id,
+            'employee_user_id' => $this->memberUser->id,
+            'status' => 'active',
+            'assigned_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->memberUser);
+
+        $response = $this->get(route('tenant.dashboard', ['tenant' => 'test']));
+        $response->assertOk();
+
+        $response->assertInertia(fn ($page) => $page->component('Tenant/MemberDashboard')
+            ->has('myTasks', 1)
+            ->where('myTasks.0.id', $task->id)
+            ->where('myTasks.0.is_doer', true)
+        );
     }
 }

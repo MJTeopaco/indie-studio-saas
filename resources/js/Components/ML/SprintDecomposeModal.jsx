@@ -154,7 +154,7 @@ function StageIndicator({ stages, currentStage, pct }) {
 
             <div className="w-full bg-gray-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
                 <div
-                    className="h-full bg-gradient-to-r from-brand via-brand-light to-brand rounded-full transition-[width] duration-500 ease-out"
+                    className="h-full bg-linear-to-r from-brand via-brand-light to-brand rounded-full transition-[width] duration-500 ease-out"
                     style={{ width: `${pct}%` }}
                 />
             </div>
@@ -257,7 +257,7 @@ function SkillPillEditor({ skills = [], onChange }) {
             {skills.map((skill, idx) => (
                 <div
                     key={`${skill.name}-${idx}`}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 dark:bg-indigo-500/15 border border-indigo-500/25 text-indigo-700 dark:text-indigo-300 text-xs font-semibold shadow-sm transition-all"
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 dark:bg-indigo-500/15 border border-indigo-500/25 text-indigo-700 dark:text-indigo-300 text-xs font-semibold shadow-xs transition-all"
                 >
                     <span>{skill.name}</span>
 
@@ -298,7 +298,7 @@ function SkillPillEditor({ skills = [], onChange }) {
                         defaultValue=""
                         onChange={(e) => handleAddSkill(e.target.value)}
                         onBlur={() => setIsAdding(false)}
-                        className="text-xs rounded-full px-3 py-1 bg-white dark:bg-slate-800 border border-indigo-500 text-gray-900 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                        className="text-xs rounded-full px-3 py-1 bg-white dark:bg-slate-800 border border-indigo-500 text-gray-900 dark:text-slate-100 shadow-xs focus:ring-2 focus:ring-indigo-500/20 focus:outline-hidden"
                     >
                         <option value="" disabled>Select canonical skill...</option>
                         {Object.entries(SKILL_CATEGORIES).map(([category, names]) => (
@@ -405,7 +405,7 @@ function InlineAssignment({ taskIndex, teamMembers = [], fitState, onAssign, onR
             {/* Top suggestion chip (when not yet assigned) */}
             {!loading && !error && topCandidate && getMember(topCandidate.user_id) && assignedUserIds.length === 0 && (
                 <div className="flex items-center gap-2 p-2 rounded-xl border border-brand/25 bg-brand/5 dark:bg-brand/10">
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-brand to-brand-dark text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                    <div className="w-6 h-6 rounded-full bg-linear-to-br from-brand to-brand-dark text-white text-[10px] font-bold flex items-center justify-center shrink-0">
                         {getInitial(topCandidate.user_id)}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -443,7 +443,7 @@ function InlineAssignment({ taskIndex, teamMembers = [], fitState, onAssign, onR
                             }
                             e.target.value = '';
                         }}
-                        className="flex-1 text-[11px] rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-gray-700 dark:text-slate-300 outline-none focus:border-brand"
+                        className="flex-1 text-[11px] rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-gray-700 dark:text-slate-300 outline-hidden focus:border-brand"
                     >
                         <option value="">{assignedUserIds.length === 0 ? '↕ Change suggestion…' : '+ Add another person…'}</option>
                         {candidates.filter(c => getMember(c.user_id)).map(c => (
@@ -467,7 +467,7 @@ function InlineAssignment({ taskIndex, teamMembers = [], fitState, onAssign, onR
                         }
                         e.target.value = '';
                     }}
-                    className="w-full text-[11px] rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-gray-700 dark:text-slate-300 outline-none focus:border-brand"
+                    className="w-full text-[11px] rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-gray-700 dark:text-slate-300 outline-hidden focus:border-brand"
                 >
                     <option value="">Assign manually…</option>
                     {teamMembers.map(m => (
@@ -504,7 +504,7 @@ function EditableTaskCard({ task, index, updateTask, removeTask, teamMembers, fi
     };
 
     return (
-        <div className="group p-5 rounded-2xl border border-gray-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 shadow-sm hover:border-indigo-500/40 dark:hover:border-indigo-500/40 hover:shadow-md transition-all duration-300 space-y-4">
+        <div className="group p-5 rounded-2xl border border-gray-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 shadow-xs hover:border-indigo-500/40 dark:hover:border-indigo-500/40 hover:shadow-md transition-all duration-300 space-y-4">
             {/* Title Row */}
             <div className="flex items-center gap-3">
                 <div className="w-7 h-7 rounded-full bg-indigo-500/10 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 text-xs font-extrabold flex items-center justify-center shrink-0 border border-indigo-500/20 shadow-inner">
@@ -516,7 +516,7 @@ function EditableTaskCard({ task, index, updateTask, removeTask, teamMembers, fi
                     value={task.title || ''}
                     onChange={(e) => updateTask(index, 'title', e.target.value)}
                     placeholder="Task Title..."
-                    className="flex-1 px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-slate-100 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder-gray-400 dark:placeholder-slate-500"
+                    className="flex-1 px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-slate-100 outline-hidden focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder-gray-400 dark:placeholder-slate-500"
                 />
 
                 <button
@@ -539,7 +539,7 @@ function EditableTaskCard({ task, index, updateTask, removeTask, teamMembers, fi
                         updateTask(index, 'description', e.target.value);
                     }}
                     placeholder="Describe the task objective and requirements..."
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 text-xs text-gray-700 dark:text-slate-300 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all resize-none placeholder-gray-400 dark:placeholder-slate-500 leading-relaxed"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 text-xs text-gray-700 dark:text-slate-300 outline-hidden focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all resize-none placeholder-gray-400 dark:placeholder-slate-500 leading-relaxed"
                 />
             </div>
 
@@ -650,7 +650,7 @@ function EditableTaskCard({ task, index, updateTask, removeTask, teamMembers, fi
 
 function TaskAssignmentCard({ task, index, teamMembers, fitState, onAssign, onRemoveMember, onClear }) {
     return (
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-3 flex items-start gap-3">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-extrabold text-indigo-600 dark:text-indigo-400">{index + 1}</span>
                 <div className="min-w-0">
@@ -975,7 +975,7 @@ export default function SprintDecomposeModal({
                                     onChange={e => setDescription(e.target.value)}
                                     placeholder="E.g. We need to build a new telemetry dashboard, add a user profile page, and secure the webhook endpoint..."
                                     rows={5}
-                                    className="w-full p-4 rounded-xl bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all text-sm resize-none outline-none text-gray-900 dark:text-slate-100 placeholder-gray-400"
+                                    className="w-full p-4 rounded-xl bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all text-sm resize-none outline-hidden text-gray-900 dark:text-slate-100 placeholder-gray-400"
                                 />
                             </div>
 
@@ -1024,7 +1024,7 @@ export default function SprintDecomposeModal({
 
                     {/* AI SPRINT OVERVIEW (Visible on both Review and Assign phases) */}
                     {(phase === 'review' || phase === 'assign') && editableTasks && sprintExplanation && (
-                        <div className="rounded-2xl border border-brand/30 bg-brand/5 dark:bg-brand/10 p-4 shadow-sm transition-all mb-4">
+                        <div className="rounded-2xl border border-brand/30 bg-brand/5 dark:bg-brand/10 p-4 shadow-xs transition-all mb-4">
                             <div 
                                 className="flex items-center justify-between cursor-pointer select-none"
                                 onClick={() => setIsOverviewExpanded(!isOverviewExpanded)}

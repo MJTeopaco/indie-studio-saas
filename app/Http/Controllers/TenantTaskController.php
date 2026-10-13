@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\TaskStatusUpdated;
 use App\Models\Studio;
 use App\Models\Tenant\Project;
 use App\Models\Tenant\Task;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class TenantTaskController extends Controller
@@ -30,11 +34,46 @@ class TenantTaskController extends Controller
             $isManager = in_array($role, ['owner', 'leader', 'manager']);
         }
 
-        $projects = Project::latest()->get()->map(fn (Project $project) => [
-            'id' => $project->id,
-            'name' => $project->name,
-            'status' => $project->status,
-        ])->all();
+        if ($isManager) {
+            $projects = Project::latest()->get()->map(fn (Project $project) => [
+                'id' => $project->id,
+                'name' => $project->name,
+                'status' => $project->status,
+                'start_date' => $project->start_date?->format('Y-m-d'),
+                'target_end_date' => $project->target_end_date?->format('Y-m-d'),
+            ])->all();
+        } else {
+            $assignedProjectIds = DB::table('project_members')
+                ->where('user_id', $user->id)
+                ->pluck('project_id')
+                ->merge(
+                    Task::where('assigned_user_id', $user->id)
+                        ->orWhere('reviewer_user_id', $user->id)
+                        ->pluck('project_id')
+                );
+
+            if (Schema::hasTable('assignments')) {
+                $assignedTaskProjectIds = DB::table('assignments')
+                    ->join('tasks', 'assignments.task_id', '=', 'tasks.id')
+                    ->where('assignments.employee_user_id', $user->id)
+                    ->where('assignments.status', 'active')
+                    ->pluck('tasks.project_id');
+                $assignedProjectIds = $assignedProjectIds->merge($assignedTaskProjectIds);
+            }
+
+            $assignedProjectIds = $assignedProjectIds->unique()->filter()->values();
+
+            $projects = Project::whereIn('id', $assignedProjectIds)
+                ->latest()
+                ->get()
+                ->map(fn (Project $project) => [
+                    'id' => $project->id,
+                    'name' => $project->name,
+                    'status' => $project->status,
+                    'start_date' => $project->start_date?->format('Y-m-d'),
+                    'target_end_date' => $project->target_end_date?->format('Y-m-d'),
+                ])->all();
+        }
 
         $tasks = [];
         foreach ($projects as $project) {
@@ -45,45 +84,135 @@ class TenantTaskController extends Controller
                 $query->where(function ($q) use ($user) {
                     $q->where('assigned_user_id', $user->id)
                         ->orWhere('reviewer_user_id', $user->id);
+
+                    if (Schema::hasTable('assignments')) {
+                        $q->orWhereIn('id', function ($sub) use ($user) {
+                            $sub->select('task_id')
+                                ->from('assignments')
+                                ->where('employee_user_id', $user->id)
+                                ->where('status', 'active');
+                        });
+                    }
                 });
             }
 
-            $tasks[$project['id']] = $query->get()
-                ->map(fn (Task $task) => [
-                    'id' => $task->id,
-                    'project_id' => $task->project_id,
-                    'title' => $task->title,
-                    'description' => $task->description,
-                    'task_classification' => $task->task_classification,
-                    'required_position' => $task->required_position,
-                    'task_difficulty' => $task->task_difficulty,
-                    'priority' => $task->priority,
-                    'estimated_hours' => $task->estimated_hours,
-                    'days_until_deadline' => $task->days_until_deadline,
-                    'hard_constraint_date' => $task->hard_constraint_date?->format('Y-m-d'),
-                    'status' => $task->status,
-                    'sprint_status' => $task->sprint_status,
-                    'sprint_priority' => $task->sprint_priority,
-                    'story_points' => $task->story_points,
-                    'actual_story_points' => $task->actual_story_points,
-                    'github_link' => $task->github_link,
-                    'is_critical' => (bool) $task->is_critical,
-                    'assignee' => $task->assignee ? $task->assignee->name : null,
-                    'assigned_user_id' => $task->assigned_user_id,
-                    'reviewer' => $task->reviewer ? $task->reviewer->name : null,
-                    'reviewer_user_id' => $task->reviewer_user_id,
-                    'sprint_id' => $task->sprint_id,
-                    'sprint_name' => $task->sprint?->name,
-                    'epic_id' => $task->epic_id,
-                    'epic_name' => $task->epic?->name,
-                    'epic_color' => $task->epic?->color,
-                    'dueDate' => $task->hard_constraint_date
-                        ? $task->hard_constraint_date->format('Y-m-d')
-                        : ($task->days_until_deadline !== null
-                            ? now()->addDays($task->days_until_deadline)->toDateString()
-                            : null),
-                    'startDate' => now()->toDateString(),
-                ])->all();
+            $projectTasks = $query->get();
+            $taskIds = $projectTasks->pluck('id');
+
+            $assignmentsByTask = [];
+            if (Schema::hasTable('assignments') && $taskIds->isNotEmpty()) {
+                $activeAssignments = DB::table('assignments')
+                    ->whereIn('task_id', $taskIds)
+                    ->where('status', 'active')
+                    ->orderBy('assigned_at')
+                    ->get(['task_id', 'employee_user_id']);
+
+                $memberIds = $activeAssignments->pluck('employee_user_id')->unique()->filter();
+                $members = DB::connection(config('tenancy.database.central_connection', 'central'))
+                    ->table('users')
+                    ->whereIn('id', $memberIds)
+                    ->get(['id', 'name'])
+                    ->keyBy('id');
+
+                foreach ($activeAssignments as $assign) {
+                    if (! isset($assignmentsByTask[$assign->task_id])) {
+                        $assignmentsByTask[$assign->task_id] = [
+                            'user_id' => $assign->employee_user_id,
+                            'name' => $members[$assign->employee_user_id]->name ?? null,
+                        ];
+                    }
+                }
+            }
+
+            $projectStartDate = $project['start_date'] ?? null;
+            $projectCode = $this->deriveProjectCode($project['name']);
+
+            $tasks[$project['id']] = $projectTasks
+                ->map(function (Task $task) use ($assignmentsByTask, $project, $projectStartDate, $projectCode) {
+                    $fallbackAssignee = $assignmentsByTask[$task->id] ?? null;
+                    $assigneeName = $task->assignee ? $task->assignee->name : ($fallbackAssignee['name'] ?? null);
+                    $assignedUserId = $task->assigned_user_id ?? ($fallbackAssignee['user_id'] ?? null);
+
+                    $startDate = null;
+                    $dueDate = null;
+
+                    if ($projectStartDate && $task->es !== null) {
+                        $startDate = $this->deriveWorkingDate($projectStartDate, (float) $task->es);
+                    }
+                    if ($projectStartDate && $task->ef !== null) {
+                        $dueDate = $this->deriveWorkingDate($projectStartDate, (float) $task->ef);
+                    }
+
+                    if ($task->hard_constraint_date) {
+                        $dueDate = $task->hard_constraint_date->format('Y-m-d');
+                    }
+
+                    if (! $startDate) {
+                        if ($task->sprint?->start_date) {
+                            $startDate = $task->sprint->start_date->format('Y-m-d');
+                        } elseif ($task->created_at) {
+                            $startDate = $task->created_at->format('Y-m-d');
+                        } else {
+                            $startDate = now()->format('Y-m-d');
+                        }
+                    }
+
+                    if (! $dueDate) {
+                        if ($task->sprint?->end_date) {
+                            $dueDate = $task->sprint->end_date->format('Y-m-d');
+                        } elseif ($task->days_until_deadline !== null) {
+                            $dueDate = Carbon::parse($startDate)->addDays($task->days_until_deadline)->toDateString();
+                        } else {
+                            $durationDays = max(1, (int) ceil(($task->estimated_hours ?? 8) / 8));
+                            $dueDate = Carbon::parse($startDate)->addDays($durationDays)->toDateString();
+                        }
+                    }
+
+                    if ($dueDate < $startDate) {
+                        $durationDays = max(1, (int) ceil(($task->estimated_hours ?? 8) / 8));
+                        $startDate = Carbon::parse($dueDate)->subDays($durationDays)->toDateString();
+                    }
+
+                    $taskKey = sprintf('%s-%03d', $projectCode, $task->id);
+
+                    return [
+                        'id' => $task->id,
+                        'project_id' => $task->project_id,
+                        'project_name' => $project['name'],
+                        'project_code' => $projectCode,
+                        'task_key' => $taskKey,
+                        'title' => $task->title,
+                        'description' => $task->description,
+                        'task_classification' => $task->task_classification,
+                        'required_position' => $task->required_position,
+                        'task_difficulty' => $task->task_difficulty,
+                        'priority' => $task->priority,
+                        'estimated_hours' => $task->estimated_hours,
+                        'days_until_deadline' => $task->days_until_deadline,
+                        'hard_constraint_date' => $task->hard_constraint_date?->format('Y-m-d'),
+                        'status' => $task->status,
+                        'sprint_status' => $task->sprint_status,
+                        'sprint_priority' => $task->sprint_priority,
+                        'story_points' => $task->story_points,
+                        'github_link' => $task->github_link,
+                        'is_critical' => (bool) $task->is_critical,
+                        'assignee' => $assigneeName,
+                        'assigned_user_id' => $assignedUserId,
+                        'reviewer' => $task->reviewer ? $task->reviewer->name : null,
+                        'reviewer_user_id' => $task->reviewer_user_id,
+                        'sprint_id' => $task->sprint_id,
+                        'sprint_name' => $task->sprint?->name,
+                        'epic_id' => $task->epic_id,
+                        'epic_name' => $task->epic?->name,
+                        'epic_color' => $task->epic?->color,
+                        'es' => $task->es,
+                        'ef' => $task->ef,
+                        'total_float' => $task->total_float,
+                        'dueDate' => $dueDate,
+                        'startDate' => $startDate,
+                        'created_at' => $task->created_at?->toIso8601String(),
+                    ];
+                })->all();
         }
 
         return Inertia::render('Tenant/Tasks/Index', [
@@ -147,8 +276,8 @@ class TenantTaskController extends Controller
 
         $validated = $request->validate([
             'status' => 'sometimes|required|string|in:todo,in_progress,review,completed,stuck',
-            'sprint_status' => 'sometimes|nullable|string|in:ready_to_start,in_progress,waiting_for_review,pending_deploy,done,stuck',
-            'actual_story_points' => 'sometimes|nullable|integer|min:0|max:100',
+            'sprint_status' => 'sometimes|nullable|string|in:ready_to_start,in_progress,waiting_for_review,done,stuck',
+            'story_points' => 'sometimes|nullable|integer|min:0|max:100',
             'github_link' => 'sometimes|nullable|url|max:500',
         ]);
 
@@ -158,7 +287,6 @@ class TenantTaskController extends Controller
                 'ready_to_start' => 'todo',
                 'in_progress' => 'in_progress',
                 'waiting_for_review' => 'review',
-                'pending_deploy' => 'review',
                 'done' => 'completed',
                 'stuck' => 'stuck',
             ];
@@ -185,7 +313,7 @@ class TenantTaskController extends Controller
             $currentStatus = $taskModel->status;
 
             // Only the reviewer (or manager) can mark "in review" tasks as completed
-            if ($currentStatus === 'review' && $newStatus === 'completed' && ! $isReviewer) {
+            if ($currentStatus === 'review' && $newStatus === 'completed' && $hasReviewer && ! $isReviewer) {
                 abort(403, 'Only the assigned reviewer can mark this task as done.');
             }
 
@@ -194,10 +322,6 @@ class TenantTaskController extends Controller
                 abort(403, 'This task requires reviewer approval. Move it to "In Review" first.');
             }
 
-            // Prevent going back to "todo" from "in_progress" or beyond
-            if (in_array($currentStatus, ['in_progress', 'review', 'completed']) && $newStatus === 'todo') {
-                abort(422, 'You cannot move a task back to "To Do" once started.');
-            }
         }
 
         if ($newStatus === 'completed') {
@@ -210,7 +334,21 @@ class TenantTaskController extends Controller
 
         $taskModel->update($validated);
 
-        if ($request->wantsJson() || $request->ajax()) {
+        try {
+            $studioId = (string) (tenant('id') ?? $request->route('tenant'));
+            broadcast(new TaskStatusUpdated(
+                $studioId,
+                (int) $taskModel->id,
+                (string) ($taskModel->status ?? ''),
+                array_merge($taskModel->toArray(), [
+                    'reviewer_user_id' => $taskModel->reviewer_user_id,
+                ])
+            ))->toOthers();
+        } catch (\Throwable $e) {
+            Log::warning('TaskStatusUpdated broadcast failed: '.$e->getMessage());
+        }
+
+        if (! $request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
             return response()->json([
                 'status' => 'success',
                 'task' => array_merge($taskModel->toArray(), [
@@ -220,5 +358,51 @@ class TenantTaskController extends Controller
         }
 
         return redirect()->back()->with('success', 'Task status updated.');
+    }
+
+    /**
+     * Derive calendar date from a start date and working hours offset (skipping weekends).
+     */
+    private function deriveWorkingDate(?string $startDateStr, ?float $hoursOffset): ?string
+    {
+        if (! $startDateStr || $hoursOffset === null) {
+            return null;
+        }
+
+        $daysOffset = (int) floor($hoursOffset / 8);
+        $date = Carbon::parse($startDateStr);
+        $added = 0;
+
+        while ($added < $daysOffset) {
+            $date->addDay();
+            if (! $date->isWeekend()) {
+                $added++;
+            }
+        }
+
+        return $date->toDateString();
+    }
+
+    /**
+     * Derive a 2-4 letter uppercase project code from project name.
+     */
+    private function deriveProjectCode(string $name): string
+    {
+        $words = preg_split('/[\s\-_]+/', trim($name));
+        if (count($words) >= 2) {
+            $code = '';
+            foreach ($words as $w) {
+                if (! empty($w)) {
+                    $code .= strtoupper($w[0]);
+                }
+            }
+            if (strlen($code) >= 2 && strlen($code) <= 4) {
+                return $code;
+            }
+        }
+
+        $cleaned = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $name));
+
+        return substr($cleaned, 0, 3) ?: 'PRJ';
     }
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Head, usePage, Link, router } from '@inertiajs/react';
 import TenantLayout from '@/Layouts/TenantLayout';
 import BoardView    from '@/Components/Tenant/Tasks/BoardView';
@@ -7,39 +7,9 @@ import TimelineView from '@/Components/Tenant/Tasks/TimelineView';
 import DueView      from '@/Components/Tenant/Tasks/DueView';
 import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
 import MemberTaskDetailModal from '@/Components/Tenant/Tasks/MemberTaskDetailModal';
-
-// ── Inline Icons ──────────────────────────────────────────────────────────────
-const PlusIcon = () => (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-        <line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-        <line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-    </svg>
-);
-const ImportIcon = () => (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <polyline points="7 10 12 15 17 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-);
-const SearchIcon = () => (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-        <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2"/>
-        <line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-    </svg>
-);
-const ChevronDownIcon = () => (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-        <polyline points="6 9 12 15 18 9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-);
-const EmptyBoxIcon = () => (
-    <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-        <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        <polyline points="3.27 6.96 12 12.01 20.73 6.96" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        <line x1="12" y1="22.08" x2="12" y2="12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-);
+import TaskFlyoutInspector from '@/Components/Tenant/Tasks/TaskFlyoutInspector';
+import { Search, ChevronDown, PackageX, Plus, Filter } from 'lucide-react';
+import { showToast } from '@/Components/SystemToast';
 
 // ── View Tab Config ───────────────────────────────────────────────────────────
 const VIEWS = [
@@ -49,259 +19,451 @@ const VIEWS = [
     { key: 'due',      label: 'Due Tasks' },
 ];
 
+const PRIORITIES = [
+    { key: 'all',      label: 'All Priorities' },
+    { key: 'critical', label: 'Critical' },
+    { key: 'high',     label: 'High' },
+    { key: 'medium',   label: 'Medium' },
+    { key: 'low',      label: 'Low' },
+];
+
 export default function TasksIndex({ studio, projects = [], tasks = {}, isManager = false }) {
     const { activeWorkspace, canManage = false } = usePage().props;
     const hasManagerRights = isManager || Boolean(canManage);
 
-    // Active view tab
+    // Active view tab (default to timeline if navigated for timeline, else board)
     const [activeView, setActiveView] = useState('board');
 
-    // Selected project state
-    const [selectedProjectId, setSelectedProjectId] = useState(null);
+    // Selected project state: 'all' or a project id
+    const [selectedProjectId, setSelectedProjectId] = useState('all');
     const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
 
-    // Search query
+    // Selected priority filter
+    const [selectedPriority, setSelectedPriority] = useState('all');
+    const [priorityDropdownOpen, setPriorityDropdownOpen] = useState(false);
+
+    // Search query for tasks
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Modal states for updating task status
+    // Local task modal state
     const [selectedTask, setSelectedTask] = useState(null);
     const [taskModalOpen, setTaskModalOpen] = useState(false);
 
-    // Local tasks map state for optimistic UI updates
+    // Keep an internal mutable copy of tasks for immediate optimistic status changes
     const [localTasksMap, setLocalTasksMap] = useState(tasks);
 
     useEffect(() => {
         setLocalTasksMap(tasks);
     }, [tasks]);
 
+    // Real-time task status sync across team members via WebSocket
+    useEffect(() => {
+        const studioId = studio?.id || activeWorkspace?.id;
+        if (!studioId || typeof window === 'undefined' || !window.Echo) return;
+
+        const channel = window.Echo.private(`studio.${studioId}`);
+        channel.listen('.task.status.updated', (data) => {
+            if (data?.taskId && data?.status) {
+                setLocalTasksMap(prev => {
+                    const next = { ...prev };
+                    Object.keys(next).forEach(projId => {
+                        next[projId] = (next[projId] || []).map(t => {
+                            if (t.id === data.taskId) {
+                                return { ...t, status: data.status, ...(data.task || {}) };
+                            }
+                            return t;
+                        });
+                    });
+                    return next;
+                });
+            }
+        });
+
+        return () => {
+            channel.stopListening('.task.status.updated');
+        };
+    }, [studio?.id, activeWorkspace?.id]);
+
+    const selectedProject = projects.find(p => p.id === selectedProjectId) || null;
+
+    // Aggregate tasks based on project selection
+    const rawTasks = useMemo(() => {
+        if (!selectedProjectId || selectedProjectId === 'all') {
+            return Object.values(localTasksMap).flat();
+        }
+        return localTasksMap[selectedProjectId] || [];
+    }, [localTasksMap, selectedProjectId]);
+
+    // Filter tasks based on search and priority
+    const filteredTasks = useMemo(() => {
+        return rawTasks.filter(t => {
+            if (searchQuery.trim()) {
+                const q = searchQuery.toLowerCase();
+                const assigneeName = typeof t.assignee === 'string' 
+                    ? t.assignee 
+                    : (t.assignee?.name || '');
+                const matches = (
+                    (t.title && t.title.toLowerCase().includes(q)) ||
+                    (t.description && t.description.toLowerCase().includes(q)) ||
+                    (t.task_key && t.task_key.toLowerCase().includes(q)) ||
+                    (t.project_name && t.project_name.toLowerCase().includes(q)) ||
+                    (assigneeName && assigneeName.toLowerCase().includes(q))
+                );
+                if (!matches) return false;
+            }
+
+            if (selectedPriority && selectedPriority !== 'all') {
+                if (t.priority?.toLowerCase() !== selectedPriority.toLowerCase()) {
+                    return false;
+                }
+            }
+
+            return true;
+        });
+    }, [rawTasks, searchQuery, selectedPriority]);
+
+    // Open task details drawer sheet
     const handleTaskClick = (task) => {
         setSelectedTask(task);
+    };
+
+    // Open task creation modal
+    const handleNewTask = () => {
+        setSelectedTask(null);
         setTaskModalOpen(true);
     };
 
-    const handleStatusChange = (task, newStatus) => {
-        // Optimistically update status locally
+    // Inline update handler for Task Details Drawer
+    const handleUpdateTask = (taskId, patch) => {
+        const sprintStatusMap = {
+            todo: 'ready_to_start',
+            in_progress: 'in_progress',
+            review: 'waiting_for_review',
+            completed: 'done',
+            stuck: 'stuck',
+        };
+        const augmentedPatch = { ...patch };
+        if (patch.status && !patch.sprint_status && sprintStatusMap[patch.status]) {
+            augmentedPatch.sprint_status = sprintStatusMap[patch.status];
+        }
+
         setLocalTasksMap(prev => {
             const copy = { ...prev };
-            const projectList = copy[task.project_id] || [];
-            copy[task.project_id] = projectList.map(t => t.id === task.id ? { ...t, status: newStatus } : t);
+            for (const pid of Object.keys(copy)) {
+                copy[pid] = copy[pid].map(t =>
+                    t.id === taskId ? { ...t, ...augmentedPatch } : t
+                );
+            }
             return copy;
         });
 
+        if (selectedTask && selectedTask.id === taskId) {
+            setSelectedTask(prev => prev ? { ...prev, ...augmentedPatch } : null);
+        }
+
+        const targetProject = selectedTask?.project_id || projects[0]?.id;
+        if (targetProject) {
+            router.patch(
+                route('tenant.projects.tasks.update', {
+                    tenant: activeWorkspace,
+                    project: targetProject,
+                    task: taskId,
+                }),
+                augmentedPatch,
+                {
+                    preserveScroll: true,
+                    preserveState: true,
+                    onError: (errors) => {
+                        setLocalTasksMap(tasks);
+                        const msg = typeof errors === 'string'
+                            ? errors
+                            : Object.values(errors || {})[0] || 'Failed to update task';
+                        showToast(msg, 'error');
+                    },
+                }
+            );
+        }
+    };
+
+    // Callback when moving cards in BoardView
+    const handleStatusChange = (task, newStatus) => {
+        const sprintStatusMap = {
+            todo: 'ready_to_start',
+            in_progress: 'in_progress',
+            review: 'waiting_for_review',
+            completed: 'done',
+            stuck: 'stuck',
+        };
+        const newSprintStatus = sprintStatusMap[newStatus] || newStatus;
+
+        // Optimistic UI update
+        setLocalTasksMap(prev => {
+            const copy = { ...prev };
+            const projectList = copy[task.project_id] || [];
+            copy[task.project_id] = projectList.map(t =>
+                t.id === task.id ? { ...t, status: newStatus, sprint_status: newSprintStatus } : t
+            );
+            return copy;
+        });
+
+        // Backend PATCH request
         router.patch(
             route('tenant.projects.tasks.update', {
                 tenant: activeWorkspace,
                 project: task.project_id,
-                task: task.id
+                task: task.id,
             }),
-            { status: newStatus },
+            {
+                status: newStatus,
+                sprint_status: newSprintStatus,
+            },
             {
                 preserveScroll: true,
+                preserveState: true,
                 onError: (errors) => {
-                    console.error('Failed to update status', errors);
-                    // Rollback on error
                     setLocalTasksMap(tasks);
-                }
+                    const msg = typeof errors === 'string'
+                        ? errors
+                        : Object.values(errors || {})[0] || 'Failed to update task position';
+                    showToast(msg, 'error');
+                },
             }
         );
     };
 
-    // Initialize selected project ID on mount or projects prop change
-    useEffect(() => {
-        if (projects.length > 0 && selectedProjectId === null) {
-            setSelectedProjectId(projects[0].id);
-        }
-    }, [projects]);
-
-    const selectedProject = projects.find(p => p.id === selectedProjectId) || projects[0];
-
-    // Filter tasks for the selected project
-    const rawProjectTasks = selectedProjectId ? (localTasksMap[selectedProjectId] || []) : [];
-    const projectTasks = rawProjectTasks.filter(task =>
-        searchQuery
-            ? task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-              (task.assignee && task.assignee.toLowerCase().includes(searchQuery.toLowerCase())) ||
-              (task.task_classification && task.task_classification.toLowerCase().includes(searchQuery.toLowerCase()))
-            : true
-    );
-
     return (
-        <TenantLayout>
-            <Head title={selectedProject ? `Tasks — ${selectedProject.name}` : "Tasks"} />
+        <TenantLayout studioName={studio?.name || 'Studio'}>
+            <Head title={selectedProject ? `Tasks — ${selectedProject.name}` : "All Tasks"} />
 
-            <div className="flex-1 flex flex-col overflow-hidden bg-gray-50 dark:bg-slate-950">
+            <div className="flex-1 flex flex-col overflow-hidden bg-surface text-text-primary">
 
-                {/* ── Top Bar ── */}
-                <div className="px-6 py-4 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800/80 shrink-0">
+                {/* ── Page Header: All Tasks + Subtitle + New Task CTA ── */}
+                <div className="px-6 pt-5 pb-4 bg-surface-elevated/70 border-b border-surface-border shrink-0">
                     <div className="flex items-center justify-between gap-4 flex-wrap">
-                        {/* Left: Project selector + Title */}
-                        <div className="flex items-center gap-3">
-                            {projects.length > 0 ? (
+                        {/* Title and Subtitle */}
+                        <div>
+                            <h1 className="text-xl sm:text-2xl font-bold text-text-primary dark:text-slate-100 tracking-tight font-heading">
+                                {selectedProject ? selectedProject.name : 'All Tasks'}
+                            </h1>
+                            <p className="text-xs sm:text-sm text-text-muted mt-0.5">
+                                {selectedProject 
+                                    ? (selectedProject.description || 'Every task in this project workspace.') 
+                                    : 'Every task. Every project. One clear view.'}
+                            </p>
+                        </div>
+
+                        {/* Top Right Action: + New task */}
+                        {hasManagerRights && projects.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={handleNewTask}
+                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand hover:bg-brand-light text-white text-xs font-bold transition-all shadow-xs hover:shadow-md cursor-pointer focus-ring"
+                            >
+                                <Plus className="w-4 h-4" />
+                                <span>New Task</span>
+                            </button>
+                        )}
+                    </div>
+
+                    {/* ── Filter Toolbar ── */}
+                    <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
+                        {/* Left: View Switcher Segmented Pills */}
+                        <div className="flex items-center bg-surface dark:bg-slate-900 border border-surface-border dark:border-slate-800 rounded-xl p-1 gap-1 shadow-2xs">
+                            {VIEWS.map(v => (
+                                <button
+                                    type="button"
+                                    key={v.key}
+                                    onClick={() => setActiveView(v.key)}
+                                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer focus-ring ${
+                                        activeView === v.key
+                                            ? 'bg-brand text-white shadow-2xs dark:bg-slate-800 dark:text-white dark:border dark:border-slate-700/80'
+                                            : 'text-text-muted hover:text-text-primary dark:hover:text-slate-200'
+                                    }`}
+                                >
+                                    {v.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Right: Search + Project Filter + Priority Filter */}
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                            {/* Search */}
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none">
+                                    <Search className="w-3.5 h-3.5" />
+                                </span>
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                    placeholder="Search tasks..."
+                                    className="pl-9 pr-4 py-1.5 w-44 sm:w-56 rounded-xl bg-surface dark:bg-slate-900 border border-surface-border dark:border-slate-800 focus-ring text-xs text-text-primary placeholder-text-muted transition-all shadow-2xs"
+                                />
+                            </div>
+
+                            {/* Project Filter Dropdown */}
+                            {projects.length > 0 && (
                                 <div className="relative">
                                     <button
-                                        onClick={() => setProjectDropdownOpen(p => !p)}
-                                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-800 dark:text-slate-200 hover:border-indigo-400 dark:hover:border-indigo-500/60 transition-all max-w-[280px]"
+                                        type="button"
+                                        onClick={() => {
+                                            setProjectDropdownOpen(o => !o);
+                                            setPriorityDropdownOpen(false);
+                                        }}
+                                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface dark:bg-slate-900 border border-surface-border dark:border-slate-800 text-xs font-semibold text-text-primary hover:border-brand/50 transition-all focus-ring cursor-pointer shadow-2xs"
                                     >
-                                        <span className="truncate">{selectedProject?.name}</span>
-                                        <ChevronDownIcon />
+                                        <span className="truncate max-w-[140px]">
+                                            {selectedProject ? selectedProject.name : 'All Projects'}
+                                        </span>
+                                        <ChevronDown className="w-3.5 h-3.5 text-text-muted shrink-0" />
                                     </button>
+
                                     {projectDropdownOpen && (
-                                        <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden min-w-[260px]">
+                                        <div className="absolute right-0 top-full mt-1.5 z-50 bg-surface-elevated dark:bg-slate-900 border border-surface-border dark:border-slate-800 rounded-xl shadow-xl overflow-hidden min-w-[200px] animate-in fade-in-50 zoom-in-95 duration-100">
+                                            <button
+                                                type="button"
+                                                onClick={() => { setSelectedProjectId('all'); setProjectDropdownOpen(false); }}
+                                                className={`w-full text-left px-3.5 py-2.5 text-xs transition-colors cursor-pointer ${
+                                                    selectedProjectId === 'all' ? 'bg-brand/10 text-brand font-bold' : 'text-text-primary hover:bg-surface dark:hover:bg-slate-800'
+                                                }`}
+                                            >
+                                                All Projects
+                                            </button>
+                                            <div className="border-t border-surface-border dark:border-slate-800 my-0.5" />
                                             {projects.map(p => (
                                                 <button
+                                                    type="button"
                                                     key={p.id}
                                                     onClick={() => { setSelectedProjectId(p.id); setProjectDropdownOpen(false); }}
-                                                    className={`w-full text-left px-4 py-3 text-sm transition-colors ${p.id === selectedProjectId ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 font-semibold' : 'text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800'}`}
+                                                    className={`w-full text-left px-3.5 py-2.5 text-xs transition-colors cursor-pointer ${
+                                                        p.id === selectedProjectId ? 'bg-brand/10 text-brand font-bold' : 'text-text-primary hover:bg-surface dark:hover:bg-slate-800'
+                                                    }`}
                                                 >
-                                                    <span className="block font-medium truncate">{p.name}</span>
-                                                    <span className="text-[10px] text-gray-400 dark:text-slate-500 capitalize">{p.status}</span>
+                                                    <span className="block truncate font-medium">{p.name}</span>
                                                 </button>
                                             ))}
                                         </div>
                                     )}
                                 </div>
-                            ) : (
-                                <h1 className="text-base font-bold text-gray-400 dark:text-slate-500">No Projects</h1>
-                            )}
-                        </div>
-
-                        {/* Right Actions */}
-                        <div className="flex items-center gap-3">
-                            {/* Search */}
-                            {projects.length > 0 && (
-                                <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 pointer-events-none">
-                                        <SearchIcon />
-                                    </span>
-                                    <input
-                                        type="text"
-                                        value={searchQuery}
-                                        onChange={e => setSearchQuery(e.target.value)}
-                                        placeholder="Search tasks..."
-                                        className="pl-9 pr-4 py-2 w-48 rounded-xl bg-gray-100 dark:bg-slate-800 border border-transparent focus:border-indigo-400 text-xs text-gray-800 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none transition-all"
-                                    />
-                                </div>
                             )}
 
-                            {selectedProjectId && (
-                                <Link
-                                    href={route('tenant.projects.show', { tenant: activeWorkspace, project: selectedProjectId })}
-                                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm transition-all"
+                            {/* Priority Filter Dropdown */}
+                            <div className="relative">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setPriorityDropdownOpen(o => !o);
+                                        setProjectDropdownOpen(false);
+                                    }}
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface dark:bg-slate-900 border border-surface-border dark:border-slate-800 text-xs font-semibold text-text-primary hover:border-brand/50 transition-all focus-ring cursor-pointer shadow-2xs"
                                 >
-                                    {hasManagerRights ? (
-                                        <>
-                                            <PlusIcon />
-                                            <span>Manage Tasks</span>
-                                        </>
-                                    ) : (
-                                        <span>Project Details</span>
-                                    )}
-                                </Link>
-                            )}
+                                    <span className="capitalize">
+                                        {PRIORITIES.find(p => p.key === selectedPriority)?.label || 'All Priorities'}
+                                    </span>
+                                    <ChevronDown className="w-3.5 h-3.5 text-text-muted shrink-0" />
+                                </button>
+
+                                {priorityDropdownOpen && (
+                                    <div className="absolute right-0 top-full mt-1.5 z-50 bg-surface-elevated dark:bg-slate-900 border border-surface-border dark:border-slate-800 rounded-xl shadow-xl overflow-hidden min-w-[160px] animate-in fade-in-50 zoom-in-95 duration-100">
+                                        {PRIORITIES.map(pr => (
+                                            <button
+                                                type="button"
+                                                key={pr.key}
+                                                onClick={() => { setSelectedPriority(pr.key); setPriorityDropdownOpen(false); }}
+                                                className={`w-full text-left px-3.5 py-2.5 text-xs transition-colors cursor-pointer ${
+                                                    pr.key === selectedPriority ? 'bg-brand/10 text-brand font-bold' : 'text-text-primary hover:bg-surface dark:hover:bg-slate-800'
+                                                }`}
+                                            >
+                                                {pr.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 {/* ── Empty State for Projects ── */}
                 {projects.length === 0 ? (
-                    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-gray-50 dark:bg-slate-950">
-                        <div className="text-gray-300 dark:text-slate-700 mb-4">
-                            <EmptyBoxIcon />
+                    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-surface">
+                        <div className="text-text-muted mb-4 opacity-40">
+                            <PackageX className="w-12 h-12" />
                         </div>
-                        <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">No Projects Found</h2>
-                        <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 max-w-sm">
-                            Create your first project to organize tasks, assign developers, and start planning sprints.
+                        <h2 className="text-lg font-bold text-text-primary">
+                            {hasManagerRights ? 'No Projects Found' : 'No Assigned Projects'}
+                        </h2>
+                        <p className="text-sm text-text-muted mt-1 max-w-sm">
+                            {hasManagerRights
+                                ? 'Create your first project to organize tasks, assign developers, and start planning sprints.'
+                                : 'You are not assigned to any projects yet. When you are added to a project or assigned tasks, your project details and tasks will appear here.'}
                         </p>
-                        <Link
-                            href={route('tenant.projects.index', { tenant: activeWorkspace })}
-                            className="mt-5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-colors shadow-md"
-                        >
-                            Go to Projects
-                        </Link>
+                        {hasManagerRights && (
+                            <Link
+                                href={route('tenant.projects.index', { tenant: activeWorkspace })}
+                                className="mt-5 px-4 py-2 rounded-xl bg-brand text-white text-xs font-bold hover:bg-brand-light transition-all shadow-2xs focus-ring"
+                            >
+                                Go to Projects
+                            </Link>
+                        )}
                     </div>
                 ) : (
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                        {/* ── Inline Viewing Options & Control Area (Outside navbar, in components area) ── */}
-                        <div className="px-6 py-3 border-b border-gray-100 dark:border-slate-800/50 bg-gray-50/50 dark:bg-slate-900/10 flex items-center justify-between shrink-0">
-                            {/* View Tabs */}
-                            <div className="flex items-center bg-gray-200/60 dark:bg-slate-800 rounded-xl p-1 gap-0.5">
-                                {VIEWS.map(v => (
-                                    <button
-                                        key={v.key}
-                                        onClick={() => setActiveView(v.key)}
-                                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 ${
-                                            activeView === v.key
-                                                ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 shadow-sm'
-                                                : 'text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200'
-                                        }`}
-                                    >
-                                        {v.label}
-                                    </button>
-                                ))}
-                            </div>
-
-                            <span className="text-xs text-gray-400 dark:text-slate-500 font-medium">
-                                Showing {projectTasks.length} task{projectTasks.length !== 1 ? 's' : ''}
-                            </span>
-                        </div>
-
-                        {/* ── Main View Content area ── */}
-                        <div className="flex-1 overflow-y-auto">
-                            {projectTasks.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center py-20 text-center">
-                                    <div className="text-gray-300 dark:text-slate-800 mb-3">
-                                        <EmptyBoxIcon />
-                                    </div>
-                                    <h3 className="text-sm font-bold text-gray-800 dark:text-slate-200">No Tasks Available</h3>
-                                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-1 max-w-xs">
-                                        {searchQuery ? "No tasks match your search query." : "There are currently no tasks defined for this project workspace."}
-                                    </p>
+                    <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
+                        {filteredTasks.length === 0 ? (
+                            <div className="flex-1 flex flex-col items-center justify-center py-20 text-center bg-surface-elevated dark:bg-slate-900/60 rounded-2xl border border-surface-border dark:border-slate-800">
+                                <div className="text-text-muted mb-3 opacity-40">
+                                    <PackageX className="w-10 h-10" />
                                 </div>
-                            ) : (
-                                <>
-                                    {activeView === 'board'    && <BoardView    tasks={projectTasks} onTaskClick={handleTaskClick} onStatusChange={handleStatusChange} />}
-                                    {activeView === 'list'     && <ListView     tasks={projectTasks} onTaskClick={handleTaskClick} />}
-                                    {activeView === 'timeline' && <TimelineView tasks={projectTasks} onTaskClick={handleTaskClick} />}
-                                    {activeView === 'due'      && <DueView      tasks={projectTasks} onTaskClick={handleTaskClick} />}
-                                </>
-                            )}
-                        </div>
+                                <h3 className="text-sm font-bold text-text-primary dark:text-slate-200">No Tasks Match Filter</h3>
+                                <p className="text-xs text-text-muted mt-1 max-w-xs">
+                                    {searchQuery || selectedPriority !== 'all' 
+                                        ? "Try adjusting your search keywords or priority filter." 
+                                        : "There are currently no tasks defined for this project workspace."}
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="flex-1 flex flex-col overflow-hidden">
+                                {activeView === 'board'    && <BoardView    tasks={filteredTasks} onTaskClick={handleTaskClick} onStatusChange={handleStatusChange} />}
+                                {activeView === 'list'     && <ListView     tasks={filteredTasks} onTaskClick={handleTaskClick} />}
+                                {activeView === 'timeline' && <TimelineView tasks={filteredTasks} onTaskClick={handleTaskClick} />}
+                                {activeView === 'due'      && <DueView      tasks={filteredTasks} onTaskClick={handleTaskClick} />}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
 
-            {/* Close project dropdown on outside click */}
-            {projectDropdownOpen && (
-                <div className="fixed inset-0 z-40" onClick={() => setProjectDropdownOpen(false)} />
+            {/* Close dropdowns on outside click */}
+            {(projectDropdownOpen || priorityDropdownOpen) && (
+                <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => { setProjectDropdownOpen(false); setPriorityDropdownOpen(false); }} 
+                    aria-hidden="true" 
+                />
             )}
 
-            {/* Modal for updating task */}
-            {taskModalOpen && selectedTask && (
-                hasManagerRights ? (
-                    <ManualTaskModal
-                        isOpen={taskModalOpen}
-                        onClose={() => { setTaskModalOpen(false); setSelectedTask(null); }}
-                        project={projects.find(p => p.id === selectedTask.project_id) || selectedProject}
-                        editingTask={selectedTask}
-                        tenantId={activeWorkspace}
-                    />
-                ) : (
-                    <MemberTaskDetailModal
-                        isOpen={taskModalOpen}
-                        onClose={() => { setTaskModalOpen(false); setSelectedTask(null); }}
-                        task={selectedTask}
-                        tenantId={activeWorkspace}
-                        currentUserId={usePage().props.auth?.user?.id}
-                        onTaskUpdated={(updatedTask) => {
-                            setLocalTasksMap(prev => {
-                                const copy = { ...prev };
-                                const projectList = copy[updatedTask.project_id] || [];
-                                copy[updatedTask.project_id] = projectList.map(t => t.id === updatedTask.id ? { ...t, ...updatedTask } : t);
-                                return copy;
-                            });
-                        }}
-                    />
-                )
+            {/* Task Details Drawer Sheet */}
+            {selectedTask && (
+                <TaskFlyoutInspector
+                    isOpen={Boolean(selectedTask)}
+                    task={selectedTask}
+                    onClose={() => setSelectedTask(null)}
+                    updateTask={handleUpdateTask}
+                    onUpdateStatus={(t, newStatus) => handleStatusChange(t, newStatus)}
+                    canManage={hasManagerRights}
+                    currentUserId={usePage().props.auth?.user?.id}
+                />
+            )}
+
+            {/* Modal for creating a new task */}
+            {taskModalOpen && !selectedTask && (
+                <ManualTaskModal
+                    isOpen={taskModalOpen}
+                    onClose={() => setTaskModalOpen(false)}
+                    project={selectedProject || projects[0]}
+                    editingTask={null}
+                    tenantId={activeWorkspace}
+                />
             )}
         </TenantLayout>
     );

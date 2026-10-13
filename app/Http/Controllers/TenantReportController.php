@@ -1,22 +1,20 @@
 <?php
 
+namespace App\Services;
+
 namespace App\Http\Controllers;
 
 use App\Mail\ReportSharedMail;
 use App\Models\Studio;
-use App\Services\ReportPdfGenerator;
 use App\Models\Tenant\ChannelMessage;
 use App\Models\Tenant\Project;
 use App\Models\Tenant\Report;
-use App\Models\Tenant\Sprint;
-use App\Models\Tenant\Task;
 use App\Models\User;
-use Carbon\Carbon;
+use App\Services\ReportDataService;
+use App\Services\ReportPdfGenerator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -25,44 +23,93 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TenantReportController extends Controller
 {
+    public function __construct(
+        protected ReportDataService $reportDataService
+    ) {}
+
     /**
-     * Display the Reports & Analytics dashboard.
+     * Display the WorkSync Report Center & Archive.
      */
     public function index(Request $request): Response
     {
         $tenantId = tenant('id') ?? (string) $request->route('tenant');
         $studio = Studio::find($tenantId);
+        $user = $request->user();
 
-        $projects = Project::with(['sprints' => function ($q) {
-            $q->orderBy('start_date', 'asc');
-        }])
+        $isLeader = $this->reportDataService->isLeaderOrManager($user, $tenantId);
+        $authorizedProjectIds = $this->reportDataService->getAuthorizedProjectIds($user, $tenantId);
+
+        // Fetch authorized projects
+        $projects = Project::whereIn('id', $authorizedProjectIds)
+            ->with(['sprints' => fn ($q) => $q->orderBy('start_date', 'asc')])
             ->orderBy('name', 'asc')
             ->get(['id', 'name', 'status', 'start_date', 'target_end_date']);
 
-        $selectedProjectId = $request->query('project_id') ? (int) $request->query('project_id') : ($projects->first()?->id ?? null);
-        $selectedSprintId = $request->query('sprint_id'); // can be null, integer, or 'all'
-
-        $initialReportData = null;
-        if ($selectedProjectId) {
-            $initialReportData = $this->calculateReportMetrics(
-                $selectedProjectId,
-                $selectedSprintId === 'all' || ! $selectedSprintId ? null : (int) $selectedSprintId,
-                $selectedSprintId === 'all' ? 'project' : ($selectedSprintId ? 'sprint' : 'sprint')
-            );
-        }
-
+        // Team members: Leaders get full team; members only get their own entry
         $teamMembers = [];
         if ($studio) {
             try {
-                $teamMembers = $studio->users()->get()->map(fn (User $u) => [
-                    'id' => $u->id,
-                    'name' => $u->name,
-                    'email' => $u->email,
-                    'role' => $u->role,
-                ])->all();
+                if ($isLeader) {
+                    $teamMembers = $studio->users()->orderBy('name')->get()->map(fn (User $u) => [
+                        'id' => $u->id,
+                        'name' => $u->name,
+                        'email' => $u->email,
+                        'role' => $u->role ?? 'Member',
+                    ])->all();
+                } else {
+                    $teamMembers = [[
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'role' => $user->role ?? 'Member',
+                    ]];
+                }
             } catch (\Throwable $e) {
-                // Fallback
+                // Ignore fallback
             }
+        }
+
+        // Available report types tailored to role
+        $availableReportTypes = $this->reportDataService->getAvailableReportTypes($user, $tenantId);
+
+        // Fetch archived reports filtered strictly by user authorization (creator only)
+        $accessibleArchivedReports = Report::where('created_by_user_id', $user->id)
+            ->latest()
+            ->get()
+            ->filter(fn (Report $r) => $this->reportDataService->canAccessReport($user, $r, $tenantId))
+            ->map(fn (Report $r) => [
+                'id' => $r->id,
+                'name' => $r->name,
+                'type' => $r->type,
+                'project_id' => $r->project_id,
+                'employee_user_id' => $r->employee_user_id,
+                'target_name' => $r->target_name,
+                'orientation' => $r->orientation ?? 'portrait',
+                'created_by' => $r->created_by,
+                'created_by_user_id' => $r->created_by_user_id,
+                'created_at' => $r->created_at->toIso8601String(),
+                'metrics' => $r->metrics,
+            ])
+            ->values()
+            ->all();
+
+        // Default initial report selection
+        $initialType = $request->query('type') ?? ($isLeader ? 'project_summary' : 'my_performance');
+        $initialProjectId = $request->query('project_id') ? (int) $request->query('project_id') : ($projects->first()?->id ?? null);
+        $initialSprintId = $request->query('sprint_id');
+
+        $initialReportData = null;
+        if ($initialProjectId || in_array($initialType, ['my_performance', 'my_tasks', 'my_task_activity', 'my_progress_analytics', 'team_performance'], true)) {
+            $initialReportData = $this->reportDataService->calculateReport(
+                $initialType,
+                [
+                    'project_id' => $initialProjectId,
+                    'sprint_id' => $initialSprintId,
+                    'employee_user_id' => $user->id,
+                ],
+                $user,
+                $tenantId
+            );
         }
 
         return Inertia::render('Tenant/Reports/Index', [
@@ -70,55 +117,265 @@ class TenantReportController extends Controller
                 'id' => $studio ? $studio->id : $tenantId,
                 'name' => $studio ? $studio->name : 'Studio',
             ],
+            'currentUser' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+            ],
+            'isLeader' => $isLeader,
             'projects' => $projects,
             'teamMembers' => $teamMembers,
-            'initialProjectId' => $selectedProjectId,
-            'initialSprintId' => $selectedSprintId,
+            'availableReportTypes' => $availableReportTypes,
+            'archivedReports' => $accessibleArchivedReports,
+            'initialType' => $initialType,
+            'initialProjectId' => $initialProjectId,
+            'initialSprintId' => $initialSprintId,
             'initialReportData' => $initialReportData,
         ]);
     }
 
     /**
-     * Fetch calculated metrics dynamically via AJAX for selected project/sprint.
+     * Generate dynamic preview report data via AJAX.
      */
     public function getReportData(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'project_id' => 'required|integer',
+            'type' => 'nullable|string',
+            'scope' => 'nullable|string|in:sprint,project,team,schedule',
+            'project_id' => 'nullable|integer',
             'sprint_id' => 'nullable',
-            'scope' => 'nullable|string|in:sprint,project',
+            'sprint_ids' => 'nullable|array',
+            'employee_user_id' => 'nullable|integer',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date',
+            'orientation' => 'nullable|string|in:portrait,landscape',
         ]);
 
-        $projectId = (int) $validated['project_id'];
-        $sprintIdRaw = $validated['sprint_id'] ?? null;
-        $scope = $validated['scope'] ?? ($sprintIdRaw === 'all' ? 'project' : 'sprint');
+        $tenantId = tenant('id') ?? (string) $request->route('tenant');
+        $user = $request->user();
 
-        $sprintId = ($sprintIdRaw === 'all' || ! $sprintIdRaw) ? null : (int) $sprintIdRaw;
+        $type = $validated['type'] ?? ($validated['scope'] === 'project' ? 'project_summary' : 'sprint_performance');
+        $projectId = ! empty($validated['project_id']) ? (int) $validated['project_id'] : null;
+        $employeeUserId = ! empty($validated['employee_user_id']) ? (int) $validated['employee_user_id'] : null;
 
-        $reportData = $this->calculateReportMetrics($projectId, $sprintId, $scope);
-
-        if (! $reportData) {
-            return response()->json(['message' => 'Project or sprint not found.'], 404);
+        // Strict permission check
+        if (! $this->reportDataService->canGenerateReportType($user, $type, $projectId, $employeeUserId, $tenantId)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to access or generate this report.',
+            ], 403);
         }
 
+        $reportData = $this->reportDataService->calculateReport(
+            $type,
+            $validated,
+            $user,
+            $tenantId
+        );
+
+        if (! $reportData) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Report could not be generated. Please verify the selected filters or date range.',
+            ], 404);
+        }
+
+        $reportData['orientation'] = $validated['orientation'] ?? 'portrait';
+
+        // Save generated preview into user's personal report archive
+        $targetName = $reportData['title'] ?? ($reportData['project_name'] ?? ($reportData['employee']['name'] ?? 'Report'));
+        $archivedReport = Report::create([
+            'name' => $reportData['title'] ?? 'Generated Report',
+            'type' => $type,
+            'project_id' => $projectId,
+            'employee_user_id' => $employeeUserId,
+            'target_name' => $targetName,
+            'orientation' => $validated['orientation'] ?? 'portrait',
+            'created_by' => $user->name,
+            'created_by_user_id' => $user->id,
+            'metrics' => $reportData,
+        ]);
+
         return response()->json([
+            'success' => true,
             'data' => $reportData,
+            'archived_report' => [
+                'id' => $archivedReport->id,
+                'name' => $archivedReport->name,
+                'type' => $archivedReport->type,
+                'project_id' => $archivedReport->project_id,
+                'employee_user_id' => $archivedReport->employee_user_id,
+                'target_name' => $archivedReport->target_name,
+                'orientation' => $archivedReport->orientation,
+                'created_by' => $archivedReport->created_by,
+                'created_by_user_id' => $archivedReport->created_by_user_id,
+                'created_at' => $archivedReport->created_at->toIso8601String(),
+                'metrics' => $archivedReport->metrics,
+            ],
         ]);
     }
 
     /**
-     * Share report directly via email.
+     * Archive a generated report into the Report Archive.
+     */
+    public function archive(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'type' => 'required|string',
+            'project_id' => 'nullable|integer',
+            'employee_user_id' => 'nullable|integer',
+            'orientation' => 'nullable|string|in:portrait,landscape',
+            'metrics' => 'required|array',
+        ]);
+
+        $tenantId = tenant('id') ?? (string) $request->route('tenant');
+        $user = $request->user();
+
+        $projectId = ! empty($validated['project_id']) ? (int) $validated['project_id'] : null;
+        $employeeUserId = ! empty($validated['employee_user_id']) ? (int) $validated['employee_user_id'] : null;
+
+        // Authorization check
+        if (! $this->reportDataService->canGenerateReportType($user, $validated['type'], $projectId, $employeeUserId, $tenantId)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized report archive request.',
+            ], 403);
+        }
+
+        $metrics = $validated['metrics'];
+        $metrics['orientation'] = $validated['orientation'] ?? 'portrait';
+        $targetName = $metrics['title'] ?? ($metrics['project_name'] ?? ($metrics['employee']['name'] ?? $validated['name']));
+
+        $report = Report::create([
+            'name' => $validated['name'],
+            'type' => $validated['type'],
+            'project_id' => $projectId,
+            'employee_user_id' => $employeeUserId,
+            'target_name' => $targetName,
+            'orientation' => $validated['orientation'] ?? 'portrait',
+            'created_by' => $user->name,
+            'created_by_user_id' => $user->id,
+            'metrics' => $metrics,
+        ]);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Report saved to Report Archive successfully.',
+                'report' => [
+                    'id' => $report->id,
+                    'name' => $report->name,
+                    'type' => $report->type,
+                    'project_id' => $report->project_id,
+                    'employee_user_id' => $report->employee_user_id,
+                    'target_name' => $report->target_name,
+                    'orientation' => $report->orientation,
+                    'created_by' => $report->created_by,
+                    'created_by_user_id' => $report->created_by_user_id,
+                    'created_at' => $report->created_at->toIso8601String(),
+                    'metrics' => $report->metrics,
+                ],
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Report archived successfully.');
+    }
+
+    /**
+     * Delete an archived report.
+     */
+    public function deleteReport(Request $request, $report = null, $extra = null)
+    {
+        $tenantId = tenant('id') ?? (string) $request->route('tenant');
+        $user = $request->user();
+
+        $targetReportId = $extra ?? $report ?? $request->route('report') ?? $request->route('reportId');
+        $report = Report::findOrFail($targetReportId);
+
+        // Authorization: Only the creator can delete their archived report
+        if ((int) $report->created_by_user_id !== (int) $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to delete this archived report.',
+            ], 403);
+        }
+
+        $report->delete();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Archived report deleted successfully.',
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Report deleted successfully.');
+    }
+
+    /**
+     * Download report as PDF (server-generated).
+     */
+    public function downloadPdf(Request $request): StreamedResponse|JsonResponse
+    {
+        $tenantId = tenant('id') ?? (string) $request->route('tenant');
+        $studio = Studio::find($tenantId);
+        $studioName = $studio?->name ?? 'WorkSync Studio';
+        $user = $request->user();
+
+        $reportData = null;
+        $orientation = $request->query('orientation', 'portrait');
+
+        if ($request->has('archived_id')) {
+            $report = Report::findOrFail($request->query('archived_id'));
+            if (! $this->reportDataService->canAccessReport($user, $report, $tenantId)) {
+                return response()->json(['message' => 'Unauthorized access to archived report.'], 403);
+            }
+            $reportData = $report->metrics;
+            if (is_array($reportData)) {
+                $reportData['id'] = $report->id;
+            }
+            $orientation = $report->orientation ?: $orientation;
+        } else {
+            $type = $request->query('type', 'project_summary');
+            $reportData = $this->reportDataService->calculateReport(
+                $type,
+                $request->all(),
+                $user,
+                $tenantId
+            );
+        }
+
+        if (! $reportData) {
+            return response()->json(['message' => 'Report not found or unavailable.'], 404);
+        }
+
+        $reportData['orientation'] = $orientation;
+        $pdfContent = ReportPdfGenerator::generate($reportData, $studioName, $user->name, $orientation);
+        $filename = Str::slug(($reportData['title'] ?? 'report').'-'.now()->format('Y-m-d')).'.pdf';
+
+        return response()->streamDownload(function () use ($pdfContent) {
+            echo $pdfContent;
+        }, $filename, [
+            'Content-Type' => 'application/pdf',
+        ]);
+    }
+
+    /**
+     * Share report directly via email (with PDF & CSV attachments).
      */
     public function shareEmail(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'recipient_email' => 'required|email',
+            'type' => 'nullable|string',
             'project_id' => 'nullable|integer',
-            'sprint_id' => 'nullable',
-            'scope' => 'nullable|string|in:sprint,project,team,schedule',
             'archived_report_id' => 'nullable|integer',
+            'orientation' => 'nullable|string|in:portrait,landscape',
             'personal_note' => 'nullable|string|max:1000',
             'pdf_base64' => 'nullable|string',
+            'metrics' => 'nullable|array',
         ]);
 
         if ($validator->fails()) {
@@ -129,51 +386,45 @@ class TenantReportController extends Controller
         }
 
         $validated = $validator->validated();
-
         $user = $request->user();
         $tenantId = tenant('id') ?? (string) $request->route('tenant');
         $studio = Studio::find($tenantId);
-        $studioName = $studio?->name ?? 'SprintStudio';
+        $studioName = $studio?->name ?? 'WorkSync Studio';
+
+        $reportData = null;
+        $orientation = $validated['orientation'] ?? 'portrait';
 
         if (! empty($validated['archived_report_id'])) {
-            $archivedReport = Report::find($validated['archived_report_id']);
-            if (! $archivedReport) {
-                return response()->json(['message' => 'Archived report could not be found.'], 404);
+            $archived = Report::find($validated['archived_report_id']);
+            if (! $archived || ! $this->reportDataService->canAccessReport($user, $archived, $tenantId)) {
+                return response()->json(['message' => 'Archived report unavailable or access restricted.'], 403);
             }
-
-            $reportData = $archivedReport->metrics ?? [];
-            $reportTitle = $archivedReport->name ?: ($reportData['title'] ?? 'Archived Report');
-            $reportData['title'] = $reportTitle;
-            $reportData['scope'] = $archivedReport->type ?: ($reportData['scope'] ?? 'project');
-            $reportData['project_name'] = $archivedReport->target_name ?: ($reportData['project_name'] ?? 'Workspace');
-            $scope = $reportData['scope'];
-            $reportUrl = url("/studio/{$tenantId}/docs");
+            $reportData = $archived->metrics ?? [];
+            $orientation = $archived->orientation ?? $orientation;
+        } elseif (! empty($validated['metrics'])) {
+            $reportData = $validated['metrics'];
         } else {
-            $projectId = (int) ($validated['project_id'] ?? 0);
-            if (! $projectId) {
-                return response()->json(['message' => 'Please provide a valid project or archived report.'], 422);
-            }
-            $sprintIdRaw = $validated['sprint_id'] ?? null;
-            $scope = $validated['scope'] ?? ($sprintIdRaw === 'all' ? 'project' : 'sprint');
-            $sprintId = ($sprintIdRaw === 'all' || ! $sprintIdRaw) ? null : (int) $sprintIdRaw;
-
-            $reportData = $this->calculateReportMetrics($projectId, $sprintId, $scope);
-            if (! $reportData) {
-                return response()->json(['message' => 'Report could not be generated for this scope.'], 404);
-            }
-
-            $reportTitle = $reportData['title'] ?? 'Performance Report';
-            $reportUrl = url("/studio/{$tenantId}/reports?project_id={$projectId}&sprint_id=".($sprintId ?? 'all'));
+            $reportData = $this->reportDataService->calculateReport(
+                $validated['type'] ?? 'project_summary',
+                $validated,
+                $user,
+                $tenantId
+            );
         }
 
-        $cleanSlug = Str::slug($reportTitle ?: 'performance-report').'-'.now()->format('Y-m-d');
+        if (! $reportData) {
+            return response()->json(['message' => 'Report could not be prepared for sharing.'], 404);
+        }
+
+        $reportTitle = $reportData['title'] ?? 'Performance Report';
+        $reportData['orientation'] = $orientation;
+        $cleanSlug = Str::slug($reportTitle).'-'.now()->format('Y-m-d');
         $pdfFilename = "{$cleanSlug}.pdf";
         $csvFilename = "{$cleanSlug}.csv";
 
-        // 1. Generate full CSV audit data string
         $csvContent = $this->generateCsvString($reportData);
 
-        // 2. Check for optional client-rendered PDF base64, fallback to backend PDF generator
+        // Use client-rendered base64 PDF if provided, else fallback to PHP generator
         $pdfContent = null;
         if (! empty($validated['pdf_base64'])) {
             $rawB64 = preg_replace('#^data:application/pdf;base64,#i', '', $validated['pdf_base64']);
@@ -183,15 +434,17 @@ class TenantReportController extends Controller
             }
         }
         if (! $pdfContent) {
-            $pdfContent = ReportPdfGenerator::generate($reportData, $studioName, $user->name);
+            $pdfContent = ReportPdfGenerator::generate($reportData, $studioName, $user->name, $orientation);
         }
+
+        $reportUrl = url("/studio/{$tenantId}/reports");
 
         try {
             Mail::to($validated['recipient_email'])->send(
                 new ReportSharedMail(
                     senderName: $user->name,
                     reportTitle: $reportTitle,
-                    scopeType: $scope,
+                    scopeType: $reportData['type'] ?? 'report',
                     studioName: $studioName,
                     reportUrl: $reportUrl,
                     personalNote: $validated['personal_note'] ?? null,
@@ -205,10 +458,10 @@ class TenantReportController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => "Report with both PDF and CSV attachments was successfully sent to {$validated['recipient_email']}.",
+                'message' => "Report delivered with PDF and CSV attachments to {$validated['recipient_email']}.",
             ]);
         } catch (\Throwable $e) {
-            \Log::error('Report email delivery failed: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            \Log::error('Report email failed: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
 
             return response()->json([
                 'success' => false,
@@ -218,16 +471,19 @@ class TenantReportController extends Controller
     }
 
     /**
-     * Share report directly into an in-system DM or channel.
+     * Share report into in-system private message or channel.
      */
     public function shareChat(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'recipient_type' => 'required|string|in:dm,channel',
-            'recipient_id' => 'required|string', // user ID (int) or channel key (string)
-            'project_id' => 'required|integer',
+            'recipient_id' => 'required|string',
+            'report_title' => 'nullable|string',
+            'project_id' => 'nullable|integer',
             'sprint_id' => 'nullable',
             'scope' => 'nullable|string|in:sprint,project',
+            'type' => 'nullable|string',
+            'metrics' => 'nullable|array',
             'personal_note' => 'nullable|string|max:1000',
         ]);
 
@@ -239,21 +495,9 @@ class TenantReportController extends Controller
         }
 
         $validated = $validator->validated();
-
         $user = $request->user();
         $tenantId = tenant('id') ?? (string) $request->route('tenant');
 
-        $projectId = (int) $validated['project_id'];
-        $sprintIdRaw = $validated['sprint_id'] ?? null;
-        $scope = $validated['scope'] ?? ($sprintIdRaw === 'all' ? 'project' : 'sprint');
-        $sprintId = ($sprintIdRaw === 'all' || ! $sprintIdRaw) ? null : (int) $sprintIdRaw;
-
-        $reportData = $this->calculateReportMetrics($projectId, $sprintId, $scope);
-        if (! $reportData) {
-            return response()->json(['message' => 'Report not found.'], 404);
-        }
-
-        // Determine channel ID
         $channelId = '';
         $mentions = [];
         if ($validated['recipient_type'] === 'dm') {
@@ -266,55 +510,79 @@ class TenantReportController extends Controller
             $channelId = $validated['recipient_id'];
         }
 
-        $reportTitle = $reportData['title'] ?? 'Performance Report';
+        $metrics = $validated['metrics'] ?? [];
+        if (empty($metrics) && ! empty($validated['project_id'])) {
+            $type = $validated['type'] ?? ((($validated['scope'] ?? '') === 'project') ? 'project_summary' : 'sprint_performance');
+            $metrics = $this->reportDataService->calculateReport($type, $validated, $user, $tenantId) ?? [];
+        }
+
+        $reportTitle = $validated['report_title'] ?? ($metrics['title'] ?? 'Performance Report');
         $body = "📊 Shared a Report: {$reportTitle}";
         if (! empty($validated['personal_note'])) {
             $body .= "\nNote: ".trim($validated['personal_note']);
         }
 
-        $reportAttachment = [
+        $attachment = [
             'type' => 'report',
             'name' => "{$reportTitle}.pdf",
             'report_title' => $reportTitle,
-            'scope' => $scope,
-            'project_name' => $reportData['project_name'] ?? 'Project',
-            'sprint_name' => $reportData['sprint_name'] ?? null,
-            'completion_rate' => $reportData['completion_rate'] ?? 0,
-            'total_tasks' => $reportData['total_tasks'] ?? 0,
-            'completed_tasks' => $reportData['completed_tasks'] ?? 0,
-            'completed_story_points' => $reportData['completed_story_points'] ?? 0,
-            'planned_story_points' => $reportData['planned_story_points'] ?? 0,
-            'report_url' => "/studio/{$tenantId}/reports?project_id={$projectId}&sprint_id=".($sprintId ?? 'all'),
+            'scope' => $metrics['scope'] ?? ($metrics['type'] ?? 'report'),
+            'project_name' => $metrics['project_name'] ?? 'Project',
+            'completion_rate' => $metrics['completion_rate'] ?? 0,
+            'total_tasks' => $metrics['total_tasks'] ?? 0,
+            'completed_tasks' => $metrics['completed_tasks'] ?? 0,
+            'completed_story_points' => $metrics['completed_story_points'] ?? 0,
+            'report_url' => "/studio/{$tenantId}/reports",
         ];
 
-        // Resolve sender role in studio
-        $member = null;
-        try {
-            $member = DB::connection(config('tenancy.database.central_connection', 'central'))
-                ->table('studio_members')
-                ->where('studio_id', $tenantId)
-                ->where('user_id', $user->id)
-                ->first();
-        } catch (\Throwable $e) {
-            // Ignore
-        }
-        $role = $member?->role ?? ($user->role === User::ROLE_ADMIN ? 'leader' : 'member');
+        $role = $this->reportDataService->isLeaderOrManager($user, $tenantId) ? 'Leader' : 'Member';
 
         $message = ChannelMessage::create([
             'channel_id' => $channelId,
             'user_id' => $user->id,
             'sender_name' => $user->name,
-            'sender_role' => ucfirst($role),
+            'sender_role' => $role,
             'body' => $body,
-            'attachments' => [$reportAttachment],
+            'attachments' => [$attachment],
             'mentions' => $mentions,
         ]);
 
         return response()->json([
             'success' => true,
-            'message' => 'Report shared successfully in chat.',
+            'message' => 'Report shared successfully in WorkSync chat.',
             'channel_message' => $message,
         ], 201);
+    }
+
+    /**
+     * Export report data as clean CSV.
+     */
+    public function exportCsv(Request $request): StreamedResponse
+    {
+        $tenantId = tenant('id') ?? (string) $request->route('tenant');
+        $user = $request->user();
+
+        $report = null;
+        if ($request->has('archived_id')) {
+            $r = Report::findOrFail($request->query('archived_id'));
+            if (! $this->reportDataService->canAccessReport($user, $r, $tenantId)) {
+                abort(403, 'Unauthorized access to archived report.');
+            }
+            $report = $r->metrics;
+        } else {
+            $type = $request->query('type', 'project_summary');
+            $report = $this->reportDataService->calculateReport($type, $request->all(), $user, $tenantId);
+        }
+
+        $report = $report ?? ['title' => 'Report', 'total_tasks' => 0];
+        $filename = Str::slug(($report['title'] ?? 'report').'-'.now()->format('Y-m-d')).'.csv';
+        $csvContent = $this->generateCsvString($report);
+
+        return response()->streamDownload(function () use ($csvContent) {
+            echo $csvContent;
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
     }
 
     /**
@@ -327,13 +595,9 @@ class TenantReportController extends Controller
         $handle = fopen('php://temp', 'r+');
 
         // Header summary
-        fputcsv($handle, ['SPRINTSTUDIO - '.strtoupper($report['scope'] ?? 'SPRINT').' REPORT']);
+        fputcsv($handle, ['WORKSYNC - '.strtoupper($report['type'] ?? 'PERFORMANCE').' REPORT']);
         fputcsv($handle, ['Report Title', $report['title'] ?? '']);
-        fputcsv($handle, ['Project', $report['project_name'] ?? '']);
-        if (! empty($report['sprint_name'])) {
-            fputcsv($handle, ['Sprint', $report['sprint_name']]);
-            fputcsv($handle, ['Sprint Duration', ($report['start_date'] ?? '').' to '.($report['end_date'] ?? '')]);
-        }
+        fputcsv($handle, ['Reporting Period', $report['reporting_period'] ?? '']);
         fputcsv($handle, ['Generated At', now()->toDateTimeString()]);
         fputcsv($handle, []);
 
@@ -341,16 +605,13 @@ class TenantReportController extends Controller
         fputcsv($handle, ['KEY PERFORMANCE INDICATORS']);
         fputcsv($handle, ['Total Tasks', $report['total_tasks'] ?? 0]);
         fputcsv($handle, ['Completed Tasks', $report['completed_tasks'] ?? 0]);
-        fputcsv($handle, ['Unfinished Tasks', $report['unfinished_tasks'] ?? 0]);
-        fputcsv($handle, ['Overdue Tasks', $report['overdue_tasks'] ?? 0]);
         fputcsv($handle, ['Completion Rate', ($report['completion_rate'] ?? 0).'%']);
         fputcsv($handle, ['Planned Story Points', $report['planned_story_points'] ?? 0]);
         fputcsv($handle, ['Completed Story Points', $report['completed_story_points'] ?? 0]);
-        fputcsv($handle, ['Story Points Completion', ($report['sp_completion_rate'] ?? 0).'%']);
         fputcsv($handle, []);
 
         // Audit Table
-        $audit = $report['audit_tasks'] ?? ($report['tasks_list'] ?? []);
+        $audit = $report['audit_tasks'] ?? [];
         if (! empty($audit)) {
             fputcsv($handle, ['TASK AUDIT BREAKDOWN']);
             fputcsv($handle, [
@@ -363,7 +624,7 @@ class TenantReportController extends Controller
                 'Deadline',
                 'Completion Date',
                 'On-Time Status',
-                'Estimated SP',
+                'Original SP',
                 'Final SP',
                 'SP Difference',
                 'Priority',
@@ -374,52 +635,18 @@ class TenantReportController extends Controller
                 fputcsv($handle, [
                     $task['id'] ?? '—',
                     $task['title'] ?? '—',
-                    $task['assigned_employee'] ?? ($task['assignee'] ?? 'Unassigned'),
+                    $task['assigned_employee'] ?? 'Unassigned',
                     $task['completed_by_employee'] ?? '—',
                     $task['status'] ?? '—',
                     $task['assigned_date'] ?? '—',
                     $task['deadline'] ?? '—',
                     $task['completed_date'] ?? '—',
-                    $task['on_time_status'] ?? (! empty($task['is_critical']) ? 'Critical' : 'Standard'),
-                    $task['original_sp'] ?? ($task['estimated_hours'] ?? 0),
+                    $task['on_time_status'] ?? '—',
+                    $task['original_sp'] ?? 0,
                     $task['final_sp'] ?? 0,
                     $task['sp_difference'] ?? 0,
                     $task['priority'] ?? 'Medium',
                     $task['difficulty'] ?? 'Medium',
-                ]);
-            }
-            fputcsv($handle, []);
-        }
-
-        // Employee Performance
-        $team = $report['employee_performance'] ?? [];
-        if (! empty($team)) {
-            fputcsv($handle, ['EMPLOYEE PERFORMANCE SUMMARY']);
-            fputcsv($handle, [
-                'Employee',
-                'Assigned Tasks',
-                'Completed Tasks',
-                'Unfinished Tasks',
-                'Completion Rate',
-                'Completed SP',
-                'Avg SP / Task',
-                'On-Time Tasks',
-                'Overdue Tasks',
-                'Sprint Contribution %',
-            ]);
-
-            foreach ($team as $emp) {
-                fputcsv($handle, [
-                    $emp['name'],
-                    $emp['assigned_count'],
-                    $emp['completed_count'],
-                    $emp['unfinished_count'],
-                    $emp['completion_rate'].'%',
-                    $emp['completed_sp'],
-                    $emp['avg_sp_per_task'],
-                    $emp['on_time_count'],
-                    $emp['overdue_count'],
-                    $emp['contribution_pct'].'%',
                 ]);
             }
         }
@@ -432,346 +659,18 @@ class TenantReportController extends Controller
     }
 
     /**
-     * Export report data as clean CSV.
-     */
-    public function exportCsv(Request $request): StreamedResponse
-    {
-        $projectId = (int) $request->query('project_id');
-        $sprintIdRaw = $request->query('sprint_id');
-        $scope = $request->query('scope', ($sprintIdRaw === 'all' ? 'project' : 'sprint'));
-        $sprintId = ($sprintIdRaw === 'all' || ! $sprintIdRaw) ? null : (int) $sprintIdRaw;
-
-        $report = $this->calculateReportMetrics($projectId, $sprintId, $scope);
-        $filename = Str::slug(($report['title'] ?? 'report').'-'.now()->format('Y-m-d')).'.csv';
-        $csvContent = $this->generateCsvString($report);
-
-        return response()->streamDownload(function () use ($csvContent) {
-            echo $csvContent;
-        }, $filename, [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-        ]);
-    }
-
-    /**
-     * Compute all metrics for a given project and optional sprint.
+     * Backward-compatible helper for legacy callers.
      *
      * @return array<string, mixed>|null
      */
     public function calculateReportMetrics(int $projectId, ?int $sprintId = null, string $scope = 'sprint'): ?array
     {
-        $project = Project::with(['sprints' => function ($q) {
-            $q->orderBy('start_date', 'asc');
-        }])->find($projectId);
+        $user = auth()->user() ?? User::first();
+        $type = $scope === 'sprint' ? 'sprint_performance' : 'project_summary';
 
-        if (! $project) {
-            return null;
-        }
-
-        // Users map for central lookup
-        $studio = Studio::find(tenant('id'));
-        $users = [];
-        try {
-            $users = $studio ? $studio->users()->get()->keyBy('id') : collect([]);
-        } catch (\Throwable $e) {
-            $users = collect([]);
-        }
-
-        // If sprint scope is requested but no sprint is selected, pick active or first sprint
-        $sprint = null;
-        if ($scope === 'sprint') {
-            if ($sprintId) {
-                $sprint = Sprint::where('project_id', $project->id)->find($sprintId);
-            }
-            if (! $sprint) {
-                $sprint = Sprint::where('project_id', $project->id)->where('status', 'active')->first()
-                    ?? Sprint::where('project_id', $project->id)->first();
-            }
-
-            if (! $sprint) {
-                // Fallback to project scope if no sprint exists in project
-                $scope = 'project';
-            }
-        }
-
-        // Tasks query
-        $tasksQuery = Task::where('project_id', $project->id)->with(['epic']);
-        if ($scope === 'sprint' && $sprint) {
-            $tasksQuery->where('sprint_id', $sprint->id);
-        }
-
-        $tasks = $tasksQuery->get();
-
-        // Fetch assignments for these tasks to obtain assignment dates
-        $assignmentsByTask = [];
-        if (Schema::hasTable('assignments')) {
-            $taskIds = $tasks->pluck('id')->all();
-            if (! empty($taskIds)) {
-                $assignments = DB::table('assignments')->whereIn('task_id', $taskIds)->get();
-                foreach ($assignments as $a) {
-                    if (! isset($assignmentsByTask[$a->task_id])) {
-                        $assignmentsByTask[$a->task_id] = $a;
-                    }
-                }
-            }
-        }
-
-        $today = Carbon::today();
-
-        // 1. Process tasks into audit rows
-        $auditTasks = [];
-        $completedCount = 0;
-        $unfinishedCount = 0;
-        $overdueCount = 0;
-        $onTimeCount = 0;
-        $lateCompletedCount = 0;
-
-        $priorityCounts = ['Low' => 0, 'Medium' => 0, 'High' => 0, 'Critical' => 0];
-        $difficultyCounts = ['Easy' => 0, 'Medium' => 0, 'Hard' => 0];
-
-        $plannedSp = 0;
-        $completedSp = 0;
-
-        // Grouping per employee
-        $employeeStats = [];
-
-        foreach ($tasks as $task) {
-            $isCompleted = ($task->status === 'completed' || $task->sprint_status === 'done');
-            $spOriginal = (int) ($task->story_points ?? 0);
-            $spFinal = (int) ($task->actual_story_points ?? $spOriginal);
-            $spDiff = $spFinal - $spOriginal;
-
-            $plannedSp += $spOriginal;
-            if ($isCompleted) {
-                $completedSp += $spFinal;
-            }
-
-            // Priority & Difficulty normalization
-            $priority = ucfirst(strtolower($task->priority ?? $task->sprint_priority ?? 'Medium'));
-            if (! isset($priorityCounts[$priority])) {
-                $priority = 'Medium';
-            }
-            $priorityCounts[$priority]++;
-
-            $difficulty = ucfirst(strtolower($task->task_difficulty ?? 'Medium'));
-            if (! isset($difficultyCounts[$difficulty])) {
-                $difficulty = 'Medium';
-            }
-            $difficultyCounts[$difficulty]++;
-
-            // Assigned employee resolution
-            $assigneeId = $task->assigned_user_id;
-            $assignee = $assigneeId && isset($users[$assigneeId]) ? $users[$assigneeId] : null;
-            $assigneeName = $assignee ? $assignee->name : ($assigneeId ? "User #{$assigneeId}" : 'Unassigned');
-
-            // Completed by employee resolution
-            $completedById = $task->completed_by_user_id ?? ($isCompleted ? $assigneeId : null);
-            $completedBy = $completedById && isset($users[$completedById]) ? $users[$completedById] : null;
-            $completedByName = $completedBy ? $completedBy->name : ($completedById ? "User #{$completedById}" : ($isCompleted ? $assigneeName : null));
-
-            // Dates & On-Time Status
-            $assignmentRecord = $assignmentsByTask[$task->id] ?? null;
-            $assignedDate = $assignmentRecord ? Carbon::parse($assignmentRecord->assigned_at) : ($task->created_at ?? null);
-
-            // Deadline calculation
-            $deadline = null;
-            if ($task->hard_constraint_date) {
-                $deadline = Carbon::parse($task->hard_constraint_date);
-            } elseif ($task->days_until_deadline !== null && $assignedDate) {
-                $deadline = $assignedDate->copy()->addDays((int) $task->days_until_deadline);
-            } elseif ($sprint && $sprint->end_date) {
-                $deadline = Carbon::parse($sprint->end_date);
-            } elseif ($project->target_end_date) {
-                $deadline = Carbon::parse($project->target_end_date);
-            }
-
-            // Completed date
-            $completedDate = $task->completed_at ? Carbon::parse($task->completed_at) : ($isCompleted ? ($task->updated_at ?? null) : null);
-
-            $onTimeStatus = 'on_track';
-            $delayDays = 0;
-
-            if ($isCompleted) {
-                $completedCount++;
-                if ($deadline && $completedDate) {
-                    if ($completedDate->startOfDay()->gt($deadline->startOfDay())) {
-                        $onTimeStatus = 'late';
-                        $delayDays = $completedDate->startOfDay()->diffInDays($deadline->startOfDay());
-                        $lateCompletedCount++;
-                    } else {
-                        $onTimeStatus = 'on_time';
-                        $onTimeCount++;
-                    }
-                } else {
-                    $onTimeStatus = 'on_time';
-                    $onTimeCount++;
-                }
-            } else {
-                $unfinishedCount++;
-                if ($deadline && $today->gt($deadline->startOfDay())) {
-                    $onTimeStatus = 'overdue';
-                    $delayDays = $today->diffInDays($deadline->startOfDay());
-                    $overdueCount++;
-                } else {
-                    $onTimeStatus = 'in_progress';
-                }
-            }
-
-            // Accumulate employee factual metrics
-            $targetEmpId = $assigneeId ?? 0;
-            $targetEmpName = $assigneeName;
-
-            if (! isset($employeeStats[$targetEmpId])) {
-                $employeeStats[$targetEmpId] = [
-                    'user_id' => $targetEmpId,
-                    'name' => $targetEmpName,
-                    'role' => $assignee?->role ?? 'Member',
-                    'assigned_count' => 0,
-                    'completed_count' => 0,
-                    'unfinished_count' => 0,
-                    'on_time_count' => 0,
-                    'late_count' => 0,
-                    'overdue_count' => 0,
-                    'planned_sp' => 0,
-                    'completed_sp' => 0,
-                    'difficulty_counts' => ['Easy' => 0, 'Medium' => 0, 'Hard' => 0],
-                ];
-            }
-
-            $employeeStats[$targetEmpId]['assigned_count']++;
-            $employeeStats[$targetEmpId]['planned_sp'] += $spOriginal;
-            $employeeStats[$targetEmpId]['difficulty_counts'][$difficulty]++;
-
-            if ($isCompleted) {
-                $employeeStats[$targetEmpId]['completed_count']++;
-                $employeeStats[$targetEmpId]['completed_sp'] += $spFinal;
-                if ($onTimeStatus === 'late') {
-                    $employeeStats[$targetEmpId]['late_count']++;
-                } else {
-                    $employeeStats[$targetEmpId]['on_time_count']++;
-                }
-            } else {
-                $employeeStats[$targetEmpId]['unfinished_count']++;
-                if ($onTimeStatus === 'overdue') {
-                    $employeeStats[$targetEmpId]['overdue_count']++;
-                }
-            }
-
-            $auditTasks[] = [
-                'id' => $task->id,
-                'title' => $task->title,
-                'classification' => $task->task_classification ?: 'General',
-                'assigned_employee' => $assigneeName,
-                'assigned_user_id' => $assigneeId,
-                'completed_by_employee' => $completedByName,
-                'status' => $task->status,
-                'sprint_status' => $task->sprint_status ?: ($isCompleted ? 'done' : 'ready_to_start'),
-                'assigned_date' => $assignedDate ? $assignedDate->format('M d, Y') : '—',
-                'deadline' => $deadline ? $deadline->format('M d, Y') : '—',
-                'completed_date' => $completedDate ? $completedDate->format('M d, Y') : '—',
-                'on_time_status' => $onTimeStatus,
-                'delay_days' => $delayDays,
-                'original_sp' => $spOriginal,
-                'final_sp' => $spFinal,
-                'sp_difference' => $spDiff,
-                'priority' => $priority,
-                'difficulty' => $difficulty,
-                'github_link' => $task->github_link,
-            ];
-        }
-
-        $totalTasks = count($tasks);
-        $completionRate = $totalTasks > 0 ? round(($completedCount / $totalTasks) * 100, 1) : 0;
-        $spCompletionRate = $plannedSp > 0 ? round(($completedSp / $plannedSp) * 100, 1) : 0;
-
-        // Factual Employee Performance Table computation
-        $employeePerformance = [];
-        foreach ($employeeStats as $emp) {
-            $assigned = $emp['assigned_count'];
-            $done = $emp['completed_count'];
-            $empCompletionRate = $assigned > 0 ? round(($done / $assigned) * 100, 1) : 0;
-            $avgSp = $done > 0 ? round($emp['completed_sp'] / $done, 1) : 0;
-            $contributionPct = $completedCount > 0 ? round(($done / $completedCount) * 100, 1) : 0;
-
-            $employeePerformance[] = [
-                'user_id' => $emp['user_id'],
-                'name' => $emp['name'],
-                'role' => $emp['role'],
-                'assigned_count' => $assigned,
-                'completed_count' => $done,
-                'unfinished_count' => $emp['unfinished_count'],
-                'completion_rate' => $empCompletionRate,
-                'planned_sp' => $emp['planned_sp'],
-                'completed_sp' => $emp['completed_sp'],
-                'avg_sp_per_task' => $avgSp,
-                'on_time_count' => $emp['on_time_count'],
-                'late_count' => $emp['late_count'],
-                'overdue_count' => $emp['overdue_count'],
-                'difficulty_counts' => $emp['difficulty_counts'],
-                'contribution_pct' => $contributionPct,
-            ];
-        }
-
-        // Sort employee performance alphabetically to avoid subjective ranking
-        usort($employeePerformance, fn ($a, $b) => strcmp($a['name'], $b['name']));
-
-        // Sprint-by-sprint breakdown (for Project Scope)
-        $sprintsBreakdown = [];
-        if ($scope === 'project') {
-            foreach ($project->sprints as $sp) {
-                $spTasks = Task::where('sprint_id', $sp->id)->get();
-                $spTotal = $spTasks->count();
-                $spDone = $spTasks->where('status', 'completed')->count();
-                $spPlannedSp = $spTasks->sum('story_points');
-                $spCompletedSp = $spTasks->where('status', 'completed')->sum(fn ($t) => $t->actual_story_points ?? $t->story_points);
-
-                $sprintsBreakdown[] = [
-                    'id' => $sp->id,
-                    'name' => $sp->name,
-                    'status' => $sp->status,
-                    'start_date' => $sp->start_date ? Carbon::parse($sp->start_date)->format('M d, Y') : '—',
-                    'end_date' => $sp->end_date ? Carbon::parse($sp->end_date)->format('M d, Y') : '—',
-                    'total_tasks' => $spTotal,
-                    'completed_tasks' => $spDone,
-                    'unfinished_tasks' => $spTotal - $spDone,
-                    'planned_sp' => $spPlannedSp,
-                    'completed_sp' => $spCompletedSp,
-                    'completion_rate' => $spTotal > 0 ? round(($spDone / $spTotal) * 100, 1) : 0,
-                ];
-            }
-        }
-
-        $title = $scope === 'sprint' && $sprint
-            ? "{$project->name} — {$sprint->name} Performance Report"
-            : "{$project->name} — Full Project Analytics Report";
-
-        return [
-            'scope' => $scope,
-            'title' => $title,
-            'project_id' => $project->id,
-            'project_name' => $project->name,
-            'project_status' => $project->status,
-            'sprint_id' => $sprint?->id,
-            'sprint_name' => $sprint?->name,
-            'sprint_goal' => $sprint?->goal,
-            'sprint_status' => $sprint?->status,
-            'start_date' => $sprint?->start_date ? Carbon::parse($sprint->start_date)->format('M d, Y') : ($project->start_date ? Carbon::parse($project->start_date)->format('M d, Y') : '—'),
-            'end_date' => $sprint?->end_date ? Carbon::parse($sprint->end_date)->format('M d, Y') : ($project->target_end_date ? Carbon::parse($project->target_end_date)->format('M d, Y') : '—'),
-            'total_tasks' => $totalTasks,
-            'completed_tasks' => $completedCount,
-            'unfinished_tasks' => $unfinishedCount,
-            'overdue_tasks' => $overdueCount,
-            'on_time_tasks' => $onTimeCount,
-            'late_tasks' => $lateCompletedCount,
-            'completion_rate' => $completionRate,
-            'planned_story_points' => $plannedSp,
-            'completed_story_points' => $completedSp,
-            'sp_completion_rate' => $spCompletionRate,
-            'priority_distribution' => $priorityCounts,
-            'difficulty_distribution' => $difficultyCounts,
-            'audit_tasks' => $auditTasks,
-            'employee_performance' => $employeePerformance,
-            'sprints_breakdown' => $sprintsBreakdown,
-            'generated_at' => now()->format('M d, Y g:i A'),
-        ];
+        return $this->reportDataService->calculateReport($type, [
+            'project_id' => $projectId,
+            'sprint_id' => $sprintId,
+        ], $user);
     }
 }

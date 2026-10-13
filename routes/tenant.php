@@ -11,10 +11,10 @@ use App\Http\Controllers\MLEngineIntegrationController;
 use App\Http\Controllers\TenantDashboardController;
 use App\Http\Controllers\TenantDocsController;
 use App\Http\Controllers\TenantEpicGroupController;
-use App\Http\Controllers\TenantOverviewController;
 use App\Http\Controllers\TenantProjectController;
 use App\Http\Controllers\TenantReportController;
 use App\Http\Controllers\TenantScheduleController;
+use App\Http\Controllers\TenantSettingsController;
 use App\Http\Controllers\TenantTaskController;
 use App\Http\Controllers\TenantTeamController;
 use Illuminate\Support\Facades\Route;
@@ -41,19 +41,29 @@ Route::prefix('/studio/{tenant}')->middleware([
     Route::get('/dashboard', [TenantDashboardController::class, 'index'])
         ->name('tenant.dashboard');
 
-    // Alias: members can bookmark /my-work and land on their member dashboard
-    Route::get('/my-work', [TenantDashboardController::class, 'index'])
+    Route::get('/ai-workspace', [TenantDashboardController::class, 'aiWorkspace'])
+        ->name('tenant.ai-workspace');
+
+    // Legacy aliases redirect to unified studio dashboard
+    Route::get('/my-work', fn () => redirect()->route('tenant.dashboard', ['tenant' => tenant('id') ?? request()->route('tenant')]))
         ->name('tenant.my-work');
+
+    Route::get('/home', fn () => redirect()->route('tenant.dashboard', ['tenant' => tenant('id') ?? request()->route('tenant')]))
+        ->name('tenant.home');
+
+    Route::get('/overview', fn () => redirect()->route('tenant.dashboard', ['tenant' => tenant('id') ?? request()->route('tenant')]))
+        ->name('tenant.overview');
 
     Route::get('/inbox', [TenantDashboardController::class, 'inbox'])
         ->name('tenant.inbox');
+    Route::get('/inbox/unread-count', [TenantDashboardController::class, 'unreadCount'])
+        ->name('tenant.inbox.unread-count');
     Route::post('/notifications/read-all', [TenantDashboardController::class, 'markAllNotificationsRead'])
         ->name('tenant.notifications.read-all');
     Route::post('/notifications/{id}/read', [TenantDashboardController::class, 'markNotificationRead'])
         ->name('tenant.notifications.read');
-
-    Route::get('/overview', [TenantOverviewController::class, 'index'])
-        ->name('tenant.overview');
+    Route::post('/notifications/{id}/unread', [TenantDashboardController::class, 'markNotificationUnread'])
+        ->name('tenant.notifications.unread');
 
     Route::get('/tasks', [TenantTaskController::class, 'index'])
         ->name('tenant.tasks');
@@ -74,6 +84,10 @@ Route::prefix('/studio/{tenant}')->middleware([
 
     Route::get('/team', [TenantTeamController::class, 'index'])
         ->name('tenant.team');
+    Route::post('/team/leave-requests/{id}/approve', [TenantTeamController::class, 'approveLeaveRequest'])
+        ->name('tenant.team.leave-requests.approve');
+    Route::post('/team/leave-requests/{id}/reject', [TenantTeamController::class, 'rejectLeaveRequest'])
+        ->name('tenant.team.leave-requests.reject');
 
     Route::get('/projects', [TenantProjectController::class, 'index'])
         ->name('tenant.projects.index');
@@ -99,21 +113,20 @@ Route::prefix('/studio/{tenant}')->middleware([
     Route::post('/projects/{project}/epic-attributes', [EpicAttributeController::class, 'store'])
         ->name('tenant.projects.epic-attributes.store');
 
-    Route::get('/settings', function () {
-        return Inertia::render('Tenant/Placeholder', [
-            'title' => 'Studio Settings',
-            'description' => 'Configure workspace details, developer roles, division integrations, and default GNN model thresholds.',
-            'status' => 'Active Configuration',
-        ]);
-    })->name('tenant.settings');
+    Route::get('/settings', [TenantSettingsController::class, 'index'])->name('tenant.settings');
+    Route::post('/settings/invite', [TenantSettingsController::class, 'generateInvite'])->name('tenant.settings.invite');
+    Route::patch('/settings', [TenantSettingsController::class, 'update'])->name('tenant.settings.update');
 
     Route::get('/docs', [TenantDocsController::class, 'index'])->name('tenant.docs');
     Route::post('/docs/archive', [TenantDocsController::class, 'archive'])->name('tenant.docs.archive');
     Route::delete('/docs/archive/{report}', [TenantDocsController::class, 'deleteReport'])->name('tenant.docs.archive.delete');
 
-    // Reports & Analytics Hub
+    // Reports & Analytics Hub / Report Center
     Route::get('/reports', [TenantReportController::class, 'index'])->name('tenant.reports');
     Route::get('/reports/data', [TenantReportController::class, 'getReportData'])->name('tenant.reports.data');
+    Route::post('/reports/archive', [TenantReportController::class, 'archive'])->name('tenant.reports.archive');
+    Route::delete('/reports/archive/{report}', [TenantReportController::class, 'deleteReport'])->name('tenant.reports.archive.delete');
+    Route::get('/reports/download-pdf', [TenantReportController::class, 'downloadPdf'])->name('tenant.reports.download-pdf');
     Route::post('/reports/share-email', [TenantReportController::class, 'shareEmail'])->name('tenant.reports.share-email');
     Route::post('/reports/share-chat', [TenantReportController::class, 'shareChat'])->name('tenant.reports.share-chat');
     Route::get('/reports/export-csv', [TenantReportController::class, 'exportCsv'])->name('tenant.reports.export-csv');

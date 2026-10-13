@@ -1,584 +1,1127 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Head, router, usePage } from '@inertiajs/react';
-import axios from 'axios';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import TextareaAutosize from 'react-textarea-autosize';
+import React, { useState, useMemo } from 'react';
+import { Head, Link, router } from '@inertiajs/react';
 import TenantLayout from '@/Layouts/TenantLayout';
-import RightSidebar from '@/Components/Tenant/Projects/RightSidebar';
-import HierarchicalDecompositionModal from '@/Components/ML/HierarchicalDecompositionModal';
-import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
+import { Avatar, AvatarFallback, AvatarImage } from '@/Components/UI/avatar';
 import CreateProjectModal from '@/Components/Tenant/Projects/CreateProjectModal';
-import ConfirmationModal from '@/Components/ConfirmationModal';
-import { showToast } from '@/Components/SystemToast';
-import { useChatSessions } from '@/hooks/useChatSessions';
-import { CheckSquare, Cpu, Calendar, Users, Paperclip, Mic, Send, Sparkles, Bot, X } from 'lucide-react';
+import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
+import TaskFlyoutInspector from '@/Components/Tenant/Tasks/TaskFlyoutInspector';
+import {
+    ResponsiveContainer,
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+} from 'recharts';
+import {
+    AlertTriangle,
+    CheckCircle2,
+    Calendar,
+    Users,
+    FolderKanban,
+    Plus,
+    ChevronDown,
+    ArrowRight,
+    GitBranch,
+    ArrowUp,
+    Clock,
+    Flame,
+    Layers,
+} from 'lucide-react';
+import { resolveCpaStatus } from '@/lib/cpaTerminology';
 
-function QuickActionCard({ title, description, icon: Icon, badgeColor, onClick }) {
-    const colorMap = {
-        brand: 'bg-brand-10 dark:bg-brand-20 text-brand dark:text-brand-light border-brand-30',
-        emerald: 'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800/50',
-        sky: 'bg-sky-50 dark:bg-sky-950/80 text-sky-600 dark:text-sky-400 border-sky-100 dark:border-sky-800/50',
-        purple: 'bg-purple-50 dark:bg-purple-950/80 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-800/50',
-    };
+// Brand Uniform User Avatar Component
+function UserAvatar({ name, avatar, className = 'w-7 h-7', fallbackClassName = '' }) {
+    const initials = useMemo(() => {
+        if (!name) return 'TM';
+        const parts = name.trim().split(/\s+/);
+        if (parts.length >= 2) {
+            return (parts[0][0] + parts[1][0]).toUpperCase();
+        }
+        return name.slice(0, 2).toUpperCase();
+    }, [name]);
 
     return (
-        <button type="button" onClick={onClick} className="group relative flex w-full items-center justify-between gap-3 overflow-hidden rounded-xl border border-gray-200 bg-white/80 px-4 py-3.5 text-left shadow-sm transition-all duration-200 hover:border-brand hover:bg-white/95 hover:shadow-md dark:border-slate-800 dark:bg-slate-800/40 dark:hover:border-brand/60 dark:hover:bg-slate-800/60">
-            <div className="flex min-w-0 flex-1 items-center gap-3">
-                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105 ${colorMap[badgeColor] || colorMap.brand}`}><Icon className="h-4 w-4" /></div>
-                <div className="min-w-0"><span className="font-heading block truncate text-sm font-bold text-gray-900 transition-colors group-hover:text-brand dark:text-slate-100 dark:group-hover:text-brand-light">{title}</span><span className="mt-0.5 block truncate text-[10px] text-gray-500 dark:text-slate-500">{description}</span></div>
-            </div>
-            <span className="shrink-0 text-lg font-bold text-gray-400 transition-colors group-hover:text-brand dark:text-slate-500 dark:group-hover:text-brand-light">+</span>
-        </button>
+        <Avatar className={`rounded-full shrink-0 ring-2 ring-white dark:ring-slate-900 shadow-2xs ${className}`}>
+            <AvatarImage src={avatar} alt={name} className="object-cover" />
+            <AvatarFallback className={`bg-brand text-white font-heading font-bold text-xs uppercase ${fallbackClassName}`}>
+                {initials}
+            </AvatarFallback>
+        </Avatar>
     );
 }
 
-function deadlineDaysFromPrompt(prompt) {
-    const match = prompt.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(20\d{2})\b/i);
-    if (!match) return null;
-
-    const month = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'].indexOf(match[1].toLowerCase());
-    const deadline = new Date(Number(match[2]), month + 1, 0);
-    return Math.max(0, Math.ceil((deadline.getTime() - Date.now()) / 86_400_000));
+// Mini Sparkline Component (62x21px SVG)
+function MetricSparkline({ trend = 'up', className = '' }) {
+    return (
+        <svg
+            className={`w-[62px] h-[21px] shrink-0 ${className}`}
+            viewBox="0 0 62 21"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+        >
+            {trend === 'up' ? (
+                <path d="M 2 17 Q 16 18, 28 13 T 48 8 L 60 4" />
+            ) : trend === 'down' ? (
+                <path d="M 2 5 Q 16 7, 28 11 T 48 16 L 60 19" />
+            ) : (
+                <path d="M 2 14 Q 18 16, 32 10 T 50 11 L 60 9" />
+            )}
+        </svg>
+    );
 }
 
-function isTaskPlanningRequest(prompt) {
-    return /\b(plan|create|build|implement|develop|design|schedule|break\s+down|decompose|add|make|set\s+up)\b[\s\S]*\b(task|tasks|feature|features|sprint|project|work|workflow|landing\s*page|page|website|web\s*app|application|app|game|platform|system)\b/i.test(prompt);
+// Project Artwork Renderer
+function ProjectArtwork({ project, index }) {
+    const name = project?.name || '';
+    const lowerName = name.toLowerCase();
+
+    if (project?.cover_image) {
+        return (
+            <img
+                src={project.cover_image}
+                alt={name}
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+            />
+        );
+    }
+
+    if (lowerName.includes('echoes') || lowerName.includes('void')) {
+        return (
+            <div className="w-full h-full relative overflow-hidden bg-slate-950 transition-transform duration-300 group-hover:scale-[1.04]">
+                <div className="absolute inset-0 bg-radial from-teal-900/40 via-slate-950 to-black" />
+                <svg className="w-full h-full absolute inset-0 opacity-70" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid slice">
+                    <circle cx="200" cy="100" r="60" stroke="#007CFF" strokeWidth="2" fill="none" opacity="0.6" />
+                    <circle cx="200" cy="100" r="45" stroke="#22d3ee" strokeWidth="1" strokeDasharray="4 4" fill="none" opacity="0.8" />
+                    <circle cx="200" cy="100" r="28" fill="#007CFF" opacity="0.15" />
+                    <path d="M0 160 Q 120 130 200 150 T 400 140 L 400 200 L 0 200 Z" fill="#090d16" />
+                    <path d="M0 180 Q 150 150 260 170 T 400 160 L 400 200 L 0 200 Z" fill="#030712" />
+                </svg>
+            </div>
+        );
+    }
+
+    if (lowerName.includes('solstice')) {
+        return (
+            <div className="w-full h-full relative overflow-hidden bg-slate-900 transition-transform duration-300 group-hover:scale-[1.04]">
+                <div className="absolute inset-0 bg-gradient-to-tr from-amber-950/50 via-slate-900 to-sky-950" />
+                <svg className="w-full h-full absolute inset-0 opacity-75" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid slice">
+                    <circle cx="270" cy="70" r="30" fill="#f59e0b" opacity="0.3" />
+                    <path d="M0 140 Q 110 110 220 130 T 400 120 L 400 200 L 0 200 Z" fill="#0d1527" />
+                    <polygon points="120,130 135,90 150,130" fill="#1e293b" />
+                    <polygon points="145,135 155,100 165,135" fill="#0f172a" />
+                    <path d="M0 165 Q 140 140 280 160 T 400 150 L 400 200 L 0 200 Z" fill="#050811" />
+                </svg>
+            </div>
+        );
+    }
+
+    if (lowerName.includes('forge') || lowerName.includes('engine') || lowerName.includes('tooling')) {
+        return (
+            <div className="w-full h-full relative overflow-hidden bg-slate-950 transition-transform duration-300 group-hover:scale-[1.04] flex items-center justify-center">
+                <div className="absolute inset-0 bg-[linear-gradient(to_right,#0e1e38_1px,transparent_1px),linear-gradient(to_bottom,#0e1e38_1px,transparent_1px)] bg-[size:16px_16px] opacity-40" />
+                <span className="absolute top-3 right-4 font-mono text-xs text-cyan-400 font-bold tracking-wider">
+                    &lt;forge /&gt;
+                </span>
+                <div className="relative z-10 w-12 h-12 border border-cyan-400/40 rounded-xs transform rotate-45 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.15)]">
+                    <div className="w-6 h-6 border border-cyan-300/60 rounded-xs transform -rotate-12" />
+                </div>
+            </div>
+        );
+    }
+
+    // Generic fallback with refined game atmospheric palette
+    const bgGradients = [
+        'from-blue-950 via-slate-900 to-indigo-950',
+        'from-emerald-950 via-slate-900 to-teal-950',
+        'from-purple-950 via-slate-900 to-slate-950',
+    ];
+    const grad = bgGradients[index % bgGradients.length];
+
+    return (
+        <div className={`w-full h-full relative overflow-hidden bg-gradient-to-br ${grad} transition-transform duration-300 group-hover:scale-[1.04] flex items-center justify-center`}>
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:20px_20px] opacity-25" />
+            <span className="font-heading font-bold text-white/25 text-3xl tracking-widest uppercase">
+                {name.slice(0, 3)}
+            </span>
+        </div>
+    );
 }
 
-function isNewProjectRequest(prompt) {
-    return /\b(create|build|make|start|develop|launch|set\s+up)\b[\s\S]*\b(project|website|web\s*app|application|app|game|platform|system|product|landing\s*page)\b/i.test(prompt);
+// Compact Status Pill Renderer
+function StatusPill({ status }) {
+    const s = String(status || '').toLowerCase();
+    let dotClass = 'bg-slate-400';
+    let badgeClass = 'text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700';
+    let label = 'To do';
+
+    if (s === 'in_progress' || s === 'in progress') {
+        dotClass = 'bg-brand';
+        badgeClass = 'text-brand dark:text-brand-light bg-brand/10 border-brand/20';
+        label = 'In progress';
+    } else if (s === 'blocked' || s === 'stuck') {
+        dotClass = 'bg-rose-500';
+        badgeClass = 'text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20';
+        label = 'Blocked';
+    } else if (s === 'review' || s === 'in review' || s === 'waiting_for_review') {
+        dotClass = 'bg-amber-500';
+        badgeClass = 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20';
+        label = 'In review';
+    } else if (s === 'completed' || s === 'done') {
+        dotClass = 'bg-emerald-500';
+        badgeClass = 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+        label = 'Completed';
+    }
+
+    return (
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${badgeClass}`}>
+            <span className={`w-2 h-2 rounded-full shrink-0 ${dotClass}`} />
+            {label}
+        </span>
+    );
 }
 
-function suggestedProjectName(prompt) {
-    const match = prompt.match(/(?:project|website|app|game)\s+(?:called|named)\s+[“"']?([^“"'.!,\n]+)[”"']?/i)
-        || prompt.match(/(?:create|build|make|start)\s+[“"']([^“"']+)[”"']/i);
-    return match ? match[1].trim() : '';
-}
+export default function TenantDashboard({
+    studio,
+    metrics = {},
+    charts = {},
+    tables = {},
+    isOwner = false,
+    quickActions = {},
+}) {
+    const studioName = studio?.name || 'Studio';
 
-export default function TenantDashboard({ studio, projects = [], activeTasks = [], skills = [], positions = [], teamMembers = [] }) {
-    const { canManage } = usePage().props;
-    const studioName = studio?.name || 'Pixel Play Studio';
-
-    const [prompt, setPrompt] = useState('');
-    const [selectedProjectId, setSelectedProjectId] = useState('');
-    const [messages, setMessages] = useState([]);
-    const [generation, setGeneration] = useState(null);
-
-    const [isPlanOpen, setIsPlanOpen] = useState(false);
+    // Quick Action Modals
+    const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
-    const [isProjectCreationOpen, setIsProjectCreationOpen] = useState(false);
-    const [pendingProjectPlan, setPendingProjectPlan] = useState(null);
-    const [isTextareaFlashing, setIsTextareaFlashing] = useState(false);
-    const abortRef = useRef(null);
-    const chatEndRef = useRef(null);
-    const promptTextareaRef = useRef(null);
-    const isRestoringRef = useRef(false); // Bug 3 fix: suppresses auto-persist while loading a past session
+    const [selectedProjectId, setSelectedProjectId] = useState(
+        quickActions.projects?.[0]?.id || ''
+    );
 
-    const {
-        sessions,
-        activeSessionId,
-        isLoading: isSessionsLoading,
-        startNewSession,
-        selectSession,
-        persistCurrentSession,
-        deleteSession
-    } = useChatSessions(studio.id);
+    // Slide-over Task Inspector state
+    const [selectedTask, setSelectedTask] = useState(null);
+    const [isInspectorOpen, setIsInspectorOpen] = useState(false);
 
-    useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }, [messages, generation]);
+    // Period selection
+    const [selectedPeriod, setSelectedPeriod] = useState('This week');
+    const [isPeriodMenuOpen, setIsPeriodMenuOpen] = useState(false);
 
-    // Auto-persist on message changes
-    // Bug 3 fix: skip persist entirely when messages were set by selectSession (not by the user)
-    useEffect(() => {
-        if (isRestoringRef.current) return;
-        persistCurrentSession(messages);
-    }, [messages, persistCurrentSession]);
+    // Derived overall progress
+    const overallProgress = metrics.overall_progress || {
+        percent: 0,
+        completed_tasks: 0,
+        total_tasks: 0,
+        completed_points: 0,
+        total_points: 0,
+    };
 
-    const handleNewChat = () => startNewSession(messages, !!generation, setMessages);
-    const handleSelectChat = (id) => {
-        // Bug 3 fix: signal to the auto-persist effect that the upcoming setMessages
-        // call is a restore, not new user content — so it won't try to persist it
-        isRestoringRef.current = true;
-        selectSession(id, (loadedMessages) => {
-            setMessages(loadedMessages);
-            // Give React one tick to re-render before re-enabling persist
-            setTimeout(() => { isRestoringRef.current = false; }, 50);
+    // Formatted current date for header eyebrow
+    const todayFormatted = useMemo(() => {
+        try {
+            return new Intl.DateTimeFormat('en-US', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+            }).format(new Date()).toUpperCase();
+        } catch {
+            return 'STUDIO OVERVIEW';
+        }
+    }, []);
+
+    // Projects list with calculated metrics
+    const projectsList = useMemo(() => {
+        const raw = tables.projects || charts.project_progress || [];
+        return raw.map((p, idx) => {
+            const rawName = p.name || `Project ${idx + 1}`;
+            const words = rawName.split(/\s+/).filter(Boolean);
+            let code = '';
+            if (words.length >= 2) {
+                code = words.slice(0, 3).map((w) => w[0]).join('').toUpperCase();
+            } else {
+                code = rawName.slice(0, 3).toUpperCase();
+            }
+
+            return {
+                id: p.id,
+                name: rawName,
+                code: p.code || code,
+                sprint: p.current_sprint_name || `Sprint 0${idx + 1}`,
+                genre: p.description || (idx === 0 ? 'Action RPG · Unreal Engine 5' : idx === 1 ? 'Adventure · Unity' : 'Internal tooling · C++'),
+                progress_percent: p.progress_percent ?? 0,
+                completed_tasks: p.completed_tasks || 0,
+                total_tasks: p.total_tasks || 0,
+                health: p.health || (p.progress_percent > 60 ? 'on_track' : 'at_risk'),
+                status: p.status || 'Active',
+                deadline_formatted: p.deadline_formatted || p.target_end_date || 'Nov 24, 2026',
+                members: p.members || [
+                    { name: 'Alex Kim', avatar: null },
+                    { name: 'Maria Chen', avatar: null },
+                    { name: 'Tyler Wright', avatar: null },
+                ],
+            };
         });
-    };
-    const [chatToDelete, setChatToDelete] = useState(null);
-    const [isDeletingChat, setIsDeletingChat] = useState(false);
-    const [activeActionIntent, setActiveActionIntent] = useState(null);
+    }, [tables.projects, charts.project_progress]);
 
-    const handleDeleteChat = (id) => {
-        setChatToDelete(id);
-    };
+    // Metric 1: Active Projects Count
+    const activeProjectsCount = useMemo(() => {
+        if (projectsList.length > 0) return projectsList.length;
+        return 3;
+    }, [projectsList]);
 
-    const confirmDeleteChat = async () => {
-        if (!chatToDelete) return;
-        setIsDeletingChat(true);
-        try {
-            await deleteSession(chatToDelete, messages, setMessages);
-            showToast('Chat session deleted successfully.', 'info');
-        } catch (error) {
-            console.error('Failed to delete chat:', error);
-            showToast('Failed to delete chat session.', 'error');
-        } finally {
-            setIsDeletingChat(false);
-            setChatToDelete(null);
+    // Metric 3: Team Capacity Calculation
+    const teamCapacityStats = useMemo(() => {
+        const team = tables.team_snapshot || [];
+        const totalAssigned = team.reduce((acc, m) => acc + (Number(m.assigned_hours) || 0), 0);
+        const totalMax = team.reduce((acc, m) => acc + (Number(m.max_hours) || 40), 0);
+        const percent = totalMax > 0 ? Math.round((totalAssigned / totalMax) * 100) : 82;
+        return {
+            assigned: Math.round(totalAssigned) || 164,
+            max: Math.round(totalMax) || 200,
+            percent: percent || 82,
+        };
+    }, [tables.team_snapshot]);
+
+    // Multi-Project Delivery & Health Chart Data (Horizontal Stacked Bar)
+    const multiProjectDeliveryData = useMemo(() => {
+        if (projectsList.length > 0) {
+            return projectsList.map((p) => {
+                const total = p.total_tasks || 24;
+                const completed = p.completed_tasks || Math.round(total * ((p.progress_percent || 50) / 100));
+                const atRisk = p.health === 'at_risk' || p.health === 'delayed' ? Math.max(2, Math.round(total * 0.2)) : 0;
+                const inProgress = Math.max(0, total - completed - atRisk);
+
+                return {
+                    name: p.name,
+                    code: p.code,
+                    completed: completed,
+                    in_progress: inProgress,
+                    at_risk: atRisk,
+                    total: total,
+                    progress_percent: p.progress_percent,
+                    health: p.health,
+                };
+            });
         }
-    };
+        return [
+            { name: 'Echoes of the Void', code: 'EOV', completed: 18, in_progress: 8, at_risk: 2, total: 28, progress_percent: 64 },
+            { name: 'Project Solstice', code: 'SOL', completed: 12, in_progress: 10, at_risk: 4, total: 26, progress_percent: 46 },
+            { name: 'Forge Engine', code: 'FRG', completed: 22, in_progress: 4, at_risk: 0, total: 26, progress_percent: 85 },
+        ];
+    }, [projectsList]);
 
+    const onTrackProjectsCount = useMemo(() => {
+        return projectsList.filter((p) => p.health === 'on_track').length;
+    }, [projectsList]);
 
-
-    const addAssistantMessage = (content) => {
-        setMessages(current => [...current, { id: crypto.randomUUID(), role: 'assistant', content }]);
-    };
-
-    const handleQuickAction = (actionTitle) => {
-        let template = '';
-        
-        if (actionTitle === 'Plan Sprint') {
-            setActiveActionIntent('CREATE_TASK');
-            template = `📝 Feature Breakdown Guide
-Please fill in the details below. I will break this down into a complete set of tasks and sub-tasks for your team.
-
-Create a task: [Task Title]
-
-Goal: [What are we building, and why does it matter?]
-Requirements: [Key things it must do]
-Constraints: [Any technical limits — optional]
-Done when: [Acceptance criteria — how we'll know it's finished]`;
-        } else if (actionTitle === 'Suggest Assignees') {
-            setActiveActionIntent(null);
-            template = `Goal: Recommend optimal developer assignments for the unassigned tasks in the current sprint.
-
-Context: Evaluate our team's current workload and run the Graph Neural Network (GNN) matching algorithm against our skill matrices. 
-
-Focus Area: Please prioritize finding the best fit for tasks related to [Insert specific Epic, e.g., Backend API Integration or Frontend UI]. 
-
-Expected Output: Provide the top 3 developer recommendations per task, including their matching confidence score, and highlight any resource deficits if we lack specific skills.`;
-        } else if (actionTitle === 'Analyze Critical Path') {
-            setActiveActionIntent(null);
-            template = `Goal: Analyze the health and timeline of the current active sprint.
-
-Context: Evaluate the task dependencies and estimated hours using our Critical Path logic.
-
-Requirements:
-1. Identify any bottlenecks or tasks with zero total float that could delay the sprint.
-2. Flag any developers who are over-allocated based on the earliest start/latest finish times.
-3. Suggest actionable schedule adjustments to ensure we hit our delivery deadline.`;
-        } else if (actionTitle === 'Audit Skill Coverage') {
-            setActiveActionIntent(null);
-            template = `Goal: Audit our studio's current workforce profile and tech stack capabilities.
-
-Context: We are planning to take on a new project heavily focused on [Insert Macro-Domain, e.g., Data Science / Game Dev]. 
-
-Requirements:
-1. Analyze our team's current proficiency levels in required micro-domains.
-2. Identify any critical skill gaps or low-coverage areas that will lower our GNN matching scores.
-3. Recommend specific upskilling areas or new hiring profiles needed to support this upcoming project.`;
+    // Needs Attention Tasks
+    const needsAttentionTasks = useMemo(() => {
+        const raw = tables.needs_attention || [];
+        if (raw.length > 0) {
+            return raw.slice(0, 4);
         }
-        
-        setPrompt(template);
-        
-        setIsTextareaFlashing(true);
-        setTimeout(() => setIsTextareaFlashing(false), 800);
+        return [
+            {
+                id: '1',
+                task_key: 'EOV-120',
+                title: 'Implement combat combo system',
+                project_name: 'Echoes of the Void',
+                dependency_info: 'Zero Leeway · Must finish on time',
+                assignee_name: 'Alex Kim',
+                assignee_avatar: null,
+                priority: 'CRITICAL',
+            },
+            {
+                id: '2',
+                task_key: 'SOL-064',
+                title: 'Optimize world streaming pipeline',
+                project_name: 'Project Solstice',
+                dependency_info: 'Release Blocker · Holding up 3 tasks',
+                assignee_name: 'Maria Chen',
+                assignee_avatar: null,
+                priority: 'CRITICAL',
+            },
+        ];
+    }, [tables.needs_attention]);
 
-        setTimeout(() => {
-            if (promptTextareaRef.current) {
-                promptTextareaRef.current.focus();
-                const startBracketIdx = template.indexOf('[');
-                const endBracketIdx = template.indexOf(']');
-                if (startBracketIdx !== -1 && endBracketIdx !== -1 && endBracketIdx > startBracketIdx) {
-                    promptTextareaRef.current.setSelectionRange(startBracketIdx, endBracketIdx + 1);
-                }
-            }
-        }, 50);
-    };
-
-    const isTaskPlanningRequest = (text) => {
-        const triggers = ['plan', 'break down', 'decompose', 'generate tasks', 'sprint', 'roadmap', 'schedule'];
-        return triggers.some(t => text.toLowerCase().includes(t));
-    };
-
-    const isNewProjectRequest = (text) => {
-        const triggers = ['new project', 'start a project', 'create a project', 'build a new'];
-        return triggers.some(t => text.toLowerCase().includes(t));
-    };
-
-    const suggestedProjectName = (text) => {
-        const titleMatch = text.match(/project (?:called|named|for) ["']?([^"'.]+)["']?/i);
-        if (titleMatch) return titleMatch[1].trim();
-        const firstSentence = text.split(/[.!?]/)[0];
-        return firstSentence.length < 40 ? firstSentence : firstSentence.substring(0, 37) + '...';
-    };
-
-    const handlePromptSubmit = async (e) => {
-        e.preventDefault();
-        const trimmedPrompt = prompt.trim();
-        if (!trimmedPrompt || generation) return;
-
-        setMessages(current => [...current, { id: crypto.randomUUID(), role: 'user', content: trimmedPrompt }]);
-        setPrompt('');
-
-        const controller = new AbortController();
-        abortRef.current = controller;
-
-        try {
-            let isPlanning = false;
-            let isNewProject = false;
-
-            if (activeActionIntent === 'CREATE_TASK') {
-                isPlanning = true;
-            } else {
-                // Call backend semantic router
-                setGeneration({ stage: 'chat', message: 'Analyzing request intent…', pct: 15 });
-                const { data: intentData } = await axios.post(route('tenant.workspace.ai-router', { tenant: studio.id }), {
-                    message: trimmedPrompt,
-                }, { signal: controller.signal });
-
-                if (intentData.intent === 'CLARIFY') {
-                    addAssistantMessage(intentData.clarification_question || "I'm not sure what you'd like to do. Could you clarify?");
-                    setActiveActionIntent(null);
-                    return;
-                } else if (intentData.intent === 'CREATE_TASK') {
-                    isPlanning = true;
-                } else if (intentData.intent === 'NEW_PROJECT') {
-                    isNewProject = true;
-                }
-            }
-
-            if (!isPlanning && !isNewProject) {
-                setGeneration({ stage: 'chat', message: 'Preparing a response…', pct: 35 });
-                const history = messages.slice(-10).map(({ role, content }) => ({ role, content }));
-                const { data } = await axios.post(route('tenant.workspace.ai-assistant', { tenant: studio.id }), {
-                    message: trimmedPrompt,
-                    history,
-                }, { signal: controller.signal });
-                addAssistantMessage(data.reply || 'I could not answer that right now. Please try again.');
-                setActiveActionIntent(null);
-                return;
-            }
-
-            if (!canManage) {
-                addAssistantMessage('Only studio managers are authorized to plan and create tasks or projects.');
-                setActiveActionIntent(null);
-                return;
-            }
-
-            if (isNewProject || selectedProjectId === '') {
-                // New Project path
-                setPendingProjectPlan({
-                    description: trimmedPrompt,
-                    name: suggestedProjectName(trimmedPrompt),
+    // Upcoming Tasks Data with consequence-driven urgency classification
+    const upcomingTasksData = useMemo(() => {
+        const raw = tables.upcoming_tasks || tables.needs_attention || [];
+        if (raw.length > 0) {
+            return raw.slice(0, 6).map((t) => {
+                const cpaStatus = resolveCpaStatus({
+                    totalFloat: t.total_float,
+                    isCritical: t.is_critical || t.priority === 'CRITICAL' || String(t.priority).toUpperCase() === 'CRITICAL',
+                    dueDate: t.due_date,
+                    daysUntilDeadline: t.days_until_deadline,
+                    dependentCount: t.dependent_tasks_count || 0,
+                    status: t.status,
                 });
-                setIsProjectCreationOpen(true);
-                addAssistantMessage('I’ll help you decompose this. Add a project name first, and then I will generate the Epic and Sprint breakdown.');
-                setActiveActionIntent(null);
-                return;
-            } else {
-                // Existing Project path
-                setPendingProjectPlan({
-                    description: trimmedPrompt,
-                });
-                setIsPlanOpen(true);
-                addAssistantMessage('Opening the AI Project Decomposer to draft your tasks...');
-                setActiveActionIntent(null);
-            }
-        } catch (error) {
-            if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') return;
-            addAssistantMessage(error.response?.data?.message || error.message || 'I could not respond just now. Please try again.');
-        } finally {
-            abortRef.current = null;
-            setGeneration(null);
+
+                return {
+                    ...t,
+                    cpaStatus,
+                    urgencyType: cpaStatus.tier === 'emergency' 
+                        ? 'critical' 
+                        : (cpaStatus.tier === 'vigilance' || cpaStatus.tier === 'overdue_isolated' || cpaStatus.tier === 'tight') 
+                        ? 'urgent' 
+                        : 'normal',
+                    urgencyLabel: cpaStatus.label,
+                    urgencySublabel: cpaStatus.sublabel,
+                };
+            });
+        }
+        return [
+            {
+                id: '1',
+                task_key: 'EOV-120',
+                title: 'Implement combat combo system',
+                project_name: 'Echoes of the Void',
+                status: 'in_progress',
+                priority: 'Critical',
+                urgencyType: 'critical',
+                urgencyLabel: 'Release Blocker',
+                urgencySublabel: '8h Behind',
+                assignee_name: 'Alex Kim',
+                due_date: 'Oct 12',
+            },
+            {
+                id: '2',
+                task_key: 'SOL-064',
+                title: 'Optimize world streaming pipeline',
+                project_name: 'Project Solstice',
+                status: 'blocked',
+                priority: 'Critical',
+                urgencyType: 'urgent',
+                urgencyLabel: 'Zero Leeway',
+                urgencySublabel: 'Must stay on time',
+                assignee_name: 'Maria Chen',
+                due_date: 'Oct 10',
+            },
+            {
+                id: '3',
+                task_key: 'EOV-132',
+                title: 'Design inventory interaction flow',
+                project_name: 'Echoes of the Void',
+                status: 'review',
+                priority: 'High',
+                urgencyType: 'urgent',
+                urgencyLabel: 'Tight Leeway',
+                urgencySublabel: '+4h Buffer',
+                assignee_name: 'Tyler Wright',
+                due_date: 'Oct 13',
+            },
+            {
+                id: '4',
+                task_key: 'FE-021',
+                title: 'Build asset validation tools',
+                project_name: 'Forge Engine',
+                status: 'in_progress',
+                priority: 'Medium',
+                urgencyType: 'normal',
+                urgencyLabel: 'Safe Buffer',
+                urgencySublabel: '+16h Leeway',
+                assignee_name: 'Tyler Liu',
+                due_date: 'Oct 14',
+            },
+        ];
+    }, [tables.upcoming_tasks, tables.needs_attention]);
+
+    // Handle project creation
+    const handleProjectCreated = (newProject) => {
+        setIsProjectModalOpen(false);
+        if (newProject?.id) {
+            router.visit(route('tenant.projects.show', { tenant: studio.id, project: newProject.id }));
+        } else {
+            router.reload();
         }
     };
 
-    const cancelGeneration = () => abortRef.current?.abort();
+    // Open task inspector for any task
+    const handleOpenTask = (task) => {
+        setSelectedTask(task);
+        setIsInspectorOpen(true);
+    };
 
-    const handleProjectCreated = (project) => {
-        if (!pendingProjectPlan || !project) return;
-        setSelectedProjectId(String(project.id));
-        setIsPlanOpen(true);
-        addAssistantMessage(`Created “${project.name}”. Opening the AI Project Decomposer...`);
+    const handleUpdateTaskStatus = (taskId, newStatus) => {
+        router.patch(
+            route('tenant.tasks.update-status', { tenant: studio.id, task: taskId }),
+            { status: newStatus },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    router.reload({ only: ['metrics', 'tables', 'charts'] });
+                },
+            }
+        );
     };
 
     return (
         <TenantLayout studioName={studioName}>
-            <Head title={`AI Workspace — ${studioName}`} />
+            <Head title={`Studio Overview — ${studioName}`} />
 
-            {/* Sticky Header Navigation Bar */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-800/80 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md shrink-0 select-none">
-                <h1 className="font-heading text-base font-bold text-gray-900 dark:text-slate-100">
-                    Studio Workspace
-                </h1>
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={() => showToast('StudioSprint Plan: Standard Account', 'info')}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-dark text-white text-xs font-heading font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm shadow-brand/15"
-                    >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>Upgrade</span>
-                    </button>
-                </div>
-            </div>
+            <div className="flex-1 w-full h-full min-h-0 overflow-y-auto custom-scrollbar [scrollbar-gutter:stable] bg-[var(--overview-bg)] text-[var(--overview-fg)]">
+                {/* ── Content Wrapper with generous bottom padding so Upcoming Tasks is fully visible ── */}
+                <div className="max-w-[1600px] mx-auto w-full p-6 sm:p-8 pb-20 sm:pb-24 lg:pb-28 2xl:py-9 2xl:px-11 2xl:pb-28">
 
-            {/* Split Screen Container: Center Canvas + Right Sidebar */}
-            <div className="flex-1 flex overflow-hidden">
-                {/* Center Canvas */}
-                <div className="flex-1 flex flex-col justify-between overflow-y-auto relative p-6 sm:p-10 lg:p-12">
-                    <div className={`mx-auto flex w-full max-w-3xl flex-1 flex-col py-6 ${messages.length === 0 && !generation ? 'justify-center' : 'justify-end'}`}>
-                        <div className="min-h-[18rem] space-y-5 overflow-y-auto pr-1">
-                            {messages.length === 0 && !generation && (
-                                <div className="my-auto py-8">
-                                    <div className="space-y-3 text-center">
-                                        <div className="inline-flex items-center gap-2 rounded-full border border-brand-30 bg-brand-10 px-3 py-1 text-xs font-semibold text-brand shadow-sm dark:text-brand-light"><Sparkles className="h-3.5 w-3.5" />AI-Assisted Sprint Orchestration</div>
-                                        <h2 className="font-heading text-3xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100 sm:text-4xl lg:text-5xl">Welcome to {studioName}</h2>
-                                        <p className="mx-auto max-w-xl text-sm text-gray-600 dark:text-gray-400 sm:text-base">Get started by creating a task or let the StudioSprint AI orchestrate your studio sprint.</p>
+                    {/* ── 1. Page Heading ── */}
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-7">
+                        <div>
+                            <div className="text-xs font-mono font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                                {todayFormatted}
+                            </div>
+                            <h1 className="text-2xl sm:text-3xl font-bold font-heading text-slate-900 dark:text-slate-50 tracking-tight">
+                                Studio Overview
+                            </h1>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                A little clarity. A lot of momentum. Here's where your studio stands.
+                            </p>
+                        </div>
+
+                        {/* Top Actions */}
+                        <div className="flex items-center gap-2.5 max-[480px]:w-full">
+                            {/* Period Control */}
+                            <div className="relative max-[480px]:flex-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsPeriodMenuOpen(!isPeriodMenuOpen)}
+                                    className="w-full h-9 px-3.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-semibold flex items-center justify-between gap-2 shadow-2xs transition-colors cursor-pointer"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                        <span>{selectedPeriod}</span>
                                     </div>
-                                    <div className={`mx-auto mt-10 grid max-w-2xl grid-cols-1 gap-4 ${canManage ? 'sm:grid-cols-2' : 'sm:grid-cols-2'}`}>
-                                        {canManage && (
-                                            <>
-                                                <QuickActionCard title="Plan Sprint" description="Break down an epic into sprint tasks." icon={CheckSquare} badgeColor="brand" onClick={() => handleQuickAction('Plan Sprint')} />
-                                                <QuickActionCard title="Suggest Assignees" description="Recommend optimal developer assignments for tasks." icon={Cpu} badgeColor="emerald" onClick={() => handleQuickAction('Suggest Assignees')} />
-                                            </>
-                                        )}
-                                        <QuickActionCard title="Analyze Critical Path" description="Analyze the health and timeline of the current sprint." icon={Calendar} badgeColor="sky" onClick={() => handleQuickAction('Analyze Critical Path')} />
-                                        <QuickActionCard title="Audit Skill Coverage" description="Audit our studio's current workforce profile and tech stack." icon={Users} badgeColor="purple" onClick={() => handleQuickAction('Audit Skill Coverage')} />
-                                    </div>
-                                </div>
-                            )}
+                                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                                </button>
 
-                            {messages.map(message => (
-                                <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                    {message.role === 'assistant' && (
-                                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand">
-                                            <Bot className="h-4 w-4" />
-                                        </div>
-                                    )}
-                                    {message.role === 'user' ? (
-                                        /* User bubble: plain text, preserve line breaks */
-                                        <div className="max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-brand text-white">
-                                            {message.content}
-                                        </div>
-                                    ) : (
-                                        <div className="max-w-[80%] rounded-2xl px-4 py-3 bg-white shadow-sm ring-1 ring-gray-100 dark:bg-slate-800 dark:ring-slate-700">
-                                            <div className="prose prose-sm dark:prose-invert max-w-none
-                                                            prose-p:my-1 prose-headings:my-2 prose-headings:font-semibold
-                                                            prose-ul:my-1 prose-ol:my-1 prose-li:my-0
-                                                            prose-pre:my-2 prose-code:text-brand dark:prose-code:text-brand-light
-                                                            prose-a:text-brand dark:prose-a:text-brand-light">
-                                                <ReactMarkdown 
-                                                    remarkPlugins={[remarkGfm]}
-                                                    components={{
-                                                        table: ({node, ...props}) => (
-                                                          <div className="overflow-x-auto my-4">
-                                                            <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700" {...props} />
-                                                          </div>
-                                                        ),
-                                                    }}
-                                                >
-                                                    {message.content}
-                                                </ReactMarkdown>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-
-                            {generation && (
-                                <div className="flex gap-3">
-                                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand"><Bot className="h-4 w-4" /></div>
-                                    <div className="w-full max-w-xl rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-100 dark:bg-slate-800 dark:ring-slate-700">
-                                        <div className="flex items-center gap-3">
-                                            {/* Typing-indicator dots */}
-                                            <span className="flex gap-1">
-                                                {[0, 1, 2].map(i => (
-                                                    <span
-                                                        key={i}
-                                                        className="w-1.5 h-1.5 rounded-full bg-brand animate-bounce"
-                                                        style={{ animationDelay: `${i * 150}ms` }}
-                                                    />
-                                                ))}
-                                            </span>
-                                            <span className="text-sm font-semibold text-gray-900 dark:text-slate-100">
-                                                {generation.stage === 'chat' ? 'Preparing a response' : 'Creating your task plan'}
-                                            </span>
-                                        </div>
-                                        <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">{generation.message || 'Working on your request...'}</p>
-                                        {/* Shimmer progress bar */}
-                                        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-slate-700 relative">
-                                            <div
-                                                className="h-full rounded-full bg-brand transition-all duration-700"
-                                                style={{ width: `${generation.pct || 10}%` }}
-                                            />
-                                            <div className="absolute inset-0 animate-shimmer rounded-full opacity-40" />
-                                        </div>
-                                        <div className="mt-3 flex items-center justify-between text-[11px]">
-                                            <span className="text-brand">{generation.stage === 'chat' ? 'Workspace conversation' : 'Drafting tasks'}</span>
-                                            <button type="button" onClick={cancelGeneration} className="inline-flex items-center gap-1 text-gray-400 hover:text-red-500"><X className="h-3 w-3" /> Cancel</button>
-                                        </div>
+                                {isPeriodMenuOpen && (
+                                    <div className="absolute right-0 top-full mt-1.5 w-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-xl py-1 z-30 text-xs">
+                                        {['This Week', 'Last Week', 'Sprint 08', 'This Month'].map((period) => (
+                                            <button
+                                                key={period}
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedPeriod(period);
+                                                    setIsPeriodMenuOpen(false);
+                                                }}
+                                                className={`w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors font-medium ${
+                                                    selectedPeriod === period ? 'text-brand font-bold' : 'text-slate-700 dark:text-slate-300'
+                                                }`}
+                                            >
+                                                {period}
+                                            </button>
+                                        ))}
                                     </div>
-                                </div>
-                            )}
-                            <div ref={chatEndRef} />
+                                )}
+                            </div>
+
+                            {/* New Project Primary CTA */}
+                            <button
+                                type="button"
+                                onClick={() => setIsProjectModalOpen(true)}
+                                className="h-9 px-4 rounded-lg bg-brand hover:bg-brand-dark text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-colors max-[480px]:flex-1 cursor-pointer"
+                            >
+                                <Plus className="w-4 h-4 stroke-[2.5]" />
+                                <span>New Project</span>
+                            </button>
                         </div>
                     </div>
 
-                    {isPlanOpen && pendingProjectPlan && (
-                        <HierarchicalDecompositionModal
-                            isOpen={isPlanOpen}
-                            onClose={() => {
-                                setIsPlanOpen(false);
-                                setPendingProjectPlan(null);
-                            }}
-                            projectId={selectedProjectId}
-                            tenantId={studio.id}
-                            teamMembers={teamMembers}
-                            initialDescription={pendingProjectPlan.description}
-                            autoStart={true}
-                            onSaveSuccess={() => router.visit(route('tenant.projects.show', { tenant: studio.id, project: selectedProjectId }))}
-                        />
-                    )}
+                    {/* ── 2. Four KPI Metric Cards (Refined Text Hierarchy & Bold Sensitivity) ── */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
+                        {/* Card 1: Active Projects */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-2xs flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                    Active Projects
+                                </span>
+                                <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-500 dark:bg-blue-500/20 dark:text-blue-400 flex items-center justify-center">
+                                    <FolderKanban className="w-4 h-4 stroke-[2]" />
+                                </div>
+                            </div>
+                            <div className="mt-2.5 flex items-baseline gap-2.5">
+                                <span className="text-3xl sm:text-4xl font-bold font-heading text-slate-900 dark:text-slate-50 tracking-tight">
+                                    {activeProjectsCount}
+                                </span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                                    <ArrowUp className="w-3 h-3 stroke-[2.5]" />
+                                    1
+                                </span>
+                            </div>
+                            <div className="mt-3.5 flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800/80 pt-3">
+                                <span className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate">
+                                    Across your studio
+                                </span>
+                                <MetricSparkline trend="up" className="text-emerald-500" />
+                            </div>
+                        </div>
 
-                    <CreateProjectModal
-                        isOpen={isProjectCreationOpen}
-                        onClose={() => {
-                            setIsProjectCreationOpen(false);
-                        }}
-                        onCreated={handleProjectCreated}
-                        initialTitle={pendingProjectPlan?.name || ''}
-                        initialDescription={pendingProjectPlan?.description || ''}
-                        planCount={pendingProjectPlan?.tasks?.length || 0}
-                    />
+                        {/* Card 2: Tasks Completed */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-2xs flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                    Tasks Completed
+                                </span>
+                                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center">
+                                    <CheckCircle2 className="w-4 h-4 stroke-[2]" />
+                                </div>
+                            </div>
+                            <div className="mt-2.5 flex items-baseline gap-2.5">
+                                <span className="text-3xl sm:text-4xl font-bold font-heading text-slate-900 dark:text-slate-50 tracking-tight">
+                                    {overallProgress.completed_tasks || 26}
+                                </span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                                    <ArrowUp className="w-3 h-3 stroke-[2.5]" />
+                                    18.2%
+                                </span>
+                            </div>
+                            <div className="mt-3.5 flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800/80 pt-3">
+                                <span className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate">
+                                    {overallProgress.total_tasks > 0
+                                        ? `${overallProgress.completed_tasks} of ${overallProgress.total_tasks} tasks done`
+                                        : '12 more than last week'}
+                                </span>
+                                <MetricSparkline trend="up" className="text-emerald-500" />
+                            </div>
+                        </div>
 
-                    {isTaskModalOpen && selectedProjectId && (
-                        <ManualTaskModal
-                            isOpen={isTaskModalOpen}
-                            onClose={() => setIsTaskModalOpen(false)}
-                            project={projects.find(p => Number(p.id) === Number(selectedProjectId))}
-                            tenantId={studio.id}
-                            teamMembers={teamMembers}
-                            skills={skills}
-                            positions={positions}
-                        />
-                    )}
+                        {/* Card 3: Team Capacity */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-2xs flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                    Team Capacity
+                                </span>
+                                <div className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-500 dark:bg-indigo-500/20 dark:text-indigo-400 flex items-center justify-center">
+                                    <Users className="w-4 h-4 stroke-[2]" />
+                                </div>
+                            </div>
+                            <div className="mt-2.5 flex items-baseline gap-2.5">
+                                <span className="text-3xl sm:text-4xl font-bold font-heading text-slate-900 dark:text-slate-50 tracking-tight">
+                                    {teamCapacityStats.percent}%
+                                </span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-blue-500/15 text-brand dark:text-brand-light">
+                                    <ArrowUp className="w-3 h-3 stroke-[2.5]" />
+                                    6.4%
+                                </span>
+                            </div>
+                            <div className="mt-3.5 flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800/80 pt-3">
+                                <span className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate">
+                                    {teamCapacityStats.assigned} of {teamCapacityStats.max} hours allocated
+                                </span>
+                                <MetricSparkline trend="up" className="text-brand" />
+                            </div>
+                        </div>
 
-                    {/* Agentic Chat Bar (Taller, rounded-2xl, dual-row layout) */}
-                    <div className="sticky bottom-0 z-20 pt-4 pb-2 w-full max-w-3xl mx-auto">
-                        <form
-                            onSubmit={handlePromptSubmit}
-                            className={`flex flex-col gap-1.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border ${isTextareaFlashing ? 'border-brand ring-4 ring-brand/30 bg-brand/5 dark:bg-brand/10 shadow-brand/20' : 'border-gray-200 dark:border-slate-800 shadow-2xl'} p-2.5 focus-within:border-brand dark:focus-within:border-brand/60 focus-within:ring-2 focus-within:ring-brand/20 transition-all duration-300`}
-                        >
-                            {/* Top row: Textarea & Send button */}
-                            <div className="flex items-center gap-2">
-                                <TextareaAutosize
-                                    minRows={1}
-                                    maxRows={10}
-                                    ref={promptTextareaRef}
-                                    value={prompt}
-                                    onChange={(e) => {
-                                        setPrompt(e.target.value);
-                                        if (e.target.value.trim() === '') setActiveActionIntent(null);
-                                    }}
-                                    placeholder="Ask a question, or describe a task to create a plan…"
-                                    maxLength="3000"
-                                    className="flex-1 bg-transparent border-0 px-2 py-1.5 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-slate-600 focus:outline-none focus:ring-0 resize-none min-h-[2.5rem] align-middle font-sans"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && !e.shiftKey) {
-                                            e.preventDefault();
-                                            handlePromptSubmit(e);
-                                        }
-                                    }}
-                                />
-                                <button
-                                    type="submit"
-                                    disabled={!prompt.trim() || generation}
-                                    className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-brand hover:bg-brand-dark text-white shadow-md shadow-brand/25 transition-all hover:scale-105 active:scale-95 self-center shrink-0 mr-1"
-                                    title="Send Prompt"
+                        {/* Card 4: At-Risk Tasks */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-2xs flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                    At-Risk Tasks
+                                </span>
+                                <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-500 dark:bg-amber-500/20 dark:text-amber-400 flex items-center justify-center">
+                                    <AlertTriangle className="w-4 h-4 stroke-[2]" />
+                                </div>
+                            </div>
+                            <div className="mt-2.5 flex items-baseline gap-2.5">
+                                <span className={`text-3xl sm:text-4xl font-bold font-heading tracking-tight ${
+                                    metrics.tasks_at_risk_count > 0 ? 'text-amber-500 dark:text-amber-400' : 'text-slate-900 dark:text-slate-50'
+                                }`}>
+                                    {metrics.tasks_at_risk_count ?? 2}
+                                </span>
+                                {metrics.tasks_at_risk_count > 0 && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                                        Needs Attention
+                                    </span>
+                                )}
+                            </div>
+                            <div className="mt-3.5 flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800/80 pt-3">
+                                <span className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate">
+                                    Critical path & delayed items
+                                </span>
+                                <MetricSparkline trend="neutral" className="text-amber-500" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* ── 3. Active Projects Section ── */}
+                    <div className="mb-7">
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <h2 className="text-base sm:text-lg font-bold font-heading text-slate-900 dark:text-slate-100">
+                                    Active Projects
+                                </h2>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Big ideas, moving forward.
+                                </p>
+                            </div>
+                            <Link
+                                href={route('tenant.projects.index', { tenant: studio.id })}
+                                className="text-xs font-semibold text-brand hover:text-brand-dark dark:hover:text-brand-light transition-colors flex items-center gap-1 group"
+                            >
+                                <span>View All Projects</span>
+                                <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+                            </Link>
+                        </div>
+
+                        {/* Project Cards Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:max-lg:[&>*:nth-child(3)]:col-span-2">
+                            {projectsList.slice(0, 3).map((project, idx) => (
+                                <Link
+                                    key={project.id || idx}
+                                    href={project.id ? route('tenant.projects.show', { tenant: studio.id, project: project.id }) : '#'}
+                                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:border-brand/40 hover:shadow-md group block cursor-pointer"
                                 >
-                                    <Send className="w-3.5 h-3.5" />
-                                </button>
+                                    {/* Cover Image Wrapper */}
+                                    <div className="h-32 sm:h-36 2xl:h-44 relative overflow-hidden bg-slate-950">
+                                        <ProjectArtwork project={project} index={idx} />
+                                        
+                                        {/* Bottom darkening gradient overlay */}
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/35 pointer-events-none" />
+
+                                        {/* Status Badge: Top-Left */}
+                                        <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-xs border border-white/10 px-2 py-0.5 rounded-full text-[11px] font-semibold text-white flex items-center gap-1.5 shadow-xs">
+                                            <span
+                                                className={`w-2 h-2 rounded-full ${
+                                                    project.health === 'on_track' ? 'bg-emerald-400' : 'bg-amber-400'
+                                                }`}
+                                            />
+                                            <span>{project.health === 'on_track' ? 'On Track' : 'At Risk'}</span>
+                                        </div>
+
+                                        {/* Project Key & Sprint Tag: Bottom-Left */}
+                                        <div className="absolute bottom-3 left-3 text-xs font-mono text-white/95 font-bold drop-shadow-xs">
+                                            {project.code} / {project.sprint}
+                                        </div>
+                                    </div>
+
+                                    {/* Body */}
+                                    <div className="p-4 sm:p-4.5">
+                                        <div className="text-sm sm:text-base font-bold font-heading text-slate-900 dark:text-slate-100 truncate">
+                                            {project.name}
+                                        </div>
+                                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 mb-3.5 truncate">
+                                            {project.genre}
+                                        </div>
+
+                                        {/* Progress Row */}
+                                        <div className="flex items-center justify-between text-xs mb-1.5">
+                                            <span className="font-medium text-slate-500 dark:text-slate-400">Project Progress</span>
+                                            <span className="font-mono font-bold text-slate-900 dark:text-slate-100">{project.progress_percent}%</span>
+                                        </div>
+
+                                        {/* Progress Track */}
+                                        <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full transition-all duration-300 ${
+                                                    project.health === 'at_risk' ? 'bg-amber-500' : 'bg-brand'
+                                                }`}
+                                                style={{ width: `${Math.min(100, project.progress_percent)}%` }}
+                                            />
+                                        </div>
+
+                                        {/* Footer */}
+                                        <div className="border-t border-slate-100 dark:border-slate-800 mt-4 pt-3 flex items-center justify-between">
+                                            {/* Left: Overlapping Avatars with Brand Styling */}
+                                            <div className="flex items-center -space-x-1.5">
+                                                {project.members.slice(0, 3).map((m, mIdx) => (
+                                                    <UserAvatar
+                                                        key={mIdx}
+                                                        name={m.name}
+                                                        avatar={m.avatar}
+                                                        className="w-6 h-6 border-2 border-white dark:border-slate-900"
+                                                    />
+                                                ))}
+                                                {project.members.length > 3 && (
+                                                    <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-white dark:border-slate-900 flex items-center justify-center text-[10px] font-mono font-bold text-slate-600 dark:text-slate-300">
+                                                        +{project.members.length - 3}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Right: Target Date */}
+                                            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-mono">
+                                                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                                <span>{project.deadline_formatted}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* ── 4. Redesigned Studio Delivery & Portfolio Health Chart + Needs Attention Row ── */}
+                    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)] max-[1100px]:grid-cols-[minmax(0,1.5fr)_minmax(280px,1fr)] gap-5 mb-7">
+                        {/* Left: Multi-Project Delivery & Portfolio Health Matrix */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-2xs flex flex-col justify-between">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                                <div>
+                                    <h3 className="text-sm sm:text-base font-bold font-heading text-slate-900 dark:text-slate-100">
+                                        Studio Portfolio Health & Delivery
+                                    </h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                        Cross-project task delivery, throughput & delivery risk exposure
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-500/10 text-brand dark:text-brand-light">
+                                        {onTrackProjectsCount} / {projectsList.length} On Track
+                                    </span>
+                                </div>
                             </div>
 
-                            {/* Divider line */}
-                            <div className="border-t border-gray-100 dark:border-slate-800/80 my-1"></div>
+                            {/* Digestible Horizontal Stacked Throughput Chart */}
+                            <div className="my-3 h-52 sm:h-56 w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart
+                                        data={multiProjectDeliveryData}
+                                        layout="vertical"
+                                        margin={{ top: 10, right: 20, left: 10, bottom: 5 }}
+                                    >
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} className="stroke-slate-200/80 dark:stroke-slate-800" />
+                                        <XAxis
+                                            type="number"
+                                            tick={{ fontSize: 11, fill: 'var(--overview-muted-fg)' }}
+                                            axisLine={false}
+                                            tickLine={false}
+                                        />
+                                        <YAxis
+                                            dataKey="name"
+                                            type="category"
+                                            width={130}
+                                            tick={{ fontSize: 11, fill: 'var(--overview-fg)', fontWeight: 600 }}
+                                            axisLine={false}
+                                            tickLine={false}
+                                        />
+                                        <Tooltip
+                                            content={({ active, payload }) => {
+                                                if (active && payload && payload.length) {
+                                                    const item = payload[0]?.payload;
+                                                    return (
+                                                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-xs shadow-xl">
+                                                            <div className="font-bold text-slate-900 dark:text-slate-100 mb-1.5 font-heading">
+                                                                {item?.name} ({item?.progress_percent}% overall)
+                                                            </div>
+                                                            <div className="space-y-1">
+                                                                <div className="flex items-center justify-between gap-4">
+                                                                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">Completed:</span>
+                                                                    <span className="font-mono font-bold">{item?.completed} tasks</span>
+                                                                </div>
+                                                                <div className="flex items-center justify-between gap-4">
+                                                                    <span className="text-cyan-600 dark:text-cyan-400 font-medium">In Progress:</span>
+                                                                    <span className="font-mono font-bold">{item?.in_progress} tasks</span>
+                                                                </div>
+                                                                <div className="flex items-center justify-between gap-4">
+                                                                    <span className="text-amber-600 dark:text-amber-400 font-medium">At Risk / Critical:</span>
+                                                                    <span className="font-mono font-bold">{item?.at_risk} tasks</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            }}
+                                        />
+                                        <Bar dataKey="completed" name="Completed" stackId="a" fill="#007CFF" radius={[0, 0, 0, 0]} />
+                                        <Bar dataKey="in_progress" name="In Progress" stackId="a" fill="#06B6D4" radius={[0, 0, 0, 0]} />
+                                        <Bar dataKey="at_risk" name="At Risk / Critical" stackId="a" fill="#F59E0B" radius={[0, 4, 4, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
 
-                            {/* Bottom row: Attach, Voice, Browse, Counter */}
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => showToast('Attachment upload coming soon!', 'info')}
-                                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-sans text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/60 transition-colors"
-                                        title="Attach Sprint Doc or Spec"
-                                    >
-                                        <Paperclip className="w-3.5 h-3.5" />
-                                        <span>Attach</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => showToast('Voice input coming soon!', 'info')}
-                                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-sans text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/60 transition-colors"
-                                        title="Voice Input Prompt"
-                                    >
-                                        <Mic className="w-3.5 h-3.5" />
-                                        <span>Voice Message</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => showToast('Prompt library coming soon!', 'info')}
-                                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-sans text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/60 transition-colors"
-                                        title="Browse Prompt Library"
-                                    >
-                                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                                        <span>Browse Prompts</span>
-                                    </button>
-                                </div>
-
-                                <div className="flex items-center gap-3 pr-2">
-                                    <select
-                                        value={selectedProjectId}
-                                        onChange={(event) => setSelectedProjectId(event.target.value)}
-                                        className="max-w-[180px] bg-transparent text-[10px] font-semibold text-gray-500 outline-none dark:text-slate-400"
-                                        aria-label="Project for AI tasks"
-                                    >
-                                        <option value="">New Project</option>
-                                        {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-                                    </select>
-                                    <div className="text-[10px] font-mono text-gray-400 dark:text-slate-600 select-none">
-                                        {prompt.length} / 3,000
+                            {/* Chart Bottom Legend */}
+                            <div className="pt-2 px-1 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800">
+                                <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="w-2.5 h-2.5 bg-brand rounded-xs" />
+                                        <span className="font-medium">Completed</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="w-2.5 h-2.5 bg-cyan-500 rounded-xs" />
+                                        <span className="font-medium">In Progress</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="w-2.5 h-2.5 bg-amber-500 rounded-xs" />
+                                        <span className="font-medium">At Risk / Critical</span>
                                     </div>
                                 </div>
+                                <span className="font-mono font-semibold text-slate-600 dark:text-slate-300">
+                                    {overallProgress.completed_tasks} / {overallProgress.total_tasks} Total Studio Deliverables
+                                </span>
                             </div>
-                        </form>
-                    </div>
-                </div>
+                        </div>
 
-                {/* Right Sidebar Component: AI Workspace Chat History */}
-                <RightSidebar
-                    sessions={sessions}
-                    activeSessionId={activeSessionId}
-                    isLoading={!!generation}
-                    onNewChat={handleNewChat}
-                    onSelectChat={handleSelectChat}
-                    onDeleteChat={handleDeleteChat}
-                />
+                        {/* Right: Needs Attention Panel */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-2xs flex flex-col justify-between">
+                            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                                <h3 className="text-sm sm:text-base font-bold font-heading text-slate-900 dark:text-slate-100">
+                                    Needs Attention
+                                </h3>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                    {needsAttentionTasks.length} critical
+                                </span>
+                            </div>
+
+                            {/* Dense Task Rows with Click-to-Inspect */}
+                            <div className="flex-1 flex flex-col divide-y divide-slate-100 dark:divide-slate-800/80 my-2">
+                                {needsAttentionTasks.map((t) => (
+                                    <div
+                                        key={t.id}
+                                        onClick={() => handleOpenTask(t)}
+                                        className="py-3 px-1 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg transition-colors cursor-pointer group"
+                                    >
+                                        {/* Warning Icon Box */}
+                                        <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30">
+                                            <AlertTriangle className="w-4 h-4" />
+                                        </div>
+
+                                        {/* Middle Text Column */}
+                                        <div className="flex-1 min-w-0 pr-1">
+                                            <div className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand transition-colors break-words">
+                                                {t.title}
+                                            </div>
+                                            <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
+                                                <span>{t.project_name}</span>
+                                                <span className="font-mono text-slate-400">· {t.task_key || `TSK-${t.id}`}</span>
+                                            </div>
+                                            <div className="mt-1 flex flex-col sm:flex-row sm:items-center gap-1 text-xs">
+                                                <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1 font-bold shrink-0">
+                                                    <GitBranch className="w-3 h-3" />
+                                                    {t.dependency_info || 'Release Blocker'}
+                                                </span>
+                                                <span className="hidden sm:inline text-slate-300 dark:text-slate-600">·</span>
+                                                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate max-w-[220px]">
+                                                    <strong className="text-brand font-semibold">Action:</strong> Reassign or trim scope
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Right Assignee Avatar with Brand Uniformity */}
+                                        <UserAvatar
+                                            name={t.assignee_name}
+                                            avatar={t.assignee_avatar}
+                                            className="w-7 h-7"
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Footer Link */}
+                            <Link
+                                href={route('tenant.tasks', { tenant: studio.id })}
+                                className="pt-3 text-center text-xs font-semibold text-slate-500 hover:text-brand dark:hover:text-brand-light transition-colors flex items-center justify-center gap-1 border-t border-slate-100 dark:border-slate-800"
+                            >
+                                <span>Review Critical Tasks</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                            </Link>
+                        </div>
+                    </div>
+
+                    {/* ── 5. Enhanced Upcoming Tasks Section (Solid Urgency Highlights & Legible Columns) ── */}
+                    <div>
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <h2 className="text-base sm:text-lg font-bold font-heading text-slate-900 dark:text-slate-100">
+                                    Upcoming Tasks
+                                </h2>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Prioritized steps that keep your studio momentum moving forward.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsTaskModalOpen(true)}
+                                className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                            >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>Add Task</span>
+                            </button>
+                        </div>
+
+                        {/* Solid High-Contrast Table Container */}
+                        <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs bg-white dark:bg-slate-900">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse min-w-[760px]">
+                                    <thead>
+                                        <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40">
+                                            <th className="py-3 px-4 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                                                Task & ID
+                                            </th>
+                                            <th className="py-3 px-4 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                                                Project
+                                            </th>
+                                            <th className="py-3 px-4 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                                                Status
+                                            </th>
+                                            <th className="py-3 px-4 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                                                Priority
+                                            </th>
+                                            <th className="py-3 px-4 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                                                Urgency & Deadline
+                                            </th>
+                                            <th className="py-3 px-4 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                                                Assignee
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
+                                        {upcomingTasksData.map((task) => (
+                                            <tr
+                                                key={task.id}
+                                                onClick={() => handleOpenTask(task)}
+                                                className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition-colors cursor-pointer group"
+                                            >
+                                                {/* Task Title & Key */}
+                                                <td className="py-3.5 px-4">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 shrink-0">
+                                                            {task.task_key || `TSK-${task.id}`}
+                                                        </span>
+                                                        <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand transition-colors truncate max-w-[280px]">
+                                                            {task.title}
+                                                        </span>
+                                                    </div>
+                                                </td>
+
+                                                {/* Project */}
+                                                <td className="py-3.5 px-4 font-medium text-slate-600 dark:text-slate-300 truncate max-w-[160px]">
+                                                    {task.project_name}
+                                                </td>
+
+                                                {/* Status Pill */}
+                                                <td className="py-3.5 px-4">
+                                                    <StatusPill status={task.status} />
+                                                </td>
+
+                                                {/* Priority Badge */}
+                                                <td className="py-3.5 px-4">
+                                                    {String(task.priority).toUpperCase() === 'CRITICAL' ? (
+                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                                                            <Flame className="w-3 h-3" />
+                                                            Critical
+                                                        </span>
+                                                    ) : String(task.priority).toUpperCase() === 'HIGH' ? (
+                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                                                            <ArrowUp className="w-3 h-3" />
+                                                            High
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                                            {task.priority || 'Medium'}
+                                                        </span>
+                                                    )}
+                                                </td>
+
+                                                {/* Urgency & Deadline */}
+                                                <td className="py-3.5 px-4">
+                                                    {task.urgencyType === 'critical' ? (
+                                                        <div className="flex flex-col">
+                                                            <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 dark:text-rose-400">
+                                                                <AlertTriangle className="w-3.5 h-3.5" />
+                                                                {task.urgencyLabel}
+                                                            </span>
+                                                            <span className="font-mono text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
+                                                                {task.due_date || 'Sprint Target'} {task.urgencySublabel ? `· ${task.urgencySublabel}` : ''}
+                                                            </span>
+                                                            <span className="text-[10.5px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
+                                                                <strong className="text-brand font-semibold">Action:</strong> {task.cpaStatus?.actionLabel || 'Unblock release now'}
+                                                            </span>
+                                                        </div>
+                                                    ) : task.urgencyType === 'urgent' ? (
+                                                        <div className="flex flex-col">
+                                                            <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 dark:text-amber-400">
+                                                                {task.urgencyLabel === 'Zero Leeway' ? (
+                                                                    <Flame className="w-3.5 h-3.5 text-amber-500" />
+                                                                ) : (
+                                                                    <Clock className="w-3.5 h-3.5" />
+                                                                )}
+                                                                {task.urgencyLabel}
+                                                            </span>
+                                                            <span className="font-mono text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
+                                                                {task.due_date || 'Sprint Target'} {task.urgencySublabel ? `· ${task.urgencySublabel}` : ''}
+                                                            </span>
+                                                            <span className="text-[10.5px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
+                                                                <strong className="text-brand font-semibold">Action:</strong> {task.cpaStatus?.actionLabel || 'Protect developer focus'}
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex flex-col">
+                                                            <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                                                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                                                {task.urgencyLabel || 'Safe Buffer'}
+                                                            </span>
+                                                            <span className="font-mono text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                                                {task.due_date || 'Flexible'} {task.urgencySublabel ? `· ${task.urgencySublabel}` : ''}
+                                                            </span>
+                                                            <span className="text-[10.5px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
+                                                                <strong className="text-brand font-semibold">Action:</strong> {task.cpaStatus?.actionLabel || 'Safe to proceed'}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </td>
+
+                                                {/* Assignee with Brand Uniform Avatar */}
+                                                <td className="py-3.5 px-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <UserAvatar
+                                                            name={task.assignee_name}
+                                                            avatar={task.assignee_avatar}
+                                                            className="w-6 h-6"
+                                                        />
+                                                        <span className="font-medium text-slate-700 dark:text-slate-300 truncate max-w-[120px]">
+                                                            {task.assignee_name || 'Unassigned'}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
             </div>
 
-            <ConfirmationModal
-                isOpen={!!chatToDelete}
-                onClose={() => setChatToDelete(null)}
-                onConfirm={confirmDeleteChat}
-                title="Delete Chat Session"
-                message="Are you sure you want to delete this chat session? This action cannot be undone."
-                confirmText="Delete Chat"
-                cancelText="Keep Chat"
-                variant="danger"
-                isLoading={isDeletingChat}
+            {/* ── Slide-Over Flyout Inspector with Smooth Spring Slide-in Animation ── */}
+            <TaskFlyoutInspector
+                isOpen={isInspectorOpen}
+                task={selectedTask}
+                onClose={() => {
+                    setIsInspectorOpen(false);
+                    setSelectedTask(null);
+                }}
+                onUpdateStatus={handleUpdateTaskStatus}
+                canManage={true}
+                teamMembers={quickActions.teamMembers || []}
             />
+
+            {/* ── Modals for Quick Actions ── */}
+            {isProjectModalOpen && (
+                <CreateProjectModal
+                    isOpen={isProjectModalOpen}
+                    onClose={() => setIsProjectModalOpen(false)}
+                    onCreated={handleProjectCreated}
+                />
+            )}
+
+            {isTaskModalOpen && (
+                <ManualTaskModal
+                    isOpen={isTaskModalOpen}
+                    onClose={() => setIsTaskModalOpen(false)}
+                    project={quickActions.projects?.find((p) => String(p.id) === String(selectedProjectId)) || quickActions.projects?.[0]}
+                    tenantId={studio.id}
+                    teamMembers={quickActions.teamMembers || []}
+                    skills={quickActions.skills || []}
+                    positions={quickActions.positions || []}
+                />
+            )}
         </TenantLayout>
     );
 }

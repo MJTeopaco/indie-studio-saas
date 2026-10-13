@@ -6,30 +6,7 @@ import CalendarGrid  from '@/Components/Tenant/Schedule/CalendarGrid';
 import WeekGrid      from '@/Components/Tenant/Schedule/WeekGrid';
 import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
 import { showToast } from '@/Components/SystemToast';
-
-// ── Icons ─────────────────────────────────────────────────────────────────────
-const ChevronIcon = ({ dir }) => (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-        {dir === 'left'
-            ? <polyline points="15 18 9 12 15 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-            : <polyline points="9 18 15 12 9 6"  stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-        }
-    </svg>
-);
-const PlusIcon = () => (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-        <line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-        <line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-    </svg>
-);
-const CalendarIcon = () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-        <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.75"/>
-        <line x1="3" y1="9" x2="21" y2="9" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-        <line x1="8" y1="2" x2="8" y2="6"  stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-        <line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
-    </svg>
-);
+import { ChevronLeft, ChevronRight, Calendar, Plus } from 'lucide-react';
 
 // ── View modes ────────────────────────────────────────────────────────────────
 const VIEWS = ['Month', 'Week', 'Day'];
@@ -212,63 +189,67 @@ export default function ScheduleIndex({ tasks = [], events = [], studio, project
             <div className="flex-1 flex flex-col overflow-hidden bg-gray-50 dark:bg-slate-950">
 
                 {/* ── Top Bar ── */}
-                <div className="px-5 py-3.5 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800/80 flex items-center justify-between gap-4 shrink-0">
+                <div className="px-5 py-3.5 bg-surface-elevated border-b border-surface-border flex items-center justify-between gap-4 shrink-0">
 
                     {/* Left: title + nav */}
                     <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2 text-gray-600 dark:text-slate-300">
-                            <CalendarIcon />
-                            <h1 className="text-sm font-bold text-gray-900 dark:text-slate-100">Schedule</h1>
+                        <div className="flex items-center gap-2 text-text-primary">
+                            <Calendar className="w-4 h-4 text-brand" />
+                            <h1 className="text-sm font-bold text-text-primary font-heading">Schedule</h1>
                         </div>
 
-                        <div className="h-4 w-px bg-gray-200 dark:bg-slate-700" />
+                        <div className="h-4 w-px bg-surface-border" />
 
                         {/* Month/Week navigation */}
                         <div className="flex items-center gap-1">
                             <button
+                                type="button"
                                 onClick={goToPrev}
-                                className="p-1.5 rounded-lg text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+                                aria-label="Previous period"
+                                className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-colors focus-ring cursor-pointer"
                             >
-                                <ChevronIcon dir="left" />
+                                <ChevronLeft className="w-4 h-4" />
                             </button>
-                            <span className="text-sm font-semibold text-gray-800 dark:text-slate-200 min-w-[160px] text-center">
+                            <span className="text-sm font-semibold text-text-primary min-w-[160px] text-center font-heading">
                                 {headerLabel}
                             </span>
                             <button
+                                type="button"
                                 onClick={goToNext}
-                                className="p-1.5 rounded-lg text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+                                aria-label="Next period"
+                                className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-colors focus-ring cursor-pointer"
                             >
-                                <ChevronIcon dir="right" />
+                                <ChevronRight className="w-4 h-4" />
                             </button>
                         </div>
 
                         <button
+                            type="button"
                             onClick={goToToday}
-                            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:border-indigo-400 dark:hover:border-indigo-600/60 transition-all"
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-surface-border bg-surface text-text-primary hover:border-brand/40 transition-all focus-ring cursor-pointer shadow-2xs"
                         >
                             Today
                         </button>
                     </div>
 
-                    {/* Right: view switcher + add event */}
+                    {/* Right: view switcher */}
                     <div className="flex items-center gap-3">
-                        {/* View switcher */}
-                        <div className="flex items-center bg-gray-100 dark:bg-slate-800 rounded-xl p-1 gap-0.5">
+                        <div className="flex items-center bg-surface border border-surface-border rounded-xl p-1 gap-1">
                             {VIEWS.map(v => (
                                 <button
+                                    type="button"
                                     key={v}
                                     onClick={() => setActiveView(v)}
-                                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                                    className={`px-3.5 py-1 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer focus-ring ${
                                         activeView === v
-                                            ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 shadow-sm'
-                                            : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'
+                                            ? 'bg-brand text-white shadow-2xs'
+                                            : 'text-text-muted hover:text-text-primary'
                                     }`}
                                 >
                                     {v}
                                 </button>
                             ))}
                         </div>
-
                     </div>
                 </div>
 

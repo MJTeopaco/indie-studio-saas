@@ -154,7 +154,7 @@ function StageIndicator({ stages, currentStage, pct }) {
 
             <div className="w-full bg-gray-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
                 <div
-                    className="h-full bg-gradient-to-r from-brand via-brand-light to-brand rounded-full transition-[width] duration-500 ease-out"
+                    className="h-full bg-linear-to-r from-brand via-brand-light to-brand rounded-full transition-[width] duration-500 ease-out"
                     style={{ width: `${pct}%` }}
                 />
             </div>
@@ -254,7 +254,7 @@ function SkillPillEditor({ skills = [], onChange }) {
             {skills.map((skill, idx) => (
                 <div
                     key={`${skill.name}-${idx}`}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 dark:bg-indigo-500/15 border border-indigo-500/25 text-indigo-700 dark:text-indigo-300 text-xs font-semibold shadow-sm transition-all"
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 dark:bg-indigo-500/15 border border-indigo-500/25 text-indigo-700 dark:text-indigo-300 text-xs font-semibold shadow-xs transition-all"
                 >
                     <span>{skill.name}</span>
 
@@ -295,7 +295,7 @@ function SkillPillEditor({ skills = [], onChange }) {
                         defaultValue=""
                         onChange={(e) => handleAddSkill(e.target.value)}
                         onBlur={() => setIsAdding(false)}
-                        className="text-xs rounded-full px-3 py-1 bg-white dark:bg-slate-800 border border-indigo-500 text-gray-900 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                        className="text-xs rounded-full px-3 py-1 bg-white dark:bg-slate-800 border border-indigo-500 text-gray-900 dark:text-slate-100 shadow-xs focus:ring-2 focus:ring-indigo-500/20 focus:outline-hidden"
                     >
                         <option value="" disabled>Select canonical skill...</option>
                         {Object.entries(SKILL_CATEGORIES).map(([category, names]) => (
@@ -402,7 +402,7 @@ function InlineAssignment({ taskIndex, teamMembers = [], fitState, onAssign, onR
             {/* Top suggestion chip (when not yet assigned) */}
             {!loading && !error && topCandidate && getMember(topCandidate.user_id) && assignedUserIds.length === 0 && (
                 <div className="flex items-center gap-2 p-2 rounded-xl border border-brand/25 bg-brand/5 dark:bg-brand/10">
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-brand to-brand-dark text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                    <div className="w-6 h-6 rounded-full bg-linear-to-br from-brand to-brand-dark text-white text-[10px] font-bold flex items-center justify-center shrink-0">
                         {getInitial(topCandidate.user_id)}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -440,7 +440,7 @@ function InlineAssignment({ taskIndex, teamMembers = [], fitState, onAssign, onR
                             }
                             e.target.value = '';
                         }}
-                        className="flex-1 text-[11px] rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-gray-700 dark:text-slate-300 outline-none focus:border-brand"
+                        className="flex-1 text-[11px] rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-gray-700 dark:text-slate-300 outline-hidden focus:border-brand"
                     >
                         <option value="">{assignedUserIds.length === 0 ? '↕ Change suggestion…' : '+ Add another person…'}</option>
                         {candidates.filter(c => getMember(c.user_id)).map(c => (
@@ -464,7 +464,7 @@ function InlineAssignment({ taskIndex, teamMembers = [], fitState, onAssign, onR
                         }
                         e.target.value = '';
                     }}
-                    className="w-full text-[11px] rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-gray-700 dark:text-slate-300 outline-none focus:border-brand"
+                    className="w-full text-[11px] rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-gray-700 dark:text-slate-300 outline-hidden focus:border-brand"
                 >
                     <option value="">Assign manually…</option>
                     {teamMembers.map(m => (
@@ -501,7 +501,7 @@ function EditableTaskCard({ task, index, updateTask, removeTask, teamMembers, fi
     };
 
     return (
-        <div className="group p-5 rounded-2xl border border-gray-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 shadow-sm hover:border-indigo-500/40 dark:hover:border-indigo-500/40 hover:shadow-md transition-all duration-300 space-y-4">
+        <div className="group p-5 rounded-2xl border border-gray-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 shadow-xs hover:border-indigo-500/40 dark:hover:border-indigo-500/40 hover:shadow-md transition-all duration-300 space-y-4">
             {/* Title Row */}
             <div className="flex items-center gap-3">
                 <div className="w-7 h-7 rounded-full bg-indigo-500/10 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 text-xs font-extrabold flex items-center justify-center shrink-0 border border-indigo-500/20 shadow-inner">
@@ -509,7 +509,7 @@ function EditableTaskCard({ task, index, updateTask, removeTask, teamMembers, fi
                 </div>
 
                 {sprintName && (
-                    <div className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 shrink-0 border border-indigo-200 dark:border-indigo-800 uppercase tracking-wider">
+                    <div className="px-2 py-0.5 rounded-sm text-[10px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 shrink-0 border border-indigo-200 dark:border-indigo-800 uppercase tracking-wider">
                         {sprintName}
                     </div>
                 )}
@@ -519,7 +519,7 @@ function EditableTaskCard({ task, index, updateTask, removeTask, teamMembers, fi
                     value={task.title || ''}
                     onChange={(e) => updateTask(index, 'title', e.target.value)}
                     placeholder="Task Title..."
-                    className="flex-1 px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-transparent hover:border-indigo-300 hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm focus:bg-white text-sm font-bold text-gray-900 dark:text-slate-100 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder-gray-400 dark:placeholder-slate-500 cursor-text"
+                    className="flex-1 px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-transparent hover:border-indigo-300 hover:bg-white dark:hover:bg-slate-800 hover:shadow-xs focus:bg-white text-sm font-bold text-gray-900 dark:text-slate-100 outline-hidden focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder-gray-400 dark:placeholder-slate-500 cursor-text"
                 />
 
                 <button
@@ -542,7 +542,7 @@ function EditableTaskCard({ task, index, updateTask, removeTask, teamMembers, fi
                         updateTask(index, 'description', e.target.value);
                     }}
                     placeholder="Describe the task objective and requirements..."
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-transparent hover:border-indigo-300 hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm focus:bg-white text-xs text-gray-700 dark:text-slate-300 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all resize-none placeholder-gray-400 dark:placeholder-slate-500 leading-relaxed cursor-text"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-transparent hover:border-indigo-300 hover:bg-white dark:hover:bg-slate-800 hover:shadow-xs focus:bg-white text-xs text-gray-700 dark:text-slate-300 outline-hidden focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all resize-none placeholder-gray-400 dark:placeholder-slate-500 leading-relaxed cursor-text"
                 />
             </div>
 
@@ -653,7 +653,7 @@ function EditableTaskCard({ task, index, updateTask, removeTask, teamMembers, fi
 
 function TaskAssignmentCard({ task, index, teamMembers, fitState, onAssign, onRemoveMember, onClear }) {
     return (
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-3 flex items-start gap-3">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-xs font-extrabold text-indigo-600 dark:text-indigo-400">{index + 1}</span>
                 <div className="min-w-0">
@@ -868,7 +868,7 @@ export default function HierarchicalDecompositionModal({
                         setEditableTasks(payload.tasks || []);
                         setSprintExplanation(payload.explanation || null);
                         setIsOverviewExpanded(true);
-                        setPhase(outputMode === 'hierarchical' ? 'outline' : 'review');
+                        setPhase(outputMode === 'hierarchical' ? 'outline-solid' : 'review');
                         setTaskFits([]);
                     } else if (event === 'error') {
                         throw new Error(payload.message || 'Unknown error from ML Engine');
@@ -1035,7 +1035,7 @@ export default function HierarchicalDecompositionModal({
                                     onChange={e => setDescription(e.target.value)}
                                     placeholder="E.g. We need to build a new telemetry dashboard, add a user profile page, and secure the webhook endpoint..."
                                     rows={5}
-                                    className="w-full p-4 rounded-xl bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all text-sm resize-none outline-none text-gray-900 dark:text-slate-100 placeholder-gray-400"
+                                    className="w-full p-4 rounded-xl bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all text-sm resize-none outline-hidden text-gray-900 dark:text-slate-100 placeholder-gray-400"
                                 />
                             </div>
 
@@ -1047,14 +1047,14 @@ export default function HierarchicalDecompositionModal({
                                     <button
                                         type="button"
                                         onClick={() => setOutputMode('hierarchical')}
-                                        className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${outputMode === 'hierarchical' ? 'bg-white dark:bg-slate-900 shadow text-brand' : 'text-gray-500 hover:text-gray-900 dark:hover:text-slate-100'}`}
+                                        className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${outputMode === 'hierarchical' ? 'bg-white dark:bg-slate-900 shadow-sm text-brand' : 'text-gray-500 hover:text-gray-900 dark:hover:text-slate-100'}`}
                                     >
                                         <div className="flex items-center gap-1.5"><Layers className="w-4 h-4" /> Hierarchical (Epics, Sprints, Tasks)</div>
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => setOutputMode('flat')}
-                                        className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${outputMode === 'flat' ? 'bg-white dark:bg-slate-900 shadow text-brand' : 'text-gray-500 hover:text-gray-900 dark:hover:text-slate-100'}`}
+                                        className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${outputMode === 'flat' ? 'bg-white dark:bg-slate-900 shadow-sm text-brand' : 'text-gray-500 hover:text-gray-900 dark:hover:text-slate-100'}`}
                                     >
                                         <div className="flex items-center gap-1.5"><ListChecks className="w-4 h-4" /> Flat Tasks</div>
                                     </button>
@@ -1111,7 +1111,7 @@ export default function HierarchicalDecompositionModal({
 
                     {/* AI SPRINT OVERVIEW (Visible on both Review and Assign phases) */}
                     {(phase === 'review' || phase === 'assign') && editableTasks && sprintExplanation && (
-                        <div className="rounded-2xl border border-brand/30 bg-brand/5 dark:bg-brand/10 p-4 shadow-sm transition-all mb-4">
+                        <div className="rounded-2xl border border-brand/30 bg-brand/5 dark:bg-brand/10 p-4 shadow-xs transition-all mb-4">
                             <div
                                 className="flex items-center justify-between cursor-pointer select-none"
                                 onClick={() => setIsOverviewExpanded(!isOverviewExpanded)}
@@ -1138,7 +1138,7 @@ export default function HierarchicalDecompositionModal({
                     )}
 
                     {/* OUTLINE PHASE */}
-                    {phase === 'outline' && epics.length > 0 && (
+                    {phase === 'outline-solid' && epics.length > 0 && (
                         <div className="space-y-4">
                             <p className="text-sm font-semibold text-gray-800 dark:text-slate-200">Hierarchical Outline</p>
                             <p className="text-sm text-gray-500 dark:text-slate-400">Review the generated Epic and Sprint structure.</p>
@@ -1147,7 +1147,7 @@ export default function HierarchicalDecompositionModal({
                                 {sprints.map((sprint, sIdx) => {
                                     const sprintEpics = epics.filter((_, eIdx) => sprint.epic_indices?.includes(eIdx));
                                     return (
-                                        <div key={sIdx} className="rounded-xl border border-gray-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900 shadow-sm">
+                                        <div key={sIdx} className="rounded-xl border border-gray-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900 shadow-xs">
                                             <h3 className="text-sm font-bold text-indigo-700 dark:text-indigo-400">
                                                 <IterationCw className="inline w-4 h-4 mr-1" /> {sprint.name}
                                             </h3>
@@ -1293,25 +1293,25 @@ export default function HierarchicalDecompositionModal({
                 </div>
 
                 {/* Footer (outline, review, and assignment) */}
-                {['outline', 'review', 'assign'].includes(phase) && (
+                {['outline-solid', 'review', 'assign'].includes(phase) && (
                     <div className="px-6 py-4 border-t border-gray-100 dark:border-slate-800 bg-gray-50/70 dark:bg-slate-800/70 flex items-center justify-between gap-3 shrink-0">
                         <button
                             type="button"
-                            onClick={() => phase === 'assign' ? setPhase('review') : phase === 'review' && outputMode === 'hierarchical' ? setPhase('outline') : (setEditableTasks(null), setEpics([]), setSprints([]), setSprintExplanation(null), setTaskFits([]), setPhase('input'))}
+                            onClick={() => phase === 'assign' ? setPhase('review') : phase === 'review' && outputMode === 'hierarchical' ? setPhase('outline-solid') : (setEditableTasks(null), setEpics([]), setSprints([]), setSprintExplanation(null), setTaskFits([]), setPhase('input'))}
                             className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
                         >
-                            {phase === 'assign' ? '← Back to task review' : phase === 'review' && outputMode === 'hierarchical' ? '← Back to outline' : (
+                            {phase === 'assign' ? '← Back to task review' : phase === 'review' && outputMode === 'hierarchical' ? '← Back to outline-solid' : (
                                 <div className="flex items-center gap-1.5"><IterationCw className="w-3.5 h-3.5" /> Try Again</div>
                             )}
                         </button>
                         <button
                             type="button"
-                            onClick={phase === 'assign' ? handleSaveDraft : phase === 'outline' ? () => setPhase('review') : handleProceedToAssignments}
-                            disabled={isSaving || !!error || (phase !== 'outline' && !editableTasks?.length)}
+                            onClick={phase === 'assign' ? handleSaveDraft : phase === 'outline-solid' ? () => setPhase('review') : handleProceedToAssignments}
+                            disabled={isSaving || !!error || (phase !== 'outline-solid' && !editableTasks?.length)}
                             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand text-white font-semibold shadow-md shadow-brand/20 disabled:opacity-50 hover:bg-brand-light transition-all"
                         >
-                            {phase === 'assign' && isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : phase === 'assign' ? <Save className="w-4 h-4" /> : phase === 'outline' ? <ListChecks className="w-4 h-4" /> : <Users className="w-4 h-4" />}
-                            {phase === 'assign' ? `Confirm & Save${editableTasks?.length ? ` (${editableTasks.length} tasks)` : ''}` : phase === 'outline' ? 'Continue to task review' : 'Continue to member assignment'}
+                            {phase === 'assign' && isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : phase === 'assign' ? <Save className="w-4 h-4" /> : phase === 'outline-solid' ? <ListChecks className="w-4 h-4" /> : <Users className="w-4 h-4" />}
+                            {phase === 'assign' ? `Confirm & Save${editableTasks?.length ? ` (${editableTasks.length} tasks)` : ''}` : phase === 'outline-solid' ? 'Continue to task review' : 'Continue to member assignment'}
                         </button>
                     </div>
                 )}

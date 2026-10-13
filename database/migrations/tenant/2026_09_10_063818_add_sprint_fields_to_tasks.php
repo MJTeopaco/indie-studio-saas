@@ -14,8 +14,7 @@ return new class extends Migration
         Schema::table('tasks', function (Blueprint $table) {
             $table->string('sprint_status')->nullable()->default('ready_to_start')->after('status');
             $table->string('sprint_priority')->nullable()->default('medium')->after('sprint_status');
-            $table->integer('actual_story_points')->nullable()->after('story_points');
-            $table->string('github_link')->nullable()->after('actual_story_points');
+            $table->string('github_link')->nullable()->after('sprint_priority');
         });
     }
 
@@ -25,7 +24,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('tasks', function (Blueprint $table) {
-            $table->dropColumn(['sprint_status', 'sprint_priority', 'actual_story_points', 'github_link']);
+            $table->dropColumn(['sprint_status', 'sprint_priority', 'github_link']);
         });
     }
 };

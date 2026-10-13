@@ -18,6 +18,10 @@ class HubController extends Controller
     {
         $user = $request->user();
 
+        if (! $user->canCreateStudio()) {
+            abort(403, 'Unauthorized to create a studio.');
+        }
+
         // 1. Create the studio
         $studio = Studio::create([
             'name' => $request->studio_name,
@@ -27,8 +31,8 @@ class HubController extends Controller
         // 2. Add to central members list
         $user->joinedStudios()->attach($studio->id, ['role' => 'owner']);
 
-        // Redirect back to the Hub (Dashboard) so the new card appears.
-        return redirect()->route('dashboard');
+        // Redirect back to the Central Hub so the new card appears.
+        return redirect()->route('central.hub');
     }
 
     /**

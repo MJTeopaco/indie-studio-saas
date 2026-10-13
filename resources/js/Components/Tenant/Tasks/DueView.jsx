@@ -37,6 +37,7 @@ const STATUS_MAP = {
     review:      { label: 'In Review',   cls: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' },
     in_review:   { label: 'In Review',   cls: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' },
     completed:   { label: 'Completed',   cls: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' },
+    stuck:       { label: 'Stuck',       cls: 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' },
 };
 
 // ── Task Row ──────────────────────────────────────────────────────────────────
@@ -83,7 +84,7 @@ function TaskRow({ task, isOverdue, onClick }) {
 function DueSection({ title, tasks, accent, isOverdue = false, onTaskClick }) {
     if (!tasks.length) return null;
     return (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-xs overflow-hidden">
             {/* Section header */}
             <div className={`flex items-center gap-3 px-5 py-3.5 border-b border-gray-100 dark:border-slate-800/60 ${accent}`}>
                 <h3 className="text-sm font-bold text-gray-900 dark:text-slate-100">{title}</h3>

@@ -187,7 +187,7 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
     const getMemberInitial = (userId) => getMemberName(userId).charAt(0).toUpperCase();
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
             <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden border border-gray-200 dark:border-slate-700">
 
                 {/* ── Header ── */}
@@ -266,7 +266,7 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
 
                                                     {/* Avatar */}
                                                     <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-white shrink-0 ${
-                                                        isSelected ? 'bg-emerald-500' : 'bg-gradient-to-br from-brand to-brand-dark shadow-sm'
+                                                        isSelected ? 'bg-emerald-500' : 'bg-linear-to-br from-brand to-brand-dark shadow-xs'
                                                     }`}>
                                                         {isSelected ? <CheckCircle2 className="w-5 h-5" /> : getMemberInitial(candidate.user_id)}
                                                     </div>

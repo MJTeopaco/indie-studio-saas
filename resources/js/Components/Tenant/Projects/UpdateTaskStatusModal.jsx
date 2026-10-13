@@ -14,10 +14,9 @@ function getContrastColor(hexColor) {
 }
 
 const SPRINT_STATUSES = [
-    { value: 'ready_to_start', label: 'Ready to start', color: '#3b82f6', kanban: 'todo' },
-    { value: 'in_progress', label: 'In progress', color: '#f97316', kanban: 'in_progress' },
-    { value: 'waiting_for_review', label: 'Waiting for review', color: '#d97706', kanban: 'review' },
-    { value: 'pending_deploy', label: 'Pending deploy', color: '#eab308', kanban: 'in_progress' },
+    { value: 'ready_to_start', label: 'Ready to Start', color: '#3b82f6', kanban: 'todo' },
+    { value: 'in_progress', label: 'In Progress', color: '#f97316', kanban: 'in_progress' },
+    { value: 'waiting_for_review', label: 'Waiting for Review', color: '#d97706', kanban: 'review' },
     { value: 'done', label: 'Done', color: '#10b981', kanban: 'completed' },
     { value: 'stuck', label: 'Stuck', color: '#ef4444', kanban: 'in_progress' },
 ];
@@ -57,7 +56,7 @@ export default function UpdateTaskStatusModal({ isOpen, onClose, task, project, 
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs" onClick={onClose}>
             <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900 border border-gray-100 dark:border-slate-800" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4 dark:border-slate-800">
                     <div>
@@ -100,7 +99,7 @@ export default function UpdateTaskStatusModal({ isOpen, onClose, task, project, 
                         <button 
                             type="submit" 
                             disabled={isSubmitting}
-                            className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2 text-sm font-bold text-white hover:bg-brand-600 disabled:opacity-50 transition-colors shadow-sm shadow-brand/30"
+                            className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2 text-sm font-bold text-white hover:bg-brand-600 disabled:opacity-50 transition-colors shadow-xs shadow-brand/30"
                         >
                             {isSubmitting ? (
                                 <>

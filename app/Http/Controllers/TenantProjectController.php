@@ -22,21 +22,65 @@ class TenantProjectController extends Controller
 {
     private function authorizeManager()
     {
+        if (! $this->isManagerOrLeader()) {
+            abort(403, 'Unauthorized action. Only studio managers can perform this task.');
+        }
+    }
+
+    private function isManagerOrLeader(): bool
+    {
         $user = auth()->user();
-        if ($user && $user->role === User::ROLE_ADMIN) {
-            return;
+        if (! $user) {
+            return false;
+        }
+        if ($user->role === User::ROLE_ADMIN) {
+            return true;
         }
 
-        $member = \DB::connection(config('tenancy.database.central_connection', 'central'))->table('studio_members')
+        $member = DB::connection(config('tenancy.database.central_connection', 'central'))->table('studio_members')
             ->where('studio_id', tenant('id'))
             ->where('user_id', $user->id)
             ->first();
 
         $role = $member ? $member->role : 'member';
 
-        if (! in_array($role, ['owner', 'leader', 'manager'])) {
-            abort(403, 'Unauthorized action. Only studio managers can perform this task.');
+        return in_array($role, ['owner', 'leader', 'manager']);
+    }
+
+    private function canViewProject(Project $project): bool
+    {
+        if ($this->isManagerOrLeader()) {
+            return true;
         }
+
+        $userId = auth()->id();
+        if (! $userId) {
+            return false;
+        }
+
+        if ($project->hasMember($userId)) {
+            return true;
+        }
+
+        if ($project->tasks()->where(function ($q) use ($userId) {
+            $q->where('assigned_user_id', $userId)
+                ->orWhere('reviewer_user_id', $userId);
+        })->exists()) {
+            return true;
+        }
+
+        if (Schema::hasTable('assignments')) {
+            $hasAssignment = DB::table('assignments')
+                ->where('employee_user_id', $userId)
+                ->whereIn('task_id', $project->tasks()->pluck('id'))
+                ->where('status', 'active')
+                ->exists();
+            if ($hasAssignment) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -46,9 +90,35 @@ class TenantProjectController extends Controller
     {
         $studio = Studio::find(tenant('id'));
         $membersCount = $studio ? $studio->users()->count() : 0;
+        $isManager = $this->isManagerOrLeader();
 
-        $projects = Project::withCount(['projectMembers as members_count', 'tasks'])
-            ->latest()
+        $query = Project::withCount(['projectMembers as members_count', 'tasks']);
+
+        if (! $isManager) {
+            $userId = auth()->id();
+            $assignedProjectIds = DB::table('project_members')
+                ->where('user_id', $userId)
+                ->pluck('project_id')
+                ->merge(
+                    Task::where('assigned_user_id', $userId)
+                        ->orWhere('reviewer_user_id', $userId)
+                        ->pluck('project_id')
+                );
+
+            if (Schema::hasTable('assignments')) {
+                $assignedTaskProjectIds = DB::table('assignments')
+                    ->join('tasks', 'assignments.task_id', '=', 'tasks.id')
+                    ->where('assignments.employee_user_id', $userId)
+                    ->where('assignments.status', 'active')
+                    ->pluck('tasks.project_id');
+                $assignedProjectIds = $assignedProjectIds->merge($assignedTaskProjectIds);
+            }
+
+            $assignedProjectIds = $assignedProjectIds->unique()->filter()->values();
+            $query->whereIn('id', $assignedProjectIds);
+        }
+
+        $projects = $query->latest()
             ->get()
             ->map(fn (Project $project): array => [
                 'id' => $project->id,
@@ -90,6 +160,10 @@ class TenantProjectController extends Controller
                     }]);
             },
         ])->findOrFail($project);
+
+        if (! $this->canViewProject($projectModel)) {
+            abort(403, 'Unauthorized access. Only assigned members or team leaders can view this project.');
+        }
 
         $teamMembers = $studio ? $studio->users()->get()->map(fn ($u) => ['id' => $u->id, 'name' => $u->name]) : [];
         $membersById = collect($teamMembers)->keyBy('id');
@@ -143,7 +217,7 @@ class TenantProjectController extends Controller
                         $q->select([
                             'id', 'sprint_id', 'project_id', 'epic_id',
                             'title', 'status', 'sprint_status', 'sprint_priority',
-                            'task_classification', 'story_points', 'actual_story_points',
+                            'task_classification', 'story_points',
                             'github_link', 'assigned_user_id', 'priority',
                         ])->with('epic:id,name,color');
                     }])->get()->map(function ($sprint) use (&$assignmentIdsByTask, &$membersById) {
@@ -213,7 +287,7 @@ class TenantProjectController extends Controller
 
         RecomputeProjectSchedule::dispatchSync($projectModel->id);
 
-        if ($request->expectsJson() || $request->ajax()) {
+        if (! $request->header('X-Inertia') && ($request->expectsJson() || $request->ajax())) {
             return response()->json(['status' => 'success', 'project' => $projectModel]);
         }
 
@@ -352,7 +426,7 @@ class TenantProjectController extends Controller
 
         RecomputeProjectSchedule::dispatchSync($projectModel->id);
 
-        if ($request->expectsJson()) {
+        if (! $request->header('X-Inertia') && $request->expectsJson()) {
             return response()->json([
                 'status' => 'success',
                 'message' => 'Tasks saved successfully. The timeline is being recalculated.',
@@ -622,7 +696,7 @@ class TenantProjectController extends Controller
 
         RecomputeProjectSchedule::dispatchSync($projectModel->id);
 
-        if ($request->expectsJson()) {
+        if (! $request->header('X-Inertia') && $request->expectsJson()) {
             return response()->json([
                 'status' => 'success',
                 'message' => 'Hierarchy saved successfully. The timeline is being recalculated.',
@@ -648,7 +722,7 @@ class TenantProjectController extends Controller
             'estimated_hours' => 'required|numeric|min:0',
             'hard_constraint_date' => 'nullable|date',
             'priority' => 'required|string|in:Low,Medium,High,Critical',
-            'status' => 'required|string|in:todo,in_progress,review,completed',
+            'status' => 'required|string|in:todo,in_progress,review,completed,stuck',
             'depends_on' => 'nullable|array',
             'depends_on.*' => 'integer',
             'task_classification' => 'nullable|string|max:255',
@@ -701,7 +775,7 @@ class TenantProjectController extends Controller
 
         RecomputeProjectSchedule::dispatchSync($projectModel->id);
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if (! $request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
             return response()->json([
                 'status' => 'success',
                 'task' => $task,
@@ -769,7 +843,6 @@ class TenantProjectController extends Controller
                     'ready_to_start' => 'todo',
                     'in_progress' => 'in_progress',
                     'waiting_for_review' => 'review',
-                    'pending_deploy' => 'review',
                     'done' => 'completed',
                     'stuck' => 'stuck',
                 ];
@@ -792,7 +865,7 @@ class TenantProjectController extends Controller
             $newStatus = $validated['status'] ?? null;
             $currentStatus = $taskModel->status;
 
-            if ($currentStatus === 'review' && $newStatus === 'completed' && ! $isReviewer) {
+            if ($currentStatus === 'review' && $newStatus === 'completed' && $hasReviewer && ! $isReviewer) {
                 abort(403, 'Only the assigned reviewer can mark this task as done.');
             }
 
@@ -800,9 +873,6 @@ class TenantProjectController extends Controller
                 abort(403, 'This task requires reviewer approval. Move it to "In Review" first.');
             }
 
-            if (in_array($currentStatus, ['in_progress', 'review', 'completed']) && $newStatus === 'todo') {
-                abort(422, 'You cannot move a task back to "To Do" once started.');
-            }
         } else {
             $validated = $request->validate([
                 'title' => 'sometimes|required|string|max:255',
@@ -826,6 +896,40 @@ class TenantProjectController extends Controller
                 'target_macro_domains.*' => 'integer',
                 'required_skills' => 'nullable|array',
             ]);
+        }
+
+        // ── Status ↔ sprint_status sync ────────────────────────────────────
+        if (isset($validated['sprint_status']) && ! isset($validated['status'])) {
+            $map = [
+                'ready_to_start' => 'todo',
+                'in_progress' => 'in_progress',
+                'waiting_for_review' => 'review',
+                'done' => 'completed',
+                'stuck' => 'stuck',
+            ];
+            if (isset($map[$validated['sprint_status']])) {
+                $validated['status'] = $map[$validated['sprint_status']];
+            }
+        } elseif (isset($validated['status']) && ! isset($validated['sprint_status'])) {
+            $map = [
+                'todo' => 'ready_to_start',
+                'in_progress' => 'in_progress',
+                'review' => 'waiting_for_review',
+                'completed' => 'done',
+                'stuck' => 'stuck',
+            ];
+            if (isset($map[$validated['status']])) {
+                $validated['sprint_status'] = $map[$validated['status']];
+            }
+        }
+
+        $newStatus = $validated['status'] ?? null;
+        if ($newStatus === 'completed') {
+            $validated['completed_at'] = now();
+            $validated['completed_by_user_id'] = $user?->id ?? $taskModel->assigned_user_id;
+        } elseif ($newStatus !== null && $newStatus !== 'completed' && $taskModel->status === 'completed') {
+            $validated['completed_at'] = null;
+            $validated['completed_by_user_id'] = null;
         }
 
         $oldAssignedId = $taskModel->assigned_user_id;
@@ -878,7 +982,7 @@ class TenantProjectController extends Controller
 
         RecomputeProjectSchedule::dispatchSync($projectModel->id);
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if (! $request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
             return response()->json([
                 'status' => 'success',
                 'task' => $taskModel,
@@ -941,7 +1045,7 @@ class TenantProjectController extends Controller
 
         $sprint = $projectModel->sprints()->create($validated);
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if (! $request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
             return response()->json([
                 'status' => 'success',
                 'sprint' => $sprint,
@@ -1120,18 +1224,10 @@ class TenantProjectController extends Controller
             ], 403);
         }
 
-        if ($request->has('actual_story_points') && $taskModel->sprint_status !== 'done' && $request->input('sprint_status') !== 'done') {
-            return response()->json([
-                'message' => 'Actual SP can only be set when the task status is Done.',
-                'errors' => ['actual_story_points' => ['Task must be Done before setting Actual SP.']],
-            ], 422);
-        }
-
         $rules = [
-            'sprint_status' => 'nullable|string|in:ready_to_start,in_progress,waiting_for_review,pending_deploy,done,stuck',
+            'sprint_status' => 'nullable|string|in:ready_to_start,in_progress,waiting_for_review,done,stuck',
             'sprint_priority' => 'nullable|string|in:critical,high,medium,low',
             'task_classification' => 'nullable|string|max:100',
-            'actual_story_points' => 'nullable|integer|min:0|max:100',
             'github_link' => 'nullable|url|max:500',
         ];
 
@@ -1149,7 +1245,7 @@ class TenantProjectController extends Controller
             $hasReviewer = ! empty($taskModel->reviewer_user_id);
 
             // Only assigned reviewer or manager can mark done from review
-            if (in_array($currentSprintStatus, ['waiting_for_review', 'pending_deploy']) && $newSprintStatus === 'done' && ! $isReviewer) {
+            if (in_array($currentSprintStatus, ['waiting_for_review', 'pending_deploy']) && $newSprintStatus === 'done' && $hasReviewer && ! $isReviewer) {
                 return response()->json([
                     'message' => 'Only the assigned reviewer can mark this task as done.',
                 ], 403);
@@ -1162,12 +1258,6 @@ class TenantProjectController extends Controller
                 ], 403);
             }
 
-            // Cannot go back to ready_to_start once in progress or beyond
-            if (in_array($currentSprintStatus, ['in_progress', 'waiting_for_review', 'pending_deploy', 'done']) && $newSprintStatus === 'ready_to_start') {
-                return response()->json([
-                    'message' => 'You cannot move a task back to "Ready to Start" once started.',
-                ], 422);
-            }
         }
 
         if (isset($validated['sprint_status'])) {
@@ -1175,7 +1265,6 @@ class TenantProjectController extends Controller
                 'ready_to_start' => 'todo',
                 'in_progress' => 'in_progress',
                 'waiting_for_review' => 'review',
-                'pending_deploy' => 'review',
                 'done' => 'completed',
                 'stuck' => 'stuck',
             ];
@@ -1235,7 +1324,15 @@ class TenantProjectController extends Controller
                 'done_count' => $done->count(),
                 'incomplete_count' => $incomplete->count(),
                 'estimated_sp_total' => $tasks->sum('story_points'),
-                'actual_sp_burned' => $done->sum('actual_story_points'),
+                'actual_sp_burned' => DB::table('activity_logs')
+                    ->where('subject_type', Task::class)
+                    ->whereIn('subject_id', $done->pluck('id'))
+                    ->where('field', 'story_points')
+                    ->where('created_at', '<=', $sprint->start_date ?? now())
+                    ->get()
+                    ->groupBy('subject_id')
+                    ->map(fn ($logs) => $logs->sortByDesc('created_at')->first()->new_value)
+                    ->sum() ?: $done->sum('story_points'),
                 'completion_rate_pct' => $tasks->count()
                     ? round(($done->count() / $tasks->count()) * 100)
                     : 0,
@@ -1305,7 +1402,7 @@ class TenantProjectController extends Controller
 
         $sprintModel->update($validated);
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if (! $request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
             return response()->json([
                 'status' => 'success',
                 'sprint' => $sprintModel,
@@ -1390,7 +1487,7 @@ class TenantProjectController extends Controller
             }
         });
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if (! $request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
             return response()->json([
                 'status' => 'success',
                 'sprint' => $sprintModel,

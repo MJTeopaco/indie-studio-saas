@@ -33,6 +33,7 @@ const STATUS_MAP = {
     review:      { label: 'In Review',   dot: 'bg-amber-500',   text: 'text-amber-600 dark:text-amber-400' },
     in_review:   { label: 'In Review',   dot: 'bg-amber-500',   text: 'text-amber-600 dark:text-amber-400' },
     completed:   { label: 'Completed',   dot: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' },
+    stuck:       { label: 'Stuck',       dot: 'bg-rose-500',    text: 'text-rose-600 dark:text-rose-400' },
 };
 
 function StatusCell({ status }) {
@@ -135,7 +136,7 @@ export default function ListView({ tasks = [], onTaskClick }) {
 
     return (
         <div className="flex-1 overflow-auto p-6">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden min-w-[900px]">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-xs overflow-hidden min-w-[900px]">
                 {/* Table header */}
                 <table className="w-full table-auto">
                     <thead>
@@ -202,7 +203,7 @@ export default function ListView({ tasks = [], onTaskClick }) {
                                         <td className="px-4 py-3">
                                             <div className="flex gap-1 flex-wrap">
                                                 {task.tags?.slice(0, 2).map(tag => (
-                                                    <span key={tag} className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${TAG_COLORS[tag] || 'bg-gray-100 text-gray-500'}`}>{tag}</span>
+                                                    <span key={tag} className={`px-1.5 py-0.5 rounded-sm text-[9px] font-bold ${TAG_COLORS[tag] || 'bg-gray-100 text-gray-500'}`}>{tag}</span>
                                                 ))}
                                             </div>
                                         </td>
@@ -212,20 +213,6 @@ export default function ListView({ tasks = [], onTaskClick }) {
                                         <td className="px-4 py-3"><ProgressBar pct={task.progress ?? 0} /></td>
                                     </tr>
                                 ))}
-
-                                {/* Add task row */}
-                                {!collapsed[group] && (
-                                    <tr key={`add-${group}`} className="border-b border-gray-50 dark:border-slate-800/30">
-                                        <td colSpan={COLUMNS.length} className="px-4 py-2 pl-9">
-                                            <button
-                                                onClick={() => showToast(`Add task to ${group} — coming soon!`, 'info')}
-                                                className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-                                            >
-                                                <PlusIcon /> Add Task
-                                            </button>
-                                        </td>
-                                    </tr>
-                                )}
                             </>
                         ))}
                     </tbody>

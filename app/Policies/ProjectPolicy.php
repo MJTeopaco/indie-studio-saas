@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 class ProjectPolicy
 {
     /**
-     * Determine if the user is a Studio Owner or global Admin.
+     * Determine if the user is a Studio Owner, Manager, Leader or global Admin.
      */
     protected function isStudioOwnerOrAdmin(User $user): bool
     {
@@ -17,15 +17,22 @@ class ProjectPolicy
             return true;
         }
 
-        return DB::table('studio_members')
+        $studioId = tenant('id');
+
+        $query = DB::table('studio_members')
             ->where('user_id', $user->id)
-            ->where('role', 'owner')
-            ->exists();
+            ->whereIn('role', ['owner', 'leader', 'manager']);
+
+        if ($studioId) {
+            $query->where('studio_id', $studioId);
+        }
+
+        return $query->exists();
     }
 
     /**
      * Determine whether the user can view the specific project.
-     * Specific members can only view projects assigned to them (or studio owners).
+     * Specific members can only view projects assigned to them (or studio managers/leaders).
      */
     public function view(User $user, Project $project): bool
     {
@@ -33,7 +40,14 @@ class ProjectPolicy
             return true;
         }
 
-        return $project->hasMember($user->id);
+        if ($project->hasMember($user->id)) {
+            return true;
+        }
+
+        return $project->tasks()->where(function ($q) use ($user) {
+            $q->where('assigned_user_id', $user->id)
+                ->orWhere('reviewer_user_id', $user->id);
+        })->exists();
     }
 
     /**

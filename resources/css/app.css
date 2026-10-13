@@ -1,27 +1,267 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Montserrat:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Montserrat:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap')
+layer(base);
 
-html {
-  scroll-behavior: smooth;
+@import 'tailwindcss';
+
+@plugin '@tailwindcss/forms';
+@plugin '@tailwindcss/typography';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-brand-10: rgba(0, 124, 255, 0.1);
+  --color-brand-20: rgba(0, 124, 255, 0.2);
+  --color-brand-30: rgba(0, 124, 255, 0.3);
+  --color-brand-40: rgba(0, 124, 255, 0.4);
+  --color-brand-50: rgba(0, 124, 255, 0.5);
+  --color-brand-60: rgba(0, 124, 255, 0.6);
+  --color-brand-70: rgba(0, 124, 255, 0.7);
+  --color-brand-80: rgba(0, 124, 255, 0.8);
+  --color-brand-90: rgba(0, 124, 255, 0.9);
+  --color-brand: #007cff;
+  --color-brand-light: #3396ff;
+  --color-brand-dark: #0062cc;
+  --color-brand-muted: rgba(0, 124, 255, 0.1);
+
+  --color-surface: var(--color-surface-bg);
+  --color-surface-elevated: var(--color-surface-elevated);
+  --color-surface-border: var(--color-surface-border);
+
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-muted);
+  --color-text-muted: var(--color-text-muted);
+
+  --font-sans:
+    Montserrat, ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+    'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-heading:
+    Poppins, ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+    'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-mono:
+    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --color-overview-bg: var(--overview-bg);
+  --color-overview-card: var(--overview-card);
+  --color-overview-elevated: var(--overview-elevated);
+  --color-overview-primary: var(--overview-primary);
+  --color-overview-primary-hover: var(--overview-primary-hover);
+  --color-overview-primary-fg: var(--overview-primary-fg);
+  --color-overview-secondary: var(--overview-secondary);
+  --color-overview-muted-surface: var(--overview-muted-surface);
+  --color-overview-fg: var(--overview-fg);
+  --color-overview-muted-fg: var(--overview-muted-fg);
+  --color-overview-subtle-fg: var(--overview-subtle-fg);
+  --color-overview-border: var(--overview-border);
+  --color-overview-success: var(--overview-success);
+  --color-overview-warning: var(--overview-warning);
+  --color-overview-critical: var(--overview-critical);
+  --color-overview-cyan: var(--overview-cyan);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-cyan: var(--cyan);
+  --color-pink: var(--pink);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-critical: var(--critical);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
 
-:root {
-  --color-surface-bg: #F8FAFC;        /* light background (slate-50) */
-  --color-surface-elevated: #FFFFFF;  /* light elevated (white) */
-  --color-surface-border: #E2E8F0;    /* light border (slate-200) */
-  --color-text-primary: #0F172A;      /* dark text (slate-900) */
-  --color-text-muted: #64748B;        /* muted text (slate-500) */
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
 }
 
-.dark {
-  --color-surface-bg: #0F172A;        /* dark background (slate-950) */
-  --color-surface-elevated: #1E293B;  /* dark elevated (slate-800) */
-  --color-surface-border: #334155;    /* dark border (slate-700) */
-  --color-text-primary: #F1F5F9;      /* light text (slate-100) */
-  --color-text-muted: #94A3B8;        /* muted text (slate-400) */
+@utility focus-ring {
+  @apply focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer utilities {
+  :root {
+    --color-surface-bg: #f8fafc; /* light background (slate-50) */
+    --color-surface-elevated: #ffffff; /* light elevated (white) */
+    --color-surface-border: #e2e8f0; /* light border (slate-200) */
+    --color-text-primary: #0f172a; /* dark text (slate-900) */
+    --color-text-muted: #64748b; /* muted text (slate-500) */
+
+    /* Shadcn Theme Variables (Light) */
+    --background: #f8fafc;
+    --foreground: #0f172a;
+    --card: #ffffff;
+    --card-foreground: #0f172a;
+    --elevated: #ffffff;
+    --subtle: #f8fafc;
+    --popover: #ffffff;
+    --popover-foreground: #0f172a;
+    --primary: #007cff;
+    --primary-hover: #3396ff;
+    --primary-foreground: #ffffff;
+    --secondary: #f1f5f9;
+    --secondary-foreground: #0f172a;
+    --muted: #f1f5f9;
+    --muted-foreground: #64748b;
+    --warning: #f59e0b;
+    --accent: #f1f5f9;
+    --accent-foreground: #0f172a;
+    --destructive: #f43f5e;
+    --destructive-foreground: #ffffff;
+    --border: #e2e8f0;
+    --input: #e2e8f0;
+    --ring: #007cff;
+    --radius: 0.75rem;
+    --font-sans: 'Montserrat', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+    /* Semantic Design Tokens */
+    --cyan: #06b6d4;
+    --pink: #ec4899;
+    --success: #10b981;
+    --critical: #f43f5e;
+
+    /* Shadcn Chart Colors (Light) */
+    --chart-1: #007cff; /* Blue */
+    --chart-2: #10b981; /* Emerald */
+    --chart-3: #f59e0b; /* Amber */
+    --chart-4: #f43f5e; /* Rose */
+    --chart-5: #6366f1; /* Indigo */
+    --chart-6: #06b6d4; /* Cyan */
+
+    /* Studio Overview Semantic Tokens (Light Fallback) */
+    --overview-bg: #f8fafc;
+    --overview-card: #ffffff;
+    --overview-elevated: #f1f5f9;
+    --overview-primary: #007cff;
+    --overview-primary-hover: #3396ff;
+    --overview-primary-fg: #ffffff;
+    --overview-secondary: #e2e8f0;
+    --overview-muted-surface: #f1f5f9;
+    --overview-fg: #0f172a;
+    --overview-muted-fg: #64748b;
+    --overview-subtle-fg: #94a3b8;
+    --overview-border: #e2e8f0;
+    --overview-success: #10b981;
+    --overview-warning: #f59e0b;
+    --overview-critical: #f43f5e;
+    --overview-cyan: #06b6d4;
+  }
+
+  .dark {
+    --color-surface-bg: #0f172a; /* dark background (slate-950) */
+    --color-surface-elevated: #1e293b; /* dark elevated (slate-800) */
+    --color-surface-border: #334155; /* dark border (slate-700) */
+    --color-text-primary: #f1f5f9; /* light text (slate-100) */
+    --color-text-muted: #94a3b8; /* muted text (slate-400) */
+
+    /* Shadcn Theme Variables (Dark) */
+    --background: #0a0e17;
+    --foreground: #f1f5f9;
+    --card: #161f30;
+    --card-foreground: #f1f5f9;
+    --elevated: #111827;
+    --subtle: #0f172a;
+    --popover: #1e293b;
+    --popover-foreground: #f1f5f9;
+    --primary: #007cff;
+    --primary-hover: #3396ff;
+    --primary-foreground: #ffffff;
+    --secondary: #1e293b;
+    --secondary-foreground: #f1f5f9;
+    --muted: #1e293b;
+    --muted-foreground: #94a3b8;
+    --warning: #fbbf24;
+    --accent: #1e293b;
+    --accent-foreground: #f1f5f9;
+    --destructive: #f43f5e;
+    --destructive-foreground: #ffffff;
+    --border: #1e293b;
+    --input: #1e293b;
+    --ring: #007cff;
+    --font-sans: 'Montserrat', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+    /* Semantic Design Tokens (Dark) */
+    --cyan: #22d3ee;
+    --pink: #f472b6;
+    --success: #34d399;
+    --critical: #fb7185;
+
+    /* Shadcn Chart Colors (Dark) */
+    --chart-1: #3396ff; /* Blue light */
+    --chart-2: #34d399; /* Emerald light */
+    --chart-3: #fbbf24; /* Amber light */
+    --chart-4: #fb7185; /* Rose light */
+    --chart-5: #818cf8; /* Indigo light */
+    --chart-6: #22d3ee; /* Cyan light */
+
+    /* Studio Overview Semantic Tokens (Dark Reference OKLCH) */
+    --overview-bg: oklch(.163 .021 263);
+    --overview-card: oklch(.207 .025 262);
+    --overview-elevated: oklch(.19 .023 264);
+    --overview-primary: oklch(.601 .216 257);
+    --overview-primary-hover: oklch(.672 .181 255);
+    --overview-primary-fg: oklch(1 0 0);
+    --overview-secondary: oklch(.263 .032 260);
+    --overview-muted-surface: oklch(.23 .025 261);
+    --overview-fg: oklch(.968 .006 255);
+    --overview-muted-fg: oklch(.685 .025 258);
+    --overview-subtle-fg: oklch(.51 .025 260);
+    --overview-border: oklch(.29 .024 261);
+    --overview-success: oklch(.696 .149 163);
+    --overview-warning: oklch(.769 .165 72);
+    --overview-critical: oklch(.637 .208 25);
+    --overview-cyan: oklch(.715 .136 216);
+  }
 }
 
 @layer base {
@@ -76,34 +316,171 @@ html {
   animation: shimmer 1.6s infinite linear;
 }
 
+/* Sidebar Task Inspector Drawer Animations */
+@keyframes drawerSlideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes backdropFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-drawer-in {
+  animation: drawerSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-backdrop-in {
+  animation: backdropFadeIn 0.25s ease-out forwards;
+}
+
 /* ── System-wide custom scrollbar ─────────────────────────────────────────── */
 /* Applies to any element with .custom-scrollbar. Works in light + dark mode. */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #CBD5E1 transparent; /* slate-300 thumb on transparent track */
+  scrollbar-color: #94A3B8 #F1F5F9;
 }
 .custom-scrollbar::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 8px;
+  height: 8px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: #CBD5E1;
+  background: #F1F5F9;
   border-radius: 999px;
 }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+.custom-scrollbar::-webkit-scrollbar-thumb {
   background-color: #94A3B8;
+  border-radius: 999px;
+  border: 2px solid #F1F5F9;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #64748B;
 }
 
 /* Dark mode scrollbar */
 .dark .custom-scrollbar {
-  scrollbar-color: #334155 transparent; /* slate-700 thumb */
+  scrollbar-color: #475569 #0F172A;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: #0F172A;
 }
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: #334155;
+  background-color: #475569;
+  border: 2px solid #0F172A;
 }
 .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: #475569;
+  background-color: #64748B;
 }
+
+/* ── Wizard step transition micro-animations ────────────────────────────────── */
+@keyframes stepFadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes stepFadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.step-enter-forward {
+  animation: stepFadeInRight 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.step-enter-backward {
+  animation: stepFadeInLeft 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Tactile diagonal micro-hatch pattern for wireframe sparklines and focus containers */
+.bg-hatched-pattern {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 6px,
+    rgba(148, 163, 184, 0.14) 6px,
+    rgba(148, 163, 184, 0.14) 12px
+  );
+}
+
+.dark .bg-hatched-pattern {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 6px,
+    rgba(255, 255, 255, 0.045) 6px,
+    rgba(255, 255, 255, 0.045) 12px
+  );
+}
+
+/* ── Shared Typography Scale Tokens ───────────────────────────────────────── */
+@layer utilities {
+  .type-page-title {
+    font-family: var(--font-heading);
+    font-size: 1.75rem; /* ~28px */
+    line-height: 2.125rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  .type-section-title {
+    font-family: var(--font-heading);
+    font-size: 1.125rem; /* ~18px */
+    line-height: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .type-subheading {
+    font-family: var(--font-sans);
+    font-size: 0.84375rem; /* ~13.5px */
+    line-height: 1.25rem;
+    font-weight: 500;
+  }
+
+  .type-body {
+    font-family: var(--font-sans);
+    font-size: 0.90625rem; /* ~14.5px */
+    line-height: 1.375rem;
+    font-weight: 400;
+  }
+
+  .type-metric-number {
+    font-family: var(--font-heading);
+    font-size: 2rem; /* ~32px */
+    line-height: 2.25rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+  }
+
+  .type-caption {
+    font-family: var(--font-sans);
+    font-size: 0.75rem; /* ~12px */
+    line-height: 1rem;
+    font-weight: 400;
+  }
+}
+
+

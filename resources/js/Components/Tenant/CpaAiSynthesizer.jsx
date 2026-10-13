@@ -32,15 +32,15 @@ export function getEasyTaskAiReasoning(task) {
     const assigneeName = task.assignee?.name || 'Unassigned team member';
     const floatDays = Math.round((Math.abs(float) / 8) * 10) / 10;
 
-    // 1. DELAYED / RUNNING LATE
+    // 1. DELAYED / RELEASE BLOCKER
     if (float < 0) {
         const lateHours = Math.abs(float);
         return {
             status: 'delayed',
-            badgeText: 'Behind Schedule',
-            badgeSub: `${lateHours}h Late`,
-            badgeClass: 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border-rose-300 dark:border-rose-800',
-            headline: `Needs Immediate Help — Delaying Project Delivery`,
+            badgeText: 'Release Blocker',
+            badgeSub: `${lateHours}h Behind`,
+            badgeClass: 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border-rose-300 dark:border-rose-800 animate-pulse',
+            headline: `Release Blocker — Delaying Project Delivery`,
             shortSummary: `This task is running ${lateHours}h behind schedule and is currently pushing back your overall project launch date.`,
             why: `Every hour this task stays delayed directly postpones your final project delivery. Downstream tasks are currently waiting for this work to be completed.`,
             bufferText: `Behind schedule by ${lateHours} hours (${floatDays} work days)`,
@@ -49,34 +49,34 @@ export function getEasyTaskAiReasoning(task) {
         };
     }
 
-    // 2. CRITICAL PATH (ZERO SLACK)
+    // 2. CRITICAL PATH / ZERO LEEWAY
     if (isCritical) {
         return {
             status: 'critical',
-            badgeText: 'Must-Do On Time',
-            badgeSub: 'Zero Buffer',
+            badgeText: 'Zero Leeway',
+            badgeSub: 'Must Stay on Time',
             badgeClass: 'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300 dark:border-amber-800',
-            headline: `Direct Deadline Risk — Must finish on time`,
+            headline: `Zero Leeway — Any slip delays release`,
             shortSummary: `If this task is delayed by even 1 day, the entire project launch date will be delayed by 1 day.`,
             why: `This task connects directly to your final project delivery with zero breathing room. Other tasks are lined up waiting for it, so any delay here immediately pushes back the finish line.`,
-            bufferText: `0 hours of buffer (Any delay directly hurts the deadline)`,
+            bufferText: `0 hours of leeway (Any delay directly hurts the project deadline)`,
             impact: `Highest priority in your project. A delay here cannot be made up elsewhere without rushing.`,
             action: `Keep ${assigneeName} focused on this task. Protect them from side interruptions and resolve any blockers immediately.`,
         };
     }
 
-    // 3. FLEXIBLE PATH (HAS POSITIVE BUFFER / SLACK)
+    // 3. FLEXIBLE PATH / SAFE BUFFER
     return {
         status: 'flexible',
-        badgeText: 'Flexible Timing',
-        badgeSub: `+${float}h Buffer`,
+        badgeText: 'Safe Buffer',
+        badgeSub: `+${float}h Leeway`,
         badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
-        headline: `Safe Buffer — Can be rescheduled if urgent work arises`,
+        headline: `Safe Buffer — Flexible schedule cushion`,
         shortSummary: `You have ${float}h (${floatDays} days) of breathing room before this task affects the project deadline.`,
         why: `This task has safe cushion time built in. You can start it later, pause it, or work on it at a normal pace without risking your final project delivery date.`,
         bufferText: `+${float} hours of safe breathing room (${floatDays} work days)`,
-        impact: `Safe buffer. If an emergency happens on a Must-Do task, this task can wait safely.`,
-        action: `Work on Must-Do tasks first. If team members need emergency help on critical tasks, ${assigneeName} can pause this task temporarily without any risk.`,
+        impact: `Safe buffer. If an emergency happens on a Zero Leeway task, this task can wait safely.`,
+        action: `Work on Zero Leeway tasks first. If team members need emergency help on critical tasks, ${assigneeName} can pause this task temporarily without any risk.`,
     };
 }
 
@@ -154,11 +154,11 @@ export function CpaAiSummaryCard({ tasks = [], project = null, className = '' })
     if (!summary) return null;
 
     return (
-        <div className={`rounded-2xl border border-indigo-200/90 bg-gradient-to-br from-indigo-50/90 via-white to-purple-50/50 p-5 dark:border-indigo-900/50 dark:bg-slate-900 dark:from-slate-900 dark:to-indigo-950/30 shadow-xs space-y-4 ${className}`}>
+        <div className={`rounded-2xl border border-indigo-200/90 bg-linear-to-br from-indigo-50/90 via-white to-purple-50/50 p-5 dark:border-indigo-900/50 dark:bg-slate-900 dark:from-slate-900 dark:to-indigo-950/30 shadow-2xs space-y-4 ${className}`}>
             {/* Header with AI Badge */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-100 dark:border-indigo-900/50 pb-3.5">
                 <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-linear-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-2xs shrink-0">
                         <Sparkles className="w-5 h-5 fill-white/80" />
                     </div>
                     <div>

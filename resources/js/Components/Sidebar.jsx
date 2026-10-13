@@ -1,12 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import axios from 'axios';
 import { Link, usePage } from '@inertiajs/react';
 import {
     PanelLeftClose,
     PanelLeftOpen,
-    Search,
     Sun,
     Moon,
     LogOut,
+    ChevronDown,
+    LayoutGrid,
+    ArrowLeft,
+    User as UserIcon,
+    Bell,
+    MessageSquare,
 } from 'lucide-react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import { showToast } from '@/Components/SystemToast';
@@ -14,6 +20,12 @@ import { showToast } from '@/Components/SystemToast';
 // =============================================================================
 // Premium Custom SVG Icons
 // =============================================================================
+
+const PremiumHomeIcon = ({ className }) => (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 9.5L12 3L21 9.5V20C21 20.5523 20.5523 21 20 21H15C14.4477 21 14 20.5523 14 20V15C14 14.4477 13.5523 14 13 14H11C10.4477 14 10 14.4477 10 15V20C10 20.5523 9.55228 21 9 21H4C3.44772 21 3 20.5523 3 20V9.5Z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+);
 
 const PremiumDashboardIcon = ({ className }) => (
     <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -93,6 +105,14 @@ const PremiumDocsIcon = ({ className }) => (
     </svg>
 );
 
+const PremiumArchiveIcon = ({ className }) => (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M21 8V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+        <rect x="2" y="3" width="20" height="5" rx="1.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+        <line x1="10" y1="12" x2="14" y2="12" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+);
+
 const PremiumEstimatesIcon = ({ className }) => (
     <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
@@ -128,21 +148,21 @@ function NavItem({ icon: Icon, label, href = '#', active = false, badge = null, 
             title={isCollapsed ? (badge ? `${label} (${badge})` : label) : undefined}
             className={`group relative flex items-center ${
                 isCollapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2.25'
-            } rounded-xl text-sm font-medium transition-all duration-200 ${
+            } rounded-xl text-sm font-medium transition-all duration-200 focus-ring ${
                 active
-                    ? 'bg-brand-10 text-brand font-semibold shadow-xs'
-                    : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 hover:dark:bg-slate-800/50 hover:text-gray-900 hover:dark:text-slate-200'
+                    ? 'bg-brand-10 text-brand font-semibold shadow-2xs'
+                    : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800/50 hover:text-gray-900 dark:hover:text-slate-200'
             }`}
         >
             <div className="relative shrink-0 flex items-center justify-center">
                 <Icon
                     className={`w-5 h-5 shrink-0 transition-transform duration-200 group-hover:scale-105 ${
-                        active ? 'text-brand' : 'text-gray-500 dark:text-slate-400 group-hover:text-gray-900 group-hover:dark:text-slate-200'
+                        active ? 'text-brand' : 'text-gray-500 dark:text-slate-400 group-hover:text-gray-900 dark:group-hover:text-slate-200'
                     }`}
                 />
                 {/* Collapsed notification badge — shows mini count instead of plain dot */}
                 {isCollapsed && badge && isNotif && (
-                    <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full text-[8px] font-extrabold text-white bg-gradient-to-br from-rose-500 to-rose-600 ring-2 ring-white dark:ring-slate-900 shadow-sm select-none">
+                    <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full text-[8px] font-extrabold text-white bg-linear-to-br from-rose-500 to-rose-600 ring-2 ring-white dark:ring-slate-900 shadow-xs select-none">
                         {/* Pulse dot */}
                         <span className="absolute -top-0.5 -right-0.5 flex h-1.5 w-1.5">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-300 opacity-75" />
@@ -163,7 +183,7 @@ function NavItem({ icon: Icon, label, href = '#', active = false, badge = null, 
                     {badge && (
                         isNotif ? (
                             /* Premium gradient notification badge */
-                            <span className="relative inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-[9px] font-extrabold text-white bg-gradient-to-br from-rose-500 to-rose-600 shadow-sm ring-2 ring-rose-400/30 select-none">
+                            <span className="relative inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-[9px] font-extrabold text-white bg-linear-to-br from-rose-500 to-rose-600 shadow-xs ring-2 ring-rose-400/30 select-none">
                                 {/* Live pulse dot */}
                                 <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-300 opacity-75" />
@@ -192,14 +212,38 @@ function NavItem({ icon: Icon, label, href = '#', active = false, badge = null, 
     );
 }
 
+function CategoryHeader({ label, isOpen, onToggle, isCollapsed }) {
+    if (isCollapsed) {
+        return <div className="my-2 h-px bg-gray-200 dark:bg-slate-800 mx-2" />;
+    }
+    return (
+        <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={isOpen}
+            className="w-full flex items-center justify-between px-3 py-1.5 text-left group rounded-lg hover:bg-gray-100/70 dark:hover:bg-slate-800/50 transition-colors focus-ring"
+        >
+            <span className="font-heading text-[11px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider group-hover:text-gray-700 dark:group-hover:text-slate-300 transition-colors">
+                {label}
+            </span>
+            <ChevronDown
+                className={`w-3.5 h-3.5 text-gray-400 dark:text-slate-500 transition-transform duration-200 ${
+                    isOpen ? 'rotate-0' : '-rotate-90'
+                }`}
+                aria-hidden="true"
+            />
+        </button>
+    );
+}
+
 export default function Sidebar({ user: propUser, studioName: propStudioName }) {
     const pageProps = usePage().props || {};
-    const { auth, activeWorkspace, workspaceProjects = [], currentUserRole, canManage = false, pendingEstimatesCount, inboxNotificationCount = 0 } = pageProps;
+    const { auth, activeWorkspace, currentStudioName, workspaceProjects = [], currentUserRole, canManage = false, pendingEstimatesCount, inboxNotificationCount = 0, inboxUnreadBreakdown = { notifications: 0, messages: 0, total: 0 } } = pageProps;
     const currentPath = usePage().url || '';
 
     const isManager = Boolean(canManage);
     const user = propUser || auth?.user || { name: 'Studio Member', role: isManager ? 'Project Manager' : 'Developer' };
-    const studioName = propStudioName || activeWorkspace || 'StudioSprint';
+    const studioName = propStudioName || currentStudioName || activeWorkspace || 'StudioSprint';
 
     // Mini-Sidebar collapse state
     const [isCollapsed, setIsCollapsed] = useState(false);
@@ -207,10 +251,41 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
     // Interactive theme state synced with document.documentElement and localStorage
     const [isDark, setIsDark] = useState(() => {
         if (typeof window !== 'undefined') {
-            return localStorage.getItem('theme') === 'dark';
+            return localStorage.getItem('theme') !== 'light';
         }
-        return false;
+        return true;
     });
+
+    // Accordion categories collapse state (persisted in localStorage)
+    const [openCategories, setOpenCategories] = useState(() => {
+        if (typeof window !== 'undefined') {
+            try {
+                const saved = localStorage.getItem('studio_sidebar_categories');
+                if (saved) return JSON.parse(saved);
+            } catch (e) {}
+        }
+        return {
+            workspace: true,
+            core: true,
+            intelligence: true,
+            projects: true,
+            utilities: true,
+        };
+    });
+
+    const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+
+    const toggleCategory = (key) => {
+        setOpenCategories((prev) => {
+            const next = { ...prev, [key]: !prev[key] };
+            if (typeof window !== 'undefined') {
+                try {
+                    localStorage.setItem('studio_sidebar_categories', JSON.stringify(next));
+                } catch (e) {}
+            }
+            return next;
+        });
+    };
 
     useEffect(() => {
         if (typeof document !== 'undefined') {
@@ -232,33 +307,212 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
 
     const isInboxActive = currentPath.includes('/inbox') || currentPath.includes('view=inbox');
 
+    const [activeInboxTab, setActiveInboxTab] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            const tab = params.get('tab');
+            if (tab === 'messages' || tab === 'channels') return 'messages';
+            if (tab === 'notifications') return 'notifications';
+        }
+        return currentPath.includes('tab=messages') ? 'messages' : 'notifications';
+    });
+
+    useEffect(() => {
+        const handleInboxTab = (e) => {
+            if (e.detail?.tab) {
+                setActiveInboxTab(e.detail.tab);
+            }
+        };
+        window.addEventListener('inbox-tab-changed', handleInboxTab);
+        return () => window.removeEventListener('inbox-tab-changed', handleInboxTab);
+    }, []);
+
+    useEffect(() => {
+        if (currentPath.includes('tab=messages')) {
+            setActiveInboxTab('messages');
+        } else if (currentPath.includes('tab=notifications')) {
+            setActiveInboxTab('notifications');
+        }
+    }, [currentPath]);
+
+    const isMessagesActive = isInboxActive && activeInboxTab === 'messages';
+    const isNotificationsActive = isInboxActive && activeInboxTab !== 'messages';
+
+    const [liveNotifUnread, setLiveNotifUnread] = useState(() => inboxUnreadBreakdown?.notifications ?? 0);
+    const [liveMsgUnread, setLiveMsgUnread] = useState(() => inboxUnreadBreakdown?.messages ?? 0);
+    const [justUpdated, setJustUpdated] = useState(false);
+
+    // Sync with incoming Inertia page props
+    useEffect(() => {
+        if (typeof inboxUnreadBreakdown?.notifications === 'number') {
+            setLiveNotifUnread(inboxUnreadBreakdown.notifications);
+        }
+        if (typeof inboxUnreadBreakdown?.messages === 'number') {
+            setLiveMsgUnread(inboxUnreadBreakdown.messages);
+        }
+    }, [inboxUnreadBreakdown?.notifications, inboxUnreadBreakdown?.messages]);
+
+    // Live backend unread count fetching
+    const fetchLiveUnreadCount = useCallback(async () => {
+        if (!activeWorkspace) return;
+        try {
+            const res = await axios.get(`/studio/${activeWorkspace}/inbox/unread-count`);
+            if (res.data) {
+                if (typeof res.data.notifications === 'number') {
+                    setLiveNotifUnread(prev => {
+                        if (prev !== res.data.notifications) {
+                            setJustUpdated(true);
+                            setTimeout(() => setJustUpdated(false), 1200);
+                        }
+                        return res.data.notifications;
+                    });
+                }
+                if (typeof res.data.messages === 'number') {
+                    setLiveMsgUnread(prev => {
+                        if (prev !== res.data.messages) {
+                            setJustUpdated(true);
+                            setTimeout(() => setJustUpdated(false), 1200);
+                        }
+                        return res.data.messages;
+                    });
+                }
+            }
+        } catch {
+            // ignore network errors
+        }
+    }, [activeWorkspace]);
+
+    // Periodic heartbeat poll + focus / visibility check (so unread badge pops up in real time without reload or tab switch)
+    useEffect(() => {
+        if (!activeWorkspace) return;
+
+        // Fetch immediately on mount
+        fetchLiveUnreadCount();
+
+        // 3.5s background heartbeat polling
+        const interval = setInterval(() => {
+            if (typeof document !== 'undefined' && !document.hidden) {
+                fetchLiveUnreadCount();
+            }
+        }, 3500);
+
+        const handleFocus = () => fetchLiveUnreadCount();
+        const handleVisibilityChange = () => {
+            if (!document.hidden) fetchLiveUnreadCount();
+        };
+
+        window.addEventListener('focus', handleFocus);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('focus', handleFocus);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [activeWorkspace, fetchLiveUnreadCount]);
+
+    // WebSocket / Reverb real-time event listener
+    useEffect(() => {
+        if (!activeWorkspace || typeof window === 'undefined' || !window.Echo) return;
+
+        const channel = window.Echo.private(`studio.${activeWorkspace}`);
+
+        const handleLiveTrigger = () => {
+            fetchLiveUnreadCount();
+        };
+
+        channel.listen('.message.sent', handleLiveTrigger);
+        channel.listen('.task.status.updated', handleLiveTrigger);
+        channel.listen('.notification.created', handleLiveTrigger);
+
+        return () => {
+            channel.stopListening('.message.sent', handleLiveTrigger);
+            channel.stopListening('.task.status.updated', handleLiveTrigger);
+            channel.stopListening('.notification.created', handleLiveTrigger);
+        };
+    }, [activeWorkspace, fetchLiveUnreadCount]);
+
+    // Real-time custom event listeners for instant 0ms badge updates without reload or tab change
+    useEffect(() => {
+        const handleNotifRead = (e) => {
+            setJustUpdated(true);
+            setTimeout(() => setJustUpdated(false), 1200);
+            if (typeof e.detail?.remainingNotifUnread === 'number') {
+                setLiveNotifUnread(e.detail.remainingNotifUnread);
+            } else {
+                setLiveNotifUnread(prev => Math.max(0, prev - 1));
+            }
+        };
+
+        const handleNotifUnread = (e) => {
+            setJustUpdated(true);
+            setTimeout(() => setJustUpdated(false), 1200);
+            if (typeof e.detail?.remainingNotifUnread === 'number') {
+                setLiveNotifUnread(e.detail.remainingNotifUnread);
+            } else {
+                setLiveNotifUnread(prev => prev + 1);
+            }
+        };
+
+        const handleAllNotifsRead = () => {
+            setJustUpdated(true);
+            setTimeout(() => setJustUpdated(false), 1200);
+            setLiveNotifUnread(0);
+        };
+
+        const handleMsgRead = (e) => {
+            setJustUpdated(true);
+            setTimeout(() => setJustUpdated(false), 1200);
+            if (typeof e.detail?.remainingMsgUnread === 'number') {
+                setLiveMsgUnread(e.detail.remainingMsgUnread);
+            } else {
+                setLiveMsgUnread(prev => Math.max(0, prev - 1));
+            }
+        };
+
+        window.addEventListener('inbox-notification-read', handleNotifRead);
+        window.addEventListener('inbox-notification-unread', handleNotifUnread);
+        window.addEventListener('inbox-notifications-all-read', handleAllNotifsRead);
+        window.addEventListener('inbox-message-read', handleMsgRead);
+
+        return () => {
+            window.removeEventListener('inbox-notification-read', handleNotifRead);
+            window.removeEventListener('inbox-notification-unread', handleNotifUnread);
+            window.removeEventListener('inbox-notifications-all-read', handleAllNotifsRead);
+            window.removeEventListener('inbox-message-read', handleMsgRead);
+        };
+    }, []);
+
+    const totalInboxUnread = liveNotifUnread + liveMsgUnread;
+    const notifUnread = liveNotifUnread;
+    const msgUnread = liveMsgUnread;
+
+    const [inboxExpanded, setInboxExpanded] = useState(() => isInboxActive);
+    const [collapsedInboxMenuOpen, setCollapsedInboxMenuOpen] = useState(false);
+
+    useEffect(() => {
+        if (isInboxActive) {
+            setInboxExpanded(true);
+        }
+    }, [isInboxActive]);
+
     const dashboardLinks = isManager
         ? [
             {
-                label: 'Overview',
+                label: 'Dashboard',
                 icon: PremiumDashboardIcon,
-                href: `${baseHref}/overview`,
-                active: currentPath.includes('/overview'),
+                href: `${baseHref}/dashboard`,
+                active: currentPath.includes('/dashboard') && !currentPath.includes('/ai-workspace'),
             },
         ]
         : [
             {
-                label: 'My Work',
-                icon: PremiumDashboardIcon,
+                label: 'Home',
+                icon: PremiumHomeIcon,
                 href: `${baseHref}/dashboard`,
-                active: (currentPath.includes('/dashboard') || currentPath.includes('/my-work') || currentPath === baseHref) && !isInboxActive,
+                active: (currentPath.includes('/dashboard') || currentPath.includes('/my-work') || currentPath.includes('/home') || currentPath === baseHref) && !isInboxActive,
             },
         ];
-
-    // Inbox is always a standalone section for both roles
-    const inboxLink = {
-        label: 'Inbox',
-        icon: PremiumInboxIcon,
-        href: `${baseHref}/inbox`,
-        active: isInboxActive,
-        badge: inboxNotificationCount > 0 ? String(inboxNotificationCount) : null,
-        badgeVariant: 'notification',
-    };
 
     const primaryLinks = isManager
         ? [
@@ -295,8 +549,8 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
             {
                 label: 'AI Workspace',
                 icon: PremiumAutomationIcon,
-                href: `${baseHref}/dashboard`,
-                active: currentPath.includes('/dashboard') || currentPath === baseHref || currentPath === '',
+                href: `${baseHref}/ai-workspace`,
+                active: currentPath.includes('/ai-workspace'),
             },
         ]
         : [];
@@ -312,16 +566,16 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
 
     const utilityLinks = [
         {
+            label: 'Report Center',
+            icon: PremiumArchiveIcon,
+            href: `${baseHref}/reports`,
+            active: currentPath.includes('/reports') || currentPath.includes('/docs'),
+        },
+        {
             label: 'Settings',
             icon: PremiumSettingsIcon,
             href: `${baseHref}/settings`,
             active: currentPath.includes('/settings'),
-        },
-        {
-            label: 'Documentation',
-            icon: PremiumDocsIcon,
-            href: `${baseHref}/docs`,
-            active: currentPath.includes('/docs'),
         },
     ];
 
@@ -331,238 +585,395 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                 isCollapsed ? 'w-16' : 'w-64'
             }`}
         >
-            {/* 1. Brand Header & Quick Search */}
-            <div className="p-4 flex flex-col gap-3 border-b border-gray-100 dark:border-slate-800/50">
-                {/* Brand Row */}
-                <div className="flex items-center justify-between">
-                    <Link
-                        href={`${baseHref}/dashboard`}
-                        className="flex items-center gap-2.5 overflow-hidden focus:outline-none"
-                        title={studioName}
-                    >
-                        {/* Vaultera Labs symbol logo — collapses to symbol only */}
-                        <ApplicationLogo
-                            variant="symbol"
-                            className="w-8 h-8 shrink-0"
-                        />
-                        {!isCollapsed && (
-                            <span className="font-heading font-bold text-base tracking-tight text-gray-900 dark:text-slate-100 truncate">
-                                StudioSprint
-                            </span>
-                        )}
-                    </Link>
-
-                    <button
-                        type="button"
-                        onClick={() => setIsCollapsed(!isCollapsed)}
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/60 transition-colors"
-                        title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-                    >
-                        {isCollapsed ? (
-                            <PanelLeftOpen className="w-5 h-5" />
-                        ) : (
-                            <PanelLeftClose className="w-5 h-5" />
-                        )}
-                    </button>
-                </div>
-
-                {/* Search Bar */}
-                {isCollapsed ? (
-                    <button
-                        type="button"
-                        onClick={() => showToast('Quick Search (⌘K)', 'info')}
-                        className="w-full flex items-center justify-center py-2 rounded-xl bg-gray-100 dark:bg-slate-800/50 text-gray-400 dark:text-slate-500 hover:text-brand dark:hover:text-brand hover:bg-gray-200 dark:hover:bg-slate-800 transition-colors"
-                        title="Search (⌘K)"
-                    >
-                        <Search className="w-4 h-4" />
-                    </button>
-                ) : (
-                    <div className="relative flex items-center">
-                        <Search className="w-4 h-4 absolute left-3 text-gray-400 dark:text-slate-500 pointer-events-none" />
-                        <input
-                            type="text"
-                            placeholder="Search..."
-                            readOnly
-                            onClick={() => showToast('Quick Search (⌘K)', 'info')}
-                            className="w-full pl-9 pr-12 py-2 rounded-xl bg-gray-100 dark:bg-slate-800/50 border border-transparent focus:border-brand dark:focus:border-brand text-xs text-gray-800 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none cursor-pointer transition-all"
-                        />
-                        <span className="absolute right-2.5 text-[10px] font-mono text-gray-500 dark:text-slate-400 bg-gray-200 dark:bg-slate-700/80 rounded px-1.5 py-0.5 pointer-events-none">
-                            ⌘K
+            {/* 1. Brand Header (Search removed for streamlined vertical height) */}
+            <div className="p-4 flex items-center justify-between border-b border-gray-100 dark:border-slate-800/50">
+                <Link
+                    href={`${baseHref}/dashboard`}
+                    className="flex items-center gap-2.5 overflow-hidden focus:outline-hidden"
+                    title={studioName}
+                >
+                    <ApplicationLogo
+                        variant="symbol"
+                        className="w-8 h-8 shrink-0"
+                    />
+                    {!isCollapsed && (
+                        <span className="font-heading font-bold text-base tracking-tight text-gray-900 dark:text-slate-100 truncate">
+                            {studioName}
                         </span>
-                    </div>
-                )}
+                    )}
+                </Link>
+
+                <button
+                    type="button"
+                    onClick={() => setIsCollapsed(!isCollapsed)}
+                    aria-label={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/60 transition-colors focus-ring"
+                    title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+                >
+                    {isCollapsed ? (
+                        <PanelLeftOpen className="w-5 h-5" />
+                    ) : (
+                        <PanelLeftClose className="w-5 h-5" />
+                    )}
+                </button>
             </div>
 
-            {/* 2. Primary Navigation (Middle, Scrollable) */}
-            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                {/* Dashboard / Home Group */}
-                <div className="pb-1">
-                    {!isCollapsed ? (
-                        <p className="font-heading text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-3 uppercase tracking-wider">
-                            {isManager ? 'Dashboard' : 'Workspace'}
-                        </p>
-                    ) : (
-                        <div className="my-2 h-px bg-gray-200 dark:bg-slate-800 mx-2" />
-                    )}
-                </div>
-
-                {dashboardLinks.map((item) => (
-                    <NavItem
-                        key={item.label}
-                        icon={item.icon}
-                        label={item.label}
-                        href={item.href}
-                        active={item.active}
-                        badge={item.badge}
+            {/* 2. Primary Navigation with Collapsible Accordion Categories */}
+            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] scrollbar-none">
+                {/* 1. Workspace Category */}
+                <div className="space-y-0.5">
+                    <CategoryHeader
+                        label="Workspace"
+                        isOpen={openCategories.workspace}
+                        onToggle={() => toggleCategory('workspace')}
                         isCollapsed={isCollapsed}
                     />
-                ))}
+                    {(openCategories.workspace || isCollapsed) && (
+                        <div className="space-y-0.5 animate-in fade-in-50 duration-150">
+                            {dashboardLinks.map((item) => (
+                                <NavItem
+                                    key={item.label}
+                                    icon={item.icon}
+                                    label={item.label}
+                                    href={item.href}
+                                    active={item.active}
+                                    badge={item.badge}
+                                    isCollapsed={isCollapsed}
+                                />
+                            ))}
+                            {/* Inbox with Dropdown (Notifications & Messages) */}
+                            {isCollapsed ? (
+                                <div className="relative group/inbox">
+                                    <button
+                                        type="button"
+                                        onClick={() => setCollapsedInboxMenuOpen(prev => !prev)}
+                                        title={totalInboxUnread > 0 ? `Inbox (${totalInboxUnread})` : 'Inbox'}
+                                        className={`group relative flex items-center justify-center w-full px-2 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 focus-ring ${
+                                            isInboxActive
+                                                ? 'bg-brand-10 text-brand font-semibold shadow-xs'
+                                                : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 hover:dark:bg-slate-800/50 hover:text-gray-900 hover:dark:text-slate-200'
+                                        }`}
+                                    >
+                                        <div className="relative shrink-0 flex items-center justify-center">
+                                            <PremiumInboxIcon
+                                                className={`w-5 h-5 shrink-0 transition-transform duration-200 group-hover:scale-105 ${
+                                                    isInboxActive ? 'text-brand' : 'text-gray-500 dark:text-slate-400'
+                                                }`}
+                                            />
+                                            {totalInboxUnread > 0 && (
+                                                <span className={`absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full text-[8px] font-extrabold text-white bg-rose-500 ring-2 ring-white dark:ring-slate-900 shadow-sm select-none transition-all duration-300 transform ${
+                                                    justUpdated ? 'scale-125 ring-rose-400' : 'scale-100'
+                                                }`}>
+                                                    {totalInboxUnread > 9 ? '9+' : totalInboxUnread}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </button>
 
-                {/* Inbox — standalone section, separate from My Work */}
-                <div className="pt-4 pb-1">
-                    {!isCollapsed ? (
-                        <p className="font-heading text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-3 uppercase tracking-wider">
-                            Inbox
-                        </p>
-                    ) : (
-                        <div className="my-2 h-px bg-gray-200 dark:bg-slate-800 mx-2" />
-                    )}
-                </div>
-                <NavItem
-                    key="inbox"
-                    icon={inboxLink.icon}
-                    label={inboxLink.label}
-                    href={inboxLink.href}
-                    active={inboxLink.active}
-                    badge={inboxLink.badge}
-                    badgeVariant={inboxLink.badgeVariant}
-                    isCollapsed={isCollapsed}
-                />
-
-                {/* Core Workspace / Work Group */}
-                <div className="pt-4 pb-1">
-                    {!isCollapsed ? (
-                        <p className="font-heading text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-3 uppercase tracking-wider">
-                            {isManager ? 'Core Workspace' : 'My Work'}
-                        </p>
-                    ) : (
-                        <div className="my-2 h-px bg-gray-200 dark:bg-slate-800 mx-2" />
-                    )}
-                </div>
-
-                {primaryLinks.map((item) => (
-                    <NavItem
-                        key={item.label}
-                        icon={item.icon}
-                        label={item.label}
-                        href={item.href}
-                        active={item.active}
-                        badge={item.badge}
-                        isCollapsed={isCollapsed}
-                    />
-                ))}
-
-                {/* Automation Group (Manager only) */}
-                {automationLinks.length > 0 && (
-                    <>
-                        <div className="pt-4 pb-1">
-                            {!isCollapsed ? (
-                                <p className="font-heading text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-3 uppercase tracking-wider">
-                                    Automation
-                                </p>
+                                    {collapsedInboxMenuOpen && (
+                                        <div className="absolute left-full top-0 ml-2 w-48 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95">
+                                            <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-slate-500 border-b border-gray-100 dark:border-slate-800 mb-1">
+                                                Inbox
+                                            </div>
+                                            <Link
+                                                href={`${baseHref}/inbox?tab=notifications`}
+                                                onClick={() => {
+                                                    setCollapsedInboxMenuOpen(false);
+                                                    setActiveInboxTab('notifications');
+                                                    if (typeof window !== 'undefined') {
+                                                        window.dispatchEvent(new CustomEvent('inbox-tab-changed', { detail: { tab: 'notifications' } }));
+                                                    }
+                                                }}
+                                                className={`flex items-center justify-between px-3 py-2 text-xs font-medium transition-colors ${
+                                                    isNotificationsActive
+                                                        ? 'bg-brand/10 text-brand font-semibold'
+                                                        : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800'
+                                                }`}
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    <Bell className="w-3.5 h-3.5" />
+                                                    <span>Notifications</span>
+                                                </span>
+                                                {notifUnread > 0 && (
+                                                    <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300 transition-all duration-300 transform ${
+                                                        justUpdated ? 'scale-125 ring-2 ring-rose-300' : 'scale-100'
+                                                    }`}>
+                                                        {notifUnread}
+                                                    </span>
+                                                )}
+                                            </Link>
+                                            <Link
+                                                href={`${baseHref}/inbox?tab=messages`}
+                                                onClick={() => {
+                                                    setCollapsedInboxMenuOpen(false);
+                                                    setActiveInboxTab('messages');
+                                                    if (typeof window !== 'undefined') {
+                                                        window.dispatchEvent(new CustomEvent('inbox-tab-changed', { detail: { tab: 'messages' } }));
+                                                    }
+                                                }}
+                                                className={`flex items-center justify-between px-3 py-2 text-xs font-medium transition-colors ${
+                                                    isMessagesActive
+                                                        ? 'bg-brand/10 text-brand font-semibold'
+                                                        : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800'
+                                                }`}
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    <MessageSquare className="w-3.5 h-3.5" />
+                                                    <span>Messages</span>
+                                                </span>
+                                                {msgUnread > 0 && (
+                                                    <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300 transition-all duration-300 transform ${
+                                                        justUpdated ? 'scale-125 ring-2 ring-rose-300' : 'scale-100'
+                                                    }`}>
+                                                        {msgUnread}
+                                                    </span>
+                                                )}
+                                            </Link>
+                                        </div>
+                                    )}
+                                </div>
                             ) : (
-                                <div className="my-2 h-px bg-gray-200 dark:bg-slate-800 mx-2" />
+                                <div className="space-y-0.5">
+                                    <div
+                                        className={`group relative flex items-center justify-between px-3 py-2.25 rounded-xl text-sm font-medium transition-all duration-200 select-none ${
+                                            isInboxActive
+                                                ? 'bg-brand-10 text-brand font-semibold shadow-xs'
+                                                : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 hover:dark:bg-slate-800/50 hover:text-gray-900 hover:dark:text-slate-200'
+                                        }`}
+                                    >
+                                        <Link
+                                            href={`${baseHref}/inbox`}
+                                            className="flex items-center gap-3 flex-1 min-w-0"
+                                        >
+                                            <PremiumInboxIcon
+                                                className={`w-5 h-5 shrink-0 transition-transform duration-200 group-hover:scale-105 ${
+                                                    isInboxActive ? 'text-brand' : 'text-gray-500 dark:text-slate-400'
+                                                }`}
+                                            />
+                                            <span className="truncate">Inbox</span>
+                                        </Link>
+
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            {totalInboxUnread > 0 && (
+                                                <span className={`inline-flex items-center justify-center min-w-[1.2rem] h-[1.2rem] px-1 rounded-full text-[9px] font-extrabold text-white bg-rose-500 shadow-2xs transition-all duration-300 transform ${
+                                                    justUpdated ? 'scale-125' : 'scale-100'
+                                                }`}>
+                                                    {totalInboxUnread > 9 ? '9+' : totalInboxUnread}
+                                                </span>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setInboxExpanded(prev => !prev);
+                                                }}
+                                                title={inboxExpanded ? 'Collapse Inbox menu' : 'Expand Inbox menu'}
+                                                className="p-1 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 hover:bg-gray-200/50 dark:hover:bg-slate-800/60 transition-colors"
+                                            >
+                                                <ChevronDown
+                                                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                                                        inboxExpanded ? 'rotate-0' : '-rotate-90'
+                                                    }`}
+                                                />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Submenu Dropdown Items */}
+                                    {inboxExpanded && (
+                                        <div className="pl-6 pr-1 space-y-0.5 pt-0.5 animate-in fade-in-50 duration-150">
+                                            <Link
+                                                href={`${baseHref}/inbox?tab=notifications`}
+                                                onClick={() => {
+                                                    setActiveInboxTab('notifications');
+                                                    if (typeof window !== 'undefined') {
+                                                        window.dispatchEvent(new CustomEvent('inbox-tab-changed', { detail: { tab: 'notifications' } }));
+                                                    }
+                                                }}
+                                                className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                                    isNotificationsActive
+                                                        ? 'bg-brand/10 text-brand font-semibold'
+                                                        : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100/80 dark:hover:bg-slate-800/40 hover:text-gray-900 dark:hover:text-slate-200'
+                                                }`}
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    <Bell className="w-3.5 h-3.5" />
+                                                    <span>Notifications</span>
+                                                </span>
+                                                {notifUnread > 0 && (
+                                                    <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 transition-all duration-300 transform ${
+                                                        justUpdated ? 'scale-125 ring-2 ring-rose-300' : 'scale-100'
+                                                    }`}>
+                                                        {notifUnread}
+                                                    </span>
+                                                )}
+                                            </Link>
+
+                                            <Link
+                                                href={`${baseHref}/inbox?tab=messages`}
+                                                onClick={() => {
+                                                    setActiveInboxTab('messages');
+                                                    if (typeof window !== 'undefined') {
+                                                        window.dispatchEvent(new CustomEvent('inbox-tab-changed', { detail: { tab: 'messages' } }));
+                                                    }
+                                                }}
+                                                className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                                    isMessagesActive
+                                                        ? 'bg-brand/10 text-brand font-semibold'
+                                                        : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100/80 dark:hover:bg-slate-800/40 hover:text-gray-900 dark:hover:text-slate-200'
+                                                }`}
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    <MessageSquare className="w-3.5 h-3.5" />
+                                                    <span>Messages</span>
+                                                </span>
+                                                {msgUnread > 0 && (
+                                                    <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 transition-all duration-300 transform ${
+                                                        justUpdated ? 'scale-125 ring-2 ring-rose-300' : 'scale-100'
+                                                    }`}>
+                                                        {msgUnread}
+                                                    </span>
+                                                )}
+                                            </Link>
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </div>
-
-                        {automationLinks.map((item) => (
-                            <NavItem
-                                key={item.label}
-                                icon={item.icon}
-                                label={item.label}
-                                href={item.href}
-                                active={item.active}
-                                badge={item.badge}
-                                isCollapsed={isCollapsed}
-                            />
-                        ))}
-                    </>
-                )}
-
-                {/* Projects Group */}
-                <div className="pt-4 pb-1">
-                    {!isCollapsed ? (
-                        <p className="font-heading text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-3 uppercase tracking-wider">
-                            Projects
-                        </p>
-                    ) : (
-                        <div className="my-2 h-px bg-gray-200 dark:bg-slate-800 mx-2" />
                     )}
                 </div>
 
-                {projectLinks.map((item) => (
-                    <div key={item.label} className="space-y-1">
-                        <NavItem
-                            icon={item.icon}
-                            label={item.label}
-                            href={item.href}
-                            active={item.active}
+                {/* 2. Core Management Category */}
+                <div className="space-y-0.5 pt-1">
+                    <CategoryHeader
+                        label={isManager ? 'Core Management' : 'My Work'}
+                        isOpen={openCategories.core}
+                        onToggle={() => toggleCategory('core')}
+                        isCollapsed={isCollapsed}
+                    />
+                    {(openCategories.core || isCollapsed) && (
+                        <div className="space-y-0.5 animate-in fade-in-50 duration-150">
+                            {primaryLinks.map((item) => (
+                                <NavItem
+                                    key={item.label}
+                                    icon={item.icon}
+                                    label={item.label}
+                                    href={item.href}
+                                    active={item.active}
+                                    badge={item.badge}
+                                    isCollapsed={isCollapsed}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* 3. Intelligence / AI Workspace Category */}
+                {automationLinks.length > 0 && (
+                    <div className="space-y-0.5 pt-1">
+                        <CategoryHeader
+                            label="Intelligence"
+                            isOpen={openCategories.intelligence}
+                            onToggle={() => toggleCategory('intelligence')}
                             isCollapsed={isCollapsed}
                         />
-                        
-                        {/* Sub-projects list */}
-                        {!isCollapsed && workspaceProjects && workspaceProjects.length > 0 && (
-                            <div className="mt-1 space-y-1">
-                                {workspaceProjects.map((p) => {
-                                    const projectHref = `${baseHref}/projects/${p.id}`;
-                                    const isProjectActive = currentPath === projectHref;
-                                    return (
-                                        <Link
-                                            key={p.id}
-                                            href={projectHref}
-                                            className={`flex items-center gap-2 pl-9 pr-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-200 border-l-2 ${
-                                                isProjectActive
-                                                    ? 'border-brand text-brand bg-brand-10/40 font-semibold'
-                                                    : 'border-transparent text-gray-500 dark:text-slate-400 hover:bg-gray-50 hover:dark:bg-slate-800/30 hover:text-gray-900 hover:dark:text-slate-200'
-                                            }`}
-                                        >
-                                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                                p.status === 'active'
-                                                    ? 'bg-emerald-500'
-                                                    : p.status === 'planning'
-                                                    ? 'bg-amber-500'
-                                                    : 'bg-gray-400'
-                                            }`} />
-                                            <span className="truncate">{p.name}</span>
-                                        </Link>
-                                    );
-                                })}
+                        {(openCategories.intelligence || isCollapsed) && (
+                            <div className="space-y-0.5 animate-in fade-in-50 duration-150">
+                                {automationLinks.map((item) => (
+                                    <NavItem
+                                        key={item.label}
+                                        icon={item.icon}
+                                        label={item.label}
+                                        href={item.href}
+                                        active={item.active}
+                                        badge={item.badge}
+                                        isCollapsed={isCollapsed}
+                                    />
+                                ))}
                             </div>
                         )}
                     </div>
-                ))}
+                )}
 
-                {/* Settings & Help Group */}
-                <div className="pt-4 pb-1">
-                    {!isCollapsed ? (
-                        <p className="font-heading text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-3 uppercase tracking-wider">
-                            Settings & Help
-                        </p>
-                    ) : (
-                        <div className="my-2 h-px bg-gray-200 dark:bg-slate-800 mx-2" />
-                    )}
-                </div>
+                {/* 4. Projects Category */}
+                {(isManager || (workspaceProjects && workspaceProjects.length > 0)) && (
+                    <div className="space-y-0.5 pt-1">
+                        <CategoryHeader
+                            label="Projects"
+                            isOpen={openCategories.projects}
+                            onToggle={() => toggleCategory('projects')}
+                            isCollapsed={isCollapsed}
+                        />
+                        {(openCategories.projects || isCollapsed) && (
+                            <div className="space-y-0.5 animate-in fade-in-50 duration-150">
+                                {projectLinks.map((item) => (
+                                    <div key={item.label} className="space-y-1">
+                                        <NavItem
+                                            icon={item.icon}
+                                            label={item.label}
+                                            href={item.href}
+                                            active={item.active}
+                                            isCollapsed={isCollapsed}
+                                        />
+                                        {/* Sub-projects list */}
+                                        {!isCollapsed && workspaceProjects && workspaceProjects.length > 0 && (
+                                            <div className="mt-1 space-y-1">
+                                                {workspaceProjects.map((p) => {
+                                                    const projectHref = `${baseHref}/projects/${p.id}`;
+                                                    const isProjectActive = currentPath === projectHref;
+                                                    return (
+                                                        <Link
+                                                            key={p.id}
+                                                            href={projectHref}
+                                                            className={`flex items-center gap-2 pl-9 pr-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-200 border-l-2 ${
+                                                                isProjectActive
+                                                                    ? 'border-brand text-brand bg-brand-10/40 font-semibold'
+                                                                    : 'border-transparent text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-800/30 hover:text-gray-900 dark:hover:text-slate-200'
+                                                            }`}
+                                                        >
+                                                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                                                p.status === 'active'
+                                                                    ? 'bg-emerald-500'
+                                                                    : p.status === 'planning'
+                                                                    ? 'bg-amber-500'
+                                                                    : 'bg-gray-400'
+                                                            }`} />
+                                                            <span className="truncate">{p.name}</span>
+                                                        </Link>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
 
-                {utilityLinks.map((item) => (
-                    <NavItem
-                        key={item.label}
-                        icon={item.icon}
-                        label={item.label}
-                        href={item.href}
-                        active={item.active}
+                {/* 5. Utilities Category */}
+                <div className="space-y-0.5 pt-1">
+                    <CategoryHeader
+                        label="Utilities"
+                        isOpen={openCategories.utilities}
+                        onToggle={() => toggleCategory('utilities')}
                         isCollapsed={isCollapsed}
                     />
-                ))}
+                    {(openCategories.utilities || isCollapsed) && (
+                        <div className="space-y-0.5 animate-in fade-in-50 duration-150">
+                            {utilityLinks.map((item) => (
+                                <NavItem
+                                    key={item.label}
+                                    icon={item.icon}
+                                    label={item.label}
+                                    href={item.href}
+                                    active={item.active}
+                                    isCollapsed={isCollapsed}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* 4. Pinned Footer (Theme Toggle & User Profile Card) */}
@@ -584,7 +995,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                             onClick={() => toggleTheme(false)}
                             className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
                                 !isDark
-                                    ? 'bg-white text-gray-900 shadow-sm font-semibold'
+                                    ? 'bg-white text-gray-900 shadow-xs font-semibold'
                                     : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'
                             }`}
                         >
@@ -596,7 +1007,7 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                             onClick={() => toggleTheme(true)}
                             className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
                                 isDark
-                                    ? 'bg-slate-700 text-slate-100 shadow-sm font-semibold'
+                                    ? 'bg-slate-700 text-slate-100 shadow-xs font-semibold'
                                     : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'
                             }`}
                         >
@@ -606,46 +1017,92 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                     </div>
                 )}
 
-                {/* User Profile Card & Log Out */}
-                {isCollapsed ? (
-                    <div className="flex flex-col gap-3 items-center">
-                        <div
-                            title={`${user?.name || 'User'} (${currentUserRole || user?.role || 'Member'})`}
-                            className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-sm"
-                        >
-                            {(user?.name || 'U').charAt(0).toUpperCase()}
+                {/* Profile Popover Menu (if open) */}
+                {profileMenuOpen && (
+                    <div className="absolute bottom-full mb-2 left-2 right-2 bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-xl p-2 z-50 animate-in fade-in-0 slide-in-from-bottom-2 duration-150">
+                        <div className="px-3 py-2 border-b border-gray-100 dark:border-slate-800/80 mb-1">
+                            <p className="font-heading text-xs font-bold text-gray-900 dark:text-slate-100 truncate">{user?.name || 'Studio Member'}</p>
+                            <p className="text-[10px] text-gray-500 dark:text-slate-400 truncate uppercase tracking-wider">{currentUserRole || user?.role || 'Member'}</p>
                         </div>
+                        <Link
+                            href="/profile"
+                            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/70 transition-colors"
+                            onClick={() => setProfileMenuOpen(false)}
+                        >
+                            <UserIcon className="w-3.5 h-3.5 text-gray-400" />
+                            <span>Profile Settings</span>
+                        </Link>
+                        <Link
+                            href={route('central.hub')}
+                            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/70 transition-colors"
+                            onClick={() => setProfileMenuOpen(false)}
+                        >
+                            <LayoutGrid className="w-3.5 h-3.5 text-brand" />
+                            <span>Central Hub</span>
+                        </Link>
+                        <div className="my-1 border-t border-gray-100 dark:border-slate-800/80" />
                         <Link
                             href={route('logout')}
                             method="post"
                             as="button"
-                            className="w-8 h-8 flex items-center justify-center rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all duration-200 border border-red-500/20"
-                            title="Log Out"
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                            onClick={() => setProfileMenuOpen(false)}
+                        >
+                            <LogOut className="w-3.5 h-3.5" />
+                            <span>Log Out</span>
+                        </Link>
+                    </div>
+                )}
+
+                {/* User Profile Card & Return to Central Hub Action */}
+                {isCollapsed ? (
+                    <div className="flex flex-col gap-2 items-center">
+                        <button
+                            type="button"
+                            onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                            title={`${user?.name || 'User'} (${currentUserRole || user?.role || 'Member'}) — Click for options`}
+                            className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-xs focus:outline-hidden focus-visible:ring-2 focus-visible:ring-brand cursor-pointer hover:opacity-90 transition-opacity"
+                        >
+                            {(user?.name || 'U').charAt(0).toUpperCase()}
+                        </button>
+                        <Link
+                            href={route('logout')}
+                            method="post"
+                            as="button"
+                            aria-label="Log out"
+                            title="Log out"
+                            className="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-slate-800/70 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:border-rose-300 border border-transparent text-gray-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 transition-all duration-150 cursor-pointer"
                         >
                             <LogOut className="w-4 h-4" />
                         </Link>
                     </div>
                 ) : (
-                    <div className="flex items-center justify-between p-2 rounded-xl bg-gray-50/50 dark:bg-slate-800/20 border border-gray-100 dark:border-slate-800/40">
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <div className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-sm">
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-gray-50/80 dark:bg-slate-800/40 border border-gray-100 dark:border-slate-800/60">
+                        <button
+                            type="button"
+                            onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                            className="flex items-center gap-2.5 min-w-0 flex-1 text-left focus:outline-hidden rounded-lg p-1 hover:bg-white/60 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
+                            title="Click for account options"
+                        >
+                            <div className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-xs">
                                 {(user?.name || 'U').charAt(0).toUpperCase()}
                             </div>
                             <div className="min-w-0 flex-1">
-                                <p className="font-heading text-sm font-semibold text-gray-900 dark:text-slate-200 truncate">
+                                <p className="font-heading text-xs font-bold text-gray-900 dark:text-slate-200 truncate">
                                     {user?.name || 'Studio Member'}
                                 </p>
-                                <p className="text-xs text-gray-500 dark:text-slate-500 truncate uppercase">
+                                <p className="text-[10px] text-gray-500 dark:text-slate-400 truncate uppercase tracking-wider">
                                     {currentUserRole || user?.role || 'Member'}
                                 </p>
                             </div>
-                        </div>
+                        </button>
                         <Link
                             href={route('logout')}
                             method="post"
                             as="button"
-                            className="p-2 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all duration-200 shrink-0 ml-2 border border-red-500/20"
-                            title="Log Out"
+                            aria-label="Log out"
+                            title="Log out"
+                            className="p-2 rounded-xl bg-white dark:bg-slate-700/60 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:border-rose-300 border border-gray-200/80 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] shadow-2xs hover:shadow-2xs shrink-0 ml-1.5 cursor-pointer"
                         >
                             <LogOut className="w-4 h-4" />
                         </Link>

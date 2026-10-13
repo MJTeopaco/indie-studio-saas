@@ -12,6 +12,12 @@ class Task extends Model
 {
     use HasFactory;
 
+    public const STATUS_TODO = 'todo';
+    public const STATUS_IN_PROGRESS = 'in_progress';
+    public const STATUS_STUCK = 'stuck';
+    public const STATUS_REVIEW = 'review';
+    public const STATUS_COMPLETED = 'completed';
+
     protected $table = 'tasks';
 
     protected $fillable = [
@@ -55,7 +61,6 @@ class Task extends Model
         'duration_pessimistic',
         'sprint_status',
         'sprint_priority',
-        'actual_story_points',
         'github_link',
     ];
 
@@ -79,7 +84,6 @@ class Task extends Model
             'duration_optimistic' => 'float',
             'duration_likely' => 'float',
             'duration_pessimistic' => 'float',
-            'actual_story_points' => 'integer',
         ];
     }
 

@@ -9,6 +9,7 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class TenantScheduleController extends Controller
@@ -43,7 +44,18 @@ class TenantScheduleController extends Controller
             ->orderBy('tasks.id');
 
         if (! $isManager) {
-            $query->where('assigned_user_id', $user->id);
+            $query->where(function ($q) use ($user) {
+                $q->where('assigned_user_id', $user->id);
+
+                if (Schema::hasTable('assignments')) {
+                    $q->orWhereIn('tasks.id', function ($sub) use ($user) {
+                        $sub->select('task_id')
+                            ->from('assignments')
+                            ->where('employee_user_id', $user->id)
+                            ->where('status', 'active');
+                    });
+                }
+            });
         }
 
         if ($request->filled('project_id') && $request->project_id !== 'all') {

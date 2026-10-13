@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from '@inertiajs/react';
 import {
     X,
     Calendar,
@@ -57,7 +58,7 @@ function ConfirmDialog({ isOpen, title, message, confirmLabel, confirmColor = 'b
         emerald: 'bg-emerald-600 hover:bg-emerald-700 text-white',
     };
     return (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-100">
+        <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-100">
             <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4">
                 <h4 className="text-base font-bold text-slate-900 dark:text-slate-100">{title}</h4>
                 <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{message}</p>
@@ -73,7 +74,7 @@ function ConfirmDialog({ isOpen, title, message, confirmLabel, confirmColor = 'b
                     <button
                         type="button"
                         onClick={onConfirm}
-                        className={`px-5 py-2 rounded-xl text-xs font-bold shadow-sm transition-all ${colorMap[confirmColor]}`}
+                        className={`px-5 py-2 rounded-xl text-xs font-bold shadow-xs transition-all ${colorMap[confirmColor]}`}
                     >
                         {confirmLabel}
                     </button>
@@ -121,10 +122,6 @@ export default function MemberTaskDetailModal({ isOpen, onClose, task, tenantId,
             ...extraPayload,
         };
 
-        if (newStatus === 'completed' && actualSp !== '') {
-            payload.actual_story_points = parseInt(actualSp, 10);
-        }
-
         try {
             const url = route('tenant.tasks.update-status', {
                 tenant: tenantId,
@@ -146,7 +143,6 @@ export default function MemberTaskDetailModal({ isOpen, onClose, task, tenantId,
                         completed: 'done',
                         stuck: 'stuck',
                     }[newStatus] ?? task.sprint_status,
-                    actual_story_points: payload.actual_story_points ?? task.actual_story_points,
                     github_link: payload.github_link,
                 });
             }
@@ -164,7 +160,7 @@ export default function MemberTaskDetailModal({ isOpen, onClose, task, tenantId,
     // ── Action buttons depending on current status and role ──────────────────
 
     const renderActionButtons = () => {
-        const btnBase = 'flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm';
+        const btnBase = 'flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs';
 
         if (currentStatus === 'todo') {
             if (!isDoer) return <p className="text-xs text-slate-400 text-center py-2">You are not the assigned doer for this task.</p>;
@@ -408,7 +404,7 @@ export default function MemberTaskDetailModal({ isOpen, onClose, task, tenantId,
                                     value={githubLink}
                                     onChange={(e) => setGithubLink(e.target.value)}
                                     placeholder="https://github.com/organization/repo/pull/123"
-                                    className="w-full pl-9 pr-10 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-brand transition-all"
+                                    className="w-full pl-9 pr-10 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-hidden focus:border-brand transition-all"
                                 />
                                 {githubLink && (
                                     <a
@@ -424,26 +420,23 @@ export default function MemberTaskDetailModal({ isOpen, onClose, task, tenantId,
                             </div>
                         </div>
 
-                        {/* Actual SP (shown when completing) */}
-                        {(currentStatus === 'in_progress' || currentStatus === 'review') && (
-                            <div className="p-4 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 space-y-1.5">
-                                <label className="block text-xs font-bold text-emerald-800 dark:text-emerald-300">
-                                    Actual Story Points (optional)
+                        {/* Flag Complexity (UX Escape Hatch) */}
+                        <div className="p-4 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 space-y-1.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                            <div>
+                                <label className="block text-xs font-bold text-amber-800 dark:text-amber-300">
+                                    Flag Complexity Issue
                                 </label>
-                                <p className="text-[11px] text-emerald-600 dark:text-emerald-400">
-                                    Record actual SP for velocity tracking when completing.
+                                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">
+                                    Is this task harder than {task.story_points} SP?
                                 </p>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    value={actualSp}
-                                    onChange={(e) => setActualSp(e.target.value)}
-                                    placeholder={`Estimated: ${task.story_points ?? '0'} SP`}
-                                    className="w-full sm:w-48 px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-800 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                                />
                             </div>
-                        )}
+                            <Link
+                                href={`/studio/${tenantId}/inbox?channel=ch-sprint&message=${encodeURIComponent(`Hi, I'm flagging complexity for task #${task.id} "${task.title}". The original estimate of ${task.story_points} SP seems too low because `)}`}
+                                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors shrink-0 whitespace-nowrap"
+                            >
+                                Notify Manager
+                            </Link>
+                        </div>
 
                         {/* Action Buttons */}
                         <div className="pt-1 border-t border-slate-100 dark:border-slate-800/80">

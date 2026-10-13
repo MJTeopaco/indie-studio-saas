@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\JoinStudioRequest;
 use App\Http\Requests\StoreGlobalProfileRequest;
 use App\Http\Requests\StoreStudioRequest;
+use App\Models\GlobalProfile;
 use App\Models\Position;
 use App\Models\Skill;
 use App\Models\Studio;
@@ -44,14 +45,17 @@ class OnboardingController extends Controller
         $user = $request->user();
 
         DB::transaction(function () use ($request, $user) {
-            // 1. Create the global profile
-            $profile = $user->globalProfile()->create([
-                'position_id' => $request->position_id,
-                'experience_years' => $request->experience_years,
-                'open_to_invitations' => $request->open_to_invitations,
-                'timezone' => $request->timezone,
-                'max_hours_per_week' => $request->max_hours_per_week,
-            ]);
+            // 1. Create or update the global profile safely (idempotent)
+            $profile = GlobalProfile::updateOrCreate(
+                ['user_id' => $user->id],
+                [
+                    'position_id' => $request->position_id,
+                    'experience_years' => $request->experience_years,
+                    'open_to_invitations' => $request->open_to_invitations,
+                    'timezone' => $request->timezone,
+                    'max_hours_per_week' => $request->max_hours_per_week,
+                ]
+            );
 
             // 2. Attach the skills to the pivot table
             // We need to map the incoming skills array to the format sync() expects:
@@ -63,7 +67,7 @@ class OnboardingController extends Controller
             $profile->skills()->sync($syncData);
         });
 
-        return redirect()->route('dashboard');
+        return redirect()->route('onboarding.fork');
     }
 
     /**

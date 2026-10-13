@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\LeaveRequest;
 use App\Models\Studio;
 use App\Models\Tenant\Project;
 use App\Models\Tenant\ProjectMember;
 use App\Models\Tenant\Task;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
@@ -20,6 +23,9 @@ class TenantTeamController extends Controller
      */
     public function index(): Response
     {
+        // Automatically synchronize any studio member leaves (activate ongoing, expire concluded, keep future active)
+        User::resolveStudioMembersLeaveStatus(tenant('id'));
+
         $studio = Studio::with(['users.globalProfile.position', 'users.globalProfile.skills'])->find(tenant('id'));
         $studioName = $studio ? $studio->name : 'Studio';
 
@@ -211,6 +217,10 @@ class TenantTeamController extends Controller
                     'email' => $user->email,
                     'role' => $role,
                     'position' => $position,
+                    'working_status' => $user->pivot->working_status ?? 'active',
+                    'leave_start_date' => $user->pivot->leave_start_date,
+                    'leave_end_date' => $user->pivot->leave_end_date,
+                    'leave_request_status' => $user->pivot->leave_request_status ?? 'none',
                     'joined_at' => $user->pivot && $user->pivot->created_at
                         ? $user->pivot->created_at->format('M d, Y')
                         : $user->created_at->format('M d, Y'),
@@ -248,10 +258,11 @@ class TenantTeamController extends Controller
             ->first();
 
         $currentUserRole = $currentUserMember ? $currentUserMember->role : 'member';
+        $isOwner = $currentUserRole === 'owner' || (auth()->check() && auth()->user()->role === User::ROLE_ADMIN);
+        $isLeader = in_array($currentUserRole, ['leader', 'manager']);
 
         // Set canManage true if they are owner, team leader, manager, or global platform admin
-        $canManage = in_array($currentUserRole, ['owner', 'leader', 'manager'])
-            || (auth()->check() && auth()->user()->role === User::ROLE_ADMIN);
+        $canManage = $isOwner || $isLeader;
 
         return Inertia::render('Tenant/Team/Index', [
             'studio' => [
@@ -260,7 +271,142 @@ class TenantTeamController extends Controller
             ],
             'members' => $members,
             'canManage' => $canManage,
+            'isOwner' => $isOwner,
         ]);
+    }
+
+    /**
+     * Approve a pending leave request.
+     * Enforces governance:
+     * - Member request: can be approved by Leader or Owner.
+     * - Leader request: can ONLY be approved by Owner.
+     */
+    public function approveLeaveRequest(Request $request, $id, $extra = null): RedirectResponse
+    {
+        $targetId = $extra ?? $id ?? $request->route('id');
+        $currentUserMember = \DB::connection(config('tenancy.database.central_connection', 'central'))
+            ->table('studio_members')
+            ->where('studio_id', tenant('id'))
+            ->where('user_id', auth()->id())
+            ->first();
+
+        $callerRole = $currentUserMember ? $currentUserMember->role : 'member';
+        $isOwner = $callerRole === 'owner' || (auth()->check() && auth()->user()->role === User::ROLE_ADMIN);
+        $isLeader = in_array($callerRole, ['leader', 'manager']);
+
+        $leaveReq = LeaveRequest::where('id', $targetId)
+            ->where('studio_id', tenant('id'))
+            ->where('status', 'pending')
+            ->firstOrFail();
+
+        // If requester is a Team Leader, ONLY the Studio Owner can approve
+        if ($leaveReq->requester_role === 'leader' && ! $isOwner) {
+            abort(403, 'Only the Studio Owner can approve leave requests submitted by a Team Leader.');
+        }
+
+        if (! $isOwner && ! $isLeader) {
+            abort(403, 'Unauthorized to approve leave requests.');
+        }
+
+        $leaveReq->update([
+            'status' => 'approved',
+            'reviewed_by' => auth()->id(),
+            'reviewed_at' => now(),
+        ]);
+
+        $today = now()->toDateString();
+        if ($leaveReq->request_type === LeaveRequest::TYPE_EMERGENCY) {
+            $targetStatus = 'emergency';
+        } else {
+            $startDate = $leaveReq->leave_start_date ? Carbon::parse($leaveReq->leave_start_date)->toDateString() : $today;
+            $endDate = $leaveReq->leave_end_date ? Carbon::parse($leaveReq->leave_end_date)->toDateString() : $startDate;
+            $targetStatus = ($today >= $startDate && $today <= $endDate) ? 'on_leave' : 'active';
+        }
+
+        // Update studio member record
+        DB::connection(config('tenancy.database.central_connection', 'central'))
+            ->table('studio_members')
+            ->where('studio_id', tenant('id'))
+            ->where('user_id', $leaveReq->user_id)
+            ->update([
+                'working_status' => $targetStatus,
+                'leave_start_date' => $leaveReq->leave_start_date,
+                'leave_end_date' => $leaveReq->leave_end_date,
+                'leave_request_status' => 'approved',
+                'updated_at' => now(),
+            ]);
+
+        // Synchronize central users table
+        $userRecord = User::find($leaveReq->user_id);
+        if ($userRecord) {
+            $userRecord->leave_start_date = $leaveReq->leave_start_date;
+            $userRecord->leave_end_date = $leaveReq->leave_end_date;
+            if ($userRecord->working_status !== 'emergency') {
+                $userRecord->working_status = $targetStatus;
+            }
+            $userRecord->save();
+        }
+
+        $typeLabel = $leaveReq->request_type === LeaveRequest::TYPE_EMERGENCY
+            ? 'Emergency declaration'
+            : ($targetStatus === 'active' ? 'Upcoming leave request' : 'Leave request');
+
+        $statusMsg = $targetStatus === 'active'
+            ? "Leave request approved. Scheduled absence starts on ".Carbon::parse($leaveReq->leave_start_date)->format('M d, Y')." (member remains Active until then)."
+            : "{$typeLabel} approved successfully.";
+
+        return redirect()->back()->with('status', "leave-approved:{$statusMsg}");
+    }
+
+    /**
+     * Reject a pending leave request.
+     * Enforces governance:
+     * - Member request: can be rejected by Leader or Owner.
+     * - Leader request: can ONLY be rejected by Owner.
+     */
+    public function rejectLeaveRequest(Request $request, $id, $extra = null): RedirectResponse
+    {
+        $targetId = $extra ?? $id ?? $request->route('id');
+        $currentUserMember = \DB::connection(config('tenancy.database.central_connection', 'central'))
+            ->table('studio_members')
+            ->where('studio_id', tenant('id'))
+            ->where('user_id', auth()->id())
+            ->first();
+
+        $callerRole = $currentUserMember ? $currentUserMember->role : 'member';
+        $isOwner = $callerRole === 'owner' || (auth()->check() && auth()->user()->role === User::ROLE_ADMIN);
+        $isLeader = in_array($callerRole, ['leader', 'manager']);
+
+        $leaveReq = LeaveRequest::where('id', $targetId)
+            ->where('studio_id', tenant('id'))
+            ->where('status', 'pending')
+            ->firstOrFail();
+
+        if ($leaveReq->requester_role === 'leader' && ! $isOwner) {
+            abort(403, 'Only the Studio Owner can reject leave requests submitted by a Team Leader.');
+        }
+
+        if (! $isOwner && ! $isLeader) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $leaveReq->update([
+            'status' => 'rejected',
+            'reviewed_by' => auth()->id(),
+            'reviewed_at' => now(),
+            'rejection_reason' => $request->input('rejection_reason'),
+        ]);
+
+        \DB::connection(config('tenancy.database.central_connection', 'central'))
+            ->table('studio_members')
+            ->where('studio_id', tenant('id'))
+            ->where('user_id', $leaveReq->user_id)
+            ->update([
+                'leave_request_status' => 'rejected',
+                'updated_at' => now(),
+            ]);
+
+        return redirect()->back()->with('status', 'leave-rejected:Leave request declined.');
     }
 
     private function formatHourDuration(float|int|null $hours): string

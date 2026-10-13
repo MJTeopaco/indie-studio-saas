@@ -1,9 +1,12 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, usePage, router } from '@inertiajs/react';
 import TenantLayout from '@/Layouts/TenantLayout';
 import MemberTaskDetailModal from '@/Components/Tenant/Tasks/MemberTaskDetailModal';
+import LeaveApprovalConfirmDialog from '@/Components/Tenant/LeaveApprovalConfirmDialog';
+import { showToast } from '@/Components/SystemToast';
 import {
     Bell,
+    Inbox as InboxIcon,
     MailOpen,
     MessageSquare,
     Sparkles,
@@ -31,6 +34,8 @@ import {
     AtSign,
     Mail,
     Check,
+    CheckCheck,
+    CheckCircle2,
     CornerUpLeft,
     Copy,
     Forward,
@@ -41,6 +46,9 @@ import {
     Link2,
     Grid,
     BarChart3,
+    Calendar,
+    Crown,
+    UserCheck,
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -59,9 +67,9 @@ function NotifBadge({ count, size = 'md' }) {
     const label = count > 9 ? '9+' : String(count);
     const sizeCls = size === 'sm'
         ? 'text-[9px] min-w-[1.1rem] h-[1.1rem] px-1'
-        : 'text-[10px] min-w-[1.25rem] h-[1.25rem] px-1.5';
+        : 'text-[10px] min-w-5 h-5 px-1.5';
     return (
-        <span className={`relative inline-flex items-center justify-center ${sizeCls} rounded-full font-extrabold text-white bg-gradient-to-br from-rose-500 to-rose-600 shadow-sm ring-2 ring-rose-400/30 select-none`}>
+        <span className={`relative inline-flex items-center justify-center ${sizeCls} rounded-full font-extrabold text-white bg-linear-to-br from-rose-500 to-rose-600 shadow-xs ring-2 ring-rose-400/30 select-none`}>
             <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-300 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-400 ring-1 ring-white/60" />
@@ -71,10 +79,83 @@ function NotifBadge({ count, size = 'md' }) {
     );
 }
 
+// ── Decline Leave Request Modal ──────────────────────────────────────────────
+function DeclineLeaveModal({ isOpen, onClose, leaveRequest, onConfirm, isProcessing }) {
+    const [reason, setReason] = useState('');
+
+    useEffect(() => {
+        if (isOpen) setReason('');
+    }, [isOpen]);
+
+    if (!isOpen || !leaveRequest) return null;
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onConfirm(leaveRequest.id, reason);
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 w-full max-w-lg space-y-4">
+                <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                            <AlertCircle className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                                Decline Leave Request
+                            </h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                For <span className="font-semibold text-slate-700 dark:text-slate-200">{leaveRequest.user_name}</span> ({leaveRequest.leave_start_formatted || leaveRequest.leave_start_date} → {leaveRequest.leave_end_formatted || leaveRequest.leave_end_date})
+                            </p>
+                        </div>
+                    </div>
+                    <button type="button" onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1.5">
+                            Reason or Rejection Guidance (Optional)
+                        </label>
+                        <textarea
+                            rows={3}
+                            value={reason}
+                            onChange={(e) => setReason(e.target.value)}
+                            placeholder="Explain the reason for declining or recommend alternative dates..."
+                            className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-rose-500 placeholder:text-slate-400 resize-none"
+                        />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            disabled={isProcessing}
+                            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={isProcessing}
+                            className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-2xs disabled:opacity-50 transition-all flex items-center gap-1.5">
+                            {isProcessing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                            <span>Confirm Decline</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
 // ── Delete Channel Confirmation Modal ────────────────────────────────────────
 function DeleteChannelModal({ channel, onConfirm, onCancel }) {
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl p-6 w-full max-w-sm space-y-4">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-950/50 flex items-center justify-center shrink-0">
@@ -93,7 +174,7 @@ function DeleteChannelModal({ channel, onConfirm, onCancel }) {
                         Cancel
                     </button>
                     <button type="button" onClick={onConfirm}
-                        className="flex-1 px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-rose-500 to-rose-600 text-white hover:from-rose-600 hover:to-rose-700 transition-all shadow-sm">
+                        className="flex-1 px-4 py-2 rounded-xl text-xs font-bold bg-linear-to-r from-rose-500 to-rose-600 text-white hover:from-rose-600 hover:to-rose-700 transition-all shadow-xs">
                         Delete Channel
                     </button>
                 </div>
@@ -137,7 +218,7 @@ function EmailChatModal({ isOpen, onClose, channelTitle, teamMembers, onSendEmai
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl p-6 w-full max-w-md space-y-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
@@ -168,7 +249,7 @@ function EmailChatModal({ isOpen, onClose, channelTitle, teamMembers, onSendEmai
                             <div>
                                 <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Select Team Member</label>
                                 <select value={selectedMemberId} onChange={handleSelectMember}
-                                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-brand">
+                                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-brand">
                                     <option value="">-- Choose team member or type below --</option>
                                     {teamMembers.map(m => (
                                         <option key={m.id} value={m.id}>{m.name} ({m.email || 'No email'})</option>
@@ -181,14 +262,14 @@ function EmailChatModal({ isOpen, onClose, channelTitle, teamMembers, onSendEmai
                             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Recipient Email Address *</label>
                             <input type="email" required value={recipientEmail} onChange={e => setRecipientEmail(e.target.value)}
                                 placeholder="developer@studio.io"
-                                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-brand" />
+                                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-brand" />
                         </div>
 
                         <div>
                             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Custom Note / Context (Optional)</label>
                             <textarea rows={3} value={customNote} onChange={e => setCustomNote(e.target.value)}
                                 placeholder="Add a note or message context for this email..."
-                                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-brand resize-none" />
+                                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-brand resize-none" />
                         </div>
 
                         <div className="flex items-center gap-2 pt-2">
@@ -197,7 +278,7 @@ function EmailChatModal({ isOpen, onClose, channelTitle, teamMembers, onSendEmai
                                 Cancel
                             </button>
                             <button type="submit" disabled={!recipientEmail.trim() || sendingEmail}
-                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-brand to-indigo-600 text-white hover:from-brand-dark hover:to-indigo-700 transition-all shadow-sm disabled:opacity-40">
+                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-linear-to-r from-brand to-indigo-600 text-white hover:from-brand-dark hover:to-indigo-700 transition-all shadow-xs disabled:opacity-40">
                                 {sendingEmail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
                                 <span>Send Email</span>
                             </button>
@@ -226,7 +307,7 @@ function ForwardMessageModal({ isOpen, onClose, message, channels, teamMembers, 
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl p-6 w-full max-w-md space-y-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
@@ -261,7 +342,7 @@ function ForwardMessageModal({ isOpen, onClose, message, channels, teamMembers, 
                                 setSelectedTarget(e.target.value);
                                 setTargetType(e.target.selectedOptions[0]?.dataset?.type || 'channel');
                             }}
-                            className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-brand">
+                            className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-brand">
                             <option value="">-- Choose Channel or Teammate --</option>
                             <optgroup label="Channels">
                                 {channels.map(ch => (
@@ -282,7 +363,7 @@ function ForwardMessageModal({ isOpen, onClose, message, channels, teamMembers, 
                             Cancel
                         </button>
                         <button type="submit" disabled={!selectedTarget || forwarding}
-                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-brand hover:bg-brand-dark text-white transition-all shadow-sm disabled:opacity-40">
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-brand hover:bg-brand-dark text-white transition-all shadow-xs disabled:opacity-40">
                             {forwarding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Forward className="w-3.5 h-3.5" />}
                             <span>Forward</span>
                         </button>
@@ -304,7 +385,7 @@ function PinnedDrawer({ isOpen, onClose, pinnedMessages, onJumpToMessage, onUnpi
                     <Pin className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
                     <span>Pinned Messages ({pinnedMessages.length})</span>
                 </div>
-                <button type="button" onClick={onClose} className="p-0.5 rounded text-amber-700 dark:text-amber-300 hover:text-amber-900">
+                <button type="button" onClick={onClose} className="p-0.5 rounded-sm text-amber-700 dark:text-amber-300 hover:text-amber-900">
                     <X className="w-3.5 h-3.5" />
                 </button>
             </div>
@@ -320,11 +401,11 @@ function PinnedDrawer({ isOpen, onClose, pinnedMessages, onJumpToMessage, onUnpi
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
                                 <button type="button" onClick={() => onJumpToMessage(pm.id)} title="Jump to message"
-                                    className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 hover:bg-amber-200">
+                                    className="px-2 py-0.5 rounded-sm text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 hover:bg-amber-200">
                                     Jump
                                 </button>
                                 <button type="button" onClick={() => onUnpin(pm)} title="Unpin message"
-                                    className="p-1 rounded text-slate-400 hover:text-rose-500">
+                                    className="p-1 rounded-sm text-slate-400 hover:text-rose-500">
                                     <PinOff className="w-3 h-3" />
                                 </button>
                             </div>
@@ -346,7 +427,7 @@ function UnsendModal({ isOpen, onClose, message, onConfirmUnsend, currentUserId 
     );
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-5 w-full max-w-md space-y-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
@@ -448,7 +529,7 @@ function UnsendModal({ isOpen, onClose, message, onConfirmUnsend, currentUserId 
                         <button
                             type="button"
                             onClick={() => onConfirmUnsend('for_me')}
-                            className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-rose-500 to-rose-600 text-white hover:from-rose-600 hover:to-rose-700 transition-all shadow-sm flex items-center gap-1.5">
+                            className="px-4 py-2 rounded-xl text-xs font-bold bg-linear-to-r from-rose-500 to-rose-600 text-white hover:from-rose-600 hover:to-rose-700 transition-all shadow-xs flex items-center gap-1.5">
                             <Trash2 className="w-3.5 h-3.5" />
                             Unsend for You
                         </button>
@@ -501,7 +582,7 @@ function ChannelAssetsDrawer({ isOpen, onClose, channelTitle, assets, loading, o
                         value={query}
                         onChange={e => setQuery(e.target.value)}
                         placeholder="Search media, files, links, pinned…"
-                        className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-brand"
+                        className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:border-brand"
                     />
                 </div>
             </div>
@@ -606,7 +687,7 @@ function ChannelAssetsDrawer({ isOpen, onClose, channelTitle, assets, loading, o
                                 <a key={idx} href={l.url} target="_blank" rel="noreferrer"
                                     className="block p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-colors text-xs group space-y-1">
                                     <div className="flex items-center justify-between gap-1 text-slate-400 text-[10px]">
-                                        <span className="font-mono bg-slate-200 dark:bg-slate-700 px-1.5 py-0.2 rounded text-[9px] text-slate-700 dark:text-slate-300 font-semibold truncate max-w-[160px]">{l.domain}</span>
+                                        <span className="font-mono bg-slate-200 dark:bg-slate-700 px-1.5 py-0.2 rounded-sm text-[9px] text-slate-700 dark:text-slate-300 font-semibold truncate max-w-[160px]">{l.domain}</span>
                                         <span className="flex items-center gap-1 group-hover:text-brand">Open <ExternalLink className="w-2.5 h-2.5" /></span>
                                     </div>
                                     <p className="text-brand font-semibold truncate leading-tight">{l.url}</p>
@@ -629,7 +710,7 @@ function ChannelAssetsDrawer({ isOpen, onClose, channelTitle, assets, loading, o
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-1.5 min-w-0">
                                             <span className="font-bold text-slate-900 dark:text-slate-100 truncate">{pm.sender}</span>
-                                            <span className="text-[9px] px-1 py-0.2 rounded bg-amber-200/80 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 font-semibold">{pm.role || 'Member'}</span>
+                                            <span className="text-[9px] px-1 py-0.2 rounded-sm bg-amber-200/80 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 font-semibold">{pm.role || 'Member'}</span>
                                         </div>
                                         <div className="flex items-center gap-1.5">
                                             {onJumpToMessage && (
@@ -692,7 +773,7 @@ function ImageLightboxModal({ isOpen, imageUrl, imageName, onClose }) {
                             +
                         </button>
                         <a href={imageUrl} download={imageName || 'image.png'} target="_blank" rel="noreferrer"
-                            className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-brand hover:bg-brand-dark text-white text-xs font-bold transition-all shadow-sm ml-2">
+                            className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-brand hover:bg-brand-dark text-white text-xs font-bold transition-all shadow-xs ml-2">
                             <Download className="w-3.5 h-3.5" />
                             <span>Download</span>
                         </a>
@@ -723,7 +804,7 @@ const SCROLL_CLS = `overflow-y-auto
     [&::-webkit-scrollbar-thumb]:rounded-full
     [&::-webkit-scrollbar-thumb]:bg-brand/40
     hover:[&::-webkit-scrollbar-thumb]:bg-brand/70
-    [scrollbar-width:thin]`;
+    scrollbar-thin`;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function getDmChannelId(userAId, userBId) {
@@ -768,6 +849,52 @@ function renderFormattedText(text, isSelf) {
     });
 }
 
+const TYPE_CONFIG = {
+    review_request: {
+        label: 'Code Review',
+        badgeClass: 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border border-sky-200/80 dark:border-sky-800/60',
+    },
+    task_assigned: {
+        label: 'Assignment',
+        badgeClass: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60',
+    },
+    leave_request: {
+        label: 'Leave Request',
+        badgeClass: 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/60',
+    },
+    estimate_pending: {
+        label: 'Estimation',
+        badgeClass: 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200/80 dark:border-purple-800/60',
+    },
+    overdue: {
+        label: 'Overdue',
+        badgeClass: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/60',
+    },
+    stuck: {
+        label: 'Blocked',
+        badgeClass: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/60',
+    },
+    direct_message: {
+        label: 'Direct Message',
+        badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60',
+    },
+    channel_mention: {
+        label: 'Mention',
+        badgeClass: 'bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300 border border-violet-200/80 dark:border-violet-800/60',
+    },
+    channel_message: {
+        label: 'Channel',
+        badgeClass: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700',
+    },
+};
+
+function getTypeConfig(type) {
+    return TYPE_CONFIG[type] || {
+        label: (type || 'Notice').replace(/_/g, ' '),
+        badgeClass: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700',
+    };
+}
+
 export default function Inbox({
     studio,
     notifications: initialNotifications = [],
@@ -775,17 +902,71 @@ export default function Inbox({
     teamMembers = [],
     pendingEstimatesCount = 0,
 }) {
-    const { auth, activeWorkspace, canManage = false } = usePage().props;
+    const page = usePage();
+    const { auth, activeWorkspace, canManage = false } = page.props;
+    const pageUrl = page.url || '';
     const currentUser = auth?.user;
     const isLeader = Boolean(canManage);
     const workspaceSlug = studio?.id || activeWorkspace || (typeof window !== 'undefined' ? window.location.pathname.split('/')[2] : 'indiecraft-studios');
 
-    // ── TABS ─────────────────────────────────────────────────────────────────
-    const [activeTab, setActiveTab] = useState('notifications');
+    // ── TABS & VIEW SELECTION (Driven by Sidebar navigation) ─────────────────
+    const [activeTab, setActiveTab] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            const tabParam = params.get('tab');
+            if (tabParam === 'messages' || tabParam === 'channels') return 'messages';
+        }
+        return 'notifications';
+    });
 
-    // ── NOTIFICATIONS ────────────────────────────────────────────────────────
+    const handleTabChange = useCallback((newTab) => {
+        setActiveTab(newTab);
+        if (typeof window !== 'undefined') {
+            const url = new URL(window.location.href);
+            url.searchParams.set('tab', newTab);
+            window.history.replaceState({}, '', url.toString());
+            window.dispatchEvent(new CustomEvent('inbox-tab-changed', { detail: { tab: newTab } }));
+        }
+    }, [workspaceSlug]);
+
+    useEffect(() => {
+        const handleInboxTabEvent = (e) => {
+            if (e.detail?.tab && e.detail.tab !== activeTab) {
+                setActiveTab(e.detail.tab);
+            }
+        };
+        window.addEventListener('inbox-tab-changed', handleInboxTabEvent);
+        return () => window.removeEventListener('inbox-tab-changed', handleInboxTabEvent);
+    }, [activeTab]);
+
+    // Sync tab when navigating via Sidebar dropdown or browser history
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            const tabParam = params.get('tab');
+            if (tabParam === 'messages' || tabParam === 'channels') {
+                setActiveTab('messages');
+            } else if (tabParam === 'notifications') {
+                setActiveTab('notifications');
+            }
+        }
+    }, [pageUrl]);
+
+    useEffect(() => {
+        const handlePopState = () => {
+            const params = new URLSearchParams(window.location.search);
+            const tabParam = params.get('tab');
+            if (tabParam === 'messages' || tabParam === 'channels') setActiveTab('messages');
+            else if (tabParam === 'notifications') setActiveTab('notifications');
+        };
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
+
+    // ── NOTIFICATIONS STATE ──────────────────────────────────────────────────
     const [notificationsList, setNotificationsList] = useState(initialNotifications);
-    const [notifFilter, setNotifFilter] = useState('all');
+    const [notifFilter, setNotifFilter] = useState('all'); // 'all' | 'action' | 'messages' | 'alerts'
+    const [onlyUnread, setOnlyUnread] = useState(false);
     const [notifSearch, setNotifSearch] = useState('');
     const [selectedNotifId, setSelectedNotifId] = useState(
         () => initialNotifications.length > 0 ? initialNotifications[0].id : null
@@ -795,43 +976,154 @@ export default function Inbox({
     const [quickReplyText, setQuickReplyText] = useState('');
     const [quickReplySuccess, setQuickReplySuccess] = useState(false);
 
-    const unreadCount = useMemo(() => notificationsList.filter(n => !n.read).length, [notificationsList]);
+    // Leave approval states
+    const [leaveActionProcessingId, setLeaveActionProcessingId] = useState(null);
+    const [approveModalReq, setApproveModalReq] = useState(null);
+    const [declineModalReq, setDeclineModalReq] = useState(null);
 
-    const markAsRead = async (id) => {
-        setNotificationsList(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-        try {
-            await axios.post(`/studio/${workspaceSlug}/notifications/${id}/read`);
-            router.reload({ only: ['inboxNotificationCount'] });
-        } catch {
-            // ignore
+    // Category count metrics
+    const unreadCount = useMemo(() => notificationsList.filter(n => !n.read).length, [notificationsList]);
+    const actionRequiredCount = useMemo(() =>
+        notificationsList.filter(n => ['leave_request', 'review_request', 'estimate_pending'].includes(n.type) && !n.read).length,
+    [notificationsList]);
+    const messagesNotifCount = useMemo(() =>
+        notificationsList.filter(n => ['direct_message', 'channel_mention'].includes(n.type) && !n.read).length,
+    [notificationsList]);
+    const alertsNotifCount = useMemo(() =>
+        notificationsList.filter(n => ['overdue', 'stuck'].includes(n.type) && !n.read).length,
+    [notificationsList]);
+
+    const handleApproveLeave = (leaveReq) => {
+        if (!leaveReq) return;
+        setApproveModalReq(leaveReq);
+    };
+
+    const handleExecuteApproveLeave = (leaveReq) => {
+        if (!leaveReq) return;
+        setLeaveActionProcessingId(leaveReq.id);
+        router.post(route('tenant.team.leave-requests.approve', { tenant: workspaceSlug, id: leaveReq.id }), {}, {
+            preserveScroll: true,
+            onSuccess: () => {
+                showToast(`Leave request approved for ${leaveReq.user_name}.`, 'success');
+                setApproveModalReq(null);
+                setNotificationsList(prev => prev.filter(n => n.id !== `leave-req-${leaveReq.id}`));
+            },
+            onError: (errs) => {
+                const msg = Object.values(errs)[0] || 'Failed to approve leave request.';
+                showToast(msg, 'error');
+            },
+            onFinish: () => {
+                setLeaveActionProcessingId(null);
+            }
+        });
+    };
+
+    const handleConfirmDeclineLeave = (leaveReqId, reason) => {
+        setLeaveActionProcessingId(leaveReqId);
+        router.post(route('tenant.team.leave-requests.reject', { tenant: workspaceSlug, id: leaveReqId }), {
+            rejection_reason: reason,
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                showToast(`Leave request declined.`, 'info');
+                setDeclineModalReq(null);
+                setNotificationsList(prev => prev.filter(n => n.id !== `leave-req-${leaveReqId}`));
+            },
+            onError: (errs) => {
+                const msg = Object.values(errs)[0] || 'Failed to decline leave request.';
+                showToast(msg, 'error');
+            },
+            onFinish: () => {
+                setLeaveActionProcessingId(null);
+            }
+        });
+    };
+
+    const markAsRead = (id) => {
+        let remainingNotifs = 0;
+        setNotificationsList(prev => {
+            const next = prev.map(n => n.id === id ? { ...n, read: true } : n);
+            remainingNotifs = next.filter(n => !n.read).length;
+            return next;
+        });
+
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('inbox-notification-read', {
+                detail: { id, remainingNotifUnread: remainingNotifs }
+            }));
+        }
+
+        axios.post(`/studio/${workspaceSlug}/notifications/${id}/read`).catch(() => {});
+    };
+
+    const markAsUnread = (id) => {
+        let remainingNotifs = 0;
+        setNotificationsList(prev => {
+            const next = prev.map(n => n.id === id ? { ...n, read: false } : n);
+            remainingNotifs = next.filter(n => !n.read).length;
+            return next;
+        });
+
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('inbox-notification-unread', {
+                detail: { id, remainingNotifUnread: remainingNotifs }
+            }));
+        }
+
+        axios.post(`/studio/${workspaceSlug}/notifications/${id}/unread`)
+            .then(() => {
+                router.reload({ only: ['inboxNotificationCount', 'inboxUnreadBreakdown'] });
+            })
+            .catch(() => {});
+    };
+
+    const toggleRead = (id, currentRead, e) => {
+        e?.stopPropagation();
+        if (currentRead) {
+            markAsUnread(id);
+        } else {
+            markAsRead(id);
         }
     };
 
     const markAllAsRead = async () => {
         setNotificationsList(prev => prev.map(n => ({ ...n, read: true })));
         setUnreadCounts({});
-        try {
-            await axios.post(`/studio/${workspaceSlug}/notifications/read-all`);
-            router.reload({ only: ['inboxNotificationCount'] });
-        } catch {
-            // ignore
+
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('inbox-notifications-all-read'));
+            window.dispatchEvent(new CustomEvent('inbox-message-read', { detail: { remainingMsgUnread: 0 } }));
         }
+
+        axios.post(`/studio/${workspaceSlug}/notifications/read-all`)
+            .then(() => {
+                showToast('All notifications marked as read', 'success');
+            })
+            .catch(() => {});
     };
 
+    const filteredNotifications = useMemo(() => {
+        return notificationsList.filter(item => {
+            const matchesSearch = notifSearch === '' ||
+                item.title?.toLowerCase().includes(notifSearch.toLowerCase()) ||
+                item.body?.toLowerCase().includes(notifSearch.toLowerCase()) ||
+                (item.project_name && item.project_name.toLowerCase().includes(notifSearch.toLowerCase()));
 
-    const filteredNotifications = useMemo(() => notificationsList.filter(item => {
-        const matchesSearch = notifSearch === '' ||
-            item.title.toLowerCase().includes(notifSearch.toLowerCase()) ||
-            item.body.toLowerCase().includes(notifSearch.toLowerCase()) ||
-            (item.project_name && item.project_name.toLowerCase().includes(notifSearch.toLowerCase()));
-        let matchesFilter = true;
-        if (notifFilter === 'unread') matchesFilter = !item.read;
-        else if (notifFilter === 'messages') matchesFilter = item.type === 'direct_message' || item.type === 'channel_mention';
-        else if (notifFilter === 'reviews') matchesFilter = item.type === 'review_request';
-        else if (notifFilter === 'assignments') matchesFilter = item.type === 'task_assigned';
-        else if (notifFilter === 'alerts') matchesFilter = item.type === 'overdue' || item.type === 'stuck';
-        return matchesSearch && matchesFilter;
-    }), [notificationsList, notifSearch, notifFilter]);
+            if (!matchesSearch) return false;
+            if (onlyUnread && item.read) return false;
+
+            if (notifFilter === 'action') {
+                return ['leave_request', 'review_request', 'estimate_pending'].includes(item.type);
+            }
+            if (notifFilter === 'messages') {
+                return ['direct_message', 'channel_mention'].includes(item.type);
+            }
+            if (notifFilter === 'alerts') {
+                return ['overdue', 'stuck'].includes(item.type);
+            }
+            return true;
+        });
+    }, [notificationsList, notifSearch, notifFilter, onlyUnread]);
 
     const activeNotification = useMemo(
         () => notificationsList.find(n => n.id === selectedNotifId) || filteredNotifications[0] || null,
@@ -872,25 +1164,53 @@ export default function Inbox({
         return null;
     });
 
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const url = new URL(window.location.href);
+            if (url.searchParams.has('channel') || url.searchParams.has('dm') || url.searchParams.has('message')) {
+                url.searchParams.delete('channel');
+                url.searchParams.delete('dm');
+                url.searchParams.delete('message');
+                window.history.replaceState({}, '', url);
+            }
+        }
+    }, []);
+
     const markChannelRead = useCallback(async (channelId) => {
         if (!workspaceSlug || !channelId) return;
 
         // 1. Immediately zero-out unread count for this channel in local state
-        setUnreadCounts(prev => ({ ...prev, [channelId]: 0 }));
+        setUnreadCounts(prev => {
+            const next = { ...prev, [channelId]: 0 };
+            const remainingMsgs = Object.values(next).reduce((acc, count) => acc + (Number(count) || 0), 0);
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('inbox-message-read', {
+                    detail: { channelId, remainingMsgUnread: remainingMsgs }
+                }));
+            }
+            return next;
+        });
 
         // 2. Mark any notifications related to this channel as read in UI immediately
-        setNotificationsList(prev => prev.map(n => {
-            if (n.channel_id === channelId || n.id === `msg-${channelId}` || (n.channel_id && n.channel_id.replace(/^ch-/, '') === channelId.replace(/^ch-/, ''))) {
-                return { ...n, read: true };
+        setNotificationsList(prev => {
+            const next = prev.map(n => {
+                if (n.channel_id === channelId || n.id === `msg-${channelId}` || (n.channel_id && n.channel_id.replace(/^ch-/, '') === channelId.replace(/^ch-/, ''))) {
+                    return { ...n, read: true };
+                }
+                return n;
+            });
+            const remainingNotifs = next.filter(n => !n.read).length;
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('inbox-notification-read', {
+                    detail: { remainingNotifUnread: remainingNotifs }
+                }));
             }
-            return n;
-        }));
+            return next;
+        });
 
         try {
             // 3. Persist read receipt to backend
             await axios.post(`/studio/${workspaceSlug}/channels/${channelId}/read`);
-            // 4. Reload Inertia shared props so sidebar badge updates immediately!
-            router.reload({ only: ['inboxNotificationCount'] });
         } catch {
             // ignore
         }
@@ -936,8 +1256,22 @@ export default function Inbox({
     const photoInputRef = useRef(null);
     const chatEndRef = useRef(null);
     const chatContainerRef = useRef(null);
+    const isInitialLoadRef = useRef(true);
     const [showScrollDown, setShowScrollDown] = useState(false);
+    const [newMessagesWhileScrolled, setNewMessagesWhileScrolled] = useState(0);
+    const isInitialChatOpenRef = useRef(true);
     const pollingRef = useRef(null);
+
+    const scrollToBottom = useCallback((smooth = true) => {
+        const el = chatContainerRef.current;
+        if (!el) return;
+        el.scrollTo({
+            top: el.scrollHeight,
+            behavior: smooth ? 'smooth' : 'auto',
+        });
+        setShowScrollDown(false);
+        setNewMessagesWhileScrolled(0);
+    }, []);
 
     const pinnedMessages = useMemo(() => messages.filter(m => m.is_pinned && !m.is_unsent), [messages]);
 
@@ -1000,6 +1334,29 @@ export default function Inbox({
         });
     }, [channels, channelActivity, selectedChat, messages, unreadCounts]);
 
+    // ── Chat Search & Filtering ───────────────────────────────────────────────
+    const [chatSearchQuery, setChatSearchQuery] = useState('');
+
+    const filteredChannels = useMemo(() => {
+        if (!chatSearchQuery.trim()) return sortedChannels;
+        const q = chatSearchQuery.toLowerCase().trim();
+        return sortedChannels.filter(c =>
+            c.name.toLowerCase().includes(q) ||
+            (c.description && c.description.toLowerCase().includes(q))
+        );
+    }, [sortedChannels, chatSearchQuery]);
+
+    const filteredTeamMembers = useMemo(() => {
+        if (!chatSearchQuery.trim()) return sortedTeamMembers;
+        const q = chatSearchQuery.toLowerCase().trim();
+        return sortedTeamMembers.filter(m =>
+            m.name.toLowerCase().includes(q) ||
+            (m.role && m.role.toLowerCase().includes(q)) ||
+            (m.position && m.position.toLowerCase().includes(q)) ||
+            (m.email && m.email.toLowerCase().includes(q))
+        );
+    }, [sortedTeamMembers, chatSearchQuery]);
+
     // ── Poll channel activity & unread counts across all channels & DMs ───────
     const pollActivity = useCallback(async () => {
         if (!workspaceSlug) return;
@@ -1050,12 +1407,21 @@ export default function Inbox({
             const res = await axios.get(url);
             setMessages(res.data.messages ?? []);
             setLastId(res.data.last_id ?? null);
+            requestAnimationFrame(() => {
+                scrollToBottom(false);
+            });
+            setTimeout(() => {
+                scrollToBottom(false);
+            }, 50);
         } catch (err) {
             console.error('Failed to load channel messages:', err);
         } finally {
             setLoadingMessages(false);
+            setTimeout(() => {
+                scrollToBottom(false);
+            }, 100);
         }
-    }, [workspaceSlug]);
+    }, [workspaceSlug, scrollToBottom]);
 
     // Poll for new messages & updated messages (pins, unsends, etc.)
     const pollMessages = useCallback(async () => {
@@ -1104,16 +1470,20 @@ export default function Inbox({
             setLastId(null);
             return;
         }
+        isInitialChatOpenRef.current = true;
+        isInitialLoadRef.current = true;
         setMessages([]);
         setLastId(null);
         setReplyingTo(null);
         setShowPinnedDrawer(false);
         setShowAssetsPanel(false);
+        setShowScrollDown(false);
+        setNewMessagesWhileScrolled(0);
         markChannelRead(selectedChat.id);
         loadMessages(selectedChat.id, true);
     }, [selectedChat?.id, markChannelRead, loadMessages]);
 
-    // Start polling (3s interval) while messages tab is open and a chat is selected
+    // Start polling (5s fallback interval) while messages tab is open and a chat is selected
     useEffect(() => {
         if (activeTab !== 'messages' || !selectedChat?.id) {
             if (pollingRef.current) clearInterval(pollingRef.current);
@@ -1121,29 +1491,122 @@ export default function Inbox({
         }
         pollingRef.current = setInterval(() => {
             pollMessages();
-        }, 3000);
+        }, 5000);
         return () => {
             if (pollingRef.current) clearInterval(pollingRef.current);
         };
     }, [activeTab, selectedChat?.id, pollMessages]);
 
-    // Auto-scroll to bottom on new message
+    // ── WebSocket Real-time Sync (Laravel Reverb & Echo) ─────────────────────
+    // Studio-wide events (activity & unread updates across all channels)
+    useEffect(() => {
+        if (!workspaceSlug || typeof window === 'undefined' || !window.Echo) return;
+
+        const studioChannel = window.Echo.private(`studio.${workspaceSlug}`);
+
+        studioChannel.listen('.message.sent', (data) => {
+            if (data?.channelId && data.channelId !== selectedChat?.id) {
+                setUnreadCounts(prev => ({
+                    ...prev,
+                    [data.channelId]: (prev[data.channelId] || 0) + 1,
+                }));
+            }
+            pollActivity();
+        });
+
+        return () => {
+            studioChannel.stopListening('.message.sent');
+        };
+    }, [workspaceSlug, selectedChat?.id, pollActivity]);
+
+    // Active channel events (instant message append, pin update, unsend/delete)
+    useEffect(() => {
+        if (!workspaceSlug || !selectedChat?.id || typeof window === 'undefined' || !window.Echo) return;
+
+        const channel = window.Echo.private(`studio.${workspaceSlug}.channel.${selectedChat.id}`);
+
+        channel.listen('.message.sent', (data) => {
+            if (data?.message) {
+                setMessages(prev => {
+                    if (prev.some(m => m.id === data.message.id)) return prev;
+                    return [...prev, data.message];
+                });
+                setLastId(prev => Math.max(prev || 0, data.message.id));
+            }
+        });
+
+        channel.listen('.message.deleted', (data) => {
+            if (data?.messageId) {
+                setMessages(prev => prev.map(m => m.id === data.messageId ? {
+                    ...m,
+                    is_unsent: true,
+                    body: '',
+                    attachments: [],
+                } : m));
+            }
+        });
+
+        channel.listen('.message.pinned', (data) => {
+            if (data?.messageId) {
+                setMessages(prev => prev.map(m => m.id === data.messageId ? {
+                    ...m,
+                    is_pinned: Boolean(data.isPinned),
+                } : m));
+            }
+        });
+
+        return () => {
+            channel.stopListening('.message.sent');
+            channel.stopListening('.message.deleted');
+            channel.stopListening('.message.pinned');
+        };
+    }, [workspaceSlug, selectedChat?.id]);
+
+    // Auto-scroll to bottom on chat open or when user is near bottom
     useEffect(() => {
         const el = chatContainerRef.current;
-        if (!el) return;
-        const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-        if (distFromBottom < 150) {
-            chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }
-    }, [messages]);
+        if (!el || messages.length === 0) return;
 
-    const handleChatScroll = () => {
+        if (isInitialChatOpenRef.current) {
+            isInitialChatOpenRef.current = false;
+            requestAnimationFrame(() => scrollToBottom(false));
+            setTimeout(() => scrollToBottom(false), 40);
+            setTimeout(() => scrollToBottom(false), 140);
+            return;
+        }
+
+        const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+        if (distFromBottom < 160) {
+            scrollToBottom(true);
+        } else {
+            setShowScrollDown(true);
+            setNewMessagesWhileScrolled(prev => prev + 1);
+        }
+    }, [messages, scrollToBottom]);
+
+    const handleChatScroll = useCallback(() => {
         const el = chatContainerRef.current;
         if (!el) return;
-        setShowScrollDown(el.scrollHeight - el.scrollTop - el.clientHeight > 80);
-    };
+        if (isInitialLoadRef.current) {
+            el.scrollTop = el.scrollHeight;
+            isInitialLoadRef.current = false;
+            return;
+        }
+        const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+        if (distFromBottom > 140) {
+            setShowScrollDown(true);
+        } else {
+            setShowScrollDown(false);
+            setNewMessagesWhileScrolled(0);
+        }
+    }, []);
 
-    const scrollToBottom = () => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Keep parent layout scrolled to top so child chat elements never push ancestor containers
+    useEffect(() => {
+        const mainEl = document.getElementById('main-content');
+        if (mainEl && mainEl.scrollTop > 0) mainEl.scrollTop = 0;
+        if (typeof window !== 'undefined' && window.scrollY > 0) window.scrollTo(0, 0);
+    }, [activeTab, selectedChat?.id]);
 
     // ── Load Channel Shared Assets ───────────────────────────────────────────
     const loadAssets = useCallback(async (channelId) => {
@@ -1288,9 +1751,17 @@ export default function Inbox({
     };
 
     const jumpToMessage = (msgId) => {
-        const el = document.getElementById(`msg-${msgId}`);
-        if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const targetEl = document.getElementById(`msg-${msgId}`);
+        const container = chatContainerRef.current;
+        if (targetEl && container) {
+            const containerRect = container.getBoundingClientRect();
+            const targetRect = targetEl.getBoundingClientRect();
+            const offset = (targetRect.top - containerRect.top) + container.scrollTop - (container.clientHeight / 2) + (targetEl.clientHeight / 2);
+            container.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
+            setHighlightedMsgId(msgId);
+            setTimeout(() => setHighlightedMsgId(null), 2200);
+        } else if (targetEl) {
+            targetEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             setHighlightedMsgId(msgId);
             setTimeout(() => setHighlightedMsgId(null), 2200);
         }
@@ -1466,6 +1937,9 @@ export default function Inbox({
                 });
                 setLastId(newMsg.id);
             }
+            setTimeout(() => {
+                scrollToBottom(true);
+            }, 30);
         } catch (err) {
             console.error('Failed to send message:', err);
             setInputMessage(body);
@@ -1500,7 +1974,7 @@ export default function Inbox({
     // ── Jump to chat from notification ───────────────────────────────────────
     const handleOpenNotificationChat = (notif) => {
         if (!notif?.channel_id) return;
-        setActiveTab('messages');
+        handleTabChange('messages');
         const isDm = notif.channel_id.startsWith('dm-');
         if (isDm) {
             openChat({
@@ -1525,6 +1999,7 @@ export default function Inbox({
     const handleSendQuickReply = () => {
         if (!quickReplyText.trim()) return;
         setQuickReplySuccess(true);
+        showToast('Quick note saved.', 'success');
         setTimeout(() => { setQuickReplySuccess(false); setQuickReplyText(''); }, 2000);
     };
 
@@ -1540,6 +2015,7 @@ export default function Inbox({
         message: MessageSquare,
         'message-square': MessageSquare,
         mail: Mail,
+        calendar: Calendar,
     };
     const colorMap = {
         blue: { bg: 'bg-blue-50/80 dark:bg-blue-950/30', border: 'border-blue-200 dark:border-blue-900/50', icon: 'bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400', badge: 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' },
@@ -1550,7 +2026,7 @@ export default function Inbox({
     };
 
     return (
-        <TenantLayout studioName={studio.name}>
+        <TenantLayout studioName={studio?.name || 'Studio'}>
             <Head title="Inbox • SprintStudio" />
 
             {channelToDelete && (
@@ -1588,64 +2064,78 @@ export default function Inbox({
                 forwarding={sending}
             />
 
-            <div className="flex flex-col min-h-screen bg-slate-50/60 dark:bg-slate-950 text-slate-800 dark:text-slate-100">
+            <div className="flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/60 dark:bg-slate-950 text-slate-800 dark:text-slate-100">
 
                 {/* ── Top Header ── */}
-                <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-20 shadow-2xs">
-                    <div className="max-w-7xl mx-auto px-6 py-4">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div className="flex items-center gap-3.5">
-                                <div className="relative flex items-center justify-center w-10 h-10 rounded-2xl bg-gradient-to-tr from-brand to-indigo-600 text-white shadow-md shadow-brand/20">
-                                    <Bell className="w-5 h-5" />
-                                    {unreadCount > 0 && (
-                                        <span className="absolute -top-1.5 -right-1.5">
-                                            <NotifBadge count={unreadCount} size="sm" />
-                                        </span>
+                <div className="shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 z-20 shadow-2xs">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-2xs">
+                                    {activeTab === 'notifications' ? (
+                                        <Bell className="w-4 h-4" />
+                                    ) : (
+                                        <MessageSquare className="w-4 h-4" />
                                     )}
                                 </div>
                                 <div>
                                     <div className="flex items-center gap-2">
-                                        <h1 className="text-lg font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">Inbox</h1>
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-900/40">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                            Live Feed
-                                        </span>
+                                        <h1 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+                                            {activeTab === 'notifications' ? 'Inbox Notifications' : 'Team Messages'}
+                                        </h1>
+                                        {activeTab === 'notifications' && unreadCount > 0 && (
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand/10 text-brand dark:bg-brand/20 dark:text-brand-300">
+                                                {unreadCount} unread
+                                            </span>
+                                        )}
+                                        {activeTab === 'messages' && totalUnreadMessages > 0 && (
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand/10 text-brand dark:bg-brand/20 dark:text-brand-300">
+                                                {totalUnreadMessages} unread
+                                            </span>
+                                        )}
                                     </div>
-                                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                                        Personal notifications, team chat rooms, files & mentions
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                        {activeTab === 'notifications'
+                                            ? 'Review requests, assignments, approvals & studio updates'
+                                             : 'Channels and team direct conversations'}
                                     </p>
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2.5">
                                 {/* Navigation Tabs */}
                                 <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
                                     <button
                                         type="button"
-                                        onClick={() => setActiveTab('notifications')}
-                                        className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'notifications' ? 'bg-white dark:bg-slate-900 text-brand shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+                                        onClick={() => handleTabChange('notifications')}
+                                        className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'notifications' ? 'bg-white dark:bg-slate-900 text-brand shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
                                         <Bell className="w-3.5 h-3.5" />
                                         <span>Notifications</span>
-                                        {unreadCount > 0 && <NotifBadge count={unreadCount} size="sm" />}
+                                        {unreadCount > 0 && (
+                                            <span className="w-1.5 h-1.5 rounded-full bg-brand" />
+                                        )}
                                     </button>
 
                                     <button
                                         type="button"
-                                        onClick={() => setActiveTab('messages')}
-                                        className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'messages' ? 'bg-white dark:bg-slate-900 text-brand shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+                                        onClick={() => handleTabChange('messages')}
+                                        className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'messages' ? 'bg-white dark:bg-slate-900 text-brand shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
                                         <MessageSquare className="w-3.5 h-3.5" />
                                         <span>Team Messages</span>
-                                        {totalUnreadMessages > 0 && <NotifBadge count={totalUnreadMessages} size="sm" />}
+                                        {totalUnreadMessages > 0 && (
+                                            <span className="w-1.5 h-1.5 rounded-full bg-brand" />
+                                        )}
                                     </button>
-
                                 </div>
 
                                 {activeTab === 'notifications' && unreadCount > 0 && (
                                     <button
                                         type="button"
                                         onClick={markAllAsRead}
-                                        className="text-xs font-semibold text-slate-500 hover:text-brand dark:text-slate-400 transition-colors">
-                                        Mark all read
+                                        className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100 transition-colors px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs"
+                                    >
+                                        <CheckCheck className="w-3.5 h-3.5 text-brand" />
+                                        <span>Mark all as read</span>
                                     </button>
                                 )}
                             </div>
@@ -1654,195 +2144,510 @@ export default function Inbox({
                 </div>
 
                 {/* ── Main View Area ── */}
-                <div className="max-w-7xl mx-auto px-6 py-6 w-full flex-1 flex flex-col">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 w-full flex-1 min-h-0 flex flex-col overflow-y-auto lg:overflow-hidden">
 
                     {/* ================================================================
                         NOTIFICATIONS TAB
                     ================================================================ */}
                     {activeTab === 'notifications' && (
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0 items-start">
-                            {/* Left — Feed */}
-                            <div className="lg:col-span-5 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden h-full max-h-[calc(100vh-180px)]">
-                                <div className="p-4 border-b border-slate-100 dark:border-slate-800 space-y-3 shrink-0">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 min-h-0 items-stretch h-full">
+                            {/* Left — Feed List */}
+                            <div className="lg:col-span-5 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full min-h-0">
+                                {/* Search & Category Filter Header */}
+                                <div className="p-3 border-b border-slate-100 dark:border-slate-800 space-y-2.5 shrink-0 bg-slate-50/40 dark:bg-slate-900/40">
                                     <div className="relative">
-                                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                                         <input
                                             type="text"
                                             value={notifSearch}
                                             onChange={e => setNotifSearch(e.target.value)}
                                             placeholder="Search notifications..."
-                                            className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-brand"
+                                            className="w-full pl-9 pr-8 py-1.5 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:border-brand"
                                         />
-                                    </div>
-                                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">
-                                        {[
-                                            { id: 'all', label: 'All' },
-                                            { id: 'unread', label: `Unread (${unreadCount})` },
-                                            { id: 'messages', label: 'Messages & Mentions' },
-                                            { id: 'reviews', label: 'Reviews' },
-                                            { id: 'assignments', label: 'Assigned' },
-                                            { id: 'alerts', label: 'Alerts' },
-                                        ].map(f => (
-                                            <button key={f.id} type="button" onClick={() => setNotifFilter(f.id)}
-                                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors ${notifFilter === f.id ? 'bg-brand text-white shadow-xs' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700'}`}>
-                                                {f.label}
+                                        {notifSearch && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setNotifSearch('')}
+                                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                            >
+                                                <X className="w-3 h-3" />
                                             </button>
-                                        ))}
+                                        )}
+                                    </div>
+
+                                    {/* Category Filter Pills */}
+                                    <div className="flex items-center justify-between gap-1">
+                                        <div className="flex items-center gap-1 overflow-x-auto pb-0.5 [scrollbar-width:none]">
+                                            {[
+                                                { id: 'all', label: 'All', count: notificationsList.length },
+                                                { id: 'action', label: 'Action Required', count: actionRequiredCount },
+                                                { id: 'messages', label: 'Messages', count: messagesNotifCount },
+                                                { id: 'alerts', label: 'Alerts', count: alertsNotifCount },
+                                            ].map(f => (
+                                                <button
+                                                    key={f.id}
+                                                    type="button"
+                                                    onClick={() => setNotifFilter(f.id)}
+                                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                                                        notifFilter === f.id
+                                                            ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-2xs font-semibold'
+                                                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 border border-slate-200/80 dark:border-slate-700/80'
+                                                    }`}
+                                                >
+                                                    <span>{f.label}</span>
+                                                    {f.count > 0 && (
+                                                        <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-mono font-semibold ${
+                                                            notifFilter === f.id
+                                                                ? 'bg-white/20 dark:bg-black/20 text-current'
+                                                                : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                                                        }`}>
+                                                            {f.count}
+                                                        </span>
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setOnlyUnread(prev => !prev)}
+                                            className={`px-2 py-1 rounded-lg text-[10px] font-semibold whitespace-nowrap transition-colors shrink-0 ${
+                                                onlyUnread
+                                                    ? 'bg-brand/10 text-brand dark:bg-brand/20 dark:text-brand-300 font-bold'
+                                                    : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                                            }`}
+                                        >
+                                            Unread only
+                                        </button>
                                     </div>
                                 </div>
 
-                                <div className="divide-y divide-slate-100 dark:divide-slate-800 overflow-y-auto flex-1">
+                                {/* Notification List */}
+                                <div className="divide-y divide-slate-100 dark:divide-slate-800/80 overflow-y-auto flex-1 min-h-0 p-1">
                                     {filteredNotifications.length === 0 ? (
-                                        <div className="py-20 px-6 text-center flex flex-col items-center gap-3">
-                                            <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400"><MailOpen className="w-6 h-6" /></div>
+                                        <div className="py-20 px-6 text-center flex flex-col items-center gap-2.5">
+                                            <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                                                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                                            </div>
                                             <div>
-                                                <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No notifications found</p>
-                                                <p className="text-xs text-slate-400 mt-0.5">{notifFilter !== 'all' || notifSearch ? 'Try adjusting your filters' : 'You are completely caught up!'}</p>
+                                                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">All caught up</p>
+                                                <p className="text-[11px] text-slate-400 mt-0.5">
+                                                    {notifSearch || onlyUnread || notifFilter !== 'all' ? 'No notifications match your current filter.' : 'Zero unread notifications in your inbox.'}
+                                                </p>
                                             </div>
                                         </div>
-                                    ) : filteredNotifications.map(notif => {
-                                        const NIcon = iconMap[notif.icon] || Bell;
-                                        const c = colorMap[notif.color] || colorMap.indigo;
-                                        const isSelected = selectedNotifId === notif.id;
-                                        const isChatNotif = notif.type === 'direct_message' || notif.type === 'channel_mention';
+                                    ) : (
+                                        filteredNotifications.map(notif => {
+                                            const isSelected = selectedNotifId === notif.id;
+                                            const typeConfig = getTypeConfig(notif.type);
 
-                                        return (
-                                            <div key={notif.id}
-                                                onClick={() => {
-                                                    setSelectedNotifId(notif.id);
-                                                    markAsRead(notif.id);
-                                                    if (notif.channel_id) {
-                                                        markChannelRead(notif.channel_id);
-                                                    }
-                                                }}
+                                            return (
+                                                <div
+                                                    key={notif.id}
+                                                    onClick={() => {
+                                                        setSelectedNotifId(notif.id);
+                                                        setQuickReplyText('');
+                                                        if (!notif.read) {
+                                                            markAsRead(notif.id);
+                                                        }
+                                                        if (notif.channel_id) {
+                                                            markChannelRead(notif.channel_id);
+                                                        }
+                                                    }}
+                                                    className={`group relative p-3 rounded-xl cursor-pointer transition-all duration-150 m-1 border ${
+                                                        isSelected
+                                                            ? 'bg-slate-100/90 dark:bg-slate-800/80 border-slate-300/80 dark:border-slate-700 shadow-2xs'
+                                                            : !notif.read
+                                                            ? 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/60 dark:hover:bg-slate-850/60'
+                                                            : 'bg-white/50 dark:bg-slate-900/40 border-transparent hover:border-slate-200/60 dark:hover:border-slate-800/60 hover:bg-slate-50/40 dark:hover:bg-slate-850/40 opacity-75 hover:opacity-100'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-start gap-2.5">
+                                                        {/* Status dot */}
+                                                        <div className="mt-1 shrink-0 flex items-center justify-center w-3 h-3">
+                                                            {!notif.read ? (
+                                                                <span className="w-2 h-2 rounded-full bg-brand ring-4 ring-brand/15" />
+                                                            ) : (
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600" />
+                                                            )}
+                                                        </div>
 
-                                                className={`p-4 cursor-pointer transition-all border-l-3 relative flex items-start gap-3.5 ${isSelected ? 'bg-brand/5 dark:bg-brand/10 border-l-brand' : !notif.read ? `${c.bg} border-l-rose-500 hover:brightness-95` : 'bg-white dark:bg-slate-900 border-l-transparent hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}>
-                                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-2xs mt-0.5 ${c.icon}`}>
-                                                    <NIcon className="w-4 h-4" />
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center justify-between gap-1 mb-1">
-                                                        <span className={`text-[11px] font-bold uppercase tracking-wider ${c.badge} px-2 py-0.2 rounded-md`}>{notif.type.replace('_', ' ')}</span>
-                                                        <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">{notif.created_at_human}</span>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center justify-between gap-1 mb-1">
+                                                                <span className={`inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium ${typeConfig.badgeClass}`}>
+                                                                    {typeConfig.label}
+                                                                </span>
+                                                                <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                                                                    {notif.created_at_human}
+                                                                </span>
+                                                            </div>
+
+                                                            <h4 className={`text-xs truncate leading-snug ${!notif.read ? 'font-semibold text-slate-900 dark:text-slate-100' : 'font-medium text-slate-700 dark:text-slate-300'}`}>
+                                                                {notif.title}
+                                                            </h4>
+
+                                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                                                                {notif.body}
+                                                            </p>
+
+                                                            {/* Metadata Tags */}
+                                                            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                                                                {notif.project_name && (
+                                                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                                                        <FolderGit2 className="w-2.5 h-2.5 opacity-60" />
+                                                                        <span>{notif.project_name}</span>
+                                                                    </span>
+                                                                )}
+                                                                {notif.priority && notif.type !== 'leave_request' && (
+                                                                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                                                        {notif.priority}
+                                                                    </span>
+                                                                )}
+                                                                {notif.type === 'leave_request' && notif.leave_request && (
+                                                                    <span className="text-[10px] font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.2 rounded border border-amber-200/60 dark:border-amber-800/40">
+                                                                        {notif.leave_request.calendar_days}d absence
+                                                                    </span>
+                                                                )}
+                                                                {notif.channel_id && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleOpenNotificationChat(notif);
+                                                                        }}
+                                                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-brand/10 text-brand hover:bg-brand/20 transition-colors"
+                                                                    >
+                                                                        <span>Chat</span>
+                                                                        <ArrowRight className="w-2.5 h-2.5" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Quick toggle read button on hover */}
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => toggleRead(notif.id, notif.read, e)}
+                                                            title={notif.read ? "Mark as unread" : "Mark as read"}
+                                                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 shrink-0"
+                                                        >
+                                                            {notif.read ? (
+                                                                <Mail className="w-3.5 h-3.5" />
+                                                            ) : (
+                                                                <Check className="w-3.5 h-3.5 text-brand" />
+                                                            )}
+                                                        </button>
                                                     </div>
-                                                    <h4 className={`text-xs font-bold truncate leading-tight ${!notif.read ? 'text-slate-900 dark:text-slate-100' : 'text-slate-700 dark:text-slate-300'}`}>{notif.title}</h4>
-                                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">{notif.body}</p>
-                                                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                                                        {notif.project_name && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"><FolderGit2 className="w-2.5 h-2.5" />{notif.project_name}</span>}
-                                                        {notif.priority && <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${c.badge}`}>{notif.priority}</span>}
-                                                        {isChatNotif && (
-                                                            <button type="button"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleOpenNotificationChat(notif);
-                                                                }}
-                                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold bg-brand/10 text-brand hover:bg-brand/20 transition-colors">
-                                                                <span>Open Chat</span>
-                                                                <ArrowRight className="w-2.5 h-2.5" />
-                                                            </button>
-                                                        )}
-                                                    </div>
                                                 </div>
-                                                {!notif.read && <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 mt-2" />}
-                                            </div>
-                                        );
-                                    })}
+                                            );
+                                        })
+                                    )}
                                 </div>
                             </div>
 
-                            {/* Right — Detail */}
-                            <div className="lg:col-span-7 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden h-full max-h-[calc(100vh-180px)]">
+                            {/* Right — Detail / Context Inspection Pane */}
+                            <div className="lg:col-span-7 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full min-h-0">
                                 {activeNotification ? (
-                                    <div className="flex flex-col h-full overflow-y-auto">
-                                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-br from-slate-50 to-indigo-50/20 dark:from-slate-900 dark:to-indigo-950/20">
+                                    <div className="flex flex-col h-full overflow-y-auto min-h-0">
+                                        {/* Inspection Header */}
+                                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
                                             <div className="flex items-start justify-between gap-4">
-                                                <div className="space-y-1.5">
+                                                <div className="space-y-1.5 flex-1 min-w-0">
                                                     <div className="flex items-center gap-2 flex-wrap">
-                                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider bg-brand/10 text-brand">{activeNotification.type.replace('_', ' ')}</span>
-                                                        {activeNotification.project_name && <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">{activeNotification.project_name}</span>}
-                                                        {activeNotification.priority && <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400">{activeNotification.priority}</span>}
+                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${getTypeConfig(activeNotification.type).badgeClass}`}>
+                                                            {getTypeConfig(activeNotification.type).label}
+                                                        </span>
+                                                        {activeNotification.project_name && (
+                                                            <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                                                {activeNotification.project_name}
+                                                            </span>
+                                                        )}
+                                                        <span className="text-xs text-slate-400 font-mono">
+                                                            {activeNotification.created_at_human}
+                                                        </span>
                                                     </div>
-                                                    <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 leading-tight">{activeNotification.title}</h2>
-                                                    <p className="text-xs text-slate-400 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" />Received {activeNotification.created_at_human}</p>
+                                                    <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 leading-snug">
+                                                        {activeNotification.title}
+                                                    </h2>
                                                 </div>
-                                                <div className="flex items-center gap-2">
+
+                                                <div className="flex items-center gap-2 shrink-0">
                                                     {activeNotification.channel_id && (
-                                                        <button type="button" onClick={() => handleOpenNotificationChat(activeNotification)}
-                                                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white transition-all shadow-xs shrink-0">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleOpenNotificationChat(activeNotification)}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-2xs"
+                                                        >
                                                             <MessageSquare className="w-3.5 h-3.5" />
                                                             <span>Open Chat</span>
-                                                            <ArrowRight className="w-3.5 h-3.5" />
                                                         </button>
                                                     )}
                                                     {activeTask && (
-                                                        <button type="button" onClick={() => handleOpenTaskDetail(activeTask)}
-                                                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-brand text-white hover:bg-brand-dark transition-all shadow-xs shrink-0">
-                                                            <span>Open Task</span><ArrowRight className="w-3.5 h-3.5" />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleOpenTaskDetail(activeTask)}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand text-white hover:bg-brand-dark transition-all shadow-2xs"
+                                                        >
+                                                            <span>Open Task</span>
+                                                            <ArrowRight className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
+                                                    {activeNotification.read ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => toggleRead(activeNotification.id, true)}
+                                                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                        >
+                                                            <Mail className="w-3.5 h-3.5" />
+                                                            <span>Mark unread</span>
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => toggleRead(activeNotification.id, false)}
+                                                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                        >
+                                                            <Check className="w-3.5 h-3.5 text-brand" />
+                                                            <span>Mark read</span>
                                                         </button>
                                                     )}
                                                 </div>
                                             </div>
-                                            <div className="mt-4 p-4 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed shadow-2xs">
+
+                                            {/* Description text */}
+                                            <div className="mt-3.5 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
                                                 {activeNotification.body}
                                             </div>
                                         </div>
 
+                                        {/* Leave Request Review Module */}
+                                        {activeNotification.type === 'leave_request' && activeNotification.leave_request && (() => {
+                                            const req = activeNotification.leave_request;
+                                            const isLeaderReq = req.requester_role === 'leader';
+                                            const isProcessing = leaveActionProcessingId === req.id;
+                                            const hasConflicts = req.conflicting_tasks && req.conflicting_tasks.length > 0;
+
+                                            return (
+                                                <div className="p-5 space-y-4">
+                                                    {/* Requester Identity Card */}
+                                                    <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="relative">
+                                                                {req.avatar ? (
+                                                                    <img src={req.avatar} alt={req.user_name} className="w-12 h-12 rounded-xl object-cover ring-2 ring-slate-200 dark:ring-slate-700" />
+                                                                ) : (
+                                                                    <div className="w-12 h-12 rounded-xl bg-linear-to-tr from-brand to-indigo-600 text-white font-black text-sm flex items-center justify-center ring-2 ring-slate-200 dark:ring-slate-700">
+                                                                        {req.user_name.slice(0, 2).toUpperCase()}
+                                                                    </div>
+                                                                )}
+                                                                {isLeaderReq && (
+                                                                    <span title="Team Leader request — Requires Owner Approval"
+                                                                        className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white flex items-center justify-center ring-2 ring-white dark:ring-slate-900">
+                                                                        <Crown className="w-2.5 h-2.5" />
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">{req.user_name}</h4>
+                                                                    <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                                                                        {isLeaderReq ? 'Team Leader' : 'Team Member'}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-[11px] text-slate-500 mt-0.5">
+                                                                    {req.position} • {req.user_email}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Leave Duration & Handover Details */}
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                                        <div className="p-4 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 space-y-2">
+                                                            <div className="flex items-center justify-between text-xs font-semibold text-amber-900 dark:text-amber-200">
+                                                                <span className="flex items-center gap-1.5">
+                                                                    <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                                                    Absence Window
+                                                                </span>
+                                                                <span className="px-2 py-0.5 rounded-sm text-[10px] font-mono font-bold bg-amber-200/80 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200">
+                                                                    {req.calendar_days} Calendar Day{req.calendar_days === 1 ? '' : 's'}
+                                                                </span>
+                                                            </div>
+                                                            <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                                                {req.leave_start_formatted || req.leave_start_date} → {req.leave_end_formatted || req.leave_end_date}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 space-y-1.5">
+                                                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                                Handover & Reason
+                                                            </div>
+                                                            <p className="text-xs text-slate-700 dark:text-slate-300 italic line-clamp-3">
+                                                                "{req.reason || 'No specific notes provided.'}"
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Task Conflict Intelligence */}
+                                                    <div className="space-y-2">
+                                                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                            Schedule Conflict Analysis
+                                                        </div>
+                                                        {hasConflicts ? (
+                                                            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 space-y-2">
+                                                                <div className="flex items-center gap-2 text-xs font-bold text-amber-800 dark:text-amber-300">
+                                                                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                                                                    <span>
+                                                                        Attention: {req.conflicting_tasks.length} task{req.conflicting_tasks.length === 1 ? '' : 's'} scheduled with deadlines during this absence:
+                                                                    </span>
+                                                                </div>
+                                                                <div className="space-y-1 pl-6">
+                                                                    {req.conflicting_tasks.map((task) => (
+                                                                        <div key={task.id} className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-rose-500/20 flex items-center justify-between gap-2 text-xs">
+                                                                            <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">{task.title}</span>
+                                                                            <div className="flex items-center gap-2 shrink-0">
+                                                                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-sm uppercase font-bold bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300">
+                                                                                    Due {task.due_date}
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/50 flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300">
+                                                                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                                                                <span>No deadline conflicts. Assigned tasks are scheduled outside this window.</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Approval Footer */}
+                                                    <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2.5">
+                                                        <button
+                                                            type="button"
+                                                            disabled={isProcessing}
+                                                            onClick={() => setDeclineModalReq(req)}
+                                                            className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 hover:text-rose-600 text-xs font-semibold transition-colors disabled:opacity-50"
+                                                        >
+                                                            Decline
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            disabled={isProcessing}
+                                                            onClick={() => handleApproveLeave(req)}
+                                                            className="px-5 py-2.5 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5">
+                                                            {isProcessing ? (
+                                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                            ) : (
+                                                                <Check className="w-3.5 h-3.5" />
+                                                            )}
+                                                            <span>Approve Leave Request</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+
+                                        {/* Chat Mention / Message Module */}
                                         {activeNotification.channel_id && (
-                                            <div className="p-6 space-y-4">
-                                                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Chat Thread Action</h3>
-                                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 space-y-3">
+                                            <div className="p-5 space-y-3">
+                                                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                    Conversation Context
+                                                </div>
+                                                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-800/40 space-y-3">
                                                     <div className="flex items-center justify-between text-xs">
-                                                        <span className="font-bold text-slate-800 dark:text-slate-200">
-                                                            Sender: {activeNotification.sender_name || 'Team Member'}
+                                                        <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                                            From: {activeNotification.sender_name || 'Team Member'}
                                                         </span>
-                                                        <span className="text-slate-400 font-medium">
-                                                            Room: {activeNotification.channel_id}
+                                                        <span className="text-slate-500 font-mono text-[11px]">
+                                                            Channel: {activeNotification.channel_id}
                                                         </span>
                                                     </div>
                                                     <button type="button" onClick={() => handleOpenNotificationChat(activeNotification)}
-                                                        className="w-full py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-brand to-indigo-600 text-white hover:from-brand-dark hover:to-indigo-700 transition-all shadow-sm flex items-center justify-center gap-2">
+                                                        className="w-full py-2.5 rounded-xl text-xs font-bold bg-linear-to-r from-brand to-indigo-600 text-white hover:from-brand-dark hover:to-indigo-700 transition-all shadow-xs flex items-center justify-center gap-2">
                                                         <MessageSquare className="w-4 h-4" />
-                                                        <span>Jump to Active Chat Room</span>
+                                                        <span>Open in Messages</span>
                                                         <ArrowRight className="w-3.5 h-3.5" />
                                                     </button>
                                                 </div>
                                             </div>
                                         )}
 
+                                        {/* Estimate Pending Voting Module */}
+                                        {activeNotification.type === 'estimate_pending' && !activeTask && (
+                                            <div className="p-5 space-y-3">
+                                                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                    Sprint Planning Action
+                                                </div>
+                                                <div className="p-4 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/50 dark:bg-amber-950/20 space-y-3">
+                                                    <div className="flex items-center gap-2 text-xs font-bold text-amber-900 dark:text-amber-200">
+                                                        <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                                                        <span>Story Point Voting Required</span>
+                                                    </div>
+                                                    <p className="text-xs text-slate-600 dark:text-slate-300">
+                                                        {activeNotification.body}
+                                                    </p>
+                                                    <Link
+                                                        href={`/studio/${workspaceSlug}/estimates/pending`}
+                                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-colors shadow-2xs"
+                                                    >
+                                                        <Sparkles className="w-3.5 h-3.5" />
+                                                        <span>Open Fibonacci Estimation Queue</span>
+                                                        <ArrowRight className="w-3.5 h-3.5" />
+                                                    </Link>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Task / Review Context Module */}
                                         {activeTask && (
-                                            <div className="p-6 space-y-4">
-                                                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Associated Task Context</h3>
-                                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 space-y-4">
+                                            <div className="p-5 space-y-3">
+                                                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                    Task Details
+                                                </div>
+                                                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-800/40 space-y-3">
                                                     <div className="flex items-start justify-between gap-3">
                                                         <div>
-                                                            <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">{activeTask.title}</h4>
-                                                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{activeTask.description || 'No additional description provided.'}</p>
+                                                            <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">{activeTask.title}</h4>
+                                                            <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">{activeTask.description || 'No description provided.'}</p>
                                                         </div>
-                                                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-2xs shrink-0">
+                                                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 shrink-0">
                                                             {(activeTask.sprint_status || activeTask.status || 'todo').replace(/_/g, ' ')}
                                                         </span>
                                                     </div>
-                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-200/60 dark:border-slate-700/60">
-                                                        {[
-                                                            { label: 'Assignee', value: activeTask.assignee || 'Unassigned' },
-                                                            { label: 'Reviewer', value: activeTask.reviewer || 'None assigned' },
-                                                            { label: 'Story Points', value: activeTask.story_points ? `${activeTask.story_points} SP` : 'Unestimated' },
-                                                            { label: 'Priority', value: activeTask.priority || 'Normal', cls: 'text-rose-600 dark:text-rose-400 uppercase' },
-                                                        ].map(({ label, value, cls }) => (
-                                                            <div key={label}>
-                                                                <span className="text-[10px] text-slate-400 uppercase font-bold">{label}</span>
-                                                                <p className={`text-xs font-bold mt-0.5 truncate ${cls || 'text-slate-800 dark:text-slate-200'}`}>{value}</p>
-                                                            </div>
-                                                        ))}
+
+                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2.5 border-t border-slate-200/60 dark:border-slate-700/60">
+                                                        <div>
+                                                            <span className="text-[10px] text-slate-400 font-semibold uppercase">Assignee</span>
+                                                            <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate mt-0.5">{activeTask.assignee || 'Unassigned'}</p>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-[10px] text-slate-400 font-semibold uppercase">Reviewer</span>
+                                                            <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate mt-0.5">{activeTask.reviewer || 'None'}</p>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-[10px] text-slate-400 font-semibold uppercase">Story Points</span>
+                                                            <p className="text-xs font-mono font-medium text-slate-800 dark:text-slate-200 mt-0.5">{activeTask.story_points ?? '—'} SP</p>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-[10px] text-slate-400 font-semibold uppercase">Priority</span>
+                                                            <p className="text-xs font-bold uppercase text-slate-800 dark:text-slate-200 mt-0.5">{activeTask.priority || 'Normal'}</p>
+                                                        </div>
                                                     </div>
-                                                    <div className="flex items-center gap-2 pt-3 border-t border-slate-200/60 dark:border-slate-700/60 flex-wrap">
-                                                        <button type="button" onClick={() => handleOpenTaskDetail(activeTask)}
-                                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
-                                                            <Eye className="w-3.5 h-3.5 text-brand" /><span>Review Full Task</span>
+
+                                                    <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleOpenTaskDetail(activeTask)}
+                                                            className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:opacity-90 transition-opacity flex items-center gap-1.5"
+                                                        >
+                                                            <Eye className="w-3.5 h-3.5" />
+                                                            <span>Open Full Task Details</span>
                                                         </button>
                                                         {activeNotification.type === 'estimate_pending' && (
                                                             <Link href={`/studio/${activeWorkspace}/estimates/pending`}
-                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 text-white hover:bg-amber-600 transition-colors shadow-xs">
+                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 text-white hover:bg-amber-600 transition-colors shadow-2xs">
                                                                 <Sparkles className="w-3.5 h-3.5" /><span>Vote Story Points Now</span>
                                                             </Link>
                                                         )}
@@ -1853,7 +2658,7 @@ export default function Inbox({
                                                     <div className="relative">
                                                         <textarea rows={2} value={quickReplyText} onChange={e => setQuickReplyText(e.target.value)}
                                                             placeholder="Add a comment or follow-up note..."
-                                                            className="w-full p-3 pr-24 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-brand resize-none" />
+                                                            className="w-full p-3 pr-24 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:border-brand resize-none" />
                                                         <button type="button" onClick={handleSendQuickReply} disabled={!quickReplyText.trim()}
                                                             className="absolute right-2 bottom-2.5 px-3 py-1 rounded-lg text-xs font-bold bg-brand text-white disabled:opacity-40 hover:bg-brand-dark transition-all">
                                                             {quickReplySuccess ? 'Saved!' : 'Reply'}
@@ -1865,9 +2670,11 @@ export default function Inbox({
                                     </div>
                                 ) : (
                                     <div className="flex-1 flex flex-col items-center justify-center p-12 text-center text-slate-400">
-                                        <MailOpen className="w-12 h-12 mb-3 text-slate-300 dark:text-slate-600" />
-                                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Select a notification to view details</p>
-                                        <p className="text-xs text-slate-400 mt-1 max-w-xs">Choose an item from the left pane to see its full context, assigned task, and actions.</p>
+                                        <MailOpen className="w-10 h-10 mb-2.5 text-slate-300 dark:text-slate-600" />
+                                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Select a notification</p>
+                                        <p className="text-[11px] text-slate-400 mt-0.5 max-w-xs">
+                                            Choose an item from the left feed to inspect details and take action.
+                                        </p>
                                     </div>
                                 )}
                             </div>
@@ -1878,24 +2685,52 @@ export default function Inbox({
                         TEAM MESSAGES TAB
                     ================================================================ */}
                     {activeTab === 'messages' && (
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0 items-start">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 min-h-0 h-full items-stretch overflow-hidden">
 
                             {/* Left — Sidebar */}
-                            <div className="lg:col-span-4 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden h-full max-h-[calc(100vh-180px)]">
+                            <div className="lg:col-span-4 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full min-h-0">
                                 <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
-                                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Team Messages</h3>
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-900/40">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                        Live
+                                    <div>
+                                        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Team Messages</h3>
+                                        <p className="text-[11px] text-slate-400 mt-0.5">Channels and direct conversations</p>
+                                    </div>
+                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/40">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                        Connected
                                     </span>
                                 </div>
 
-                                <div className={`${SCROLL_CLS} flex-1 p-3 space-y-4`}>
+                                {/* Search Filter */}
+                                <div className="p-2.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                                    <div className="relative">
+                                        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                        <input
+                                            type="text"
+                                            value={chatSearchQuery}
+                                            onChange={(e) => setChatSearchQuery(e.target.value)}
+                                            placeholder="Search channels or teammates..."
+                                            className="w-full pl-8.5 pr-8 py-1.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-brand transition-colors"
+                                        />
+                                        {chatSearchQuery && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setChatSearchQuery('')}
+                                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                            >
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className={`${SCROLL_CLS} flex-1 min-h-0 p-3 space-y-4`}>
 
                                     {/* Channels */}
                                     <div>
                                         <div className="flex items-center justify-between px-2 mb-1.5">
-                                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Channels</p>
+                                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                                Channels {chatSearchQuery && `(${filteredChannels.length})`}
+                                            </p>
                                             {isLeader && (
                                                 <button type="button" onClick={() => setShowCreateChannel(v => !v)} title="Create new channel"
                                                     className="w-5 h-5 rounded-md flex items-center justify-center text-slate-400 hover:text-brand hover:bg-brand/10 transition-colors">
@@ -1911,14 +2746,14 @@ export default function Inbox({
                                                     <Hash className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                                     <input type="text" value={newChannelName} onChange={e => setNewChannelName(e.target.value)}
                                                         placeholder="channel-name" maxLength={32} autoFocus
-                                                        className="flex-1 bg-transparent text-xs font-semibold text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none" />
+                                                        className="flex-1 bg-transparent text-xs font-semibold text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden" />
                                                     <button type="button" onClick={() => setShowCreateChannel(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                                                         <X className="w-3.5 h-3.5" />
                                                     </button>
                                                 </div>
                                                 <input type="text" value={newChannelDesc} onChange={e => setNewChannelDesc(e.target.value)}
                                                     placeholder="Short description (optional)" maxLength={80}
-                                                    className="w-full bg-transparent text-[11px] text-slate-500 dark:text-slate-400 placeholder-slate-400 focus:outline-none" />
+                                                    className="w-full bg-transparent text-[11px] text-slate-500 dark:text-slate-400 placeholder-slate-400 focus:outline-hidden" />
                                                 <button type="submit" disabled={!newChannelName.trim()}
                                                     className="w-full py-1.5 rounded-lg text-[11px] font-bold bg-brand text-white disabled:opacity-40 hover:bg-brand-dark transition-all">
                                                     Create Channel
@@ -1927,14 +2762,14 @@ export default function Inbox({
                                         )}
 
                                         <div className="space-y-0.5">
-                                            {sortedChannels.map(ch => {
+                                            {filteredChannels.map(ch => {
                                                 const isActive = selectedChat?.id === ch.id;
                                                 const isProtected = PROTECTED_IDS.has(ch.id);
                                                 return (
                                                     <div key={ch.id} className="group relative">
                                                         <button type="button"
                                                             onClick={() => openChat({ id: ch.id, title: `#${ch.name}`, subtitle: ch.description, type: 'channel' })}
-                                                            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all text-left ${isActive ? 'bg-brand text-white shadow-xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                                                            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all text-left ${isActive ? 'bg-brand text-white shadow-2xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                                                             <Hash className="w-3.5 h-3.5 shrink-0 opacity-70" />
                                                             <span className="truncate flex-1">{ch.name}</span>
                                                             {unreadCounts[ch.id] > 0 && selectedChat?.id !== ch.id && (
@@ -1951,19 +2786,26 @@ export default function Inbox({
                                                     </div>
                                                 );
                                             })}
+                                            {filteredChannels.length === 0 && (
+                                                <p className="text-[11px] text-slate-400 px-3 py-2 italic">
+                                                    {chatSearchQuery ? 'No matching channels' : 'No channels available'}
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
 
                                     {/* Direct Messages */}
                                     <div>
                                         <div className="flex items-center justify-between px-2 mb-1.5">
-                                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Direct Messages</p>
+                                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                                Direct Messages {chatSearchQuery && `(${filteredTeamMembers.length})`}
+                                            </p>
                                             <span className="text-[10px] text-slate-400 font-medium">
-                                                {sortedTeamMembers.filter(m => m.has_conversation || channelActivity[getDmChannelId(currentUser?.id, m.id)] || (selectedChat?.id === getDmChannelId(currentUser?.id, m.id) && messages.length > 0)).length} active
+                                                {filteredTeamMembers.filter(m => m.has_conversation || channelActivity[getDmChannelId(currentUser?.id, m.id)] || (selectedChat?.id === getDmChannelId(currentUser?.id, m.id) && messages.length > 0)).length} active
                                             </span>
                                         </div>
                                         <div className="space-y-0.5">
-                                            {sortedTeamMembers.map(member => {
+                                            {filteredTeamMembers.map(member => {
                                                 const isCurrentUser = currentUser && Number(member.id) === Number(currentUser.id);
                                                 const dmId = getDmChannelId(currentUser?.id, member.id);
                                                 const isActive = selectedChat?.id === dmId;
@@ -1978,9 +2820,9 @@ export default function Inbox({
                                                             subtitle: `${member.position || 'Developer'} • ${member.role}`,
                                                             type: 'dm',
                                                         })}
-                                                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all text-left ${isActive ? 'bg-brand text-white shadow-xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                                                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all text-left ${isActive ? 'bg-brand text-white shadow-2xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                                                         <div className="relative shrink-0">
-                                                            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-slate-300 to-slate-400 dark:from-slate-600 dark:to-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-700 dark:text-slate-200">
+                                                            <div className="w-6 h-6 rounded-full bg-linear-to-br from-slate-300 to-slate-400 dark:from-slate-600 dark:to-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-700 dark:text-slate-200">
                                                                 {member.name.charAt(0)}
                                                             </div>
                                                             <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ring-1 ring-white dark:ring-slate-900 ${hasConv ? 'bg-emerald-500 ring-emerald-300' : 'bg-slate-300 dark:bg-slate-600'}`} />
@@ -2006,8 +2848,10 @@ export default function Inbox({
                                                     </button>
                                                 );
                                             })}
-                                            {teamMembers.length === 0 && (
-                                                <p className="text-[11px] text-slate-400 px-3 py-2">No team members yet.</p>
+                                            {filteredTeamMembers.length === 0 && (
+                                                <p className="text-[11px] text-slate-400 px-3 py-2 italic">
+                                                    {chatSearchQuery ? 'No matching teammates' : 'No team members yet'}
+                                                </p>
                                             )}
                                         </div>
                                     </div>
@@ -2020,14 +2864,14 @@ export default function Inbox({
                                 onDragLeave={handleDragLeave}
                                 onDrop={handleDrop}
                                 onPaste={handlePaste}
-                                className="lg:col-span-8 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden h-[calc(100vh-180px)] relative">
+                                className="lg:col-span-8 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full min-h-0 relative">
 
                                 {!selectedChat ? (
                                     <div className="flex-1 flex flex-col items-center justify-center p-8 text-center select-none h-full bg-slate-50/50 dark:bg-slate-900/50">
-                                        <div className="w-16 h-16 rounded-3xl bg-brand/10 text-brand flex items-center justify-center mb-4 ring-8 ring-brand/5 shadow-xs">
+                                        <div className="w-16 h-16 rounded-3xl bg-brand/10 text-brand flex items-center justify-center mb-4 ring-8 ring-brand/5 shadow-2xs">
                                             <MessageSquare className="w-8 h-8" />
                                         </div>
-                                        <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Select a conversation</h3>
+                                        <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Select a Conversation</h3>
                                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-sm leading-relaxed">
                                             Choose a channel or direct message from the left sidebar to open the chat room. Messages will only be marked as seen after being opened.
                                         </p>
@@ -2139,7 +2983,7 @@ export default function Inbox({
                                 {pinnedMessages.length > 0 && (
                                     <div className="bg-amber-50/90 dark:bg-amber-950/40 border-b border-amber-200/70 dark:border-amber-800/50 px-4 py-2 flex items-center justify-between gap-3 shrink-0 text-xs animate-in slide-in-from-top-1 duration-150">
                                         <div className="flex items-center gap-2 min-w-0">
-                                            <div className="w-5 h-5 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                                            <div className="w-5 h-5 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-2xs">
                                                 <Pin className="w-3 h-3" />
                                             </div>
                                             <div className="min-w-0 flex items-center gap-1.5 text-slate-800 dark:text-slate-200 text-xs">
@@ -2169,7 +3013,7 @@ export default function Inbox({
 
                                 {/* Messages Feed */}
                                 <div ref={chatContainerRef} onScroll={handleChatScroll}
-                                    className={`${SCROLL_CLS} flex-1 p-6 space-y-4`}>
+                                    className={`${SCROLL_CLS} flex-1 min-h-0 p-6 space-y-4`}>
 
                                     {loadingMessages ? (
                                         <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-400">
@@ -2196,37 +3040,37 @@ export default function Inbox({
                                                     {!msg.is_unsent ? (
                                                         <div className={`absolute -top-3.5 ${msg.isSelf ? 'right-6' : 'left-6'} z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-0.5 px-1 py-0.5 rounded-lg bg-white dark:bg-slate-800 shadow-md border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400`}>
                                                             <button type="button" onClick={() => handleReply(msg)} title="Reply to message"
-                                                                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-brand transition-colors">
+                                                                className="p-1 rounded-sm hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-brand transition-colors">
                                                                 <CornerUpLeft className="w-3.5 h-3.5" />
                                                             </button>
                                                             <button type="button" onClick={() => handleCopy(msg)} title="Copy message text"
-                                                                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-brand transition-colors">
+                                                                className="p-1 rounded-sm hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-brand transition-colors">
                                                                 {copiedMsgId === msg.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                                                             </button>
                                                             <button type="button" onClick={() => handleOpenForward(msg)} title="Forward message"
-                                                                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-brand transition-colors">
+                                                                className="p-1 rounded-sm hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-brand transition-colors">
                                                                 <Forward className="w-3.5 h-3.5" />
                                                             </button>
                                                             <button type="button" onClick={() => handleTogglePin(msg)} title={msg.is_pinned ? 'Unpin message' : 'Pin message'}
-                                                                className={`p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors ${msg.is_pinned ? 'text-amber-500 font-bold' : 'hover:text-amber-500'}`}>
+                                                                className={`p-1 rounded-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors ${msg.is_pinned ? 'text-amber-500 font-bold' : 'hover:text-amber-500'}`}>
                                                                 {msg.is_pinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
                                                             </button>
                                                             <button type="button" onClick={() => handleRequestUnsend(msg)} title={msg.isSelf ? 'Unsend message' : 'Unsend for you'}
-                                                                className="p-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-600 transition-colors">
+                                                                className="p-1 rounded-sm hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-600 transition-colors">
                                                                 <Trash2 className="w-3.5 h-3.5" />
                                                             </button>
                                                         </div>
                                                     ) : (
                                                         <div className={`absolute -top-3.5 ${msg.isSelf ? 'right-6' : 'left-6'} z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-0.5 px-1 py-0.5 rounded-lg bg-white dark:bg-slate-800 shadow-md border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400`}>
                                                             <button type="button" onClick={() => handleRequestUnsend(msg)} title="Unsend for you"
-                                                                className="p-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-600 transition-colors">
+                                                                className="p-1 rounded-sm hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-600 transition-colors">
                                                                 <Trash2 className="w-3.5 h-3.5" />
                                                             </button>
                                                         </div>
                                                     )}
 
                                                     {/* Avatar */}
-                                                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 flex items-center justify-center text-xs font-bold shrink-0 text-slate-700 dark:text-slate-300">
+                                                    <div className="w-8 h-8 rounded-xl bg-linear-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 flex items-center justify-center text-xs font-bold shrink-0 text-slate-700 dark:text-slate-300">
                                                         {msg.sender.charAt(0)}
                                                     </div>
 
@@ -2288,7 +3132,7 @@ export default function Inbox({
                                                                 {msg.text && (
                                                                     <div className={`p-3 rounded-2xl text-xs leading-relaxed ${
                                                                         msg.is_pinned ? 'ring-1 ring-amber-400/80' : ''
-                                                                    } ${msg.isSelf ? 'bg-gradient-to-br from-brand to-indigo-600 text-white rounded-tr-xs shadow-sm shadow-brand/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-xs'}`}>
+                                                                    } ${msg.isSelf ? 'bg-linear-to-br from-brand to-indigo-600 text-white rounded-tr-xs shadow-xs shadow-brand/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-xs'}`}>
                                                                         {renderFormattedText(msg.text, msg.isSelf)}
                                                                     </div>
                                                                 )}
@@ -2299,7 +3143,7 @@ export default function Inbox({
                                                                 {msg.attachments.map((att, aIdx) => {
                                                                     if (att.type === 'report') {
                                                                         return (
-                                                                            <div key={aIdx} className="w-full max-w-sm rounded-2xl border border-indigo-200/90 dark:border-indigo-900/60 bg-gradient-to-br from-indigo-50/70 via-white to-slate-50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-slate-900 p-4 shadow-sm space-y-3 text-left overflow-hidden">
+                                                                            <div key={aIdx} className="w-full max-w-sm rounded-2xl border border-indigo-200/90 dark:border-indigo-900/60 bg-linear-to-br from-indigo-50/70 via-white to-slate-50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-slate-900 p-4 shadow-xs space-y-3 text-left overflow-hidden">
                                                                                 <div className="flex items-start justify-between gap-3 min-w-0">
                                                                                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                                                                         <div className="w-8 h-8 rounded-xl bg-brand/10 dark:bg-brand/20 text-brand flex items-center justify-center shrink-0">
@@ -2341,7 +3185,7 @@ export default function Inbox({
 
                                                                                 <a
                                                                                     href={att.report_url || `/studio/${workspaceSlug}/reports`}
-                                                                                    className="w-full py-2 px-3 rounded-xl bg-brand hover:bg-brand-dark text-white transition-all text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs"
+                                                                                    className="w-full py-2 px-3 rounded-xl bg-brand hover:bg-brand-dark text-white transition-all text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs"
                                                                                 >
                                                                                     <span>View Full Interactive Report</span>
                                                                                     <ExternalLink className="w-3.5 h-3.5" />
@@ -2352,7 +3196,7 @@ export default function Inbox({
                                                                     if (att.type === 'image') {
                                                                         return (
                                                                             <div key={aIdx} className="space-y-1">
-                                                                                <div className="relative group cursor-pointer overflow-hidden rounded-2xl border border-slate-200/90 dark:border-slate-700/90 shadow-sm bg-slate-100 dark:bg-slate-800/80"
+                                                                                <div className="relative group cursor-pointer overflow-hidden rounded-2xl border border-slate-200/90 dark:border-slate-700/90 shadow-xs bg-slate-100 dark:bg-slate-800/80"
                                                                                     onClick={() => setLightboxImage({ url: att.url, name: att.name })}>
                                                                                     <img
                                                                                         src={att.url}
@@ -2392,7 +3236,7 @@ export default function Inbox({
                                                                                     ? 'bg-white/15 dark:bg-slate-800/90 border-white/20 text-white hover:bg-white/25'
                                                                                     : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750'
                                                                             }`}>
-                                                                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-brand text-white flex items-center justify-center font-extrabold text-[9px] shrink-0 shadow-xs">
+                                                                            <div className="w-9 h-9 rounded-xl bg-linear-to-br from-indigo-500 to-brand text-white flex items-center justify-center font-extrabold text-[9px] shrink-0 shadow-2xs">
                                                                                 {ext.slice(0, 4)}
                                                                             </div>
                                                                             <div className="min-w-0 pr-2">
@@ -2417,12 +3261,24 @@ export default function Inbox({
                                     <div ref={chatEndRef} />
                                 </div>
 
-                                {/* Scroll-to-bottom button */}
+                                {/* Popping Scroll-to-Bottom Button with Arrow & Unread Badge */}
                                 {showScrollDown && (
-                                    <div className="absolute bottom-24 right-6 z-10">
-                                        <button type="button" onClick={scrollToBottom}
-                                            className="flex items-center justify-center w-8 h-8 rounded-full bg-brand text-white shadow-lg hover:bg-brand-dark transition-all">
-                                            <ChevronDown className="w-4 h-4" />
+                                    <div className="absolute bottom-24 right-6 sm:right-8 z-30 animate-in fade-in zoom-in-75 slide-in-from-bottom-2 duration-200">
+                                        <button
+                                            type="button"
+                                            onClick={() => scrollToBottom(true)}
+                                            title="Jump down to latest chat"
+                                            className="flex items-center gap-2 px-3 py-2 rounded-full bg-slate-900/95 dark:bg-white/95 text-white dark:text-slate-900 shadow-xl hover:shadow-2xl border border-slate-700/60 dark:border-slate-200/80 backdrop-blur-md transition-all duration-200 transform hover:scale-105 active:scale-95 cursor-pointer group select-none"
+                                        >
+                                            <div className="w-5 h-5 rounded-full bg-brand text-white flex items-center justify-center shrink-0 shadow-xs">
+                                                <ChevronDown className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-y-0.5" />
+                                            </div>
+                                            <span className="text-xs font-bold tracking-tight">Latest</span>
+                                            {newMessagesWhileScrolled > 0 && (
+                                                <span className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full text-[9px] font-extrabold bg-rose-500 text-white shadow-xs animate-pulse">
+                                                    {newMessagesWhileScrolled > 9 ? '9+' : newMessagesWhileScrolled}
+                                                </span>
+                                            )}
                                         </button>
                                     </div>
                                 )}
@@ -2522,11 +3378,11 @@ export default function Inbox({
                                         onChange={handleInputChange}
                                         onPaste={handlePaste}
                                         placeholder="Message"
-                                        className="flex-1 px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-brand" />
+                                        className="flex-1 px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:border-brand" />
 
                                     <button type="submit"
                                         disabled={(!inputMessage.trim() && stagedFiles.length === 0) || sending}
-                                        className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-brand to-indigo-600 text-white disabled:opacity-40 hover:shadow-md hover:shadow-brand/30 transition-all shadow-xs shrink-0">
+                                        className="flex items-center justify-center w-10 h-10 rounded-xl bg-linear-to-br from-brand to-indigo-600 text-white disabled:opacity-40 hover:shadow-md hover:shadow-brand/30 transition-all shadow-2xs shrink-0">
                                         {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                                     </button>
                                 </form>
@@ -2558,6 +3414,26 @@ export default function Inbox({
                 onConfirmUnsend={handleConfirmUnsend}
                 currentUserId={currentUser?.id}
                 isAdmin={isLeader}
+            />
+
+            {/* Custom Leave Approval Confirmation Dialog */}
+            <LeaveApprovalConfirmDialog
+                isOpen={Boolean(approveModalReq)}
+                onClose={() => setApproveModalReq(null)}
+                leaveRequest={approveModalReq}
+                onConfirm={handleExecuteApproveLeave}
+                mode="approve"
+                isLoading={Boolean(leaveActionProcessingId)}
+            />
+
+            {/* Custom Leave Decline Confirmation Dialog (Destructive Style) */}
+            <LeaveApprovalConfirmDialog
+                isOpen={Boolean(declineModalReq)}
+                onClose={() => setDeclineModalReq(null)}
+                leaveRequest={declineModalReq}
+                onConfirm={handleConfirmDeclineLeave}
+                mode="reject"
+                isLoading={Boolean(leaveActionProcessingId)}
             />
         </TenantLayout>
     );

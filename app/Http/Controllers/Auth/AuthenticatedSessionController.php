@@ -33,7 +33,18 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        $user = $request->user();
+        if (! $request->session()->has('url.intended') && $user) {
+            // Only redirect non-owner members directly to their member studio Home
+            if ($user->ownedStudios()->count() === 0 && $user->joinedStudios()->count() > 0) {
+                $primaryStudio = $user->joinedStudios()->first();
+                if ($primaryStudio) {
+                    return redirect()->to("/studio/{$primaryStudio->id}/dashboard");
+                }
+            }
+        }
+
+        return redirect()->intended(route('central.hub', absolute: false));
     }
 
     /**

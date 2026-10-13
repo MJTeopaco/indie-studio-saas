@@ -44,7 +44,7 @@ const TAG_COLORS = {
 
 function TagPill({ tag }) {
     return (
-        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider ${TAG_COLORS[tag] || 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
+        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-sm text-[9px] font-bold tracking-wider ${TAG_COLORS[tag] || 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
             {tag}
         </span>
     );
@@ -62,7 +62,7 @@ function TaskCard({ task, onClick, onDragStart }) {
                 onDragStart?.(task);
             }}
             onClick={onClick}
-            className="group rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 hover:border-indigo-400/60 dark:hover:border-indigo-500/50 p-4 shadow-sm hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing flex flex-col gap-3"
+            className="group rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 hover:border-indigo-400/60 dark:hover:border-indigo-500/50 p-4 shadow-xs hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing flex flex-col gap-3"
         >
             {/* Client label */}
             <p className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">
@@ -106,6 +106,7 @@ const COLUMN_CONFIG = {
     in_progress: { title: 'In Progress', badge: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400', dot: 'bg-indigo-500' },
     review:      { title: 'In Review',   badge: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',    dot: 'bg-amber-500' },
     completed:   { title: 'Completed',   badge: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400', dot: 'bg-emerald-500' },
+    stuck:       { title: 'Stuck',       badge: 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',        dot: 'bg-rose-500' },
 };
 
 function KanbanColumn({ colId, tasks, onAddTask, onTaskClick, onDragStart, onDropTask, isDropTarget, onDragOverCol, onDragLeaveCol }) {
@@ -124,7 +125,7 @@ function KanbanColumn({ colId, tasks, onAddTask, onTaskClick, onDragStart, onDro
                 onDropTask?.(colId);
             }}
             className={`w-72 shrink-0 flex flex-col rounded-2xl bg-gray-50/80 dark:bg-slate-900/50 border max-h-full overflow-hidden transition-all duration-200 ${
-                isDropTarget ? 'border-indigo-400 ring-2 ring-indigo-500/10 bg-indigo-500/[0.02] dark:bg-indigo-500/[0.04]' : 'border-gray-200/80 dark:border-slate-800/70'
+                isDropTarget ? 'border-indigo-400 ring-2 ring-indigo-500/10 bg-indigo-500/2 dark:bg-indigo-500/4' : 'border-gray-200/80 dark:border-slate-800/70'
             }`}
         >
             {/* Column header */}
@@ -133,18 +134,6 @@ function KanbanColumn({ colId, tasks, onAddTask, onTaskClick, onDragStart, onDro
                     <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
                     <span className="text-xs font-bold text-gray-800 dark:text-slate-200 uppercase tracking-wide">{cfg.title}</span>
                     <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${cfg.badge}`}>{tasks.length}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                    <button
-                        onClick={() => onAddTask(colId)}
-                        className="p-1 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-200/60 dark:hover:bg-slate-700/60 transition-colors"
-                        title="Add task"
-                    >
-                        <PlusIcon />
-                    </button>
-                    <button className="p-1 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-200/60 dark:hover:bg-slate-700/60 transition-colors">
-                        <MoreIcon />
-                    </button>
                 </div>
             </div>
 
@@ -165,14 +154,6 @@ function KanbanColumn({ colId, tasks, onAddTask, onTaskClick, onDragStart, onDro
                     </div>
                 )}
             </div>
-
-            {/* Add new */}
-            <button
-                onClick={() => onAddTask(colId)}
-                className="flex items-center gap-2 mx-3 mb-3 mt-1 px-3 py-2 rounded-xl text-xs text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-300 hover:bg-gray-200/50 dark:hover:bg-slate-800/50 transition-colors"
-            >
-                <PlusIcon /> Add new
-            </button>
         </div>
     );
 }
@@ -203,6 +184,7 @@ export default function BoardView({ tasks = [], onTaskClick, onStatusChange }) {
         in_progress: tasks.filter(t => t.status === 'in_progress'),
         review:      tasks.filter(t => t.status === 'review' || t.status === 'in_review'),
         completed:   tasks.filter(t => t.status === 'completed'),
+        stuck:       tasks.filter(t => t.status === 'stuck' || t.sprint_status === 'stuck'),
     };
 
     return (
