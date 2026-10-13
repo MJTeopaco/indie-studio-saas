@@ -65,8 +65,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ── Apache configuration ─────────────────────────────────────────────────────
-# Enable mod_rewrite for Laravel's pretty URLs
-RUN a2enmod rewrite headers
+# Ensure only prefork MPM is enabled and enable mod_rewrite/headers
+RUN a2dismod mpm_event mpm_worker 2>/dev/null || true \
+    && a2enmod mpm_prefork rewrite headers
 
 # Point DocumentRoot at Laravel's public/ directory
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
