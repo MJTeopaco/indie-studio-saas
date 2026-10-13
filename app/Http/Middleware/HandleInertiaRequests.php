@@ -156,13 +156,23 @@ class HandleInertiaRequests extends Middleware
 
             // Share total inbox/notification count (reviews pending + unstarted tasks)
             'inboxNotificationCount' => function () use ($request) {
-                return $this->getInboxUnreadCounts($request->user())['total'];
+                return $this->getInboxUnreadStats($request)['total'];
             },
 
             'inboxUnreadBreakdown' => function () use ($request) {
-                return $this->getInboxUnreadCounts($request->user());
+                return $this->getInboxUnreadStats($request);
             },
         ];
+    }
+
+    /**
+     * Helper for request-based stats.
+     *
+     * @return array{notifications: int, messages: int, total: int}
+     */
+    public function getInboxUnreadStats(Request $request): array
+    {
+        return self::getInboxUnreadCounts($request->user());
     }
 
     /**
@@ -172,24 +182,41 @@ class HandleInertiaRequests extends Middleware
      */
     public static function getInboxUnreadCounts(?User $user): array
     {
+        $default = ['notifications' => 0, 'messages' => 0, 'total' => 0];
         if (! tenant() || ! $user) {
-            return ['notifications' => 0, 'messages' => 0, 'total' => 0];
+            return $default;
         }
 
         try {
-            $readNotificationIds = Schema::hasTable('notification_reads')
-                ? NotificationRead::where('user_id', $user->id)->pluck('notification_id')->flip()->all()
-                : [];
+            $readSet = [];
+            if (Schema::hasTable('notification_reads')) {
+                $nrIds = NotificationRead::where('user_id', $user->id)->pluck('notification_id')->all();
+                foreach ($nrIds as $nid) {
+                    $readSet[$nid] = true;
+                    $readSet["notif:{$nid}"] = true;
+                }
+            }
+            if (Schema::hasTable('channel_reads')) {
+                $crIds = ChannelRead::where('user_id', $user->id)
+                    ->where('channel_id', 'like', 'notif:%')
+                    ->pluck('channel_id')
+                    ->all();
+                foreach ($crIds as $cid) {
+                    $readSet[$cid] = true;
+                    $readSet[substr($cid, 6)] = true;
+                }
+            }
 
-            $reviewTasks = Task::where('reviewer_user_id', $user->id)
+            $reviewTasksCount = Task::where('reviewer_user_id', $user->id)
                 ->where(function ($q) {
                     $q->where('status', 'review')
                         ->orWhere('sprint_status', 'waiting_for_review');
                 })
-                ->get(['id']);
-            $reviewTasksCount = $reviewTasks->filter(fn ($t) => ! isset($readNotificationIds["task-{$t->id}-review_request"]))->count();
+                ->pluck('id')
+                ->filter(fn ($id) => empty($readSet["task-{$id}-review_request"]))
+                ->count();
 
-            $unstartedTasks = Task::where(function ($q) use ($user) {
+            $unstartedTasksCount = Task::where(function ($q) use ($user) {
                 $q->where('assigned_user_id', $user->id);
 
                 if (Schema::hasTable('assignments')) {
@@ -205,8 +232,9 @@ class HandleInertiaRequests extends Middleware
                     $q->where('status', 'todo')
                         ->orWhere('sprint_status', 'ready_to_start');
                 })
-                ->get(['id']);
-            $unstartedTasksCount = $unstartedTasks->filter(fn ($t) => ! isset($readNotificationIds["task-{$t->id}-task_assigned"]))->count();
+                ->pluck('id')
+                ->filter(fn ($id) => empty($readSet["task-{$id}-task_assigned"]))
+                ->count();
 
             // Overdue and stuck alerts
             $alertTasksCount = 0;
@@ -225,32 +253,37 @@ class HandleInertiaRequests extends Middleware
                 ->get(['id', 'status', 'sprint_status', 'days_until_deadline']);
 
             foreach ($myActiveTasks as $at) {
-                if ($at->days_until_deadline !== null && $at->days_until_deadline < 0 && ! isset($readNotificationIds["task-{$at->id}-overdue"])) {
+                if ($at->days_until_deadline !== null && $at->days_until_deadline < 0 && empty($readSet["task-{$at->id}-overdue"])) {
                     $alertTasksCount++;
                 }
-                if (($at->sprint_status === 'stuck' || $at->status === 'stuck') && ! isset($readNotificationIds["task-{$at->id}-stuck"])) {
+                if (($at->sprint_status === 'stuck' || $at->status === 'stuck') && empty($readSet["task-{$at->id}-stuck"])) {
                     $alertTasksCount++;
                 }
             }
 
             // Pending estimates bundle notification
-            $pendingEstimatesNotification = 0;
-            if (! isset($readNotificationIds['estimates-pending'])) {
+            $pendingEstimatesNotif = 0;
+            if (empty($readSet['estimates-pending'])) {
                 try {
-                    $hasEstimates = Task::where('story_points_locked', false)
+                    $hasPending = Task::where('story_points_locked', false)
                         ->where('needs_estimate_review', false)
-                        ->get(['id', 'assigned_user_id', 'expected_estimators'])
-                        ->filter(fn ($t) => empty($t->expected_estimators)
-                            ? $t->assigned_user_id === $user->id
-                            : in_array($user->id, $t->expected_estimators ?? [])
-                        )
-                        ->filter(fn ($t) => ! TaskEstimateSubmission::where('task_id', $t->id)
-                            ->where('developer_id', $user->id)
-                            ->exists()
-                        )
-                        ->isNotEmpty();
-                    if ($hasEstimates) {
-                        $pendingEstimatesNotification = 1;
+                        ->get()
+                        ->contains(function ($task) use ($user) {
+                            $isEstimator = empty($task->expected_estimators)
+                                ? $task->assigned_user_id === $user->id
+                                : in_array($user->id, $task->expected_estimators);
+
+                            if (! $isEstimator) {
+                                return false;
+                            }
+
+                            return ! TaskEstimateSubmission::where('task_id', $task->id)
+                                ->where('developer_id', $user->id)
+                                ->exists();
+                        });
+
+                    if ($hasPending) {
+                        $pendingEstimatesNotif = 1;
                     }
                 } catch (\Exception $e) {
                 }
@@ -276,10 +309,10 @@ class HandleInertiaRequests extends Middleware
                     ->where('created_at', '>=', now()->subDays(5))
                     ->get();
 
-                $messageNotifCount = $messages->filter(function ($msg) use ($userReads, $readNotificationIds) {
-                    if (isset($readNotificationIds["msg-{$msg->id}"])
-                        || isset($readNotificationIds["channel-{$msg->id}"])
-                        || isset($readNotificationIds["mention-{$msg->id}"])) {
+                $messageNotifCount = $messages->filter(function ($msg) use ($userReads, $readSet) {
+                    if (! empty($readSet["msg-{$msg->id}"])
+                        || ! empty($readSet["channel-{$msg->id}"])
+                        || ! empty($readSet["mention-{$msg->id}"])) {
                         return false;
                     }
 
@@ -319,23 +352,23 @@ class HandleInertiaRequests extends Middleware
                                 ->where('user_id', '!=', $user->id);
                         }
 
-                        $pendingLeaveReqs = $leaveQuery->get(['id']);
-                        $pendingLeaveCount = $pendingLeaveReqs->filter(fn ($r) => ! isset($readNotificationIds["leave-req-{$r->id}"]))->count();
+                        $pendingLeaveCount = $leaveQuery->pluck('id')
+                            ->filter(fn ($id) => empty($readSet["leave-req-{$id}"]))
+                            ->count();
                     }
                 } catch (\Exception $e) {
                 }
             }
 
-            $systemNotifCount = $reviewTasksCount + $unstartedTasksCount + $pendingLeaveCount + $alertTasksCount + $pendingEstimatesNotification;
-            $notificationsCount = $systemNotifCount + $messageNotifCount;
+            $notificationsCount = $reviewTasksCount + $unstartedTasksCount + $pendingLeaveCount + $alertTasksCount + $pendingEstimatesNotif;
 
             return [
                 'notifications' => $notificationsCount,
                 'messages' => $messageNotifCount,
-                'total' => $notificationsCount,
+                'total' => $notificationsCount + $messageNotifCount,
             ];
         } catch (\Exception $e) {
-            return ['notifications' => 0, 'messages' => 0, 'total' => 0];
+            return $default;
         }
     }
 }

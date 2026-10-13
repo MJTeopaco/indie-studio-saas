@@ -33,6 +33,7 @@ const STATUS_MAP = {
     review:      { label: 'In Review',   dot: 'bg-amber-500',   text: 'text-amber-600 dark:text-amber-400' },
     in_review:   { label: 'In Review',   dot: 'bg-amber-500',   text: 'text-amber-600 dark:text-amber-400' },
     completed:   { label: 'Completed',   dot: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' },
+    stuck:       { label: 'Stuck',       dot: 'bg-rose-500',    text: 'text-rose-600 dark:text-rose-400' },
 };
 
 function StatusCell({ status }) {

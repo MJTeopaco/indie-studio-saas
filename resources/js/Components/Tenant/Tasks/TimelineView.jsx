@@ -89,6 +89,7 @@ export default function TimelineView({ tasks = [], onTaskClick }) {
         review:      'bg-amber-500',
         in_review:   'bg-amber-500',
         completed:   'bg-emerald-500',
+        stuck:       'bg-rose-500',
     };
 
     // Group tasks by client
@@ -119,6 +120,7 @@ export default function TimelineView({ tasks = [], onTaskClick }) {
                     <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-indigo-500 inline-block" /> In Progress</span>
                     <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-amber-500 inline-block" /> In Review</span>
                     <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-gray-300 dark:bg-slate-600 inline-block" /> To Do</span>
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-rose-500 inline-block" /> Stuck</span>
                 </div>
             </div>
 

@@ -925,8 +925,19 @@ export default function Inbox({
             const url = new URL(window.location.href);
             url.searchParams.set('tab', newTab);
             window.history.replaceState({}, '', url.toString());
+            window.dispatchEvent(new CustomEvent('inbox-tab-changed', { detail: { tab: newTab } }));
         }
     }, []);
+
+    useEffect(() => {
+        const handleInboxTabEvent = (e) => {
+            if (e.detail?.tab && e.detail.tab !== activeTab) {
+                setActiveTab(e.detail.tab);
+            }
+        };
+        window.addEventListener('inbox-tab-changed', handleInboxTabEvent);
+        return () => window.removeEventListener('inbox-tab-changed', handleInboxTabEvent);
+    }, [activeTab]);
 
     // Sync tab when navigating via Sidebar dropdown or browser history
     useEffect(() => {
@@ -962,6 +973,8 @@ export default function Inbox({
     );
     const [selectedTask, setSelectedTask] = useState(null);
     const [detailModalOpen, setDetailModalOpen] = useState(false);
+    const [quickReplyText, setQuickReplyText] = useState('');
+    const [quickReplySuccess, setQuickReplySuccess] = useState(false);
 
     // Leave approval states
     const [leaveActionProcessingId, setLeaveActionProcessingId] = useState(null);
@@ -1061,7 +1074,11 @@ export default function Inbox({
             }));
         }
 
-        axios.post(`/studio/${workspaceSlug}/notifications/${id}/unread`).catch(() => {});
+        axios.post(`/studio/${workspaceSlug}/notifications/${id}/unread`)
+            .then(() => {
+                router.reload({ only: ['inboxNotificationCount', 'inboxUnreadBreakdown'] });
+            })
+            .catch(() => {});
     };
 
     const toggleRead = (id, currentRead, e) => {
@@ -1073,7 +1090,7 @@ export default function Inbox({
         }
     };
 
-    const markAllAsRead = () => {
+    const markAllAsRead = async () => {
         setNotificationsList(prev => prev.map(n => ({ ...n, read: true })));
         setUnreadCounts({});
 
@@ -1243,6 +1260,7 @@ export default function Inbox({
     const photoInputRef = useRef(null);
     const chatEndRef = useRef(null);
     const chatContainerRef = useRef(null);
+    const isInitialLoadRef = useRef(true);
     const [showScrollDown, setShowScrollDown] = useState(false);
     const [newMessagesWhileScrolled, setNewMessagesWhileScrolled] = useState(0);
     const isInitialChatOpenRef = useRef(true);
@@ -1457,6 +1475,7 @@ export default function Inbox({
             return;
         }
         isInitialChatOpenRef.current = true;
+        isInitialLoadRef.current = true;
         setMessages([]);
         setLastId(null);
         setReplyingTo(null);
@@ -1572,6 +1591,11 @@ export default function Inbox({
     const handleChatScroll = useCallback(() => {
         const el = chatContainerRef.current;
         if (!el) return;
+        if (isInitialLoadRef.current) {
+            el.scrollTop = el.scrollHeight;
+            isInitialLoadRef.current = false;
+            return;
+        }
         const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
         if (distFromBottom > 140) {
             setShowScrollDown(true);
@@ -1580,6 +1604,13 @@ export default function Inbox({
             setNewMessagesWhileScrolled(0);
         }
     }, []);
+
+    // Keep parent layout scrolled to top so child chat elements never push ancestor containers
+    useEffect(() => {
+        const mainEl = document.getElementById('main-content');
+        if (mainEl && mainEl.scrollTop > 0) mainEl.scrollTop = 0;
+        if (typeof window !== 'undefined' && window.scrollY > 0) window.scrollTo(0, 0);
+    }, [activeTab, selectedChat?.id]);
 
     // ── Load Channel Shared Assets ───────────────────────────────────────────
     const loadAssets = useCallback(async (channelId) => {
@@ -1947,7 +1978,7 @@ export default function Inbox({
     // ── Jump to chat from notification ───────────────────────────────────────
     const handleOpenNotificationChat = (notif) => {
         if (!notif?.channel_id) return;
-        setActiveTab('messages');
+        handleTabChange('messages');
         const isDm = notif.channel_id.startsWith('dm-');
         if (isDm) {
             openChat({
@@ -1972,6 +2003,7 @@ export default function Inbox({
     const handleSendQuickReply = () => {
         if (!quickReplyText.trim()) return;
         setQuickReplySuccess(true);
+        showToast('Quick note saved.', 'success');
         setTimeout(() => { setQuickReplySuccess(false); setQuickReplyText(''); }, 2000);
     };
 
@@ -1998,7 +2030,7 @@ export default function Inbox({
     };
 
     return (
-        <TenantLayout studioName={studio.name}>
+        <TenantLayout studioName={studio?.name || 'Studio'}>
             <Head title="Inbox • SprintStudio" />
 
             {channelToDelete && (
@@ -2039,7 +2071,7 @@ export default function Inbox({
             <div className="flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/60 dark:bg-slate-950 text-slate-800 dark:text-slate-100">
 
                 {/* ── Top Header ── */}
-                <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0 z-10 shadow-2xs">
+                <div className="shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 z-20 shadow-2xs">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
@@ -2069,7 +2101,7 @@ export default function Inbox({
                                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
                                         {activeTab === 'notifications'
                                             ? 'Review requests, assignments, approvals & studio updates'
-                                            : 'Channels and team direct conversations'}
+                                             : 'Channels and team direct conversations'}
                                     </p>
                                 </div>
                             </div>
@@ -2080,8 +2112,8 @@ export default function Inbox({
                                     <button
                                         type="button"
                                         onClick={() => handleTabChange('notifications')}
-                                        className={`relative flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${activeTab === 'notifications' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
-                                        <Bell className="w-3.5 h-3.5 text-slate-500" />
+                                        className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'notifications' ? 'bg-white dark:bg-slate-900 text-brand shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+                                        <Bell className="w-3.5 h-3.5" />
                                         <span>Notifications</span>
                                         {unreadCount > 0 && (
                                             <span className="w-1.5 h-1.5 rounded-full bg-brand" />
@@ -2091,8 +2123,8 @@ export default function Inbox({
                                     <button
                                         type="button"
                                         onClick={() => handleTabChange('messages')}
-                                        className={`relative flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${activeTab === 'messages' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
-                                        <MessageSquare className="w-3.5 h-3.5 text-slate-500" />
+                                        className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'messages' ? 'bg-white dark:bg-slate-900 text-brand shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+                                        <MessageSquare className="w-3.5 h-3.5" />
                                         <span>Team Messages</span>
                                         {totalUnreadMessages > 0 && (
                                             <span className="w-1.5 h-1.5 rounded-full bg-brand" />
@@ -2195,7 +2227,7 @@ export default function Inbox({
                                 </div>
 
                                 {/* Notification List */}
-                                <div className="divide-y divide-slate-100 dark:divide-slate-800/80 overflow-y-auto flex-1 p-1">
+                                <div className="divide-y divide-slate-100 dark:divide-slate-800/80 overflow-y-auto flex-1 min-h-0 p-1">
                                     {filteredNotifications.length === 0 ? (
                                         <div className="py-20 px-6 text-center flex flex-col items-center gap-2.5">
                                             <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
@@ -2218,6 +2250,7 @@ export default function Inbox({
                                                     key={notif.id}
                                                     onClick={() => {
                                                         setSelectedNotifId(notif.id);
+                                                        setQuickReplyText('');
                                                         if (!notif.read) {
                                                             markAsRead(notif.id);
                                                         }
@@ -2319,7 +2352,7 @@ export default function Inbox({
                             {/* Right — Detail / Context Inspection Pane */}
                             <div className="lg:col-span-7 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full min-h-0">
                                 {activeNotification ? (
-                                    <div className="flex flex-col h-full overflow-y-auto">
+                                    <div className="flex flex-col h-full overflow-y-auto min-h-0">
                                         {/* Inspection Header */}
                                         <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
                                             <div className="flex items-start justify-between gap-4">
@@ -2630,7 +2663,7 @@ export default function Inbox({
                         TEAM MESSAGES TAB
                     ================================================================ */}
                     {activeTab === 'messages' && (
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0 items-stretch h-full">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 min-h-0 h-full">
 
                             {/* Left — Sidebar */}
                             <div className="lg:col-span-4 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full min-h-0">
@@ -2668,7 +2701,7 @@ export default function Inbox({
                                     </div>
                                 </div>
 
-                                <div className={`${SCROLL_CLS} flex-1 p-3 space-y-4`}>
+                                <div className={`${SCROLL_CLS} flex-1 min-h-0 p-3 space-y-4`}>
 
                                     {/* Channels */}
                                     <div>
@@ -2958,7 +2991,7 @@ export default function Inbox({
 
                                 {/* Messages Feed */}
                                 <div ref={chatContainerRef} onScroll={handleChatScroll}
-                                    className={`${SCROLL_CLS} flex-1 p-6 space-y-4`}>
+                                    className={`${SCROLL_CLS} flex-1 min-h-0 p-6 space-y-4`}>
 
                                     {loadingMessages ? (
                                         <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-400">

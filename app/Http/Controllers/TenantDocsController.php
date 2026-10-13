@@ -312,9 +312,10 @@ class TenantDocsController extends Controller
     /**
      * Delete an archived report.
      */
-    public function deleteReport($tenant, $report)
+    public function deleteReport($report = null, $extra = null)
     {
-        $rep = Report::findOrFail($report);
+        $targetReportId = $extra ?? $report ?? request()->route('report');
+        $rep = Report::findOrFail($targetReportId);
         if ($rep->created_by_user_id && (int) $rep->created_by_user_id !== (int) auth()->id()) {
             abort(403, 'You do not have permission to delete this archived report.');
         }

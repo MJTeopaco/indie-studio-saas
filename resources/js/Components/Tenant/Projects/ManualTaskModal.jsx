@@ -8,6 +8,7 @@ const STATUSES = [
     { value: 'in_progress', label: 'In Progress' },
     { value: 'review', label: 'In Review' },
     { value: 'completed', label: 'Done' },
+    { value: 'stuck', label: 'Stuck' },
 ];
 
 import { TASK_CLASSIFICATIONS_GROUPED } from '@/constants';

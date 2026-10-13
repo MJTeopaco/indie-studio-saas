@@ -916,12 +916,24 @@ class TenantDashboardController extends Controller
         $studio = Studio::find(tenant('id'));
         $user = auth()->user();
 
+        $readNotifIds = [];
+        if (Schema::hasTable('channel_reads')) {
+            $readNotifIds = ChannelRead::where('user_id', $user->id)
+                ->where('channel_id', 'like', 'notif:%')
+                ->pluck('channel_id')
+                ->map(fn ($cid) => substr($cid, 6))
+                ->all();
+        }
+
         $myTasks = [];
         $notifications = [];
 
         $readNotificationIds = Schema::hasTable('notification_reads')
             ? NotificationRead::where('user_id', $user->id)->pluck('notification_id')->all()
             : [];
+
+        $readNotificationIds = array_values(array_unique(array_merge($readNotificationIds, $readNotifIds)));
+        $readNotifIds = $readNotificationIds;
 
         try {
             $assignedTasks = Task::with([
@@ -1104,16 +1116,21 @@ class TenantDashboardController extends Controller
                     })->values();
 
                     $calendarDays = $start && $end ? $start->diffInDays($end) + 1 : 0;
+                    $isEmergency = ($req->request_type ?? 'leave') === 'emergency';
                     $roleLabel = $req->requester_role === 'leader' ? 'Team Leader' : 'Team Member';
                     $notifId = 'leave-req-'.$req->id;
+                    $title = $isEmergency ? "🚨 Emergency Declared: {$reqUser->name}" : "Leave Request: {$reqUser->name}";
+                    $body = $isEmergency
+                        ? "{$reqUser->name} ({$roleLabel}) declared an operational emergency: \"{$req->reason}\"".($end ? ' (Est. return: '.$end->format('M d, Y').')' : '')
+                        : "{$reqUser->name} ({$roleLabel}) requested absence from ".($start ? $start->format('M d, Y') : '').' to '.($end ? $end->format('M d, Y') : '')." ({$calendarDays} calendar day".($calendarDays === 1 ? '' : 's').').'.($req->reason ? " Handover: {$req->reason}" : '');
 
                     return [
                         'id' => $notifId,
-                        'type' => 'leave_request',
-                        'title' => "Leave Request: {$reqUser->name}",
-                        'body' => "{$reqUser->name} ({$roleLabel}) requested absence from ".($start ? $start->format('M d, Y') : '').' to '.($end ? $end->format('M d, Y') : '')." ({$calendarDays} calendar day".($calendarDays === 1 ? '' : 's').').'.($req->reason ? " Handover: {$req->reason}" : ''),
-                        'icon' => 'calendar',
-                        'color' => 'amber',
+                        'type' => $isEmergency ? 'emergency_declaration' : 'leave_request',
+                        'title' => $title,
+                        'body' => $body,
+                        'icon' => $isEmergency ? 'ban' : 'calendar',
+                        'color' => $isEmergency ? 'rose' : 'amber',
                         'priority' => null,
                         'task_id' => null,
                         'task_title' => null,
@@ -1602,23 +1619,73 @@ class TenantDashboardController extends Controller
     {
         $user = $request->user();
 
-        if (Schema::hasTable('channel_reads') && Schema::hasTable('channel_messages')) {
-            $activeChannels = ChannelMessage::where('created_at', '>=', now()->subDays(14))
-                ->select('channel_id', DB::raw('MAX(id) as max_id'))
-                ->groupBy('channel_id')
-                ->get();
+        if (Schema::hasTable('channel_reads')) {
+            if (Schema::hasTable('channel_messages')) {
+                $activeChannels = ChannelMessage::where('created_at', '>=', now()->subDays(14))
+                    ->select('channel_id', DB::raw('MAX(id) as max_id'))
+                    ->groupBy('channel_id')
+                    ->get();
 
-            foreach ($activeChannels as $ch) {
+                foreach ($activeChannels as $ch) {
+                    ChannelRead::updateOrCreate(
+                        [
+                            'channel_id' => $ch->channel_id,
+                            'user_id' => $user->id,
+                        ],
+                        [
+                            'last_read_message_id' => $ch->max_id,
+                            'last_read_at' => now(),
+                        ]
+                    );
+                }
+            }
+
+            if (Schema::hasTable('tasks')) {
+                $assignedTaskIds = Task::where('assigned_user_id', $user->id)
+                    ->orWhere('reviewer_user_id', $user->id)
+                    ->pluck('id');
+
+                foreach ($assignedTaskIds as $tId) {
+                    foreach (['task_assigned', 'review_request', 'overdue', 'stuck'] as $tType) {
+                        ChannelRead::updateOrCreate(
+                            [
+                                'channel_id' => "notif:task-{$tId}-{$tType}",
+                                'user_id' => $user->id,
+                            ],
+                            [
+                                'last_read_at' => now(),
+                            ]
+                        );
+                    }
+                }
+
                 ChannelRead::updateOrCreate(
                     [
-                        'channel_id' => $ch->channel_id,
+                        'channel_id' => 'notif:estimates-pending',
                         'user_id' => $user->id,
                     ],
                     [
-                        'last_read_message_id' => $ch->max_id,
                         'last_read_at' => now(),
                     ]
                 );
+            }
+
+            if (Schema::hasTable('leave_requests')) {
+                $pendingLeaveIds = LeaveRequest::where('studio_id', tenant('id'))
+                    ->where('status', 'pending')
+                    ->pluck('id');
+
+                foreach ($pendingLeaveIds as $lId) {
+                    ChannelRead::updateOrCreate(
+                        [
+                            'channel_id' => "notif:leave-req-{$lId}",
+                            'user_id' => $user->id,
+                        ],
+                        [
+                            'last_read_at' => now(),
+                        ]
+                    );
+                }
             }
         }
 
@@ -1708,6 +1775,16 @@ class TenantDashboardController extends Controller
                     ]
                 );
             }
+        } elseif (Schema::hasTable('channel_reads')) {
+            ChannelRead::updateOrCreate(
+                [
+                    'channel_id' => 'notif:'.$targetId,
+                    'user_id' => $user->id,
+                ],
+                [
+                    'last_read_at' => now(),
+                ]
+            );
         }
 
         if (Schema::hasTable('notification_reads')) {
@@ -1733,6 +1810,22 @@ class TenantDashboardController extends Controller
     {
         $user = $request->user();
         $targetId = $id ?? $tenant;
+
+        if (Schema::hasTable('channel_reads')) {
+            if (str_starts_with($targetId, 'msg-') || str_starts_with($targetId, 'channel-') || str_starts_with($targetId, 'mention-')) {
+                $msgId = (int) preg_replace('/^[a-z]+-/', '', $targetId);
+                $msg = ChannelMessage::find($msgId);
+                if ($msg) {
+                    ChannelRead::where('channel_id', $msg->channel_id)
+                        ->where('user_id', $user->id)
+                        ->delete();
+                }
+            } else {
+                ChannelRead::where('channel_id', 'notif:'.$targetId)
+                    ->where('user_id', $user->id)
+                    ->delete();
+            }
+        }
 
         if (Schema::hasTable('notification_reads')) {
             NotificationRead::where('user_id', $user->id)

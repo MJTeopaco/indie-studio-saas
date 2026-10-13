@@ -11,18 +11,24 @@ class LeaveRequest extends Model
 {
     use CentralConnection, HasFactory;
 
+    const TYPE_LEAVE = 'leave';
+
+    const TYPE_EMERGENCY = 'emergency';
+
     protected $table = 'leave_requests';
 
     protected $fillable = [
         'studio_id',
         'user_id',
         'requester_role',
+        'request_type',
         'leave_start_date',
         'leave_end_date',
         'reason',
         'status',
         'reviewed_by',
         'reviewed_at',
+        'resolved_at',
         'rejection_reason',
     ];
 
@@ -32,6 +38,7 @@ class LeaveRequest extends Model
             'leave_start_date' => 'date:Y-m-d',
             'leave_end_date' => 'date:Y-m-d',
             'reviewed_at' => 'datetime',
+            'resolved_at' => 'datetime',
         ];
     }
 
@@ -79,9 +86,36 @@ class LeaveRequest extends Model
         return $this->status === 'cancelled';
     }
 
+    public function isEmergency(): bool
+    {
+        return $this->request_type === self::TYPE_EMERGENCY;
+    }
+
+    public function isLeave(): bool
+    {
+        return $this->request_type === self::TYPE_LEAVE;
+    }
+
     public function scopePending($query)
     {
         return $query->where('status', 'pending');
+    }
+
+    public function scopeEmergency($query)
+    {
+        return $query->where('request_type', self::TYPE_EMERGENCY);
+    }
+
+    public function scopeLeaveType($query)
+    {
+        return $query->where('request_type', self::TYPE_LEAVE);
+    }
+
+    public function scopeActiveEmergency($query)
+    {
+        return $query->where('request_type', self::TYPE_EMERGENCY)
+            ->where('status', 'approved')
+            ->whereNull('resolved_at');
     }
 
     public function scopeForStudio($query, string $studioId)
