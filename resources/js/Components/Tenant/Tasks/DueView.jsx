@@ -37,6 +37,7 @@ const STATUS_MAP = {
     review:      { label: 'In Review',   cls: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' },
     in_review:   { label: 'In Review',   cls: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' },
     completed:   { label: 'Completed',   cls: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' },
+    stuck:       { label: 'Stuck',       cls: 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' },
 };
 
 // ── Task Row ──────────────────────────────────────────────────────────────────
