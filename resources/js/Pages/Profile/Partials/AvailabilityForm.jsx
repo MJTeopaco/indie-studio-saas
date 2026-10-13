@@ -1,27 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { router } from '@inertiajs/react';
 import { 
-    Activity, 
     Clock, 
     ShieldAlert, 
     CalendarPlus, 
     Calendar, 
     Building2, 
-    AlertCircle, 
     CheckCircle2, 
     XCircle, 
     Loader2, 
-    Lock, 
     ArrowRight,
     History,
-    Sparkles,
-    AlertTriangle,
-    RotateCcw,
-    FileText
+    RotateCcw
 } from 'lucide-react';
 import { showToast } from '@/Components/SystemToast';
-import RequestLeaveModal from './RequestLeaveModal';
-import EmergencyModal from './EmergencyModal';
+import FileAbsenceModal from './FileAbsenceModal';
 
 export default function AvailabilityForm({
     user = {},
@@ -36,10 +29,26 @@ export default function AvailabilityForm({
         joinedStudios.length > 0 ? joinedStudios[0].id : ''
     );
 
-    // Modal states
-    const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
-    const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState(false);
+    // Modal state (Single unified modal)
+    const [isAbsenceModalOpen, setIsAbsenceModalOpen] = useState(false);
+    const [absenceInitialType, setAbsenceInitialType] = useState('leave');
     const [cancellingRequestId, setCancellingRequestId] = useState(null);
+
+    // Client-side pagination state for ledger
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 5;
+    const totalRecords = leaveHistory.length;
+    const totalPages = Math.ceil(totalRecords / pageSize) || 1;
+    const paginatedRecords = leaveHistory.slice(
+        (currentPage - 1) * pageSize, 
+        currentPage * pageSize
+    );
+
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [totalPages, currentPage]);
 
     // Extract pending leave and emergency requests from studios
     const pendingLeaveRequests = joinedStudios
@@ -60,8 +69,6 @@ export default function AvailabilityForm({
 
     const hasPendingEmergency = pendingEmergencyRequests.length > 0;
     const hasPendingLeave = pendingLeaveRequests.length > 0;
-    const isOnLeave = currentStatus === 'on_leave';
-    const isEmergency = currentStatus === 'emergency';
 
     // ── Instant Active Toggle / Break Leave Early / Resolve Emergency ──
     const handleInstantActiveToggle = () => {
@@ -97,19 +104,10 @@ export default function AvailabilityForm({
         });
     };
 
-    // ── Segmented Control Click Dispatcher ──
-    const handleSegmentClick = (type) => {
-        if (type === 'active') {
-            handleInstantActiveToggle();
-        } else if (type === 'on_leave') {
-            setIsLeaveModalOpen(true);
-        } else if (type === 'emergency') {
-            if (isEmergency) {
-                showToast('Your status is already set to Emergency. Click Active when the incident is resolved.', 'info');
-                return;
-            }
-            setIsEmergencyModalOpen(true);
-        }
+    // ── Open Unified Modal Helper ──
+    const handleOpenAbsenceModal = (type = 'leave') => {
+        setAbsenceInitialType(type);
+        setIsAbsenceModalOpen(true);
     };
 
     // ── Direct One-Click Withdraw Request (Leave or Emergency) ──
@@ -148,70 +146,61 @@ export default function AvailabilityForm({
     };
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-200">
+        <div className="space-y-6 animate-in fade-in duration-200">
             
-            {/* ── Page Header & Top Primary Actions ── */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+            {/* ── Page Header & Top Primary Action ── */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/90 dark:border-slate-800/90">
                 <div>
-                    <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
-                        <span>Availability & Status</span>
-                        <span className="px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-brand/10 text-brand dark:text-cyan-400 border border-brand/25">
-                            Vaultera Ops
-                        </span>
+                    <h1 className="font-heading text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+                        Availability & Status
                     </h1>
-                    <p className="text-sm text-slate-600 dark:text-slate-300 font-normal mt-1.5">
-                        Real-time deployment readiness, emergency governance, and audit ledger.
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        Manage your operational availability, scheduled leaves, and audit history.
                     </p>
                 </div>
 
-                {/* Primary Actions: "Declare Emergency" and "Request Leave" */}
-                <div className="flex items-center gap-3 shrink-0 flex-wrap">
+                {/* Single Primary Action Button */}
+                <div className="flex items-center gap-2">
                     <button
                         type="button"
-                        onClick={() => setIsEmergencyModalOpen(true)}
-                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 active:bg-rose-200/50 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-700 text-xs sm:text-sm font-bold shadow-2xs transition-all duration-150 cursor-pointer active:scale-[0.98]"
-                    >
-                        <ShieldAlert className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-                        <span>Declare Emergency</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() => setIsLeaveModalOpen(true)}
-                        className="inline-flex items-center gap-2 px-4.5 py-2.5 rounded-xl bg-brand hover:bg-brand-light active:bg-brand-dark text-white text-xs sm:text-sm font-bold shadow-xs hover:shadow-md transition-all duration-150 cursor-pointer active:scale-[0.98]"
+                        onClick={() => handleOpenAbsenceModal('leave')}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-brand hover:bg-brand-light active:bg-brand-dark text-white text-xs font-semibold shadow-2xs hover:shadow-xs transition-all duration-150 cursor-pointer"
                     >
                         <CalendarPlus className="w-4 h-4" />
-                        <span>Request Leave</span>
+                        <span>File Absence</span>
                     </button>
                 </div>
             </div>
 
-            {/* ── Operational Status Control Card ── */}
-            <div className="bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm p-6 sm:p-7 space-y-6">
+            {/* ── Operational Status Card (Read-Only Display) ── */}
+            <div className="bg-white dark:bg-[#0B0F17] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl shadow-2xs p-6 sm:p-7 space-y-5">
                 
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                {/* Header & Scope Row */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                        <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
-                            <span>Operational State</span>
+                        <div className="flex items-center gap-2">
+                            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                Operational State
+                            </h2>
                             {isUpdatingStatus && (
-                                <Loader2 className="w-4 h-4 animate-spin text-brand" />
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-brand" />
                             )}
-                        </h2>
-                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-medium mt-1">
-                            Real-time sprint readiness indicator with governed transitions.
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            Real-time sprint readiness and availability indicator.
                         </p>
                     </div>
 
                     {/* Scope Selector */}
                     {joinedStudios.length > 0 && (
-                        <div className="flex items-center gap-2.5">
-                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 font-mono uppercase tracking-wider">
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                                 Scope:
                             </span>
                             <select
                                 value={statusScope}
                                 onChange={(e) => setStatusScope(e.target.value)}
-                                className="text-xs sm:text-sm py-2 pl-3 pr-8 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-semibold cursor-pointer focus:ring-1 focus:ring-brand"
+                                className="text-xs py-1.5 pl-3 pr-8 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 font-semibold cursor-pointer focus:ring-1 focus:ring-brand"
                             >
                                 <option value="all">All Studios</option>
                                 <option value="specific">Specific Studio</option>
@@ -221,7 +210,7 @@ export default function AvailabilityForm({
                                 <select
                                     value={statusStudioId}
                                     onChange={(e) => setStatusStudioId(e.target.value)}
-                                    className="text-xs sm:text-sm py-2 pl-3 pr-8 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-semibold cursor-pointer max-w-[180px] truncate focus:ring-1 focus:ring-brand"
+                                    className="text-xs py-1.5 pl-3 pr-8 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 font-semibold cursor-pointer max-w-[170px] truncate focus:ring-1 focus:ring-brand"
                                 >
                                     {joinedStudios.map(s => (
                                         <option key={s.id} value={s.id}>{s.name}</option>
@@ -232,422 +221,324 @@ export default function AvailabilityForm({
                     )}
                 </div>
 
-                {/* ── High-Velocity Segmented Control ── */}
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-3 rounded-2xl bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800">
-                    
-                    <div className="inline-flex items-center gap-2 p-1.5 rounded-xl bg-white dark:bg-[#070A10] border border-slate-200 dark:border-slate-800 shadow-xs flex-wrap">
-                        
-                        {/* 1. Active Segment (Instant toggle / restores normal state) */}
-                        <button
-                            type="button"
-                            onClick={() => handleSegmentClick('active')}
-                            disabled={isUpdatingStatus}
-                            className={`flex items-center gap-2.5 px-4.5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-150 cursor-pointer ${
-                                currentStatus === 'active'
-                                    ? 'bg-emerald-500/15 text-emerald-900 dark:text-emerald-100 ring-1 ring-emerald-500/40 shadow-xs'
-                                    : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 font-semibold'
-                            }`}
-                        >
-                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 shadow-xs shadow-emerald-500/50" />
-                            <span>Active</span>
-                            {(isOnLeave || isEmergency) && (
-                                <span className="ml-1 text-[11px] font-mono font-bold uppercase text-emerald-800 dark:text-emerald-200 bg-emerald-500/20 px-2 py-0.5 rounded flex items-center gap-1 border border-emerald-500/30">
-                                    <RotateCcw className="w-3 h-3" />
-                                    Resume
-                                </span>
-                            )}
-                        </button>
+                {/* Read-Only Status Indicator Strip */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80">
+                    <div className="flex items-center gap-3">
+                        <div className="relative flex items-center justify-center">
+                            <span className={`w-3 h-3 rounded-full ${
+                                currentStatus === 'active' 
+                                    ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50' 
+                                    : currentStatus === 'on_leave'
+                                        ? 'bg-amber-500 shadow-xs shadow-amber-500/50'
+                                        : 'bg-rose-500 animate-pulse shadow-xs shadow-rose-500/50'
+                            }`} />
+                        </div>
 
-                        {/* 2. On Leave Segment (Modal trigger or Active State pill) */}
-                        {isOnLeave ? (
-                            <div className="flex items-center gap-2.5 px-4.5 py-2.5 rounded-lg text-xs sm:text-sm font-bold bg-amber-500/20 text-amber-950 dark:text-amber-100 ring-1 ring-amber-500/40 shadow-xs">
-                                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0 shadow-xs shadow-amber-500/50" />
-                                <span>On Leave</span>
-                                <Lock className="w-3.5 h-3.5 text-amber-700 dark:text-amber-300" />
-                                {user.leave_end_date && (
-                                    <span className="text-xs font-mono font-bold text-amber-900 dark:text-amber-200 ml-1">
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white capitalize">
+                                    {currentStatus === 'on_leave' ? 'On Leave' : currentStatus}
+                                </span>
+                                {currentStatus === 'on_leave' && user.leave_end_date && (
+                                    <span className="text-xs font-mono font-medium text-amber-700 dark:text-amber-300">
                                         (until {formatDate(user.leave_end_date)})
                                     </span>
                                 )}
                             </div>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={() => handleSegmentClick('on_leave')}
-                                className="flex items-center gap-2.5 px-4.5 py-2.5 rounded-lg text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-150 cursor-pointer"
-                            >
-                                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
-                                <span>On Leave</span>
-                            </button>
-                        )}
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                {currentStatus === 'active' && 'Available for sprint assignments and critical path tasks.'}
+                                {currentStatus === 'on_leave' && 'Approved scheduled absence. Conclude early whenever ready.'}
+                                {currentStatus === 'emergency' && 'Operational emergency active. Sprint leads have been alerted.'}
+                            </p>
+                        </div>
+                    </div>
 
-                        {/* 3. Emergency Segment (Governed Modal Trigger) */}
+                    {/* Contextual Action: Return to Active (Only rendered when not active) */}
+                    {currentStatus !== 'active' && (
                         <button
                             type="button"
-                            onClick={() => handleSegmentClick('emergency')}
-                            className={`flex items-center gap-2.5 px-4.5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-150 cursor-pointer ${
-                                isEmergency
-                                    ? 'bg-rose-500/20 text-rose-950 dark:text-rose-100 ring-1 ring-rose-500/40 shadow-xs'
-                                    : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 font-semibold'
-                            }`}
+                            onClick={handleInstantActiveToggle}
+                            disabled={isUpdatingStatus}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold shadow-2xs transition-all cursor-pointer shrink-0"
                         >
-                            <span className={`w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0 ${isEmergency ? 'animate-ping' : ''}`} />
-                            <span>Emergency</span>
-                            {hasPendingEmergency && !isEmergency && (
-                                <span className="ml-1 text-[11px] font-mono font-bold uppercase bg-rose-500/15 text-rose-700 dark:text-rose-300 px-2 py-0.5 rounded border border-rose-500/30">
-                                    Pending
-                                </span>
-                            )}
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Return to Active</span>
                         </button>
-
-                    </div>
-
-                    {/* Operational explanation note */}
-                    <div className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 font-medium px-2 leading-relaxed">
-                        {currentStatus === 'active' && (
-                            <span className="flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                                <span>Available for sprint assignments and critical path tasks.</span>
-                            </span>
-                        )}
-                        {currentStatus === 'emergency' && (
-                            <span className="text-rose-700 dark:text-rose-300 font-semibold flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 animate-pulse" />
-                                <span>Emergency active. Leads alerted. Click "Active" to resolve and resume.</span>
-                            </span>
-                        )}
-                        {currentStatus === 'on_leave' && (
-                            <span className="text-amber-800 dark:text-amber-200 font-semibold flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-                                <span>Approved scheduled absence. Click "Active" anytime to conclude leave early.</span>
-                            </span>
-                        )}
-                    </div>
+                    )}
                 </div>
 
-            </div>
-
-            {/* ── Operational Callouts Panel: Pending Emergencies & Leave Requests ── */}
-            {(hasPendingEmergency || hasPendingLeave) && (
-                <div className="space-y-4">
-                    
-                    {/* Pending Emergency Callout */}
-                    {hasPendingEmergency && pendingEmergencyRequests.map(req => (
-                        <div 
-                            key={`emergency-${req.id}`}
-                            className="p-5 rounded-2xl border-2 border-rose-400 dark:border-rose-600 bg-rose-50 dark:bg-rose-950/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs sm:text-sm shadow-xs"
-                        >
-                            <div className="flex items-start gap-3.5 min-w-0">
-                                <div className="w-9 h-9 rounded-xl bg-rose-500/20 text-rose-700 dark:text-rose-300 flex items-center justify-center shrink-0 mt-0.5">
-                                    <ShieldAlert className="w-5 h-5 animate-bounce" />
+                {/* Pending Request Alert Callouts (If any request is awaiting review) */}
+                {(hasPendingEmergency || hasPendingLeave) && (
+                    <div className="space-y-2 pt-1">
+                        {pendingEmergencyRequests.map(req => (
+                            <div key={`pending-em-${req.id}`} className="p-3.5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/70 dark:bg-rose-950/30 flex items-center justify-between gap-3 text-xs">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                    <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
+                                    <span className="font-semibold text-rose-950 dark:text-rose-200 truncate">
+                                        Emergency Declaration Pending Review ({req.studioName})
+                                    </span>
                                 </div>
-                                <div className="space-y-1.5 min-w-0">
-                                    <div className="flex items-center gap-2.5 flex-wrap">
-                                        <h3 className="font-heading font-extrabold text-sm sm:text-base text-rose-950 dark:text-rose-100">
-                                            Emergency Declaration Pending Review
-                                        </h3>
-                                        <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold uppercase bg-rose-200 dark:bg-rose-900/60 text-rose-900 dark:text-rose-200 border border-rose-300 dark:border-rose-700">
-                                            {req.studioName}
-                                        </span>
-                                        {req.created_at && (
-                                            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                                                ({req.created_at})
-                                            </span>
-                                        )}
-                                    </div>
-                                    <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-100 font-medium bg-white/90 dark:bg-slate-900/90 px-3.5 py-1.5 rounded-lg border border-rose-200 dark:border-rose-800 inline-block shadow-2xs">
-                                        "{req.reason}"
-                                    </p>
-                                    <p className="text-xs text-rose-900 dark:text-rose-200 font-semibold">
-                                        Routing: {req.requester_role === 'leader' ? 'Studio Owner' : 'Team Lead or Studio Owner'}. If the emergency has passed, you may self-withdraw.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="shrink-0 flex items-center justify-end">
                                 <button
                                     type="button"
                                     disabled={cancellingRequestId === req.id}
                                     onClick={() => handleWithdrawRequest(req.id, 'emergency')}
-                                    className="text-xs sm:text-sm font-bold px-4 py-2 rounded-xl text-rose-700 dark:text-rose-200 bg-white dark:bg-slate-900 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-300 dark:border-rose-700 transition-colors cursor-pointer flex items-center gap-2 disabled:opacity-50 shadow-2xs"
+                                    className="font-bold text-rose-700 dark:text-rose-300 hover:underline cursor-pointer shrink-0"
                                 >
-                                    {cancellingRequestId === req.id ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                        <XCircle className="w-4 h-4 text-rose-600" />
-                                    )}
-                                    <span>Withdraw Declaration</span>
+                                    Withdraw
                                 </button>
                             </div>
-                        </div>
-                    ))}
+                        ))}
 
-                    {/* Pending Leave Callout */}
-                    {hasPendingLeave && pendingLeaveRequests.map(req => (
-                        <div 
-                            key={`leave-${req.id}`}
-                            className="p-5 rounded-2xl border-2 border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs sm:text-sm shadow-xs"
-                        >
-                            <div className="flex items-start gap-3.5 min-w-0">
-                                <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 mt-0.5">
-                                    <Clock className="w-5 h-5 animate-pulse" />
+                        {pendingLeaveRequests.map(req => (
+                            <div key={`pending-lv-${req.id}`} className="p-3.5 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/30 flex items-center justify-between gap-3 text-xs">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                    <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                                    <span className="font-semibold text-amber-950 dark:text-amber-200 truncate">
+                                        Leave Request Pending Review ({req.studioName}: {formatDate(req.leave_start_date)} → {formatDate(req.leave_end_date)})
+                                    </span>
                                 </div>
-                                <div className="space-y-1.5 min-w-0">
-                                    <div className="flex items-center gap-2.5 flex-wrap">
-                                        <h3 className="font-heading font-extrabold text-sm sm:text-base text-amber-950 dark:text-amber-100">
-                                            Leave Request Pending Review
-                                        </h3>
-                                        <span className="font-mono text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                                            <Calendar className="w-4 h-4 text-amber-600" />
-                                            {formatDate(req.leave_start_date)} → {formatDate(req.leave_end_date)}
-                                        </span>
-                                        <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold uppercase bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
-                                            {req.studioName}
-                                        </span>
-                                        {req.created_at && (
-                                            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                                                ({req.created_at})
-                                            </span>
-                                        )}
-                                    </div>
-                                    {req.reason && (
-                                        <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-100 font-medium bg-white/90 dark:bg-slate-900/90 px-3.5 py-1.5 rounded-lg border border-amber-200 dark:border-amber-800 inline-block shadow-2xs">
-                                            "{req.reason}"
-                                        </p>
-                                    )}
-                                    <p className="text-xs text-amber-900 dark:text-amber-200 font-semibold">
-                                        Routing: {req.requester_role === 'leader' ? 'Studio Owner' : 'Team Lead or Studio Owner'}. Your sprint availability remains active until approved.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="shrink-0 flex items-center justify-end">
                                 <button
                                     type="button"
                                     disabled={cancellingRequestId === req.id}
                                     onClick={() => handleWithdrawRequest(req.id, 'leave')}
-                                    className="text-xs sm:text-sm font-bold px-4 py-2 rounded-xl text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-slate-300 dark:border-slate-700 hover:border-rose-300 transition-colors cursor-pointer flex items-center gap-2 disabled:opacity-50 shadow-2xs"
+                                    className="font-bold text-amber-800 dark:text-amber-300 hover:underline cursor-pointer shrink-0"
                                 >
-                                    {cancellingRequestId === req.id ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                        <XCircle className="w-4 h-4 text-slate-400 hover:text-rose-500" />
-                                    )}
-                                    <span>Withdraw Request</span>
+                                    Withdraw
                                 </button>
                             </div>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
+                )}
 
-                </div>
-            )}
+            </div>
 
-            {/* ── Leave History Ledger ── */}
+            {/* ── Availability & Leave Ledger (Paginated) ── */}
             <div className="space-y-4">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                     <div>
-                        <h2 className="text-lg font-heading font-extrabold text-slate-900 dark:text-white flex items-center gap-2.5">
-                            <History className="w-5 h-5 text-brand" />
+                        <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <History className="w-4 h-4 text-brand" />
                             <span>Availability & Leave Ledger</span>
                         </h2>
-                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-medium mt-1">
-                            Comprehensive audit trail of operational emergencies, planned leaves, and withdrawals.
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            Audit trail of submitted leaves, emergency declarations, and withdrawals.
                         </p>
                     </div>
 
-                    <span className="text-xs sm:text-sm font-mono font-bold px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 shadow-2xs">
-                        {leaveHistory.length} {leaveHistory.length === 1 ? 'record' : 'records'}
+                    <span className="text-xs font-mono font-medium text-slate-500 dark:text-slate-400">
+                        {totalRecords} {totalRecords === 1 ? 'record' : 'records'}
                     </span>
                 </div>
 
                 {/* Ledger Table Container */}
-                <div className="bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-                    {leaveHistory.length === 0 ? (
-                        <div className="py-16 px-6 flex flex-col items-center justify-center text-center space-y-3.5">
-                            <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
-                                <Calendar className="w-7 h-7" />
+                <div className="bg-white dark:bg-[#0B0F17] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl shadow-2xs overflow-hidden">
+                    {totalRecords === 0 ? (
+                        <div className="py-14 px-6 flex flex-col items-center justify-center text-center space-y-2">
+                            <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800/60 flex items-center justify-center text-slate-400">
+                                <Calendar className="w-5 h-5" />
                             </div>
-                            <div>
-                                <h4 className="text-base font-heading font-bold text-slate-900 dark:text-white">
-                                    No Ledger Records Found
-                                </h4>
-                                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-sm mt-1">
-                                    Submitted leave requests and operational emergency declarations will appear in this ledger.
-                                </p>
-                            </div>
-                            <div className="flex items-center gap-3 pt-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsLeaveModalOpen(true)}
-                                    className="text-xs sm:text-sm font-bold text-brand hover:underline cursor-pointer"
-                                >
-                                    Request leave →
-                                </button>
-                                <span className="text-slate-300 dark:text-slate-700">•</span>
-                                <button
-                                    type="button"
-                                    onClick={() => setIsEmergencyModalOpen(true)}
-                                    className="text-xs sm:text-sm font-bold text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
-                                >
-                                    Declare emergency →
-                                </button>
-                            </div>
+                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                                No Ledger Records Found
+                            </p>
+                            <p className="text-[11px] text-slate-400 dark:text-slate-500 max-w-xs">
+                                Submitted leave requests and emergency declarations will appear in this ledger.
+                            </p>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-xs sm:text-sm">
-                                <thead>
-                                    <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-100/90 dark:bg-slate-900/90 text-slate-800 dark:text-slate-200 font-mono text-xs uppercase tracking-wider font-bold">
-                                        <th scope="col" className="py-4 px-4 font-bold">Type</th>
-                                        <th scope="col" className="py-4 px-4 font-bold">Date Range / Duration</th>
-                                        <th scope="col" className="py-4 px-4 font-bold">Studio</th>
-                                        <th scope="col" className="py-4 px-4 font-bold">Reason & Context</th>
-                                        <th scope="col" className="py-4 px-4 font-bold">Routing</th>
-                                        <th scope="col" className="py-4 px-4 font-bold">Status</th>
-                                        <th scope="col" className="py-4 px-4 font-bold text-right">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                                    {leaveHistory.map((row) => {
-                                        const isPending = row.status === 'pending';
-                                        const isEmergencyRecord = row.request_type === 'emergency';
+                        <>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs">
+                                    <thead>
+                                        <tr className="border-b border-slate-200/80 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-mono uppercase tracking-wider text-[11px]">
+                                            <th scope="col" className="py-3 px-4 font-semibold">Type</th>
+                                            <th scope="col" className="py-3 px-4 font-semibold">Date Range</th>
+                                            <th scope="col" className="py-3 px-4 font-semibold">Studio</th>
+                                            <th scope="col" className="py-3 px-4 font-semibold">Reason</th>
+                                            <th scope="col" className="py-3 px-4 font-semibold">Routing</th>
+                                            <th scope="col" className="py-3 px-4 font-semibold">Status</th>
+                                            <th scope="col" className="py-3 px-4 font-semibold text-right">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                                        {paginatedRecords.map((row) => {
+                                            const isPending = row.status === 'pending';
+                                            const isEmergencyRecord = row.request_type === 'emergency';
 
-                                        return (
-                                            <tr 
-                                                key={row.id}
-                                                className="hover:bg-slate-50/90 dark:hover:bg-slate-800/50 transition-colors group"
-                                            >
-                                                {/* Request Type */}
-                                                <td className="py-4 px-4 whitespace-nowrap">
-                                                    {isEmergencyRecord ? (
-                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-mono font-bold uppercase bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-200 border border-rose-300 dark:border-rose-700 shadow-2xs">
-                                                            <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
-                                                            <span>Emergency</span>
-                                                        </span>
-                                                    ) : (
-                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-mono font-bold uppercase bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs">
-                                                            <Calendar className="w-3.5 h-3.5 text-amber-600" />
-                                                            <span>Leave</span>
-                                                        </span>
-                                                    )}
-                                                </td>
+                                            return (
+                                                <tr 
+                                                    key={row.id}
+                                                    className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors"
+                                                >
+                                                    {/* Request Type */}
+                                                    <td className="py-3 px-4 whitespace-nowrap">
+                                                        {isEmergencyRecord ? (
+                                                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-mono font-bold uppercase bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                                                                <ShieldAlert className="w-3 h-3 text-rose-600" />
+                                                                <span>Emergency</span>
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-mono font-bold uppercase bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                                                <Calendar className="w-3 h-3 text-amber-600" />
+                                                                <span>Leave</span>
+                                                            </span>
+                                                        )}
+                                                    </td>
 
-                                                {/* Date Range */}
-                                                <td className="py-4 px-4 font-bold text-slate-900 dark:text-white whitespace-nowrap">
-                                                    <div className="flex items-center gap-2 text-sm">
-                                                        <span>{formatDate(row.leave_start_date)}</span>
-                                                        <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
-                                                        <span>{row.leave_end_date ? formatDate(row.leave_end_date) : 'Open / TBD'}</span>
-                                                    </div>
-                                                    {row.created_at && (
-                                                        <div className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
-                                                            Submitted {row.created_at}
+                                                    {/* Date Range */}
+                                                    <td className="py-3 px-4 font-medium text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span>{formatDate(row.leave_start_date)}</span>
+                                                            <ArrowRight className="w-3 h-3 text-slate-400" />
+                                                            <span>{row.leave_end_date ? formatDate(row.leave_end_date) : 'Open / TBD'}</span>
                                                         </div>
-                                                    )}
-                                                </td>
+                                                        {row.created_at && (
+                                                            <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                                                                {row.created_at}
+                                                            </div>
+                                                        )}
+                                                    </td>
 
-                                                {/* Studio */}
-                                                <td className="py-4 px-4 text-slate-800 dark:text-slate-200 whitespace-nowrap">
-                                                    <div className="flex items-center gap-2 font-bold text-sm">
-                                                        <Building2 className="w-4 h-4 text-slate-500" />
-                                                        <span>{row.studio_name}</span>
-                                                    </div>
-                                                </td>
+                                                    {/* Studio */}
+                                                    <td className="py-3 px-4 text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                                                        <div className="flex items-center gap-1.5 font-medium">
+                                                            <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                                                            <span>{row.studio_name}</span>
+                                                        </div>
+                                                    </td>
 
-                                                {/* Reason & Context */}
-                                                <td className="py-4 px-4 text-slate-800 dark:text-slate-200 max-w-[240px]">
-                                                    {row.reason ? (
-                                                        <span className="font-medium text-xs sm:text-sm line-clamp-2 block leading-relaxed" title={row.reason}>
-                                                            "{row.reason}"
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-slate-400 font-normal">—</span>
-                                                    )}
-                                                    {row.resolved_at && (
-                                                        <span className="text-xs text-emerald-700 dark:text-emerald-300 font-bold font-mono block mt-1">
-                                                            ✓ Resolved {row.resolved_at}
-                                                        </span>
-                                                    )}
-                                                </td>
+                                                    {/* Reason & Context */}
+                                                    <td className="py-3 px-4 text-slate-700 dark:text-slate-300 max-w-[220px]">
+                                                        {row.reason ? (
+                                                            <span className="line-clamp-2 leading-relaxed" title={row.reason}>
+                                                                "{row.reason}"
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-slate-400 font-normal">—</span>
+                                                        )}
+                                                        {row.resolved_at && (
+                                                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
+                                                                ✓ Resolved {row.resolved_at}
+                                                            </span>
+                                                        )}
+                                                    </td>
 
-                                                {/* Routing */}
-                                                <td className="py-4 px-4 text-slate-800 dark:text-slate-200 whitespace-nowrap font-bold text-xs sm:text-sm">
-                                                    {row.routing}
-                                                </td>
+                                                    {/* Routing */}
+                                                    <td className="py-3 px-4 text-slate-700 dark:text-slate-300 whitespace-nowrap font-medium">
+                                                        {row.routing}
+                                                    </td>
 
-                                                {/* Status Badge */}
-                                                <td className="py-4 px-4 whitespace-nowrap">
-                                                    {row.status === 'pending' && (
-                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-mono font-bold uppercase bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-400/60 dark:border-amber-600/60 shadow-2xs">
-                                                            <Clock className="w-3 h-3 text-amber-600" />
-                                                            <span>Pending</span>
-                                                        </span>
-                                                    )}
-                                                    {row.status === 'approved' && (
-                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-mono font-bold uppercase bg-emerald-100 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200 border border-emerald-400/60 dark:border-emerald-600/60 shadow-2xs">
-                                                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                                            <span>Approved</span>
-                                                        </span>
-                                                    )}
-                                                    {row.status === 'rejected' && (
-                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-mono font-bold uppercase bg-rose-100 dark:bg-rose-950/60 text-rose-900 dark:text-rose-200 border border-rose-400/60 dark:border-rose-600/60 shadow-2xs">
-                                                            <XCircle className="w-3 h-3 text-rose-600" />
-                                                            <span>Rejected</span>
-                                                        </span>
-                                                    )}
-                                                    {row.status === 'cancelled' && (
-                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-mono font-bold uppercase bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 shadow-2xs">
-                                                            <span>Withdrawn</span>
-                                                        </span>
-                                                    )}
-                                                </td>
+                                                    {/* Status Badge */}
+                                                    <td className="py-3 px-4 whitespace-nowrap">
+                                                        {row.status === 'pending' && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                                                <Clock className="w-3 h-3 text-amber-600" />
+                                                                <span>Pending</span>
+                                                            </span>
+                                                        )}
+                                                        {row.status === 'approved' && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                                                <span>Approved</span>
+                                                            </span>
+                                                        )}
+                                                        {row.status === 'rejected' && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                                                                <XCircle className="w-3 h-3 text-rose-600" />
+                                                                <span>Rejected</span>
+                                                            </span>
+                                                        )}
+                                                        {row.status === 'cancelled' && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                                                                <span>Withdrawn</span>
+                                                            </span>
+                                                        )}
+                                                    </td>
 
-                                                {/* Direct Action Column: Single-click prominent Withdraw button */}
-                                                <td className="py-4 px-4 text-right whitespace-nowrap">
-                                                    {isPending ? (
-                                                        <button
-                                                            type="button"
-                                                            disabled={cancellingRequestId === row.id}
-                                                            onClick={() => handleWithdrawRequest(row.id, row.request_type)}
-                                                            className="text-xs sm:text-sm font-bold px-3.5 py-1.5 rounded-lg text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-300 dark:border-rose-700 transition-colors cursor-pointer inline-flex items-center gap-1.5 disabled:opacity-50 shadow-2xs"
-                                                        >
-                                                            {cancellingRequestId === row.id ? (
-                                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                            ) : (
-                                                                <XCircle className="w-3.5 h-3.5" />
-                                                            )}
-                                                            <span>Withdraw</span>
-                                                        </button>
-                                                    ) : (
-                                                        <span className="text-slate-400 font-semibold text-xs">—</span>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
+                                                    {/* Action Column */}
+                                                    <td className="py-3 px-4 text-right whitespace-nowrap">
+                                                        {isPending ? (
+                                                            <button
+                                                                type="button"
+                                                                disabled={cancellingRequestId === row.id}
+                                                                onClick={() => handleWithdrawRequest(row.id, row.request_type)}
+                                                                className="text-xs font-semibold px-2.5 py-1 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 transition-colors cursor-pointer inline-flex items-center gap-1 disabled:opacity-50"
+                                                            >
+                                                                {cancellingRequestId === row.id ? (
+                                                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                                                ) : (
+                                                                    <XCircle className="w-3 h-3" />
+                                                                )}
+                                                                <span>Withdraw</span>
+                                                            </button>
+                                                        ) : (
+                                                            <span className="text-slate-400 font-semibold">—</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Pagination Footer */}
+                            <div className="p-3.5 border-t border-slate-100 dark:border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+                                <span>
+                                    Showing {Math.min((currentPage - 1) * pageSize + 1, totalRecords)} to {Math.min(currentPage * pageSize, totalRecords)} of {totalRecords} records
+                                </span>
+
+                                {totalPages > 1 && (
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            type="button"
+                                            disabled={currentPage === 1}
+                                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                            className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer text-xs font-semibold"
+                                        >
+                                            Previous
+                                        </button>
+
+                                        <div className="flex items-center gap-1">
+                                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                                                <button
+                                                    key={page}
+                                                    type="button"
+                                                    onClick={() => setCurrentPage(page)}
+                                                    className={`w-7 h-7 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                                                        currentPage === page
+                                                            ? 'bg-brand text-white shadow-2xs font-bold'
+                                                            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                                    }`}
+                                                >
+                                                    {page}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            disabled={currentPage === totalPages}
+                                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                            className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer text-xs font-semibold"
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </>
                     )}
                 </div>
             </div>
 
-            {/* ── Request Leave Modal (Portaled) ── */}
-            <RequestLeaveModal
-                isOpen={isLeaveModalOpen}
-                onClose={() => setIsLeaveModalOpen(false)}
+            {/* ── Unified File Absence Modal ── */}
+            <FileAbsenceModal
+                isOpen={isAbsenceModalOpen}
+                onClose={() => setIsAbsenceModalOpen(false)}
                 joinedStudios={joinedStudios}
                 initialScope={statusScope}
                 initialStudioId={statusStudioId}
-            />
-
-            {/* ── Emergency Declaration Modal (Portaled) ── */}
-            <EmergencyModal
-                isOpen={isEmergencyModalOpen}
-                onClose={() => setIsEmergencyModalOpen(false)}
-                joinedStudios={joinedStudios}
-                initialScope={statusScope}
-                initialStudioId={statusStudioId}
+                initialType={absenceInitialType}
             />
 
         </div>
