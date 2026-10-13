@@ -332,6 +332,9 @@ class TenantReportController extends Controller
                 return response()->json(['message' => 'Unauthorized access to archived report.'], 403);
             }
             $reportData = $report->metrics;
+            if (is_array($reportData)) {
+                $reportData['id'] = $report->id;
+            }
             $orientation = $report->orientation ?: $orientation;
         } else {
             $type = $request->query('type', 'project_summary');
