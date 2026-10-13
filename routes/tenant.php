@@ -57,6 +57,8 @@ Route::prefix('/studio/{tenant}')->middleware([
         ->name('tenant.notifications.read-all');
     Route::post('/notifications/{id}/read', [TenantDashboardController::class, 'markNotificationRead'])
         ->name('tenant.notifications.read');
+    Route::post('/notifications/{id}/unread', [TenantDashboardController::class, 'markNotificationUnread'])
+        ->name('tenant.notifications.unread');
 
     Route::get('/tasks', [TenantTaskController::class, 'index'])
         ->name('tenant.tasks');

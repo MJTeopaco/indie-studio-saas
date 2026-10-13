@@ -299,8 +299,37 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
     const baseHref = `/studio/${activeWorkspace || 'default'}`;
 
     const isInboxActive = currentPath.includes('/inbox') || currentPath.includes('view=inbox');
-    const isMessagesActive = isInboxActive && currentPath.includes('tab=messages');
-    const isNotificationsActive = isInboxActive && !isMessagesActive;
+
+    const [activeInboxTab, setActiveInboxTab] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            const tab = params.get('tab');
+            if (tab === 'messages' || tab === 'channels') return 'messages';
+            if (tab === 'notifications') return 'notifications';
+        }
+        return currentPath.includes('tab=messages') ? 'messages' : 'notifications';
+    });
+
+    useEffect(() => {
+        const handleInboxTab = (e) => {
+            if (e.detail?.tab) {
+                setActiveInboxTab(e.detail.tab);
+            }
+        };
+        window.addEventListener('inbox-tab-changed', handleInboxTab);
+        return () => window.removeEventListener('inbox-tab-changed', handleInboxTab);
+    }, []);
+
+    useEffect(() => {
+        if (currentPath.includes('tab=messages')) {
+            setActiveInboxTab('messages');
+        } else if (currentPath.includes('tab=notifications')) {
+            setActiveInboxTab('notifications');
+        }
+    }, [currentPath]);
+
+    const isMessagesActive = isInboxActive && activeInboxTab === 'messages';
+    const isNotificationsActive = isInboxActive && activeInboxTab !== 'messages';
 
     const totalInboxUnread = inboxUnreadBreakdown?.total ?? inboxNotificationCount ?? 0;
     const notifUnread = inboxUnreadBreakdown?.notifications ?? 0;
@@ -494,7 +523,13 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                                             </div>
                                             <Link
                                                 href={`${baseHref}/inbox?tab=notifications`}
-                                                onClick={() => setCollapsedInboxMenuOpen(false)}
+                                                onClick={() => {
+                                                    setCollapsedInboxMenuOpen(false);
+                                                    setActiveInboxTab('notifications');
+                                                    if (typeof window !== 'undefined') {
+                                                        window.dispatchEvent(new CustomEvent('inbox-tab-changed', { detail: { tab: 'notifications' } }));
+                                                    }
+                                                }}
                                                 className={`flex items-center justify-between px-3 py-2 text-xs font-medium transition-colors ${
                                                     isNotificationsActive
                                                         ? 'bg-brand/10 text-brand font-semibold'
@@ -513,7 +548,13 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                                             </Link>
                                             <Link
                                                 href={`${baseHref}/inbox?tab=messages`}
-                                                onClick={() => setCollapsedInboxMenuOpen(false)}
+                                                onClick={() => {
+                                                    setCollapsedInboxMenuOpen(false);
+                                                    setActiveInboxTab('messages');
+                                                    if (typeof window !== 'undefined') {
+                                                        window.dispatchEvent(new CustomEvent('inbox-tab-changed', { detail: { tab: 'messages' } }));
+                                                    }
+                                                }}
                                                 className={`flex items-center justify-between px-3 py-2 text-xs font-medium transition-colors ${
                                                     isMessagesActive
                                                         ? 'bg-brand/10 text-brand font-semibold'
@@ -583,6 +624,12 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
                                         <div className="pl-6 pr-1 space-y-0.5 pt-0.5 animate-in fade-in-50 duration-150">
                                             <Link
                                                 href={`${baseHref}/inbox?tab=notifications`}
+                                                onClick={() => {
+                                                    setActiveInboxTab('notifications');
+                                                    if (typeof window !== 'undefined') {
+                                                        window.dispatchEvent(new CustomEvent('inbox-tab-changed', { detail: { tab: 'notifications' } }));
+                                                    }
+                                                }}
                                                 className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                                                     isNotificationsActive
                                                         ? 'bg-brand/10 text-brand font-semibold'
@@ -602,6 +649,12 @@ export default function Sidebar({ user: propUser, studioName: propStudioName }) 
 
                                             <Link
                                                 href={`${baseHref}/inbox?tab=messages`}
+                                                onClick={() => {
+                                                    setActiveInboxTab('messages');
+                                                    if (typeof window !== 'undefined') {
+                                                        window.dispatchEvent(new CustomEvent('inbox-tab-changed', { detail: { tab: 'messages' } }));
+                                                    }
+                                                }}
                                                 className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                                                     isMessagesActive
                                                         ? 'bg-brand/10 text-brand font-semibold'

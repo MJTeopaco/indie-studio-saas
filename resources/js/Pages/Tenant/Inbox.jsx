@@ -877,8 +877,19 @@ export default function Inbox({
             const url = new URL(window.location.href);
             url.searchParams.set('tab', newTab);
             window.history.replaceState({}, '', url.toString());
+            window.dispatchEvent(new CustomEvent('inbox-tab-changed', { detail: { tab: newTab } }));
         }
     }, []);
+
+    useEffect(() => {
+        const handleInboxTabEvent = (e) => {
+            if (e.detail?.tab && e.detail.tab !== activeTab) {
+                setActiveTab(e.detail.tab);
+            }
+        };
+        window.addEventListener('inbox-tab-changed', handleInboxTabEvent);
+        return () => window.removeEventListener('inbox-tab-changed', handleInboxTabEvent);
+    }, [activeTab]);
 
     // Sync tab when navigating via Sidebar dropdown or browser history
     useEffect(() => {
@@ -984,6 +995,16 @@ export default function Inbox({
         setNotificationsList(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
         try {
             await axios.post(`/studio/${workspaceSlug}/notifications/${id}/read`);
+            router.reload({ only: ['inboxNotificationCount', 'inboxUnreadBreakdown'] });
+        } catch {
+            // ignore
+        }
+    };
+
+    const markAsUnread = async (id) => {
+        setNotificationsList(prev => prev.map(n => n.id === id ? { ...n, read: false } : n));
+        try {
+            await axios.post(`/studio/${workspaceSlug}/notifications/${id}/unread`);
             router.reload({ only: ['inboxNotificationCount', 'inboxUnreadBreakdown'] });
         } catch {
             // ignore
@@ -1820,7 +1841,7 @@ export default function Inbox({
     // ── Jump to chat from notification ───────────────────────────────────────
     const handleOpenNotificationChat = (notif) => {
         if (!notif?.channel_id) return;
-        setActiveTab('messages');
+        handleTabChange('messages');
         const isDm = notif.channel_id.startsWith('dm-');
         if (isDm) {
             openChat({
@@ -1949,7 +1970,7 @@ export default function Inbox({
                                 <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
                                     <button
                                         type="button"
-                                        onClick={() => setActiveTab('notifications')}
+                                        onClick={() => handleTabChange('notifications')}
                                         className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'notifications' ? 'bg-white dark:bg-slate-900 text-brand shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
                                         <Bell className="w-3.5 h-3.5" />
                                         <span>Notifications</span>
@@ -1958,7 +1979,7 @@ export default function Inbox({
 
                                     <button
                                         type="button"
-                                        onClick={() => setActiveTab('messages')}
+                                        onClick={() => handleTabChange('messages')}
                                         className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'messages' ? 'bg-white dark:bg-slate-900 text-brand shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
                                         <MessageSquare className="w-3.5 h-3.5" />
                                         <span>Team Messages</span>
@@ -2220,7 +2241,7 @@ export default function Inbox({
                                                     {activeNotification.read ? (
                                                         <button
                                                             type="button"
-                                                            onClick={() => setNotificationsList(prev => prev.map(n => n.id === activeNotification.id ? { ...n, read: false } : n))}
+                                                            onClick={() => markAsUnread(activeNotification.id)}
                                                             className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                                                         >
                                                             Mark unread
