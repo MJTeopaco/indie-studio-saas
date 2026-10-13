@@ -927,7 +927,7 @@ export default function Inbox({
             window.history.replaceState({}, '', url.toString());
             window.dispatchEvent(new CustomEvent('inbox-tab-changed', { detail: { tab: newTab } }));
         }
-    }, []);
+    }, [workspaceSlug]);
 
     useEffect(() => {
         const handleInboxTabEvent = (e) => {
@@ -2574,6 +2574,32 @@ export default function Inbox({
                                             </div>
                                         )}
 
+                                        {/* Estimate Pending Voting Module */}
+                                        {activeNotification.type === 'estimate_pending' && !activeTask && (
+                                            <div className="p-5 space-y-3">
+                                                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                    Sprint Planning Action
+                                                </div>
+                                                <div className="p-4 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/50 dark:bg-amber-950/20 space-y-3">
+                                                    <div className="flex items-center gap-2 text-xs font-bold text-amber-900 dark:text-amber-200">
+                                                        <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                                                        <span>Story Point Voting Required</span>
+                                                    </div>
+                                                    <p className="text-xs text-slate-600 dark:text-slate-300">
+                                                        {activeNotification.body}
+                                                    </p>
+                                                    <Link
+                                                        href={`/studio/${workspaceSlug}/estimates/pending`}
+                                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-colors shadow-2xs"
+                                                    >
+                                                        <Sparkles className="w-3.5 h-3.5" />
+                                                        <span>Open Fibonacci Estimation Queue</span>
+                                                        <ArrowRight className="w-3.5 h-3.5" />
+                                                    </Link>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {/* Task / Review Context Module */}
                                         {activeTask && (
                                             <div className="p-5 space-y-3">
@@ -2659,7 +2685,7 @@ export default function Inbox({
                         TEAM MESSAGES TAB
                     ================================================================ */}
                     {activeTab === 'messages' && (
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 min-h-0 h-full">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 min-h-0 h-full items-stretch overflow-hidden">
 
                             {/* Left — Sidebar */}
                             <div className="lg:col-span-4 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full min-h-0">
@@ -2845,7 +2871,7 @@ export default function Inbox({
                                         <div className="w-16 h-16 rounded-3xl bg-brand/10 text-brand flex items-center justify-center mb-4 ring-8 ring-brand/5 shadow-2xs">
                                             <MessageSquare className="w-8 h-8" />
                                         </div>
-                                        <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Select a conversation</h3>
+                                        <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Select a Conversation</h3>
                                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-sm leading-relaxed">
                                             Choose a channel or direct message from the left sidebar to open the chat room. Messages will only be marked as seen after being opened.
                                         </p>

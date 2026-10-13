@@ -1,516 +1,393 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import axios from 'axios';
-import { Head, Link, router } from '@inertiajs/react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { Head } from '@inertiajs/react';
 import TenantLayout from '@/Layouts/TenantLayout';
-import {
-    Users,
-    Search,
-    Filter,
-    Plus,
-    FolderPlus,
-    Calendar,
-    ArrowRight,
-    UserPlus,
-    ChevronRight,
-    Grid,
-    List,
-    X,
-    Copy,
-    Clock,
-    Check,
-    AlertTriangle,
-    Crown,
-    UserCheck,
-    FileText,
-    Loader2,
-    AlertCircle,
-} from 'lucide-react';
+import { PageHeader } from '@/Components/UI/PageHeader';
+import { Segments } from '@/Components/UI/Segments';
+import { IconButton } from '@/Components/UI/IconButton';
+import { Button } from '@/Components/UI/button';
 import TeamMemberCard from '@/Components/Tenant/TeamMemberCard';
-import TeamTimeline from '@/Components/Tenant/TeamTimeline';
 import TeamMemberProfileModal from '@/Components/Tenant/Team/TeamMemberProfileModal';
-import { showToast } from '@/Components/SystemToast';
+import InviteMemberModal from '@/Components/Tenant/Team/InviteMemberModal';
+import {
+    Search,
+    UserPlus,
+    Users,
+    ChevronLeft,
+    ChevronRight,
+    X,
+} from 'lucide-react';
 
-// Helper to determine department based on position
+/**
+ * Helper to determine department based on position/role.
+ * Maps into the 3 studio departments: Engineering, Design, QA.
+ */
 const getDepartment = (position) => {
     const pos = (position || '').toLowerCase();
-    if (pos.includes('design') || pos.includes('ui') || pos.includes('ux') || pos.includes('artist') || pos.includes('graphics')) {
+    if (
+        pos.includes('design') ||
+        pos.includes('ui') ||
+        pos.includes('ux') ||
+        pos.includes('artist') ||
+        pos.includes('graphics') ||
+        pos.includes('illustrator')
+    ) {
         return 'Design';
     }
-    if (pos.includes('product') || pos.includes('manager') || pos.includes('analyst') || pos.includes('strategy')) {
-        return 'Product';
-    }
-    if (pos.includes('qa') || pos.includes('tester') || pos.includes('quality') || pos.includes('testing')) {
+    if (
+        pos.includes('qa') ||
+        pos.includes('tester') ||
+        pos.includes('quality') ||
+        pos.includes('testing')
+    ) {
         return 'QA';
     }
     return 'Engineering';
 };
 
-const DEPARTMENTS = ['Engineering', 'Product', 'Design', 'QA'];
-const STATUSES = ['Active', 'Remote', 'Part-time'];
-const MEMBERS_PER_PAGE = 4;
-
-const statusStyles = {
-    Active: 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50',
-    Remote: 'bg-orange-50 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800/50',
-    'Part-time': 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800/50',
-    'On Leave': 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800/50',
-    'Leave Pending': 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800/50',
-    Emergency: 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800/50',
+/**
+ * Helper to extract skill tags array from a member object.
+ */
+const getMemberSkills = (member) => {
+    if (Array.isArray(member.profile?.skillset) && member.profile.skillset.length > 0) {
+        return member.profile.skillset
+            .map((s) => (typeof s === 'object' ? s.name : s))
+            .filter(Boolean);
+    }
+    if (Array.isArray(member.skills) && member.skills.length > 0) {
+        return member.skills
+            .map((s) => (typeof s === 'object' ? s.name : s))
+            .filter(Boolean);
+    }
+    if (typeof member.skills === 'string' && member.skills.trim()) {
+        return member.skills
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
+    }
+    return [];
 };
 
-export default function TeamIndex({ 
-    studio, 
-    members = [], 
-    canManage = false, 
-    isOwner = false, 
+export default function TeamIndex({
+    studio,
+    members = [],
+    canManage = false,
+    isOwner = false,
 }) {
     const studioName = studio?.name || 'Studio';
 
-    // UI state
-    const [activeTab, setActiveTab] = useState('Team Overview');
-    const [timelineMode, setTimelineMode] = useState('Day');
-    const [copying, setCopying] = useState(false);
-    
-    const copyInviteLink = async () => {
-        if (copying) return;
-        setCopying(true);
-        try {
-            const response = await axios.post(`/hub/studio/${studio.id}/invite`);
-            const token = response.data.code;
-            await navigator.clipboard.writeText(token);
-            
-            showToast('Invitation code copied to clipboard!', 'success');
-            setTimeout(() => setCopying(false), 2000);
-        } catch (error) {
-            console.error("Failed to generate invite link", error);
-            showToast('Failed to copy invitation code.', 'error');
-            setCopying(false);
-        }
-    };
-    
-    // Filter & Search states
-    const [searchQuery, setSearchQuery] = useState('');
+    // Filter & search states
     const [selectedDepartment, setSelectedDepartment] = useState('All');
-    const [selectedStatus, setSelectedStatus] = useState('All');
-    const [filterOpen, setFilterOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    // Pagination state (kept local to page)
+    const [currentPage, setCurrentPage] = useState(1);
+    const [columnsCount, setColumnsCount] = useState(4);
+    const gridRef = useRef(null);
+
+    // Modal states
     const [selectedMember, setSelectedMember] = useState(null);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-    const [deptPages, setDeptPages] = useState({ Engineering: 1, Product: 1, Design: 1, QA: 1 });
+    const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
-    useEffect(() => {
-        setDeptPages({ Engineering: 1, Product: 1, Design: 1, QA: 1 });
-    }, [searchQuery, selectedDepartment, selectedStatus]);
-
-
-    // Map each member's status and department based on their real working status
+    // 1. Enrich members with derived department
     const enrichedMembers = useMemo(() => {
-        return members.map((m, idx) => {
-            let status = 'Active';
-            let badgeClass = statusStyles.Active;
-
-            if (m.working_status === 'on_leave') {
-                status = 'On Leave';
-                badgeClass = statusStyles['On Leave'];
-            } else if (m.leave_request_status === 'pending') {
-                status = 'Leave Pending';
-                badgeClass = statusStyles['Leave Pending'];
-            } else if (m.working_status === 'emergency') {
-                status = 'Emergency';
-                badgeClass = statusStyles.Emergency;
-            } else {
-                const fallback = STATUSES[idx % STATUSES.length];
-                status = fallback;
-                badgeClass = statusStyles[fallback] || statusStyles.Active;
-            }
-
-            const dept = getDepartment(m.position);
+        return members.map((m) => {
+            const department = getDepartment(m.position);
             return {
                 ...m,
-                status,
-                department: dept,
-                badgeClass,
+                department,
             };
         });
     }, [members]);
 
-    // Filter members based on search and selected filters
-    const filteredMembers = useMemo(() => {
-        return enrichedMembers.filter((m) => {
-            const matchesSearch =
-                m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                m.position.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                m.email.toLowerCase().includes(searchQuery.toLowerCase());
-            
-            const matchesDept = selectedDepartment === 'All' || m.department === selectedDepartment;
-            const matchesStatus = selectedStatus === 'All' || m.status === selectedStatus;
-            
-            return matchesSearch && matchesDept && matchesStatus;
-        });
-    }, [enrichedMembers, searchQuery, selectedDepartment, selectedStatus]);
-
-    // Group filtered members by department for the Department Board
-    const groupedMembers = useMemo(() => {
-        const groups = { Engineering: [], Product: [], Design: [], QA: [] };
-        filteredMembers.forEach((m) => {
-            if (groups[m.department]) {
-                groups[m.department].push(m);
-            } else {
-                groups.Engineering.push(m);
+    // 2. Department counts for segments
+    const departmentCounts = useMemo(() => {
+        const counts = { All: enrichedMembers.length, Engineering: 0, Design: 0, QA: 0 };
+        enrichedMembers.forEach((m) => {
+            if (counts[m.department] !== undefined) {
+                counts[m.department] += 1;
             }
         });
-        return groups;
-    }, [filteredMembers]);
+        return counts;
+    }, [enrichedMembers]);
 
-    // Mock timeline tasks matching the reference image layout
-    const timelineTasks = [
-        {
-            name: 'Research',
-            blocks: [
-                { text: 'About 4 hours', startCol: 1, endCol: 5, assignees: ['AC', 'ML'], status: 'completed' },
-            ],
-        },
-        {
-            name: 'Wireframe',
-            blocks: [
-                { text: 'About 3 hours', startCol: 2, endCol: 5, assignees: ['MV'], status: 'completed' },
-                { text: 'About 6 hours', startCol: 7, endCol: 13, assignees: ['AC', 'ML', 'PM'], status: 'in_progress' },
-            ],
-        },
-        {
-            name: 'UI Design',
-            blocks: [
-                { text: 'About 3 hours', startCol: 3, endCol: 6, assignees: ['PM'], status: 'in_progress' },
-                { text: 'About 6 hours', startCol: 7, endCol: 13, assignees: ['AC', 'ML', 'MV', 'PM'], status: 'todo' },
-            ],
-        },
-        {
-            name: 'Usability Testing',
-            blocks: [
-                { text: 'About 4 hours', startCol: 4, endCol: 8, assignees: ['AC', 'MV'], status: 'todo' },
-                { text: 'About 3 hours', startCol: 10, endCol: 13, assignees: ['ML'], status: 'todo' },
-            ],
-        },
-    ];
+    // Segment options: Everyone / Engineering / Design / QA
+    const departmentOptions = useMemo(
+        () => [
+            { value: 'All', label: 'Everyone', count: departmentCounts.All },
+            { value: 'Engineering', label: 'Engineering', count: departmentCounts.Engineering },
+            { value: 'Design', label: 'Design', count: departmentCounts.Design },
+            { value: 'QA', label: 'QA', count: departmentCounts.QA },
+        ],
+        [departmentCounts]
+    );
 
-    const hasActiveFilters = searchQuery !== '' || selectedDepartment !== 'All' || selectedStatus !== 'All';
+    // 3. Filter members by department and search (name & skills)
+    const filteredMembers = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
 
-    const clearFilters = () => {
-        setSearchQuery('');
-        setSelectedDepartment('All');
-        setSelectedStatus('All');
-    };
+        return enrichedMembers.filter((m) => {
+            // Department filter
+            if (selectedDepartment !== 'All' && m.department !== selectedDepartment) {
+                return false;
+            }
 
-    const handleOpenMemberProfile = (member) => {
+            // Search filter (matches name and skills)
+            if (query) {
+                const nameMatches = (m.name || '').toLowerCase().includes(query);
+                const skills = getMemberSkills(m);
+                const skillMatches = skills.some((s) => s.toLowerCase().includes(query));
+                if (!nameMatches && !skillMatches) {
+                    return false;
+                }
+            }
+
+            return true;
+        });
+    }, [enrichedMembers, selectedDepartment, searchQuery]);
+
+    // Reset pagination to page 1 when department or search changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [selectedDepartment, searchQuery]);
+
+    // 4. Derive columns count dynamically from rendered grid via ResizeObserver
+    useEffect(() => {
+        const el = gridRef.current;
+        if (!el) return;
+
+        const measureColumns = () => {
+            try {
+                const computed = window.getComputedStyle(el).gridTemplateColumns;
+                if (computed && computed !== 'none') {
+                    const cols = computed.split(' ').filter(Boolean).length;
+                    if (cols > 0) {
+                        setColumnsCount(cols);
+                        return;
+                    }
+                }
+            } catch (e) {
+                // Ignore computation errors
+            }
+
+            // Fallback calculation: width / (minmax 240px + gap 14px)
+            const width = el.getBoundingClientRect().width;
+            if (width > 0) {
+                const cols = Math.max(1, Math.floor((width + 14) / (240 + 14)));
+                setColumnsCount(cols);
+            }
+        };
+
+        measureColumns();
+
+        const observer = new ResizeObserver(() => {
+            measureColumns();
+        });
+        observer.observe(el);
+
+        return () => observer.disconnect();
+    }, [filteredMembers.length]);
+
+    // Page size = number of columns currently shown × 2 rows
+    const pageSize = Math.max(2, columnsCount * 2);
+    const totalPages = Math.ceil(filteredMembers.length / pageSize);
+
+    // Keep current page within bounds if viewport resizing changes totalPages
+    useEffect(() => {
+        if (totalPages > 0 && currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [currentPage, totalPages]);
+
+    // Slice members for active page
+    const safeCurrentPage = Math.min(Math.max(1, currentPage), Math.max(1, totalPages));
+    const paginatedMembers = useMemo(() => {
+        if (filteredMembers.length <= pageSize) {
+            return filteredMembers;
+        }
+        const startIndex = (safeCurrentPage - 1) * pageSize;
+        return filteredMembers.slice(startIndex, startIndex + pageSize);
+    }, [filteredMembers, safeCurrentPage, pageSize]);
+
+    // Handlers
+    const handleOpenProfile = (member) => {
         setSelectedMember(member);
         setIsProfileModalOpen(true);
     };
 
-    useEffect(() => {
-        if (!selectedMember) {
-            return;
-        }
-
-        const refreshedMember = enrichedMembers.find(member => member.id === selectedMember.id);
-        if (refreshedMember) {
-            setSelectedMember(refreshedMember);
-        }
-    }, [enrichedMembers, selectedMember?.id]);
+    const handleClearFilters = () => {
+        setSearchQuery('');
+        setSelectedDepartment('All');
+    };
 
     return (
         <TenantLayout studioName={studioName}>
-            <Head title={`Teams — ${studioName}`} />
+            <Head title={`Your team — ${studioName}`} />
 
-            <div className="flex-1 overflow-y-auto bg-surface text-text-primary p-6 sm:p-10 lg:p-12 select-none">
-                {/* 1. Header Area */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                        <span className="text-xs text-text-muted uppercase tracking-wider font-semibold">
-                            Teams
-                        </span>
-                        <h1 className="font-heading text-3xl font-extrabold tracking-tight mt-0.5 text-gray-900 dark:text-slate-100">
-                            Teams
-                        </h1>
-                    </div>
-
-                    {canManage && (
-                        <div className="flex items-center gap-2.5">
-                            <button
-                                onClick={copyInviteLink}
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-heading font-semibold transition-all hover:scale-105 active:scale-95 shadow-xs shadow-brand/15"
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full select-none flex flex-col">
+                {/* 1. Page Header */}
+                <PageHeader
+                    title="Your team"
+                    subtitle="Great games start with great people."
+                    action={
+                        canManage ? (
+                            <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => setIsInviteModalOpen(true)}
+                                className="h-8 px-3 text-xs font-heading font-semibold gap-1.5"
                             >
-                                <Copy className="w-4 h-4" />
-                                <span>{copying ? 'Copied Code!' : 'Copy Invite Code'}</span>
-                            </button>
-                        </div>
-                    )}
-                </div>
+                                <UserPlus className="w-3.5 h-3.5" />
+                                <span>Invite member</span>
+                            </Button>
+                        ) : null
+                    }
+                    className="mb-[18px]"
+                />
 
-                {/* 2. Sub-navigation tabs */}
-                <div className="flex items-center gap-6 mt-8 border-b border-surface-border">
-                    {['Department Board', 'Team Overview'].map((tab) => {
-                        const isActive = activeTab === tab;
-                        return (
-                            <button
-                                key={tab}
-                                onClick={() => setActiveTab(tab)}
-                                className={`pb-3 text-sm font-heading font-semibold transition-all relative flex items-center gap-2 ${
-                                    isActive
-                                        ? 'text-brand dark:text-brand-light font-bold'
-                                        : 'text-text-muted hover:text-text-primary'
-                                }`}
-                            >
-                                <span>{tab}</span>
-                                {isActive && (
-                                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand dark:bg-brand-light rounded-full" />
-                                )}
-                            </button>
-                        );
-                    })}
-                </div>
+                {/* 2. Toolbar row */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                    {/* Left: Department Segments */}
+                    <Segments
+                        options={departmentOptions}
+                        value={selectedDepartment}
+                        onChange={(val) => setSelectedDepartment(val)}
+                        className="self-start sm:self-auto"
+                    />
 
-                {/* 3. Conditional Content States */}
-                {members.length === 0 ? (
-                    /* CASE A: Empty State */
-                    <div className="mt-12 flex flex-col items-center justify-center rounded-2xl border border-dashed border-surface-border bg-white/20 dark:bg-slate-900/10 p-16 text-center max-w-xl mx-auto shadow-xs">
-                        <div className="w-16 h-16 rounded-2xl bg-brand-10 flex items-center justify-center text-brand border border-brand-30 mb-6">
-                            <Users className="w-8 h-8" />
-                        </div>
-                        <h3 className="font-heading text-lg font-bold text-gray-900 dark:text-slate-100">
-                            No team members yet
-                        </h3>
-                        <p className="mt-2 text-sm text-text-muted font-sans max-w-sm">
-                            Start building your studio team by inviting developers to collaborate in this studio workspace.
-                        </p>
-                        {canManage && (
+                    {/* Right: Search Input (fixed comfortable ~260px width on desktop) */}
+                    <div className="relative w-full sm:w-[260px] shrink-0">
+                        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] pointer-events-none" />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search by name or skill..."
+                            className="w-full pl-8 pr-7 py-1.5 rounded-lg bg-[var(--card)] border border-[var(--border)] text-xs text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-hidden focus:border-[var(--primary)] transition-colors"
+                        />
+                        {searchQuery && (
                             <button
-                                onClick={copyInviteLink}
-                                className="mt-6 inline-flex items-center gap-1.5 px-4 py-2.25 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-heading font-semibold transition-all hover:scale-105 active:scale-95 shadow-md shadow-brand/20"
+                                type="button"
+                                onClick={() => setSearchQuery('')}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] cursor-pointer"
+                                aria-label="Clear search"
                             >
-                                <Copy className="w-4 h-4" />
-                                <span>{copying ? 'Copied Code!' : 'Copy Invite Code'}</span>
+                                <X className="w-3 h-3" />
                             </button>
                         )}
+                    </div>
+                </div>
+
+                {/* 3. Member Grid / Empty State */}
+                {filteredMembers.length === 0 ? (
+                    /* 5. Empty State */
+                    <div className="flex-1 flex flex-col items-center justify-center p-12 text-center rounded-[10px] border border-dashed border-[var(--border)] bg-[var(--card)]/40 my-auto min-h-[260px]">
+                        <div className="w-12 h-12 rounded-xl bg-[var(--secondary)] text-[var(--muted-foreground)] flex items-center justify-center mb-3 border border-[var(--border)]">
+                            <Users className="w-6 h-6" />
+                        </div>
+
+                        <h3 className="font-heading text-sm font-bold text-[var(--foreground)]">
+                            {selectedDepartment !== 'All'
+                                ? `No team members in ${selectedDepartment} yet.`
+                                : searchQuery
+                                ? 'No team members match your criteria.'
+                                : 'No team members yet.'}
+                        </h3>
+
+                        <p className="mt-1 text-xs text-[var(--muted-foreground)] max-w-sm">
+                            {selectedDepartment !== 'All'
+                                ? `Invite developers or reassign team members to collaborate in ${selectedDepartment}.`
+                                : searchQuery
+                                ? `No developers found matching "${searchQuery}". Try searching by another name or skill keyword.`
+                                : 'Start building your studio team by inviting developers to collaborate in this workspace.'}
+                        </p>
+
+                        <div className="mt-4 flex items-center gap-2">
+                            {(searchQuery || selectedDepartment !== 'All') && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleClearFilters}
+                                    className="h-8 px-3 text-xs font-heading font-medium border-[var(--border)]"
+                                >
+                                    Clear filters
+                                </Button>
+                            )}
+
+                            {canManage && (
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() => setIsInviteModalOpen(true)}
+                                    className="h-8 px-3 text-xs font-heading font-semibold gap-1.5"
+                                >
+                                    <UserPlus className="w-3.5 h-3.5" />
+                                    <span>Invite member</span>
+                                </Button>
+                            )}
+                        </div>
                     </div>
                 ) : (
-                    /* CASE B: Display State for Board & Overview */
-                    <div className="mt-8 space-y-12">
-                        {/* Subsection Title and Control Bar */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <h3 className="font-heading text-lg font-bold text-gray-900 dark:text-slate-100">
-                                {activeTab}
-                            </h3>
-
-                            <div className="flex items-center gap-3 relative">
-                                {/* Clear filters if active */}
-                                {hasActiveFilters && (
-                                    <button
-                                        onClick={clearFilters}
-                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs font-heading text-rose-600 dark:text-rose-400 hover:bg-rose-100 transition-colors"
-                                    >
-                                        <X className="w-3.5 h-3.5" />
-                                        <span>Clear</span>
-                                    </button>
-                                )}
-
-                                {/* Search input */}
-                                <div className="relative flex items-center">
-                                    <Search className="w-4 h-4 absolute left-3 text-gray-400 dark:text-slate-500 pointer-events-none" />
-                                    <input
-                                        type="text"
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        placeholder="Search..."
-                                        className="pl-9 pr-12 py-1.75 rounded-xl bg-white dark:bg-slate-800/40 border border-gray-200 dark:border-slate-800 focus:border-brand dark:focus:border-brand/60 text-xs text-gray-800 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-hidden cursor-pointer transition-all"
-                                    />
-                                    <span className="absolute right-2.5 text-[9px] font-mono text-gray-400 dark:text-slate-500 bg-gray-100 dark:bg-slate-700/80 rounded-sm px-1.5 py-0.5">
-                                        ⌘F
-                                    </span>
-                                </div>
-
-                                {/* Filter trigger & Dropdown */}
-                                <div className="relative">
-                                    <button
-                                        onClick={() => setFilterOpen(o => !o)}
-                                        className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-sans transition-colors ${
-                                            hasActiveFilters
-                                                ? 'bg-brand text-white border-brand'
-                                                : 'bg-white dark:bg-slate-800/40 border-gray-200 dark:border-slate-800 text-text-muted hover:text-text-primary'
-                                        }`}
-                                    >
-                                        <Filter className="w-3.5 h-3.5" />
-                                        <span>Filter</span>
-                                    </button>
-
-                                    {filterOpen && (
-                                        <>
-                                            <div className="fixed inset-0 z-30" onClick={() => setFilterOpen(false)} />
-                                            <div className="absolute right-0 top-full mt-2 z-40 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-xl p-4 w-60 space-y-4">
-                                                {/* Department Filter */}
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-2">Department</p>
-                                                    <select
-                                                        value={selectedDepartment}
-                                                        onChange={(e) => { setSelectedDepartment(e.target.value); setFilterOpen(false); }}
-                                                        className="w-full text-xs bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-2 focus:outline-hidden focus:border-brand"
-                                                    >
-                                                        <option value="All">All Departments</option>
-                                                        {DEPARTMENTS.map(d => (
-                                                            <option key={d} value={d}>{d}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-
-                                                {/* Status Filter */}
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-2">Status</p>
-                                                    <select
-                                                        value={selectedStatus}
-                                                        onChange={(e) => { setSelectedStatus(e.target.value); setFilterOpen(false); }}
-                                                        className="w-full text-xs bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-2 focus:outline-hidden focus:border-brand"
-                                                    >
-                                                        <option value="All">All Statuses</option>
-                                                        {STATUSES.map(s => (
-                                                            <option key={s} value={s}>{s}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
+                    <div className="flex flex-col gap-4">
+                        {/* Member grid */}
+                        <div
+                            ref={gridRef}
+                            className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-[14px] items-stretch"
+                        >
+                            {paginatedMembers.map((member) => (
+                                <TeamMemberCard
+                                    key={member.id}
+                                    member={member}
+                                    onSelect={handleOpenProfile}
+                                />
+                            ))}
                         </div>
 
-                        {/* Rendering View based on activeTab */}
-                        {activeTab === 'Team Overview' ? (
-                            /* ── VIEW A: Team Overview Grid ── */
-                            filteredMembers.length === 0 ? (
-                                <div className="py-20 text-center text-text-muted">
-                                    <p className="text-sm font-semibold">No team members match your criteria.</p>
-                                    <button onClick={clearFilters} className="mt-2 text-xs text-brand hover:underline">Clear filters</button>
+                        {/* 4. Compact Pagination Bar (rendered only when filtered list exceeds 1 page) */}
+                        {totalPages > 1 && (
+                            <div className="flex items-center justify-between pt-3 mt-1 border-t border-[var(--border)] text-xs">
+                                <span className="text-[11px] text-[var(--muted-foreground)]">
+                                    {filteredMembers.length}{' '}
+                                    {filteredMembers.length === 1 ? 'person' : 'people'}
+                                </span>
+
+                                <div className="flex items-center gap-2">
+                                    <IconButton
+                                        aria-label="Previous page"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={safeCurrentPage <= 1}
+                                        onClick={() =>
+                                            setCurrentPage((p) => Math.max(1, p - 1))
+                                        }
+                                    >
+                                        <ChevronLeft className="w-3.5 h-3.5" />
+                                    </IconButton>
+
+                                    <span className="font-mono text-[11px] text-[var(--foreground)] px-1 font-medium">
+                                        {safeCurrentPage} / {totalPages}
+                                    </span>
+
+                                    <IconButton
+                                        aria-label="Next page"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={safeCurrentPage >= totalPages}
+                                        onClick={() =>
+                                            setCurrentPage((p) => Math.min(totalPages, p + 1))
+                                        }
+                                    >
+                                        <ChevronRight className="w-3.5 h-3.5" />
+                                    </IconButton>
                                 </div>
-                            ) : (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                                    {filteredMembers.map((member, idx) => (
-                                        <TeamMemberCard
-                                            key={member.id}
-                                            member={member}
-                                            index={idx}
-                                            status={member.status}
-                                            badgeClass={member.badgeClass}
-                                            department={member.department}
-                                            onSelect={handleOpenMemberProfile}
-                                        />
-                                    ))}
-                                </div>
-                            )
-                        ) : (
-                            /* ── VIEW B: Department Board (Categorization Grid) ── */
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                {DEPARTMENTS.map((dept) => {
-                                    const deptMembers = groupedMembers[dept] || [];
-                                    const currentPage = deptPages[dept] || 1;
-                                    const totalPages = Math.ceil(deptMembers.length / MEMBERS_PER_PAGE);
-                                    const paginatedMembers = deptMembers.slice((currentPage - 1) * MEMBERS_PER_PAGE, currentPage * MEMBERS_PER_PAGE);
-
-                                    return (
-                                        <div key={dept} className="bg-gray-100/50 dark:bg-slate-900/30 rounded-2xl p-4 border border-gray-200/50 dark:border-slate-800/50 flex flex-col min-h-[300px]">
-                                            <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-200/60 dark:border-slate-800">
-                                                <h4 className="font-heading text-sm font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2">
-                                                    <span>{dept}</span>
-                                                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-200 dark:bg-slate-800 text-gray-500 font-sans">
-                                                        {deptMembers.length}
-                                                    </span>
-                                                </h4>
-                                            </div>
-
-                                            <div className="space-y-4 flex-1">
-                                                {paginatedMembers.length === 0 ? (
-                                                    <div className="flex flex-col items-center justify-center h-full text-center text-gray-400 py-10">
-                                                        <span className="text-xs italic">No members</span>
-                                                    </div>
-                                                ) : (
-                                                    paginatedMembers.map((member, idx) => (
-                                                        <TeamMemberCard
-                                                            key={member.id}
-                                                            member={member}
-                                                            index={idx}
-                                                            status={member.status}
-                                                            badgeClass={member.badgeClass}
-                                                            department={member.department}
-                                                            onSelect={handleOpenMemberProfile}
-                                                        />
-                                                    ))
-                                                )}
-                                            </div>
-
-                                            {totalPages > 1 && (
-                                                <div className="flex items-center justify-between border-t border-gray-150/40 dark:border-slate-800/80 pt-3 mt-4">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setDeptPages(prev => ({ ...prev, [dept]: Math.max(1, currentPage - 1) }))}
-                                                        disabled={currentPage === 1}
-                                                        className="px-2 py-1 rounded-sm bg-gray-250 dark:bg-slate-800 text-[10px] font-bold text-gray-700 dark:text-slate-350 hover:bg-gray-300 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed select-none transition-colors"
-                                                    >
-                                                        Prev
-                                                    </button>
-                                                    <span className="text-[10px] text-gray-500 font-mono">
-                                                        {currentPage} / {totalPages}
-                                                    </span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setDeptPages(prev => ({ ...prev, [dept]: Math.min(totalPages, currentPage + 1) }))}
-                                                        disabled={currentPage === totalPages}
-                                                        className="px-2 py-1 rounded-sm bg-gray-250 dark:bg-slate-800 text-[10px] font-bold text-gray-700 dark:text-slate-350 hover:bg-gray-300 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed select-none transition-colors"
-                                                    >
-                                                        Next
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
                             </div>
                         )}
-
-                        {/* 4. Timeline Schedule View */}
-                        <div className="rounded-2xl border border-gray-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/20 p-6 shadow-xs space-y-6">
-                            {/* Timeline Header Row */}
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                <div className="flex items-center gap-2">
-                                    <span className="font-heading text-base font-bold text-gray-900 dark:text-slate-200">
-                                        December 12, 2024
-                                    </span>
-                                    <span className="text-xs text-text-muted cursor-pointer hover:text-brand select-none">&gt;</span>
-                                </div>
-
-                                {/* Mode Selectors */}
-                                <div className="flex items-center bg-gray-100 dark:bg-slate-800/50 p-1 border border-gray-200/60 dark:border-slate-700/50 rounded-xl select-none">
-                                    {['Day', 'Week', 'Month', 'Year'].map((mode) => {
-                                        const isModeActive = timelineMode === mode;
-                                        return (
-                                            <button
-                                                key={mode}
-                                                onClick={() => setTimelineMode(mode)}
-                                                className={`px-3 py-1 rounded-lg text-xs font-heading font-semibold transition-all duration-200 ${
-                                                    isModeActive
-                                                        ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 shadow-xs'
-                                                        : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'
-                                                }`}
-                                            >
-                                                {mode}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            <TeamTimeline timelineTasks={timelineTasks} />
-                        </div>
                     </div>
                 )}
             </div>
 
+            {/* Developer Passport Modal */}
             <TeamMemberProfileModal
                 isOpen={isProfileModalOpen}
                 onClose={() => {
@@ -519,6 +396,13 @@ export default function TeamIndex({
                 }}
                 member={selectedMember}
                 canManage={canManage}
+            />
+
+            {/* Invite Member Modal */}
+            <InviteMemberModal
+                isOpen={isInviteModalOpen}
+                onClose={() => setIsInviteModalOpen(false)}
+                studio={studio}
             />
         </TenantLayout>
     );

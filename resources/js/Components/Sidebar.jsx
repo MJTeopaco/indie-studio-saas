@@ -238,12 +238,12 @@ function CategoryHeader({ label, isOpen, onToggle, isCollapsed }) {
 
 export default function Sidebar({ user: propUser, studioName: propStudioName }) {
     const pageProps = usePage().props || {};
-    const { auth, activeWorkspace, workspaceProjects = [], currentUserRole, canManage = false, pendingEstimatesCount, inboxNotificationCount = 0, inboxUnreadBreakdown = { notifications: 0, messages: 0, total: 0 } } = pageProps;
+    const { auth, activeWorkspace, currentStudioName, workspaceProjects = [], currentUserRole, canManage = false, pendingEstimatesCount, inboxNotificationCount = 0, inboxUnreadBreakdown = { notifications: 0, messages: 0, total: 0 } } = pageProps;
     const currentPath = usePage().url || '';
 
     const isManager = Boolean(canManage);
     const user = propUser || auth?.user || { name: 'Studio Member', role: isManager ? 'Project Manager' : 'Developer' };
-    const studioName = propStudioName || activeWorkspace || 'StudioSprint';
+    const studioName = propStudioName || currentStudioName || activeWorkspace || 'StudioSprint';
 
     // Mini-Sidebar collapse state
     const [isCollapsed, setIsCollapsed] = useState(false);

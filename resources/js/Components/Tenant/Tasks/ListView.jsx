@@ -213,20 +213,6 @@ export default function ListView({ tasks = [], onTaskClick }) {
                                         <td className="px-4 py-3"><ProgressBar pct={task.progress ?? 0} /></td>
                                     </tr>
                                 ))}
-
-                                {/* Add task row */}
-                                {!collapsed[group] && (
-                                    <tr key={`add-${group}`} className="border-b border-gray-50 dark:border-slate-800/30">
-                                        <td colSpan={COLUMNS.length} className="px-4 py-2 pl-9">
-                                            <button
-                                                onClick={() => showToast(`Add task to ${group} — coming soon!`, 'info')}
-                                                className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-                                            >
-                                                <PlusIcon /> Add Task
-                                            </button>
-                                        </td>
-                                    </tr>
-                                )}
                             </>
                         ))}
                     </tbody>

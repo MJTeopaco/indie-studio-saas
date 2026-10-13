@@ -281,7 +281,6 @@ class TenantTeamController extends Controller
     public function approveLeaveRequest(Request $request, $id, $extra = null): RedirectResponse
     {
         $targetId = $extra ?? $id ?? $request->route('id');
-
         $currentUserMember = \DB::connection(config('tenancy.database.central_connection', 'central'))
             ->table('studio_members')
             ->where('studio_id', tenant('id'))
@@ -348,7 +347,6 @@ class TenantTeamController extends Controller
     public function rejectLeaveRequest(Request $request, $id, $extra = null): RedirectResponse
     {
         $targetId = $extra ?? $id ?? $request->route('id');
-
         $currentUserMember = \DB::connection(config('tenancy.database.central_connection', 'central'))
             ->table('studio_members')
             ->where('studio_id', tenant('id'))

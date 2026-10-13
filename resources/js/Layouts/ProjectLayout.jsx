@@ -2,78 +2,81 @@ import React from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import Sidebar from '@/Components/Sidebar';
 
-export default function ProjectLayout({ auth, project, children }) {
-    const { activeWorkspace, canManage, currentUserRole } = usePage().props;
+import { Search, Bell, HelpCircle, ChevronRight } from 'lucide-react';
+
+export default function ProjectLayout({ auth, project, studioName, children }) {
+    const { activeWorkspace, currentStudioName, canManage, currentUserRole } = usePage().props;
     const user = auth?.user || { name: 'Demo User', role: 'manager' };
     const tenantId = activeWorkspace || 'default';
     const projectTitle = project?.title || project?.name || 'Project Workspace';
+    const resolvedStudioName = studioName || currentStudioName || 'Studio';
+
+    const userInitial = user.name ? user.name.charAt(0).toUpperCase() : 'U';
 
     return (
-        <div className="h-screen w-full overflow-hidden bg-surface text-text-primary flex">
-            {/* AI-Agentic StudioSprint Left Sidebar */}
-            <Sidebar user={user} />
+        <div className="h-screen w-full overflow-hidden bg-[var(--background)] text-[var(--foreground)] flex">
+            {/* Left Sidebar */}
+            <Sidebar user={user} studioName={resolvedStudioName} />
 
             {/* Right Side: Header + Main Content Area */}
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                {/* Top Project Header Bar */}
-                <header className="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 shrink-0">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-                        {/* Left: Back Link & Project Title */}
-                        <div className="flex items-center gap-4">
-                            <Link
-                                href={`/studio/${tenantId}/dashboard`}
-                                className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
-                                title="Back to Studio Dashboard"
-                            >
-                                {/* ArrowLeft icon */}
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className="w-5 h-5"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                >
-                                    <line x1="19" y1="12" x2="5" y2="12" />
-                                    <polyline points="12 19 5 12 12 5" />
-                                </svg>
-                            </Link>
+                {/* Topbar (64px, sticky, blurred) — breadcrumbs › project name */}
+                <header className="sticky top-0 z-30 h-16 bg-[var(--card)]/80 backdrop-blur-md border-b border-[var(--border)] shrink-0 px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+                    {/* Left: Breadcrumbs */}
+                    <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
+                        <Link href="/hub" className="hover:text-[var(--foreground)] transition-colors">
+                            Workspace
+                        </Link>
+                        <ChevronRight className="w-3.5 h-3.5 text-[var(--muted-foreground)]/60" />
+                        <Link href={`/studio/${tenantId}/dashboard`} className="hover:text-[var(--foreground)] transition-colors truncate max-w-[160px]">
+                            {resolvedStudioName}
+                        </Link>
+                        <ChevronRight className="w-3.5 h-3.5 text-[var(--muted-foreground)]/60" />
+                        <span className="text-[var(--foreground)] font-medium truncate max-w-[200px]">
+                            Project workspace
+                        </span>
+                    </nav>
 
-                            <div className="h-6 w-px bg-gray-200 dark:bg-gray-800 hidden sm:block" />
-
-                            <div>
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-brand dark:text-brand-light">
-                                    StudioSprint Workspace
-                                </span>
-                                <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100 leading-tight">
-                                    {projectTitle}
-                                </h1>
-                            </div>
+                    {/* Right: Search, Help, Notification, User Avatar */}
+                    <div className="flex items-center gap-3">
+                        <div className="relative hidden md:block">
+                            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                            <input
+                                type="text"
+                                readOnly
+                                placeholder="Search anything..."
+                                className="pl-8 pr-12 py-1.5 w-52 rounded-lg bg-[var(--secondary)]/60 border border-[var(--border)] text-xs text-[var(--foreground)] placeholder:text-[var(--muted-foreground)]/70 focus:outline-hidden"
+                            />
+                            <kbd className="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[10px] font-mono text-[var(--muted-foreground)] bg-[var(--card)] border border-[var(--border)] rounded">
+                                ⌘ K
+                            </kbd>
                         </div>
 
-                        {/* Right: User Info */}
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-3.5">
-                                <div className="w-8 h-8 rounded-full bg-brand-10 dark:bg-brand-20 border border-brand-30 flex items-center justify-center text-xs font-bold text-brand dark:text-brand-light">
-                                    {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
-                                </div>
-                                <div className="hidden md:block text-left">
-                                    <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">
-                                        {user.name}
-                                    </p>
-                                    <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        {currentUserRole || 'Member'}
-                                    </p>
-                                </div>
-                            </div>
+                        <button
+                            type="button"
+                            title="Help and documentation"
+                            className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--secondary)] transition-colors"
+                        >
+                            <HelpCircle className="w-4 h-4" />
+                        </button>
+
+                        <button
+                            type="button"
+                            title="Notifications"
+                            className="relative p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--secondary)] transition-colors"
+                        >
+                            <Bell className="w-4 h-4" />
+                            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[var(--primary)]" />
+                        </button>
+
+                        <div className="w-7 h-7 rounded-full bg-[var(--primary)]/20 border border-[var(--primary)]/40 flex items-center justify-center text-xs font-bold text-[var(--primary)] font-mono ml-1">
+                            {userInitial}
                         </div>
                     </div>
                 </header>
 
                 {/* Main Content Area */}
-                <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <main className="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar">
                     {children}
                 </main>
             </div>

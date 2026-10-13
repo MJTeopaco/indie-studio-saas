@@ -27,11 +27,11 @@ function getSectionName(url = '') {
  */
 export default function TenantLayout({ children, studioName, header }) {
     const pageProps = usePage().props || {};
-    const { auth, activeWorkspace, studio: propStudio } = pageProps;
+    const { auth, activeWorkspace, currentStudioName: sharedStudioName, studio: propStudio } = pageProps;
     const currentUrl = usePage().url || '';
     const user = auth?.user;
 
-    const currentStudioName = studioName || propStudio?.name || activeWorkspace || 'Studio';
+    const currentStudioName = studioName || propStudio?.name || sharedStudioName || activeWorkspace || 'Studio';
     const sectionName = getSectionName(currentUrl);
     const studioSlug = activeWorkspace || propStudio?.id || 'default';
 

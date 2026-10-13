@@ -50,7 +50,7 @@ export default function Edit({
     ];
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#070A10] text-slate-900 dark:text-slate-100 flex flex-col md:flex-row antialiased selection:bg-brand selection:text-white">
+        <div className="min-h-screen md:h-screen md:overflow-hidden bg-[#F8FAFC] dark:bg-[#070A10] text-slate-900 dark:text-slate-100 flex flex-col md:flex-row antialiased selection:bg-brand selection:text-white">
             <Head title="Profile & Preferences — StudioSprint" />
 
             {/* ── Left Sidebar (No Top Navbar Displayed) ── */}

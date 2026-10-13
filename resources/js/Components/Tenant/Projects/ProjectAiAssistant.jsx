@@ -426,7 +426,7 @@ export default function ProjectAiAssistant({ projectId, tenantId, teamMembers = 
     };
 
     return <>
-        <button type="button" onClick={() => setIsOpen(true)} className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-brand text-white shadow-xl shadow-brand/30 transition-transform hover:scale-105" title="Ask Project AI"><MessageCircle className="h-6 w-6" /></button>
+        <button type="button" onClick={() => setIsOpen(true)} aria-label="Ask Project AI Assistant" className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-brand text-white shadow-xl shadow-brand/30 transition-transform hover:scale-105 active:scale-95" title="Ask Project AI"><MessageCircle className="h-6 w-6" /></button>
         {isOpen && <div className="fixed bottom-6 right-6 z-50 flex h-[min(620px,calc(100vh-3rem))] w-[min(390px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
             <header className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-800">
                 <div className="flex items-center gap-2">

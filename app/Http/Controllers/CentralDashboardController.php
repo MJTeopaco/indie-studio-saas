@@ -24,6 +24,7 @@ class CentralDashboardController extends Controller
                 ->where('tenants.owner_id', '!=', $user->id)
                 ->withCount('users')
                 ->get(['tenants.id', 'tenants.name', 'tenants.created_at']),
+            'canCreateStudio' => $user->canCreateStudio(),
         ]);
     }
 }

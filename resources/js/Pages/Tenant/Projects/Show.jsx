@@ -1,8 +1,50 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Head, usePage, router } from '@inertiajs/react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Head, usePage, router, Link } from '@inertiajs/react';
 import ProjectLayout from '@/Layouts/ProjectLayout';
-import { BarChart3, CalendarDays, Clock, Columns3, Cpu, Plus, Search, TableProperties, AlertTriangle, Flame, CheckCircle2, Edit2, Flag, IterationCcw, IterationCw, ListTodo, Layers, Sparkles, ChevronDown, ChevronUp, Zap, X as LucideX, Circle, CircleDot, AlertCircle, ArrowUp, Minus, ChevronsUp, MoreVertical } from 'lucide-react';
+import {
+    CheckCircle2,
+    Layers,
+    GitBranch,
+    Clock,
+    AlertTriangle,
+    ChevronRight,
+    ChevronDown,
+    Plus,
+    Target,
+    Columns3,
+    TableProperties,
+    CalendarDays,
+    ListTodo,
+    MoreVertical,
+    Flame,
+    ArrowRight,
+    Cpu,
+    Sparkles,
+    Filter,
+    Check,
+    X,
+    ShieldAlert,
+    Zap,
+    BarChart3,
+    Activity,
+    Calendar,
+    Users
+} from 'lucide-react';
 import axios from 'axios';
+import {
+    ResponsiveContainer,
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    PieChart,
+    Pie,
+    Cell,
+    LabelList
+} from 'recharts';
+
 import BestFitModal from '@/Components/ML/BestFitModal';
 import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
 import ProjectAiAssistant from '@/Components/Tenant/Projects/ProjectAiAssistant';
@@ -11,39 +53,61 @@ import EpicBreakdown from '@/Components/Tenant/Projects/EpicBreakdown';
 import SprintBreakdown from '@/Components/Tenant/Projects/SprintBreakdown';
 import UpdateTaskStatusModal from '@/Components/Tenant/Projects/UpdateTaskStatusModal';
 import ManageAssignmentModal from '@/Components/Tenant/Projects/ManageAssignmentModal';
+import TaskFlyoutInspector from '@/Components/Tenant/Tasks/TaskFlyoutInspector';
 import { CpaAiSummaryCard, CpaTaskAiModal, CpaTaskAiButton } from '@/Components/Tenant/CpaAiSynthesizer';
+import { showToast } from '@/Components/SystemToast';
 
-function getContrastColor(hexColor) {
-    if (!hexColor) return '#111827';
-    const hex = hexColor.replace('#', '');
-    const r = parseInt(hex.substr(0, 2), 16);
-    const g = parseInt(hex.substr(2, 2), 16);
-    const b = parseInt(hex.substr(4, 2), 16);
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return luminance > 0.5 ? '#111827' : '#ffffff';
-}
+// ── Color tokens & mapping ───────────────────────────────────────────────────
+const STATUS_CONFIG = {
+    todo: {
+        id: 'todo',
+        label: 'To do',
+        sprintKey: 'ready_to_start',
+        color: 'var(--muted-foreground)',
+        bgClass: 'bg-[var(--muted-foreground)]',
+        badgeBg: 'bg-[var(--secondary)] text-[var(--muted-foreground)] border-[var(--border)]',
+    },
+    in_progress: {
+        id: 'in_progress',
+        label: 'In progress',
+        sprintKey: 'in_progress',
+        color: 'var(--cyan)',
+        bgClass: 'bg-[var(--cyan)]',
+        badgeBg: 'bg-[var(--cyan)]/10 text-[var(--cyan)] border-[var(--cyan)]/25',
+    },
+    review: {
+        id: 'review',
+        label: 'In review',
+        sprintKey: 'waiting_for_review',
+        color: 'var(--warning)',
+        bgClass: 'bg-[var(--warning)]',
+        badgeBg: 'bg-[var(--warning)]/10 text-[var(--warning)] border-[var(--warning)]/25',
+    },
+    completed: {
+        id: 'completed',
+        label: 'Done',
+        sprintKey: 'done',
+        color: 'var(--success)',
+        bgClass: 'bg-[var(--success)]',
+        badgeBg: 'bg-[var(--success)]/10 text-[var(--success)] border-[var(--success)]/25',
+    },
+    stuck: {
+        id: 'stuck',
+        label: 'Blocked',
+        sprintKey: 'stuck',
+        color: 'var(--critical)',
+        bgClass: 'bg-[var(--critical)]',
+        badgeBg: 'bg-[var(--critical)]/10 text-[var(--critical)] border-[var(--critical)]/25',
+    },
+};
 
-const SPRINT_STATUSES = [
-    { value: 'ready_to_start', label: 'Ready to start', color: '#3b82f6' },
-    { value: 'in_progress', label: 'In progress', color: '#f97316' },
-    { value: 'waiting_for_review', label: 'Waiting for review', color: '#d97706' },
-    { value: 'done', label: 'Done', color: '#10b981' },
-    { value: 'stuck', label: 'Stuck', color: '#ef4444' },
-];
-
-const SPRINT_PRIORITIES = [
-    { value: 'critical', label: 'Critical', color: '#ef4444' },
-    { value: 'high', label: 'High', color: '#eab308' },
-    { value: 'medium', label: 'Medium', color: '#3b82f6' },
-    { value: 'low', label: 'Low', color: '#10b981' },
-];
-
-const statuses = [
-    { id: 'todo', title: 'To Do', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300', headerBgClass: 'bg-blue-50 dark:bg-blue-900/20', dotClass: 'bg-blue-500' },
-    { id: 'in_progress', title: 'In Progress', className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300', headerBgClass: 'bg-orange-50 dark:bg-orange-900/20', dotClass: 'bg-orange-500' },
-    { id: 'review', title: 'In Review', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300', headerBgClass: 'bg-amber-50 dark:bg-amber-900/20', dotClass: 'bg-amber-500' },
-    { id: 'completed', title: 'Done', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300', headerBgClass: 'bg-emerald-50 dark:bg-emerald-900/20', dotClass: 'bg-emerald-500' },
-    { id: 'stuck', title: 'Stuck', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300', headerBgClass: 'bg-red-50 dark:bg-red-900/20', dotClass: 'bg-red-500' },
+const AVATAR_TONES = [
+    'var(--cyan)',
+    'var(--primary)',
+    'var(--pink)',
+    'var(--warning)',
+    'var(--success)',
+    'var(--critical)',
 ];
 
 const priorityWeight = {
@@ -63,83 +127,68 @@ const priorityWeight = {
 
 function sortByPriorityAndCriticality(tasks) {
     return [...tasks].sort((a, b) => {
-        const aCritical = a.is_critical || (a.total_float !== null && Number(a.total_float) <= 0);
-        const bCritical = b.is_critical || (b.total_float !== null && Number(b.total_float) <= 0);
+        const aCritical = Boolean(a.is_critical);
+        const bCritical = Boolean(b.is_critical);
         if (aCritical !== bCritical) return aCritical ? -1 : 1;
         const aPri = priorityWeight[String(a.priority || 'Medium').toLowerCase()] ?? 2;
         const bPri = priorityWeight[String(b.priority || 'Medium').toLowerCase()] ?? 2;
         if (aPri !== bPri) return aPri - bPri;
-        const aES = a.es !== null ? Number(a.es) : 999999;
-        const bES = b.es !== null ? Number(b.es) : 999999;
-        if (aES !== bES) return aES - bES;
+        const aFloat = a.total_float !== null && a.total_float !== undefined ? Number(a.total_float) : 999999;
+        const bFloat = b.total_float !== null && b.total_float !== undefined ? Number(b.total_float) : 999999;
+        if (aFloat !== bFloat) return aFloat - bFloat;
         return Number(a.id ?? 0) - Number(b.id ?? 0);
     });
 }
 
-function PriorityBadge({ priority }) {
-    const colors = {
-        Critical: 'bg-rose-500/15 text-rose-500 border-rose-500/30',
-        High: 'bg-amber-500/15 text-amber-500 border-amber-500/30',
-        Medium: 'bg-blue-500/15 text-blue-500 border-blue-500/30',
-        Low: 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30'
-    };
-    return (
-        <span className={`inline-flex rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${colors[priority] || colors.Medium}`}>
-            {priority || 'Medium'}
-        </span>
-    );
+function normalizeTaskStatus(task) {
+    const s = task.status || '';
+    const sp = task.sprint_status || '';
+    if (s === 'completed' || sp === 'done') return 'completed';
+    if (s === 'stuck' || sp === 'stuck') return 'stuck';
+    if (s === 'review' || sp === 'waiting_for_review') return 'review';
+    if (s === 'in_progress' || sp === 'in_progress') return 'in_progress';
+    return 'todo';
 }
 
-function isUserAssignedToTask(task, authUser) {
-    if (!authUser?.id) return false;
-    const userId = Number(authUser.id);
-    if (Number(task.assigned_user_id) === userId) return true;
-    if (Array.isArray(task.assignees) && task.assignees.some(m => Number(m.id) === userId)) return true;
-    if (task.assignee && Number(task.assignee.id) === userId) return true;
-    return false;
-}
-
-function TaskAssignee({ task, onFindFit }) {
-    const { canManage } = usePage().props;
-    // An explicit empty array means every active assignment was removed.
-    // Only use the legacy primary assignee when this payload omits the new field.
-    const assignees = Array.isArray(task.assignees)
-        ? task.assignees
-        : (task.assignee ? [task.assignee] : []);
-
-    if (!assignees.length) {
-        return canManage ? (
-            <button
-                onClick={(e) => { e.stopPropagation(); onFindFit(task); }}
-                className="inline-flex items-center gap-1 rounded-lg border border-brand/20 bg-brand/10 px-2 py-1 text-[10px] font-semibold text-brand hover:bg-brand hover:text-white transition-colors"
-            >
-                <Cpu className="h-3 w-3" />
-                Assign member
-            </button>
-        ) : (
-            <span className="text-xs italic text-gray-400 dark:text-slate-500">Unassigned</span>
-        );
+function getTaskAssignees(task) {
+    if (Array.isArray(task.assignees) && task.assignees.length > 0) {
+        return task.assignees.map(a => (typeof a === 'object' ? a.name : a));
     }
-    return (
-        <div className="flex min-w-0 items-center gap-1.5" title={assignees.map(member => member.name).join(', ')}>
-            <div className="flex -space-x-1.5">
-                {assignees.slice(0, 3).map(member => (
-                    <span key={member.id} className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-brand text-[10px] font-bold text-white dark:border-slate-900">
-                        {member.name.charAt(0).toUpperCase()}
-                    </span>
-                ))}
-            </div>
-            <span className="max-w-36 truncate text-xs font-medium text-gray-700 dark:text-slate-300">
-                {assignees.map(member => member.name).join(', ')}
-            </span>
-            {assignees.length > 3 && (
-                <span className="text-[10px] font-bold text-gray-400">+{assignees.length - 3}</span>
-            )}
-        </div>
-    );
+    if (task.assignee) {
+        return [typeof task.assignee === 'object' ? task.assignee.name : task.assignee];
+    }
+    return ['Unassigned'];
 }
 
-// Helper: Derive calendar date from project start date and working hours
+function getInitials(name) {
+    if (!name || name === 'Unassigned') return 'U';
+    const parts = name.trim().split(' ');
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '—';
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+        return dateStr;
+    }
+}
+
+function formatShortDate(dateStr) {
+    if (!dateStr) return '—';
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } catch {
+        return dateStr;
+    }
+}
+
 function deriveCalendarDate(startDateStr, hoursOffset) {
     if (!startDateStr || hoursOffset === null || hoursOffset === undefined) return null;
     const daysOffset = Math.floor(Number(hoursOffset) / 8);
@@ -152,730 +201,199 @@ function deriveCalendarDate(startDateStr, hoursOffset) {
             added++;
         }
     }
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function KanbanCard({ task, onFindFit, onEdit, projectStartDate, onDragStart }) {
-    const { canManage, auth } = usePage().props;
-    const isClickable = canManage || isUserAssignedToTask(task, auth?.user);
-    const isDelayed = task.total_float !== null && task.total_float !== undefined && Number(task.total_float) < 0;
-    const canMove = isClickable && task.status !== 'completed';
-
-    const priorityHighlight = {
-        Critical: 'border-l-4 border-l-rose-500 border-gray-200 dark:border-slate-800',
-        High: 'border-l-4 border-l-amber-500 border-gray-200 dark:border-slate-800',
-        Medium: 'border-l-4 border-l-blue-500 border-gray-200 dark:border-slate-800',
-        Low: 'border-l-4 border-l-emerald-500 border-gray-200 dark:border-slate-800'
-    };
-    
-    const highlightClass = priorityHighlight[task.priority || 'Medium'] || priorityHighlight['Medium'];
-
-    return (
-        <div
-            draggable={canMove}
-            onDragStart={(event) => {
-                if (!canMove) return;
-                event.dataTransfer.effectAllowed = 'move';
-                event.dataTransfer.setData('text/plain', String(task.id));
-                onDragStart?.(task);
-            }}
-            onClick={() => isClickable && onEdit(task)}
-            className={`group rounded-xl border-y border-r bg-white p-4 shadow-xs transition-all dark:bg-slate-900 ${canMove ? 'cursor-grab active:cursor-grabbing hover:shadow-md' : isClickable ? 'cursor-pointer hover:shadow-md' : 'cursor-default'
-                } ${highlightClass}`}
-        >
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <span className="font-mono text-[11px] text-gray-400">#{task.id}</span>
-                </div>
-            </div>
-
-            <h4 className="mt-2.5 text-sm font-bold text-gray-900 dark:text-slate-100 group-hover:text-brand transition-colors">
-                {task.title}
-            </h4>
-            <p className="mt-1 truncate text-xs text-gray-500 dark:text-slate-400">
-                {task.task_classification || 'Engineering'}
-            </p>
-
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-                <PriorityBadge priority={task.priority} />
-                <span className="inline-flex items-center gap-1 rounded-sm bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:text-slate-300">
-                    <CalendarDays className="w-3 h-3 text-slate-400" />
-                    {task.hard_constraint_date ? new Date(task.hard_constraint_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-'}
-                </span>
-            </div>
-
-            <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3 dark:border-slate-800">
-                <TaskAssignee task={task} onFindFit={onFindFit} />
-                <span className="flex items-center gap-1 font-mono text-[11px] text-gray-500">
-                    <div className="flex items-center justify-center w-5 h-5 rounded-sm bg-brand/10 text-brand">
-                        <span className="text-[10px] font-bold">{task.story_points ?? '-'}</span>
-                    </div>
-                    <span className="font-bold">SP</span>
-                </span>
-            </div>
-        </div>
-    );
-}
-
-function ProjectDashboard({ project, tasks }) {
-    const totalTasks = tasks.length;
-    const completedTasks = tasks.filter(task => task.status === 'completed').length;
-    const activeTasks = tasks.filter(task => ['todo', 'in_progress', 'review'].includes(task.status)).length;
-    const criticalTasks = tasks.filter(task => task.is_critical || Number(task.total_float) === 0).length;
-    const completionRate = totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
-    const estimatedHours = tasks.reduce((sum, task) => sum + Number(task.estimated_hours || 0), 0);
-    const completedHours = tasks
-        .filter(task => task.status === 'completed')
-        .reduce((sum, task) => sum + Number(task.estimated_hours || 0), 0);
-    const statusRows = statuses.map(status => {
-        const count = tasks.filter(task => task.status === status.id).length;
-        return {
-            ...status,
-            count,
-            pct: totalTasks ? Math.round((count / totalTasks) * 100) : 0,
-        };
-    });
-    const nextCriticalTasks = sortByPriorityAndCriticality(tasks)
-        .filter(task => task.status !== 'completed')
-        .slice(0, 5);
-
-    return (
-        <div className="space-y-6 p-6">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                {/* Metric 1: Completion Gauge */}
-                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex items-center justify-between h-32">
-                    <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Completion Rate</p>
-                        <p className="mt-2 text-2xl font-extrabold text-gray-900 dark:text-slate-100">{completionRate}%</p>
-                        <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">{completedTasks}/{totalTasks} tasks done</p>
-                    </div>
-                    <div className="relative h-14 w-14 shrink-0">
-                        <svg className="h-full w-full -rotate-90" viewBox="0 0 36 36">
-                            <circle cx="18" cy="18" r="16" fill="none" stroke="rgba(156,163,175,0.12)" strokeWidth="3" />
-                            <circle
-                                cx="18" cy="18" r="16" fill="none"
-                                stroke="url(#completionGrad)"
-                                strokeWidth="3.5"
-                                strokeDasharray="100.5"
-                                strokeDashoffset={100.5 - (completionRate * 1.005)}
-                                strokeLinecap="round"
-                                className="transition-all duration-500 ease-out"
-                            />
-                            <defs>
-                                <linearGradient id="completionGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stopColor="#818cf8" />
-                                    <stop offset="100%" stopColor="#4f46e5" />
-                                </linearGradient>
-                            </defs>
-                        </svg>
-                        <div className="absolute inset-0 flex items-center justify-center text-[10px] font-extrabold text-indigo-600 dark:text-indigo-450">
-                            {completionRate}%
-                        </div>
-                    </div>
-                </div>
-
-                {/* Metric 2: Sparkline Trend */}
-                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between h-32">
-                    <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Active Tasks</p>
-                        <div className="flex items-baseline gap-2 mt-1">
-                            <p className="text-2xl font-extrabold text-gray-900 dark:text-slate-100">{activeTasks} Items</p>
-                            <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded-sm bg-indigo-50/50 dark:bg-indigo-950/20">
-                                In Progress
-                            </span>
-                        </div>
-                    </div>
-                    <div className="w-full h-8 mt-2 overflow-visible">
-                        <svg className="w-full h-full overflow-visible" viewBox="0 0 100 30" preserveAspectRatio="none">
-                            <path
-                                d={`M 0 ${30 - (Math.max(10, activeTasks * 5) / 100) * 20} L 20 22 L 40 18 L 60 25 L 80 15 L 100 10`}
-                                fill="none"
-                                stroke="#4f46e5"
-                                strokeWidth="2.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                            />
-                            <path
-                                d={`M 0 ${30 - (Math.max(10, activeTasks * 5) / 100) * 20} L 20 22 L 40 18 L 60 25 L 80 15 L 100 10 L 100 30 L 0 30 Z`}
-                                fill="url(#activeSparkGrad)"
-                                opacity="0.12"
-                            />
-                            <defs>
-                                <linearGradient id="activeSparkGrad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="#4f46e5" />
-                                    <stop offset="100%" stopColor="#4f46e5" stopOpacity="0" />
-                                </linearGradient>
-                            </defs>
-                        </svg>
-                    </div>
-                </div>
-
-                {/* Metric 3: Critical Attention */}
-                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between h-32">
-                    <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Critical Tasks</p>
-                        <p className="mt-1 text-2xl font-extrabold text-gray-900 dark:text-slate-100">{criticalTasks} Items</p>
-                    </div>
-                    <div className="mt-2 space-y-1.5">
-                        <div className="flex justify-between text-[10px] font-bold text-rose-600 dark:text-rose-450">
-                            <span>Zero Float Risk</span>
-                            <span>{criticalTasks > 0 ? 'Urgent' : 'Nominal'}</span>
-                        </div>
-                        <div className="h-2 rounded-full bg-gray-100 dark:bg-slate-800 overflow-hidden">
-                            <div
-                                className="h-full bg-rose-500 rounded-full transition-all duration-300"
-                                style={{ width: `${totalTasks ? (criticalTasks / totalTasks) * 100 : 0}%` }}
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Metric 4: Hours Completed */}
-                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between h-32">
-                    <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Hours Burned</p>
-                        <p className="mt-1 text-2xl font-extrabold text-gray-900 dark:text-slate-100">{completedHours}h Done</p>
-                    </div>
-                    <div className="mt-2 space-y-1.5">
-                        <div className="flex justify-between text-[10px] font-bold text-emerald-600 dark:text-emerald-450">
-                            <span>Burn Velocity</span>
-                            <span>{estimatedHours ? Math.round((completedHours / estimatedHours) * 100) : 0}%</span>
-                        </div>
-                        <div className="h-2 rounded-full bg-gray-100 dark:bg-slate-800 overflow-hidden">
-                            <div
-                                className="h-full bg-emerald-500 rounded-full transition-all duration-300"
-                                style={{ width: `${estimatedHours ? (completedHours / estimatedHours) * 100 : 0}%` }}
-                            />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_.8fr]">
-                <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
-                    <div className="mb-4">
-                        <h2 className="text-sm font-bold text-gray-900 dark:text-slate-100">Status Distribution</h2>
-                        <p className="text-xs text-gray-500 dark:text-slate-400">Visual status breakdown of all project tasks.</p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                        {/* Donut Chart SVG */}
-                        <div className="relative flex justify-center py-2">
-                            <svg width="150" height="150" viewBox="0 0 36 36" className="-rotate-90">
-                                <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(156,163,175,0.08)" strokeWidth="3" />
-                                {statusRows.map((seg, idx) => {
-                                    let cumulative = 0;
-                                    for (let i = 0; i < idx; i++) {
-                                        cumulative += statusRows[i].pct;
-                                    }
-                                    const strokeColors = {
-                                        completed: '#10b981',
-                                        review: '#f59e0b',
-                                        in_progress: '#4f46e5',
-                                        todo: '#9ca3af'
-                                    };
-                                    return (
-                                        <circle
-                                            key={seg.id}
-                                            cx="18" cy="18" r="15.915"
-                                            fill="none"
-                                            stroke={strokeColors[seg.id] || '#cbd5e1'}
-                                            strokeWidth="4"
-                                            strokeDasharray={`${seg.pct} ${100 - seg.pct}`}
-                                            strokeDashoffset={100 - cumulative}
-                                            className="transition-all duration-300 hover:stroke-5"
-                                        />
-                                    );
-                                })}
-                            </svg>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <span className="text-2xl font-black text-gray-900 dark:text-slate-100">{totalTasks}</span>
-                                <span className="text-[9px] font-bold text-gray-455 uppercase tracking-widest">Tasks</span>
-                            </div>
-                        </div>
-
-                        {/* Status Legend List */}
-                        <div className="space-y-3">
-                            {statusRows.map(row => {
-                                return (
-                                    <div key={row.id} className="flex items-center justify-between border-b border-gray-50 pb-2 last:border-0 dark:border-slate-800/40">
-                                        <div className="flex items-center gap-2.5">
-                                            <span className={`h-2.5 w-2.5 rounded-full ${row.dotClass || 'bg-slate-400'}`} />
-                                            <span className="text-xs font-semibold text-gray-700 dark:text-slate-350">{row.title}</span>
-                                        </div>
-                                        <div className="text-right">
-                                            <span className="text-xs font-extrabold text-gray-900 dark:text-slate-100">{row.count}</span>
-                                            <span className="text-[10px] text-gray-400 ml-1.5">({row.pct}%)</span>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                </section>
-
-                <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
-                    <h2 className="text-sm font-bold text-gray-900 dark:text-slate-100">Project Details</h2>
-                    <div className="mt-4 space-y-3 text-sm">
-                        {[
-                            ['Name', project.name || 'Untitled project'],
-                            ['Status', project.status || 'planning'],
-                            ['Start Date', project.start_date || 'Not set'],
-                            ['Target End', project.target_end_date || 'Not set'],
-                            ['Description', project.description || 'No description provided.'],
-                        ].map(([label, value]) => (
-                            <div key={label} className="flex justify-between gap-4 border-b border-gray-100 pb-2 last:border-0 dark:border-slate-800">
-                                <span className="text-gray-500 dark:text-slate-400">{label}</span>
-                                <span className="max-w-[65%] text-right font-semibold text-gray-900 dark:text-slate-100 truncate">{value}</span>
-                            </div>
-                        ))}
-                    </div>
-                </section>
-            </div>
-
-            <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
-                <div className="mb-4 flex items-center gap-2">
-                    <Flame className="h-4 w-4 text-rose-500" />
-                    <h2 className="text-sm font-bold text-gray-900 dark:text-slate-100">Auto-Priority Queue</h2>
-                </div>
-                <div className="divide-y divide-gray-100 dark:divide-slate-800">
-                    {nextCriticalTasks.length ? nextCriticalTasks.map(task => (
-                        <div key={task.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 py-3 text-sm">
-                            <div className="min-w-0">
-                                <p className="truncate font-semibold text-gray-900 dark:text-slate-100">{task.title}</p>
-                                <p className="text-xs text-gray-500 dark:text-slate-400">{task.task_classification || 'Task'} - {task.estimated_hours || 0}h</p>
-                            </div>
-                            <PriorityBadge priority={task.priority} />
-                            <CpaStatusBadge totalFloat={task.total_float} isCritical={task.is_critical} />
-                        </div>
-                    )) : (
-                        <p className="py-6 text-center text-sm text-gray-400">No open priority tasks.</p>
-                    )}
-                </div>
-            </section>
-        </div>
-    );
-}
-
-function DependencyPills({ predecessors }) {
-    if (!predecessors?.length) {
-        return <span className="text-[11px] italic text-gray-400 dark:text-slate-500">—</span>;
-    }
-
-    const display = predecessors.slice(0, 3);
-    const overflow = predecessors.length - display.length;
-
-    const statusDot = (status) => {
-        const colors = {
-            completed: 'bg-emerald-500',
-            in_progress: 'bg-indigo-500',
-            review: 'bg-amber-500',
-            todo: 'bg-slate-400',
-        };
-        return colors[status] || 'bg-slate-400';
-    };
-
-    return (
-        <div className="flex flex-col gap-1">
-            {display.map(pred => (
-                <span
-                    key={pred.id}
-                    title={`#${pred.id} ${pred.title}`}
-                    className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 max-w-[140px] truncate"
-                >
-                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDot(pred.status)}`} />
-                    <span className="font-mono text-[9px] text-gray-400 shrink-0">#{pred.id}</span>
-                    <span className="truncate">{pred.title}</span>
-                </span>
-            ))}
-            {overflow > 0 && (
-                <span className="text-[10px] font-bold text-gray-400">+{overflow} more</span>
-            )}
-        </div>
-    );
-}
-
-const StatusChip = ({ status }) => {
-    switch(status) {
-        case 'ready_to_start': return <><Circle className="w-3.5 h-3.5 text-slate-400" /> Ready</>;
-        case 'in_progress': return <><CircleDot className="w-3.5 h-3.5 text-blue-500" /> In Progress</>;
-        case 'waiting_for_review': return <><CircleDot className="w-3.5 h-3.5 text-amber-500" /> In Review</>;
-        case 'done': return <><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Done</>;
-        case 'stuck': return <><AlertCircle className="w-3.5 h-3.5 text-rose-500" /> Stuck</>;
-        default: return <><Circle className="w-3.5 h-3.5 text-slate-400" /> {status}</>;
-    }
-};
-
-const PriorityChip = ({ priority }) => {
-    switch(priority) {
-        case 'critical': return <><ChevronsUp className="w-3.5 h-3.5 text-rose-500" /> Critical</>;
-        case 'high': return <><ChevronUp className="w-3.5 h-3.5 text-amber-500" /> High</>;
-        case 'medium': return <><Minus className="w-3.5 h-3.5 text-slate-400" /> Medium</>;
-        case 'low': return <><ChevronDown className="w-3.5 h-3.5 text-slate-400" /> Low</>;
-        default: return <><Minus className="w-3.5 h-3.5 text-slate-400" /> {priority}</>;
-    }
-};
-
-function MyTasksList({ groups, onFindFit, onEditStatus, projectStartDate }) {
-    const { canManage, auth } = usePage().props;
-    
-    // Auto-collapse empty groups
-    const activeGroups = groups.filter(group => group.tasks.length > 0);
-
-    if (activeGroups.length === 0) {
-        return (
-            <div className="flex flex-col items-center justify-center py-32 px-6">
-                <CheckCircle2 className="w-16 h-16 text-slate-300 dark:text-slate-700 mb-4" />
-                <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400">
-                    Inbox Zero. You're all caught up.
-                </h3>
-            </div>
-        );
-    }
-
-    return (
-        <div className="space-y-8 overflow-auto p-6">
-            {activeGroups.map(group => (
-                <section key={group.id} className="overflow-hidden">
-                    <div className="flex items-center gap-2 px-4 py-2 mb-2">
-                        <span className={`h-[18px] w-[3px] rounded-full ${group.dotClass || 'bg-slate-400'}`} />
-                        <h2 className="text-sm font-extrabold text-slate-800 dark:text-slate-100">{group.title}</h2>
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">{group.tasks.length}</span>
-                    </div>
-
-                    <div className="min-w-[900px] border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
-                        <div className="grid grid-cols-[minmax(350px,2fr)_120px_130px_220px_60px] gap-4 border-b border-slate-100 px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50">
-                            <span>Task</span>
-                            <span>Priority</span>
-                            <span>Due</span>
-                            <span>Depends On</span>
-                            <span className="text-right"></span>
-                        </div>
-
-                        <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                            {group.tasks.map(task => {
-                                const isClickable = canManage || isUserAssignedToTask(task, auth?.user);
-                                const finishDateStr = projectStartDate && task.ef !== null ? deriveCalendarDate(projectStartDate, task.ef) : (task.ef !== null ? `Hour ${task.ef}` : '—');
-                                const sPriority = SPRINT_PRIORITIES.find(p => p.value === (task.sprint_priority || 'medium')) || SPRINT_PRIORITIES[2];
-                                
-                                return (
-                                    <div
-                                        key={task.id}
-                                        onClick={() => isClickable && onEditStatus(task)}
-                                        className={`group grid grid-cols-[minmax(350px,2fr)_120px_130px_220px_60px] items-center gap-4 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${isClickable ? 'cursor-pointer' : 'cursor-default'}`}
-                                    >
-                                        <div className="min-w-0 pr-4">
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-mono text-xs text-slate-400 shrink-0">#{task.id}</span>
-                                                <span className="text-sm font-semibold text-slate-900 dark:text-slate-200 truncate">{task.title}</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-1.5 w-full text-xs font-medium text-slate-600 dark:text-slate-400 cursor-default">
-                                            <PriorityChip priority={sPriority.value} />
-                                        </div>
-
-                                        <div className="text-xs text-slate-700 dark:text-slate-300">
-                                            <span className="block font-medium">{finishDateStr}</span>
-                                        </div>
-
-                                        <div onClick={(e) => e.stopPropagation()}>
-                                            <DependencyPills predecessors={task.predecessors} />
-                                        </div>
-
-                                        <div className="flex justify-end pr-2">
-                                            {isClickable && (
-                                                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center w-8 h-8 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700">
-                                                    <MoreVertical className="w-4 h-4" />
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                </section>
-            ))}
-        </div>
-    );
-}
-
-function Timeline({ tasks, project, onEdit }) {
-    const { canManage, auth } = usePage().props;
-    const [aiModalTask, setAiModalTask] = useState(null);
-    const scheduled = sortByPriorityAndCriticality(tasks.filter(task => task.es !== null && task.ef !== null));
-    const maxFinish = Math.max(1, ...scheduled.map(task => Number(task.ef)));
-    const formatHours = hours => `${Number(hours).toFixed(1)}h (${(Number(hours) / 8).toFixed(1)} days)`;
-
-    // Calculate project-level metrics
-    const hasDelayed = scheduled.some(t => t.total_float !== null && Number(t.total_float) < 0);
-    const criticalCount = scheduled.filter(t => t.is_critical || (t.total_float !== null && Number(t.total_float) === 0)).length;
-
-    return (
-        <div className="overflow-auto p-6 space-y-6">
-            {/* ── AI CPA Schedule Synthesis & Executive Intelligence ── */}
-            {scheduled.length > 0 && (
-                <CpaAiSummaryCard tasks={tasks} project={project} />
-            )}
-
-            {/* Summary Bar */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
-                <div>
-                    <span className="block text-[11px] font-bold uppercase tracking-wider text-gray-400">Project Anchor Start</span>
-                    <span className="mt-1 block text-sm font-bold text-gray-900 dark:text-slate-100 font-mono">
-                        {project.start_date || 'Not Set (Defaults to Today)'}
-                    </span>
-                </div>
-                <div>
-                    <span className="block text-[11px] font-bold uppercase tracking-wider text-gray-400">Target Deadline</span>
-                    <span className="mt-1 block text-sm font-bold text-gray-900 dark:text-slate-100 font-mono">
-                        {project.target_end_date || 'No Target Anchor'}
-                    </span>
-                </div>
-                <div>
-                    <span className="block text-[11px] font-bold uppercase tracking-wider text-gray-400">Total Scheduled Tasks</span>
-                    <span className="mt-1 block text-sm font-bold text-gray-900 dark:text-slate-100">
-                        {scheduled.length} of {tasks.length} ({criticalCount} Must-Do Tasks)
-                    </span>
-                </div>
-                <div className="flex items-center justify-start md:justify-end">
-                    {hasDelayed ? (
-                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-400 text-xs font-bold animate-pulse">
-                            <AlertTriangle className="w-4 h-4 text-rose-600" />
-                            Schedule Delay Detected
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-xs font-bold">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                            Schedule Healthy
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Gantt Chart Panel */}
-            <div className="min-w-[850px] rounded-2xl border border-gray-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-                <div className="mb-5 flex items-center justify-between border-b border-gray-100 pb-4 dark:border-slate-800">
-                    <div>
-                        <h2 className="text-sm font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2">
-                            <span>Project Timeline &amp; Schedule Schedule</span>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                                Live CPA Gantt
-                            </span>
-                        </h2>
-                        <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
-                            Shows which tasks directly control your delivery date and which tasks have flexible breathing room.
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-4 text-xs font-medium text-gray-600 dark:text-slate-400 flex-wrap">
-                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-amber-500 inline-block" /> Must-Do (Zero Buffer)</span>
-                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-indigo-500 inline-block" /> In Progress</span>
-                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" /> Completed</span>
-                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-rose-500 inline-block" /> Behind Schedule</span>
-                    </div>
-                </div>
-
-                {scheduled.length ? (
-                    <div className="space-y-4">
-                        {scheduled.map(task => {
-                            const isClickable = canManage || isUserAssignedToTask(task, auth?.user);
-                            const isDelayed = task.total_float !== null && task.total_float !== undefined && Number(task.total_float) < 0;
-                            const isCrit = task.is_critical || (task.total_float !== null && Number(task.total_float) === 0);
-                            const isCompleted = task.status === 'completed';
-                            const startStr = project.start_date ? deriveCalendarDate(project.start_date, task.es) : `Hour ${task.es}`;
-                            const finishStr = project.start_date ? deriveCalendarDate(project.start_date, task.ef) : `Hour ${task.ef}`;
-                            const statusLabel = task.status === 'completed' ? 'Completed' : task.status === 'in_progress' ? 'In Progress' : task.status === 'review' ? 'In Review' : 'To Do';
-
-                            return (
-                                <div
-                                    key={task.id}
-                                    onClick={() => isClickable && onEdit(task)}
-                                    className={`grid grid-cols-[250px_1fr_240px] items-center gap-4 p-3.5 rounded-xl border transition-all ${isClickable
-                                        ? 'cursor-pointer hover:border-gray-200 hover:bg-gray-50/50 dark:hover:border-slate-800 dark:hover:bg-slate-800/30'
-                                        : 'cursor-default'
-                                        } ${isDelayed
-                                            ? 'border-rose-300 bg-rose-50/40 dark:border-rose-800/60 dark:bg-rose-950/20'
-                                            : isCrit
-                                                ? 'border-amber-200 bg-amber-50/20 dark:border-amber-900/40 dark:bg-amber-950/10'
-                                                : 'border-transparent'
-                                        }`}
-                                >
-                                    <div className="min-w-0 pr-2">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="font-mono text-[10px] text-gray-400">#{task.id}</span>
-                                            <p className="truncate text-xs font-bold text-gray-900 dark:text-slate-100 hover:text-brand">{task.title}</p>
-                                        </div>
-                                        <p className="mt-1 font-mono text-[10px] text-gray-500 dark:text-slate-400">
-                                            {startStr} → {finishStr} ({task.estimated_hours}h)
-                                        </p>
-                                    </div>
-
-                                    {/* Bar visualizer */}
-                                    <div className="relative h-8 rounded-lg bg-slate-100 dark:bg-slate-800/80 overflow-hidden px-1 flex items-center">
-                                        <div
-                                            title={`${task.title} • ${task.estimated_hours}h • ${isCrit ? 'Must finish on time (Zero delay buffer)' : `Safe buffer: +${task.total_float}h breathing room`}`}
-                                            className={`absolute top-1.5 h-5 rounded-md shadow-xs flex items-center justify-between px-2 text-[10px] font-bold text-white transition-all ${isCompleted ? 'bg-emerald-500' : isDelayed ? 'bg-rose-600 animate-pulse' : isCrit ? 'bg-amber-500' : task.status === 'in_progress' ? 'bg-indigo-500' : 'bg-brand'
-                                                }`}
-                                            style={{
-                                                left: `${(Number(task.es) / maxFinish) * 100}%`,
-                                                width: `${Math.max(6, ((Number(task.ef) - Number(task.es)) / maxFinish) * 100)}%`
-                                            }}
-                                        >
-                                            <span className="truncate">{task.estimated_hours}h</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Status Badge, Actions & AI Reason Button */}
-                                    <div className="flex items-center justify-end gap-2 shrink-0">
-                                        <CpaTaskAiButton
-                                            task={task}
-                                            onClick={(t) => setAiModalTask(t)}
-                                        />
-                                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${isCompleted
-                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                                            : task.status === 'in_progress'
-                                                ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300'
-                                                : task.status === 'review'
-                                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
-                                                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
-                                            }`}>{statusLabel}</span>
-                                        <CpaStatusBadge totalFloat={task.total_float} isCritical={task.is_critical} showSlack={true} />
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                ) : (
-                    <div className="py-16 text-center text-sm text-gray-400">
-                        The timeline will appear once tasks are created with estimated hours and dependency links.
-                    </div>
-                )}
-            </div>
-
-            {/* Task-Level AI Explanation Modal */}
-            <CpaTaskAiModal
-                task={aiModalTask}
-                isOpen={Boolean(aiModalTask)}
-                onClose={() => setAiModalTask(null)}
-            />
-        </div>
-    );
-}
-
-export default function Show({ project, studio, teamMembers, auth, skills = [], positions = [], epics = [], epicGroups = [], epicPhases = [], epicPriorities = [], sprints = [], backlogTasks = [] }) {
+export default function Show({
+    project,
+    studio,
+    teamMembers = [],
+    auth,
+    skills = [],
+    positions = [],
+    epics = [],
+    epicGroups = [],
+    epicPhases = [],
+    epicPriorities = [],
+    sprints = [],
+    backlogTasks = []
+}) {
     const pageProps = usePage().props;
     const { canManage } = pageProps;
+    const currentAuth = auth || pageProps.auth || { user: { name: 'Studio Member', role: 'manager' } };
+    const tenantId = studio?.id || pageProps.activeWorkspace || 'default';
+
+    // ── Tab Navigation State ─────────────────────────────────────────────────
+    // Valid views: 'dashboard' | 'spreadsheet' (Tasks) | 'sprint' | 'epic' | 'timeline' | 'board'
     const [activeView, setActiveView] = useState('dashboard');
-    const [searchQuery, setSearchQuery] = useState('');
-    const [bestFitTask, setBestFitTask] = useState(null);
-    const [editingTask, setEditingTask] = useState(null);
-    const [isManualTaskOpen, setIsManualTaskOpen] = useState(false);
+
+    // ── Task Data State ──────────────────────────────────────────────────────
     const [taskRows, setTaskRows] = useState(project?.tasks || []);
     const [draggedTask, setDraggedTask] = useState(null);
     const [hoveredColId, setHoveredColId] = useState(null);
-    
-    // Assignment modal state
+
+    // ── Interactive Status Filter (for Band 2 Priority Queue) ─────────────────
+    const [activeStatusFilter, setActiveStatusFilter] = useState(null);
+
+    // ── Modal & Inspector States ─────────────────────────────────────────────
+    const [selectedInspectorTask, setSelectedInspectorTask] = useState(null);
+    const [isManualTaskOpen, setIsManualTaskOpen] = useState(false);
+    const [editingTask, setEditingTask] = useState(null);
+    const [bestFitTask, setBestFitTask] = useState(null);
     const [assignmentTask, setAssignmentTask] = useState(null);
     const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false);
     const [statusEditingTask, setStatusEditingTask] = useState(null);
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
-
-    const currentAuth = auth || pageProps.auth || { user: { name: 'Studio Member', role: 'manager' } };
-    const allTasks = taskRows;
+    const [aiModalTask, setAiModalTask] = useState(null);
 
     useEffect(() => {
         setTaskRows(project?.tasks || []);
     }, [project?.id, project?.tasks]);
 
-    const visibleTasks = useMemo(() => {
-        return sortByPriorityAndCriticality(allTasks.filter(task => !searchQuery || task.title.toLowerCase().includes(searchQuery.toLowerCase()) || task.assignee?.name?.toLowerCase().includes(searchQuery.toLowerCase())));
-    }, [allTasks, searchQuery]);
+    const allTasks = taskRows;
+    const activeSprint = useMemo(() => sprints?.find(s => s.status === 'active') || sprints?.[0], [sprints]);
 
-    const activeSprint = useMemo(() => sprints?.find(s => s.status === 'active'), [sprints]);
+    // ── Calculate Metric Pulse Row (Band 1) ──────────────────────────────────
+    const totalTasks = allTasks.length;
+    const completedTasks = useMemo(() => allTasks.filter(t => normalizeTaskStatus(t) === 'completed').length, [allTasks]);
+    const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-    const groups = statuses.map(status => ({
-        ...status,
-        tasks: sortByPriorityAndCriticality(visibleTasks.filter(task => task.status === status.id && task.sprint_id === activeSprint?.id))
-    }));
+    const inProgressTasks = useMemo(() => allTasks.filter(t => normalizeTaskStatus(t) === 'in_progress').length, [allTasks]);
+    const reviewTasks = useMemo(() => allTasks.filter(t => normalizeTaskStatus(t) === 'review').length, [allTasks]);
+    const todoTasks = useMemo(() => allTasks.filter(t => normalizeTaskStatus(t) === 'todo').length, [allTasks]);
+    const stuckTasks = useMemo(() => allTasks.filter(t => normalizeTaskStatus(t) === 'stuck').length, [allTasks]);
 
-    const myTasksGroups = statuses.map(status => {
-        return {
-            ...status,
-            tasks: sortByPriorityAndCriticality(visibleTasks.filter(task => {
-                if (!isUserAssignedToTask(task, currentAuth.user)) return false;
-                const sprintStatus = task.sprint_status || 'ready_to_start';
-                if (status.id === 'todo') return sprintStatus === 'ready_to_start';
-                if (status.id === 'completed') return sprintStatus === 'done';
-                if (status.id === 'review') return sprintStatus === 'waiting_for_review';
-                if (status.id === 'in_progress') return sprintStatus === 'in_progress';
-                if (status.id === 'stuck') return sprintStatus === 'stuck';
-                return false;
-            }))
-        };
-    });
+    const criticalTasks = useMemo(() => {
+        return allTasks.filter(t => Boolean(t.is_critical) && normalizeTaskStatus(t) !== 'completed').length;
+    }, [allTasks]);
 
-    const tabs = [
-        { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-        { id: 'spreadsheet', label: 'My Tasks', icon: ListTodo },
-        { id: 'sprint', label: 'Sprint Planning', icon: TableProperties },
-        { id: 'epic', label: 'Epic Breakdown', icon: Layers },
-        { id: 'timeline', label: 'CPA Gantt Timeline', icon: CalendarDays },
-        { id: 'board', label: 'Kanban Board', icon: Columns3 }
-    ];
+    const totalPoints = useMemo(() => {
+        const sum = allTasks.reduce((acc, t) => acc + Number(t.story_points || t.estimated_hours || 0), 0);
+        return sum > 0 ? sum : totalTasks;
+    }, [allTasks, totalTasks]);
 
-    const tenantId = studio?.id || pageProps.activeWorkspace || 'default';
+    const pointsDelivered = useMemo(() => {
+        return allTasks
+            .filter(t => normalizeTaskStatus(t) === 'completed')
+            .reduce((acc, t) => acc + Number(t.story_points || t.estimated_hours || 0), 0);
+    }, [allTasks]);
 
+    const pointsInFlight = useMemo(() => {
+        return allTasks
+            .filter(t => ['in_progress', 'review'].includes(normalizeTaskStatus(t)))
+            .reduce((acc, t) => acc + Number(t.story_points || t.estimated_hours || 0), 0);
+    }, [allTasks]);
+
+    const pointsBlocked = useMemo(() => {
+        return allTasks
+            .filter(t => normalizeTaskStatus(t) === 'stuck')
+            .reduce((acc, t) => acc + Number(t.story_points || t.estimated_hours || 0), 0);
+    }, [allTasks]);
+
+    // ── Assignee Color Palette Mapping ───────────────────────────────────────
+    const assigneeColorMap = useMemo(() => {
+        const names = Array.from(new Set(allTasks.flatMap(getTaskAssignees)));
+        const map = {};
+        names.forEach((name, i) => {
+            map[name] = AVATAR_TONES[i % AVATAR_TONES.length];
+        });
+        return map;
+    }, [allTasks]);
+
+    // ── Stacked Column Chart Data (Band 3 Sprint Delivery) ────────────────────
+    const sprintDeliveryData = useMemo(() => {
+        const stages = [
+            { key: 'todo', label: 'To do' },
+            { key: 'in_progress', label: 'In progress' },
+            { key: 'review', label: 'In review' },
+            { key: 'completed', label: 'Done' },
+            { key: 'stuck', label: 'Blocked' },
+        ];
+
+        const assignees = Object.keys(assigneeColorMap);
+
+        return stages.map(stage => {
+            const stageTasks = allTasks.filter(t => normalizeTaskStatus(t) === stage.key);
+            const row = { stage: stage.label, total: 0 };
+
+            assignees.forEach(name => {
+                const pts = stageTasks
+                    .filter(t => getTaskAssignees(t).includes(name))
+                    .reduce((acc, t) => acc + Number(t.story_points || t.estimated_hours || 0), 0);
+                row[name] = pts;
+                row.total += pts;
+            });
+
+            return row;
+        });
+    }, [allTasks, assigneeColorMap]);
+
+    // ── Donut Chart Data (Band 3 Task Distribution) ──────────────────────────
+    const donutData = useMemo(() => {
+        return [
+            { id: 'todo', name: 'To do', value: todoTasks, color: STATUS_CONFIG.todo.color },
+            { id: 'in_progress', name: 'In progress', value: inProgressTasks, color: STATUS_CONFIG.in_progress.color },
+            { id: 'review', name: 'In review', value: reviewTasks, color: STATUS_CONFIG.review.color },
+            { id: 'completed', name: 'Done', value: completedTasks, color: STATUS_CONFIG.completed.color },
+            { id: 'stuck', name: 'Blocked', value: stuckTasks, color: STATUS_CONFIG.stuck.color },
+        ].filter(d => d.value > 0);
+    }, [todoTasks, inProgressTasks, reviewTasks, completedTasks, stuckTasks]);
+
+    // ── Assignee Task Counts (Band 3 Breakdown) ──────────────────────────────
+    const assigneeTaskCounts = useMemo(() => {
+        const counts = {};
+        allTasks.forEach(task => {
+            const assignees = getTaskAssignees(task);
+            assignees.forEach(name => {
+                counts[name] = (counts[name] || 0) + 1;
+            });
+        });
+        return Object.entries(counts).map(([name, count]) => ({
+            name,
+            count,
+            color: assigneeColorMap[name] || 'var(--primary)',
+        })).sort((a, b) => b.count - a.count);
+    }, [allTasks, assigneeColorMap]);
+
+    // ── Filtered Tasks for Priority Queue (Band 2) ───────────────────────────
+    const priorityQueueTasks = useMemo(() => {
+        let pool = allTasks;
+        if (activeStatusFilter) {
+            pool = pool.filter(t => normalizeTaskStatus(t) === activeStatusFilter);
+        }
+        return sortByPriorityAndCriticality(pool).slice(0, 3);
+    }, [allTasks, activeStatusFilter]);
+
+    // ── Handlers & Actions ───────────────────────────────────────────────────
     const handleNewTask = () => {
         if (!canManage) return;
         setEditingTask(null);
         setIsManualTaskOpen(true);
     };
 
-    const handleFindFit = (task) => {
-        setAssignmentTask(task);
-        setIsAssignmentModalOpen(true);
-    };
-
-    const handleTriggerAiBestFit = (task) => {
-        setBestFitTask(task);
-    };
-
-    const handleAssignmentSuccess = (taskId, newAssignees) => {
-        const updates = { 
-            assignees: newAssignees, 
-            assignee: newAssignees[0] || null, 
-            assigned_user_id: newAssignees[0]?.id || null 
-        };
-        setTaskRows(rows => rows.map(task => 
-            task.id === taskId ? { ...task, ...updates } : task
-        ));
-        window.dispatchEvent(new CustomEvent('task-updated', { detail: { taskId, updates } }));
-    };
-
     const handleEditTask = (task) => {
-        if (!canManage && !isUserAssignedToTask(task, pageProps.auth?.user)) {
-            return;
-        }
-        setEditingTask(task);
-        setIsManualTaskOpen(true);
+        if (!canManage && !allTasks.some(t => t.id === task.id)) return;
+        setSelectedInspectorTask(task);
     };
 
-    const handleEditStatus = (task) => {
-        if (!canManage && !isUserAssignedToTask(task, pageProps.auth?.user)) {
-            return;
+    const handleUpdateTask = (taskId, fields) => {
+        setTaskRows(rows => rows.map(t => (t.id === taskId ? { ...t, ...fields } : t)));
+        if (selectedInspectorTask?.id === taskId) {
+            setSelectedInspectorTask(prev => ({ ...prev, ...fields }));
         }
-        setStatusEditingTask(task);
-        setIsStatusModalOpen(true);
+        window.dispatchEvent(new CustomEvent('task-updated', { detail: { taskId, updates: fields } }));
     };
 
-    const handleStatusSuccess = (taskId, newSprintStatus, newKanbanStatus) => {
-        const updates = { sprint_status: newSprintStatus, status: newKanbanStatus };
-        setTaskRows(rows => rows.map(task => 
-            task.id === taskId ? { ...task, ...updates } : task
-        ));
-        window.dispatchEvent(new CustomEvent('task-updated', { detail: { taskId, updates } }));
-        router.reload({ only: ['project', 'sprints', 'backlogTasks'] });
+    const handleStatusChange = (task, newStatus) => {
+        const mappedSprintStatus = Object.values(STATUS_CONFIG).find(c => c.id === newStatus)?.sprintKey || newStatus;
+        handleUpdateTask(task.id, { status: newStatus, sprint_status: mappedSprintStatus });
+
+        axios.patch(route('tenant.projects.tasks.update', { tenant: tenantId, project: project.id, task: task.id }), {
+            status: newStatus,
+            sprint_status: mappedSprintStatus,
+        }).catch(err => {
+            console.error('Failed to sync status update:', err);
+        });
     };
 
     const handleDropTask = async (targetStatus) => {
@@ -885,167 +403,1001 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
             return;
         }
 
-        const previousRows = taskRows;
-        setTaskRows(rows => rows.map(task => 
-            task.id === draggedTask.id 
-                ? { ...task, status: targetStatus, sprint_status: targetStatus === 'stuck' ? 'stuck' : task.sprint_status } 
-                : task
-        ));
+        const prevTasks = taskRows;
+        const mappedSprint = Object.values(STATUS_CONFIG).find(c => c.id === targetStatus)?.sprintKey || targetStatus;
+
+        setTaskRows(rows => rows.map(t => (t.id === draggedTask.id ? { ...t, status: targetStatus, sprint_status: mappedSprint } : t)));
         setDraggedTask(null);
         setHoveredColId(null);
 
         try {
             await axios.patch(route('tenant.projects.tasks.update', { tenant: tenantId, project: project.id, task: draggedTask.id }), {
                 status: targetStatus,
-                ...(targetStatus === 'stuck' ? { sprint_status: 'stuck' } : {})
+                sprint_status: mappedSprint,
             });
         } catch (error) {
-            setTaskRows(previousRows);
-            console.error('Unable to move task', error);
+            setTaskRows(prevTasks);
+            showToast('Failed to update task position', 'error');
         }
     };
 
+    const handleAssignmentSuccess = (taskId, newAssignees) => {
+        const updates = {
+            assignees: newAssignees,
+            assignee: newAssignees[0] || null,
+            assigned_user_id: newAssignees[0]?.id || null,
+        };
+        handleUpdateTask(taskId, updates);
+    };
+
+    // ── Tab Config ───────────────────────────────────────────────────────────
+    const TABS = [
+        { id: 'dashboard',   label: 'Dashboard' },
+        { id: 'spreadsheet', label: 'Tasks' },
+        { id: 'sprint',      label: 'Sprint planning' },
+        { id: 'epic',        label: 'Epics' },
+        { id: 'timeline',    label: 'Critical path' },
+        { id: 'board',       label: 'Board' },
+    ];
+
+    const projectKey = project?.key || project?.code || (project?.name ? project.name.substring(0, 3).toUpperCase() : 'PRJ');
+    const projectType = project?.type || project?.category || 'Internal tooling';
+    const techStack = project?.tech_stack || project?.description || 'C++';
+
     return (
-        <ProjectLayout auth={currentAuth} project={project}>
+        <ProjectLayout auth={currentAuth} project={project} studioName={studio?.name}>
             <Head title={`${project?.name || 'Project'} — Workspace`} />
-            <div className="flex flex-1 flex-col overflow-hidden bg-gray-50 dark:bg-slate-950">
-                {/* Top Toolbar */}
-                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 bg-white/80 px-6 py-4 dark:border-slate-800 dark:bg-slate-900/80">
-                    <div className="flex rounded-xl bg-gray-100 p-1 dark:bg-slate-800">
-                        {tabs.map(tab => {
-                            const Icon = tab.icon;
+
+            <div className="w-full max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col flex-1 min-h-0 text-[var(--foreground)] overflow-x-hidden">
+
+                {/* ── Page Heading Shell ── */}
+                <div className="mb-[18px]">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                            {/* Eyebrow */}
+                            <p className="text-[10px] font-mono font-semibold uppercase tracking-wider text-[var(--muted-foreground)] mb-1">
+                                PROJECT / {projectKey}
+                            </p>
+                            {/* Project Name */}
+                            <h1 className="font-heading font-bold text-[25px] leading-tight text-[var(--foreground)] tracking-tight">
+                                {project?.name || 'Forge Engine'}
+                            </h1>
+                            {/* Project Type */}
+                            <p className="text-[11px] text-[var(--muted-foreground)] mt-0.5">
+                                {projectType} · {techStack}
+                            </p>
+                        </div>
+
+                        {/* Top Actions: Status Badge & Add Task */}
+                        <div className="flex items-center gap-3">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border border-[var(--border)] bg-[var(--card)] text-[var(--success)] shadow-2xs">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)] animate-pulse" />
+                                {project?.status === 'in_progress' ? 'On track' : (project?.status || 'On track')}
+                            </span>
+
+                            {canManage && (
+                                <button
+                                    type="button"
+                                    onClick={handleNewTask}
+                                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[var(--primary)] hover:opacity-90 active:scale-[0.98] text-white text-xs font-heading font-semibold shadow-2xs hover:shadow-md transition-all cursor-pointer focus-ring"
+                                >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    <span>Add task</span>
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* ── Tabs Line ── */}
+                    <div className="mt-4 border-b border-[var(--border)] flex items-center gap-6 overflow-x-auto no-scrollbar">
+                        {TABS.map(tab => {
+                            const isActive = activeView === tab.id;
                             return (
                                 <button
                                     key={tab.id}
+                                    type="button"
                                     onClick={() => setActiveView(tab.id)}
-                                    className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${activeView === tab.id
-                                        ? 'bg-white text-brand shadow-xs dark:bg-slate-700 dark:text-brand-light'
-                                        : 'text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200'
-                                        }`}
+                                    className={`h-9 px-0.5 text-xs font-heading font-semibold transition-all relative flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                                        isActive
+                                            ? 'text-[var(--foreground)] font-bold'
+                                            : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                                    }`}
                                 >
-                                    <Icon className="h-4 w-4" />
-                                    {tab.label}
+                                    <span>{tab.label}</span>
+                                    {isActive && (
+                                        <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-[var(--primary)] rounded-full" />
+                                    )}
                                 </button>
                             );
                         })}
                     </div>
-
-
                 </div>
 
-                {/* View Views */}
-                <div className="min-h-0 flex-1 overflow-auto">
+                {/* ── Tab Content Container (20px gap) ── */}
+                <div className="space-y-5 flex-1 pb-16">
+
+                    {/* ══════════════════════════════════════════════════════════
+                        VIEW 1: DASHBOARD TAB
+                    ══════════════════════════════════════════════════════════ */}
                     {activeView === 'dashboard' && (
-                        <ProjectDashboard project={project} tasks={allTasks} />
+                        <div className="space-y-5 animate-in fade-in duration-200">
+
+                            {/* ── Band 1: Metric Pulse Row (4 equal cols, no boxes, bottom border) ── */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 pb-5 border-b border-[var(--border)]">
+                                
+                                {/* 1. Project completion */}
+                                <div className="flex flex-col justify-between">
+                                    <div className="flex items-center gap-1.5 text-[10px] font-medium text-[var(--muted-foreground)] uppercase tracking-wider">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-[var(--muted-foreground)]" />
+                                        <span>Project completion</span>
+                                    </div>
+                                    <div className="flex items-baseline gap-2.5 mt-2">
+                                        <span className="font-heading font-extrabold text-[28px] sm:text-[30px] leading-none text-[var(--foreground)]">
+                                            {completionRate}%
+                                        </span>
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium text-[var(--success)] bg-[var(--success)]/10 border border-[var(--success)]/20">
+                                            <span className="w-1 h-1 rounded-full bg-[var(--success)]" />
+                                            {completedTasks}/{totalTasks} tasks done
+                                        </span>
+                                    </div>
+                                    {/* Thin progress bar */}
+                                    <div className="w-full h-1 bg-[var(--secondary)] rounded-full overflow-hidden mt-3">
+                                        <div
+                                            className="h-full bg-[var(--cyan)] rounded-full transition-all duration-500"
+                                            style={{ width: `${completionRate}%` }}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* 2. Active work */}
+                                <div className="flex flex-col justify-between">
+                                    <div className="flex items-center gap-1.5 text-[10px] font-medium text-[var(--muted-foreground)] uppercase tracking-wider">
+                                        <Layers className="w-3.5 h-3.5 text-[var(--muted-foreground)]" />
+                                        <span>Active work</span>
+                                    </div>
+                                    <div className="flex items-baseline gap-2 mt-2">
+                                        <span className="font-heading font-extrabold text-[28px] sm:text-[30px] leading-none text-[var(--foreground)]">
+                                            {String(inProgressTasks).padStart(2, '0')}
+                                        </span>
+                                        <span className="text-xs text-[var(--muted-foreground)] font-medium">
+                                            in progress
+                                        </span>
+                                    </div>
+                                    {/* Segmented status bar */}
+                                    <div className="flex items-center gap-1.5 w-full h-1.5 mt-3">
+                                        <div className={`flex-1 h-full rounded-full ${todoTasks > 0 ? 'bg-[var(--muted-foreground)]' : 'bg-[var(--secondary)]'}`} title={`To do: ${todoTasks}`} />
+                                        <div className={`flex-1 h-full rounded-full ${inProgressTasks > 0 ? 'bg-[var(--cyan)]' : 'bg-[var(--secondary)]'}`} title={`In progress: ${inProgressTasks}`} />
+                                        <div className={`flex-1 h-full rounded-full ${reviewTasks > 0 ? 'bg-[var(--warning)]' : 'bg-[var(--secondary)]'}`} title={`In review: ${reviewTasks}`} />
+                                        <div className={`flex-1 h-full rounded-full ${completedTasks > 0 ? 'bg-[var(--success)]' : 'bg-[var(--secondary)]'}`} title={`Done: ${completedTasks}`} />
+                                        <div className={`flex-1 h-full rounded-full ${stuckTasks > 0 ? 'bg-[var(--critical)]' : 'bg-[var(--secondary)]'}`} title={`Blocked: ${stuckTasks}`} />
+                                    </div>
+                                </div>
+
+                                {/* 3. Critical path */}
+                                <div className="flex flex-col justify-between">
+                                    <div className="flex items-center gap-1.5 text-[10px] font-medium text-[var(--muted-foreground)] uppercase tracking-wider">
+                                        <GitBranch className="w-3.5 h-3.5 text-[var(--muted-foreground)]" />
+                                        <span>Critical path</span>
+                                    </div>
+                                    <div className="flex items-baseline gap-2 mt-2">
+                                        <span className={`font-heading font-extrabold text-[28px] sm:text-[30px] leading-none ${
+                                            criticalTasks > 0 ? 'text-[var(--warning)]' : 'text-[var(--success)]'
+                                        }`}>
+                                            {String(criticalTasks).padStart(2, '0')}
+                                        </span>
+                                        <span className={`text-xs font-semibold ${
+                                            criticalTasks > 0 ? 'text-[var(--warning)]' : 'text-[var(--success)]'
+                                        }`}>
+                                            {criticalTasks > 0 ? 'at risk' : 'clear'}
+                                        </span>
+                                    </div>
+                                    <p className="text-[11px] text-[var(--muted-foreground)] mt-2">
+                                        {criticalTasks > 0 ? 'Protect your next milestone' : 'No critical tasks remaining'}
+                                    </p>
+                                </div>
+
+                                {/* 4. Delivery effort */}
+                                <div className="flex flex-col justify-between">
+                                    <div className="flex items-center gap-1.5 text-[10px] font-medium text-[var(--muted-foreground)] uppercase tracking-wider">
+                                        <Clock className="w-3.5 h-3.5 text-[var(--muted-foreground)]" />
+                                        <span>Delivery effort</span>
+                                    </div>
+                                    <div className="flex items-baseline gap-1 mt-2">
+                                        <span className="font-heading font-extrabold text-[28px] sm:text-[30px] leading-none text-[var(--foreground)]">
+                                            {pointsDelivered}
+                                        </span>
+                                        <span className="font-mono text-sm font-semibold text-[var(--muted-foreground)]">
+                                            /{totalPoints}
+                                        </span>
+                                        <span className="text-xs text-[var(--muted-foreground)] font-medium ml-1">
+                                            points delivered
+                                        </span>
+                                    </div>
+                                    {/* Success progress bar */}
+                                    <div className="w-full h-1 bg-[var(--secondary)] rounded-full overflow-hidden mt-3">
+                                        <div
+                                            className="h-full bg-[var(--success)] rounded-full transition-all duration-500"
+                                            style={{ width: `${totalPoints > 0 ? (pointsDelivered / totalPoints) * 100 : 0}%` }}
+                                        />
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            {/* ── Band 2: Context (1.5fr and 1fr min 350px) ── */}
+                            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.5fr)_minmax(350px,1fr)] gap-[18px]">
+                                
+                                {/* Priority queue (wide panel, padding 12px 18px) */}
+                                <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-[12px_18px] shadow-2xs flex flex-col justify-between min-h-[160px]">
+                                    <div className="flex items-center justify-between pb-2 border-b border-[var(--border)]/60">
+                                        <h2 className="font-heading font-bold text-sm text-[var(--foreground)]">
+                                            {activeStatusFilter ? `${STATUS_CONFIG[activeStatusFilter]?.label || activeStatusFilter} queue` : 'Priority queue'}
+                                        </h2>
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveView('spreadsheet')}
+                                            className="inline-flex items-center gap-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors cursor-pointer"
+                                        >
+                                            <span>All tasks</span>
+                                            <ChevronRight className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+
+                                    {/* Queue Task Rows (Up to 3) */}
+                                    <div className="divide-y divide-[var(--border)]/40 mt-1">
+                                        {priorityQueueTasks.length === 0 ? (
+                                            <div className="py-6 text-center text-xs text-[var(--muted-foreground)] font-mono">
+                                                No tasks in this queue.
+                                            </div>
+                                        ) : (
+                                            priorityQueueTasks.map((task, idx) => {
+                                                const normStatus = normalizeTaskStatus(task);
+                                                const statusObj = STATUS_CONFIG[normStatus] || STATUS_CONFIG.todo;
+                                                const assignees = getTaskAssignees(task);
+                                                const primaryAssignee = assignees[0] || 'Unassigned';
+                                                const avatarColor = assigneeColorMap[primaryAssignee] || 'var(--primary)';
+                                                const dueDateStr = formatShortDate(task.due_date || task.hard_constraint_date);
+
+                                                return (
+                                                    <button
+                                                        key={task.id}
+                                                        type="button"
+                                                        onClick={() => setSelectedInspectorTask(task)}
+                                                        className="w-full text-left py-2.5 px-1.5 flex items-center justify-between gap-3 rounded-lg hover:bg-[var(--secondary)]/60 transition-colors group cursor-pointer"
+                                                    >
+                                                        {/* Left: Rank & Title Info */}
+                                                        <div className="flex items-center gap-3 min-w-0">
+                                                            <span className="font-mono text-xs font-semibold text-[var(--muted-foreground)] shrink-0 w-5">
+                                                                {String(idx + 1).padStart(2, '0')}
+                                                            </span>
+                                                            <div className="min-w-0">
+                                                                <p className="font-heading font-bold text-xs sm:text-sm text-[var(--foreground)] group-hover:text-[var(--primary)] transition-colors truncate">
+                                                                    {task.title}
+                                                                </p>
+                                                                <p className="text-[11px] font-mono text-[var(--muted-foreground)] mt-0.5">
+                                                                    #{task.id} · {task.story_points ?? (task.estimated_hours || 0)} pts · Due {dueDateStr}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Right: Badge, Avatar, Chevron */}
+                                                        <div className="flex items-center gap-2.5 shrink-0">
+                                                            {task.is_critical ? (
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-[var(--warning)]/10 text-[var(--warning)] border border-[var(--warning)]/20">
+                                                                    Critical path
+                                                                </span>
+                                                            ) : (
+                                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${statusObj.badgeBg}`}>
+                                                                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: statusObj.color }} />
+                                                                    {statusObj.label}
+                                                                </span>
+                                                            )}
+
+                                                            <div
+                                                                className="w-5 h-5 rounded-full border border-white/20 text-[9px] font-bold font-mono flex items-center justify-center text-white"
+                                                                style={{ backgroundColor: avatarColor }}
+                                                                title={primaryAssignee}
+                                                            >
+                                                                {getInitials(primaryAssignee)}
+                                                            </div>
+
+                                                            <ChevronRight className="w-3.5 h-3.5 text-[var(--muted-foreground)] group-hover:translate-x-0.5 transition-transform" />
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Project details (narrow panel, padding 14px 18px) */}
+                                <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-[14px_18px] shadow-2xs flex flex-col justify-between">
+                                    <h2 className="font-heading font-bold text-sm text-[var(--foreground)] mb-2.5">
+                                        Project details
+                                    </h2>
+
+                                    {/* 2x2 dl grid */}
+                                    <dl className="grid grid-cols-2 gap-y-3 gap-x-4 text-xs">
+                                        <div>
+                                            <dt className="text-[11px] text-[var(--muted-foreground)] flex items-center gap-1.5 mb-1">
+                                                <Target className="w-3.5 h-3.5 text-[var(--muted-foreground)]" />
+                                                <span>Target release</span>
+                                            </dt>
+                                            <dd className="font-mono font-semibold text-[var(--foreground)]">
+                                                {formatDate(project?.target_end_date)}
+                                            </dd>
+                                        </div>
+
+                                        <div>
+                                            <dt className="text-[11px] text-[var(--muted-foreground)] mb-1">
+                                                Status
+                                            </dt>
+                                            <dd>
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[var(--success)] bg-[var(--success)]/10 border border-[var(--success)]/20">
+                                                    <span className="w-1 h-1 rounded-full bg-[var(--success)]" />
+                                                    {project?.status === 'in_progress' ? 'On track' : (project?.status || 'On track')}
+                                                </span>
+                                            </dd>
+                                        </div>
+
+                                        <div>
+                                            <dt className="text-[11px] text-[var(--muted-foreground)] mb-1">
+                                                Current sprint
+                                            </dt>
+                                            <dd className="font-medium text-[var(--foreground)]">
+                                                {activeSprint?.name || 'Sprint 12'}
+                                            </dd>
+                                        </div>
+
+                                        <div>
+                                            <dt className="text-[11px] text-[var(--muted-foreground)] mb-1">
+                                                Project key
+                                            </dt>
+                                            <dd className="font-mono font-bold text-[var(--foreground)]">
+                                                {projectKey}
+                                            </dd>
+                                        </div>
+                                    </dl>
+
+                                    {/* Mini visual overlay strip */}
+                                    <div className="mt-3.5 pt-2.5 border-t border-[var(--border)]/60 flex items-center justify-between text-[11px] text-[var(--muted-foreground)]">
+                                        <span className="font-mono text-[10px]">{projectType}</span>
+                                        <span className="font-mono text-[10px] text-[var(--foreground)] font-semibold">{techStack}</span>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            {/* ── Band 3: Insight Charts (both panels 410px tall on desktop) ── */}
+                            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.5fr)_minmax(350px,1fr)] gap-[18px]">
+                                
+                                {/* Sprint delivery (wide, 410px tall) */}
+                                <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-[14px_18px] shadow-2xs h-auto lg:h-[410px] flex flex-col justify-between">
+                                    <div>
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h2 className="font-heading font-bold text-sm text-[var(--foreground)]">
+                                                    Sprint delivery
+                                                </h2>
+                                                <p className="text-[11px] text-[var(--muted-foreground)]">
+                                                    {activeSprint?.name || 'Sprint 12'}
+                                                </p>
+                                            </div>
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)]" />
+                                                Sprint preview
+                                            </span>
+                                        </div>
+
+                                        {/* Summary Strip (3 equal cells inside rounded frame) */}
+                                        <div className="grid grid-cols-3 border border-[var(--border)] rounded-md divide-x divide-[var(--border)] bg-[var(--secondary)]/20 mt-3 mb-2">
+                                            <div className="p-2 text-center">
+                                                <p className="font-heading font-extrabold text-[18px] leading-tight text-[var(--foreground)]">
+                                                    {pointsDelivered}/{totalPoints}
+                                                </p>
+                                                <p className="text-[9px] font-semibold uppercase text-[var(--muted-foreground)] tracking-[.06em] mt-0.5">
+                                                    Points Delivered
+                                                </p>
+                                            </div>
+                                            <div className="p-2 text-center">
+                                                <p className="font-heading font-extrabold text-[18px] leading-tight text-[var(--foreground)]">
+                                                    {pointsInFlight}
+                                                </p>
+                                                <p className="text-[9px] font-semibold uppercase text-[var(--muted-foreground)] tracking-[.06em] mt-0.5">
+                                                    Points in Flight
+                                                </p>
+                                            </div>
+                                            <div className="p-2 text-center">
+                                                <p className={`font-heading font-extrabold text-[18px] leading-tight ${
+                                                    pointsBlocked > 0 ? 'text-[var(--warning)]' : 'text-[var(--foreground)]'
+                                                }`}>
+                                                    {pointsBlocked}
+                                                </p>
+                                                <p className="text-[9px] font-semibold uppercase text-[var(--muted-foreground)] tracking-[.06em] mt-0.5">
+                                                    Points Blocked
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Stacked Column Chart */}
+                                    <div
+                                        className="flex-1 min-h-[200px] w-full mt-1"
+                                        role="img"
+                                        aria-label={`Sprint delivery chart: To do ${sprintDeliveryData[0]?.total || 0} pts, In progress ${sprintDeliveryData[1]?.total || 0} pts, In review ${sprintDeliveryData[2]?.total || 0} pts, Done ${sprintDeliveryData[3]?.total || 0} pts, Blocked ${sprintDeliveryData[4]?.total || 0} pts`}
+                                    >
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart
+                                                data={sprintDeliveryData}
+                                                maxBarSize={56}
+                                                barCategoryGap="24%"
+                                                margin={{ top: 16, right: 8, left: -20, bottom: 0 }}
+                                            >
+                                                <CartesianGrid
+                                                    vertical={false}
+                                                    stroke="var(--border)"
+                                                    strokeDasharray="3 3"
+                                                    opacity={0.4}
+                                                />
+                                                <XAxis
+                                                    dataKey="stage"
+                                                    axisLine={false}
+                                                    tickLine={false}
+                                                    tick={{ fill: 'var(--muted-foreground)', fontSize: 10, fontFamily: 'var(--font-sans)' }}
+                                                />
+                                                <YAxis
+                                                    axisLine={false}
+                                                    tickLine={false}
+                                                    tick={{ fill: 'var(--muted-foreground)', fontSize: 10, fontFamily: 'var(--font-mono)' }}
+                                                />
+                                                <Tooltip
+                                                    content={({ active, payload, label }) => {
+                                                        if (!active || !payload?.length) return null;
+                                                        return (
+                                                            <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-2.5 shadow-xl text-xs z-50">
+                                                                <p className="font-bold text-[var(--foreground)] mb-1.5">{label}</p>
+                                                                {payload
+                                                                    .filter(p => Number(p.value) > 0)
+                                                                    .map((p, i) => (
+                                                                        <div key={i} className="flex items-center justify-between gap-4 py-0.5 text-[11px]">
+                                                                            <span className="flex items-center gap-1.5 text-[var(--muted-foreground)]">
+                                                                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
+                                                                                {p.name}
+                                                                            </span>
+                                                                            <span className="font-mono font-bold text-[var(--foreground)]">
+                                                                                {p.value} pts
+                                                                            </span>
+                                                                        </div>
+                                                                    ))}
+                                                            </div>
+                                                        );
+                                                    }}
+                                                />
+                                                {/* Stacked bars for each assignee */}
+                                                {Object.keys(assigneeColorMap).map((name, idx) => {
+                                                    const isTop = idx === Object.keys(assigneeColorMap).length - 1;
+                                                    return (
+                                                        <Bar
+                                                            key={name}
+                                                            dataKey={name}
+                                                            stackId="deliveryStack"
+                                                            fill={assigneeColorMap[name]}
+                                                            radius={isTop ? [3, 3, 0, 0] : [0, 0, 0, 0]}
+                                                            isAnimationActive={false}
+                                                        />
+                                                    );
+                                                })}
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+
+                                    {/* Legend Row */}
+                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--border)]/60 text-[11px]">
+                                        <div className="flex items-center gap-3 flex-wrap">
+                                            {Object.entries(assigneeColorMap).map(([name, color]) => (
+                                                <div key={name} className="flex items-center gap-1.5">
+                                                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                                                    <span className="text-[var(--muted-foreground)] text-[10px] font-medium">{name}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <span className="font-mono text-[10px] text-[var(--muted-foreground)] shrink-0">
+                                            Story points by stage
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Task distribution (narrow, 410px tall) */}
+                                <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-[14px_18px] shadow-2xs h-auto lg:h-[410px] flex flex-col justify-between">
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <h2 className="font-heading font-bold text-sm text-[var(--foreground)]">
+                                                Task distribution
+                                            </h2>
+                                            <span className="font-mono text-xs text-[var(--muted-foreground)] font-semibold">
+                                                {totalTasks} total
+                                            </span>
+                                        </div>
+
+                                        {/* Donut Chart with Center Percentage */}
+                                        <div className="relative h-[160px] w-full flex items-center justify-center">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <PieChart>
+                                                    <Pie
+                                                        data={donutData}
+                                                        cx="50%"
+                                                        cy="50%"
+                                                        innerRadius="71%"
+                                                        outerRadius="92%"
+                                                        paddingAngle={3}
+                                                        dataKey="value"
+                                                        stroke="var(--card)"
+                                                        isAnimationActive={false}
+                                                    >
+                                                        {donutData.map(entry => (
+                                                            <Cell key={entry.id} fill={entry.color} />
+                                                        ))}
+                                                    </Pie>
+                                                </PieChart>
+                                            </ResponsiveContainer>
+                                            {/* Centered Percentage Label */}
+                                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                                <span className="text-[26px] font-heading font-extrabold text-[var(--foreground)] leading-none">
+                                                    {completionRate}%
+                                                </span>
+                                                <span className="text-[10px] text-[var(--muted-foreground)] mt-0.5">
+                                                    tasks complete
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Breakdown: Two Columns side-by-side */}
+                                    <div className="grid grid-cols-2 gap-4 pt-3 border-t border-[var(--border)]/60 text-xs mt-auto">
+                                        
+                                        {/* Column 1: Status Toggle Filters */}
+                                        <div>
+                                            <p className="text-[10px] font-mono uppercase tracking-wider text-[var(--muted-foreground)] mb-1 font-semibold">
+                                                Status
+                                            </p>
+                                            <div className="space-y-0.5">
+                                                {Object.values(STATUS_CONFIG).map(s => {
+                                                    const count = allTasks.filter(t => normalizeTaskStatus(t) === s.id).length;
+                                                    const pct = totalTasks > 0 ? Math.round((count / totalTasks) * 100) : 0;
+                                                    const isPressed = activeStatusFilter === s.id;
+
+                                                    return (
+                                                        <button
+                                                            key={s.id}
+                                                            type="button"
+                                                            aria-pressed={isPressed}
+                                                            onClick={() => setActiveStatusFilter(prev => (prev === s.id ? null : s.id))}
+                                                            className={`w-full flex items-center justify-between py-1 px-1.5 rounded transition-all text-left cursor-pointer ${
+                                                                isPressed
+                                                                    ? 'bg-[var(--secondary)] ring-1 ring-[var(--primary)] text-[var(--foreground)] font-bold'
+                                                                    : 'text-[var(--muted-foreground)] hover:bg-[var(--secondary)]/40 hover:text-[var(--foreground)]'
+                                                            }`}
+                                                            title={`Filter queue by ${s.label}`}
+                                                        >
+                                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                                                                <span className="text-[11px] truncate">{s.label}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1 shrink-0 font-mono text-[10px]">
+                                                                <span className="font-bold text-[var(--foreground)]">{count}</span>
+                                                                <span className="text-[var(--muted-foreground)]/60">({pct}%)</span>
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        {/* Column 2: Assigned (Count) */}
+                                        <div>
+                                            <div className="flex items-center justify-between mb-1">
+                                                <p className="text-[10px] font-mono uppercase tracking-wider text-[var(--muted-foreground)] font-semibold">
+                                                    Assigned
+                                                </p>
+                                                <span className="font-mono text-[10px] text-[var(--muted-foreground)]">
+                                                    {assigneeTaskCounts.length}
+                                                </span>
+                                            </div>
+                                            <div className="space-y-1 max-h-[135px] overflow-y-auto custom-scrollbar pr-0.5">
+                                                {assigneeTaskCounts.slice(0, 5).map(item => (
+                                                    <div key={item.name} className="flex items-center justify-between py-0.5">
+                                                        <div className="flex items-center gap-1.5 min-w-0">
+                                                            <div
+                                                                className="w-4 h-4 rounded-full text-[8px] font-bold font-mono text-white flex items-center justify-center shrink-0"
+                                                                style={{ backgroundColor: item.color }}
+                                                            >
+                                                                {getInitials(item.name)}
+                                                            </div>
+                                                            <span className="text-[11px] text-[var(--muted-foreground)] truncate max-w-[85px]" title={item.name}>
+                                                                {item.name}
+                                                            </span>
+                                                        </div>
+                                                        <span className="font-mono text-[11px] font-bold text-[var(--foreground)]">
+                                                            {item.count}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            {/* ── Footer Operational Status ── */}
+                            <div className="flex items-center justify-between pt-4 border-t border-[var(--border)]/60 text-[11px] text-[var(--muted-foreground)]">
+                                <div className="flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-[var(--success)] animate-pulse" />
+                                    <span className="font-medium">All systems operational</span>
+                                </div>
+                                <span className="font-mono text-[10px] text-[var(--muted-foreground)]/80">
+                                    StudioSprint by Vautera Labs
+                                </span>
+                            </div>
+
+                        </div>
                     )}
 
+                    {/* ══════════════════════════════════════════════════════════
+                        VIEW 2: TASKS TAB (Spreadsheet / Table)
+                    ══════════════════════════════════════════════════════════ */}
                     {activeView === 'spreadsheet' && (
-                        <MyTasksList
-                            groups={myTasksGroups}
-                            onFindFit={handleFindFit}
-                            onEditStatus={handleEditStatus}
-                            projectStartDate={project?.start_date}
-                        />
+                        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden shadow-2xs animate-in fade-in duration-200">
+                            <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
+                                <h2 className="font-heading font-bold text-sm text-[var(--foreground)]">
+                                    Tasks Table ({allTasks.length} total)
+                                </h2>
+                                {canManage && (
+                                    <button
+                                        type="button"
+                                        onClick={handleNewTask}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer"
+                                    >
+                                        <Plus className="w-3.5 h-3.5" />
+                                        <span>Add Task</span>
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="overflow-x-auto custom-scrollbar">
+                                <table className="w-full text-left text-xs border-collapse">
+                                    <thead>
+                                        <tr className="border-b border-[var(--border)] bg-[var(--secondary)]/40 text-[10px] font-mono uppercase text-[var(--muted-foreground)] tracking-wider">
+                                            <th className="py-2.5 px-4 w-16">ID</th>
+                                            <th className="py-2.5 px-4">Title</th>
+                                            <th className="py-2.5 px-4">Status</th>
+                                            <th className="py-2.5 px-4">Priority</th>
+                                            <th className="py-2.5 px-4">Assignee</th>
+                                            <th className="py-2.5 px-4 text-right">Points</th>
+                                            <th className="py-2.5 px-4">Due Date</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-[var(--border)]/50">
+                                        {allTasks.map(task => {
+                                            const normStatus = normalizeTaskStatus(task);
+                                            const statusObj = STATUS_CONFIG[normStatus] || STATUS_CONFIG.todo;
+                                            const assignees = getTaskAssignees(task);
+                                            const primaryAssignee = assignees[0] || 'Unassigned';
+                                            const avatarColor = assigneeColorMap[primaryAssignee] || 'var(--primary)';
+
+                                            return (
+                                                <tr
+                                                    key={task.id}
+                                                    onClick={() => setSelectedInspectorTask(task)}
+                                                    className="h-[42px] hover:bg-[var(--secondary)]/50 transition-colors cursor-pointer group"
+                                                >
+                                                    <td className="py-2.5 px-4 font-mono font-semibold text-[var(--muted-foreground)]">
+                                                        #{task.id}
+                                                    </td>
+                                                    <td className="py-2.5 px-4 font-heading font-semibold text-[var(--foreground)] group-hover:text-[var(--primary)] transition-colors">
+                                                        {task.title}
+                                                    </td>
+                                                    <td className="py-2.5 px-4">
+                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${statusObj.badgeBg}`}>
+                                                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: statusObj.color }} />
+                                                            {statusObj.label}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-2.5 px-4">
+                                                        <span className={`font-mono text-[10px] font-bold uppercase ${
+                                                            task.priority === 'Critical' ? 'text-[var(--critical)]' : task.priority === 'High' ? 'text-[var(--warning)]' : 'text-[var(--muted-foreground)]'
+                                                        }`}>
+                                                            {task.priority || 'Medium'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-2.5 px-4">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <div
+                                                                className="w-5 h-5 rounded-full text-[9px] font-mono font-bold text-white flex items-center justify-center shrink-0"
+                                                                style={{ backgroundColor: avatarColor }}
+                                                            >
+                                                                {getInitials(primaryAssignee)}
+                                                            </div>
+                                                            <span className="truncate max-w-[120px] text-[var(--muted-foreground)]">
+                                                                {primaryAssignee}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-2.5 px-4 font-mono font-bold text-right text-[var(--foreground)]">
+                                                        {task.story_points ?? (task.estimated_hours || 0)}
+                                                    </td>
+                                                    <td className="py-2.5 px-4 font-mono text-[11px] text-[var(--muted-foreground)]">
+                                                        {formatDate(task.due_date || task.hard_constraint_date)}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     )}
 
-                    {activeView === 'timeline' && (
-                        <Timeline
-                            tasks={visibleTasks}
-                            project={project}
-                            onEdit={handleEditTask}
-                        />
-                    )}
-
+                    {/* ══════════════════════════════════════════════════════════
+                        VIEW 3: SPRINT PLANNING TAB
+                    ══════════════════════════════════════════════════════════ */}
                     {activeView === 'sprint' && (
-                        <SprintBreakdown
-                            sprints={sprints}
-                            backlogTasks={backlogTasks}
-                            epics={epics}
-                            project={project}
-                            tenantId={tenantId}
-                            canManage={canManage}
-                            onNewTask={handleNewTask}
-                            onFindFit={handleFindFit}
-                        />
-                    )}
-
-                    {activeView === 'epic' && (
-                        <EpicBreakdown
-                            epics={epics}
-                            epicGroups={epicGroups}
-                            epicPhases={epicPhases}
-                            epicPriorities={epicPriorities}
-                            project={project}
-                            tenantId={tenantId}
-                        />
-                    )}
-
-                    {activeView === 'board' && (
-                        !activeSprint ? (
-                            <div className="flex flex-col items-center justify-center py-32 text-center h-full">
-                                <Columns3 className="h-12 w-12 text-gray-300 dark:text-slate-600 mb-4" />
-                                <h3 className="text-lg font-bold text-gray-900 dark:text-slate-100">No Active Sprint</h3>
-                                <p className="mt-2 text-sm text-gray-500 max-w-sm mb-6">
-                                    The Kanban Board gives you a focused view of your current active sprint. 
-                                </p>
+                        <div className="space-y-5 animate-in fade-in duration-200">
+                            {/* Compact Callout at Top */}
+                            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/10 border border-[var(--primary)]/20 flex items-center justify-center text-[var(--primary)] shrink-0">
+                                        <TableProperties className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <p className="font-heading font-bold text-sm text-[var(--foreground)]">
+                                            {activeSprint?.name || 'Sprint 12'} · {pointsDelivered + pointsInFlight} of {totalPoints} points planned
+                                        </p>
+                                        <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
+                                            Sprint velocity pacing is on track with {teamMembers.length || 4} developers committed.
+                                        </p>
+                                    </div>
+                                </div>
                                 <button
-                                    onClick={() => setActiveView('sprint')}
-                                    className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-600 transition-colors shadow-xs"
+                                    type="button"
+                                    onClick={() => showToast('AI Task Decomposition initiated for current sprint.', 'info')}
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[var(--primary)]/40 hover:bg-[var(--primary)]/10 text-[var(--primary)] text-xs font-heading font-semibold transition-colors cursor-pointer shrink-0"
                                 >
-                                    Go to Sprint Planning
+                                    <Sparkles className="w-3.5 h-3.5" />
+                                    <span>Decompose with AI</span>
                                 </button>
                             </div>
-                        ) : (
-                            <div className="flex min-w-max gap-5 p-6">
-                                {groups.map(group => (
-                                    <section
-                                        key={group.id}
-                                        onDragOver={(event) => {
-                                            event.preventDefault();
-                                            if (hoveredColId !== group.id) {
-                                                setHoveredColId(group.id);
-                                            }
+
+                            {/* Full Sprint Breakdown Component */}
+                            <SprintBreakdown
+                                sprints={sprints}
+                                backlogTasks={backlogTasks}
+                                epics={epics}
+                                project={project}
+                                tenantId={tenantId}
+                                canManage={canManage}
+                                onNewTask={handleNewTask}
+                                onFindFit={(task) => {
+                                    setAssignmentTask(task);
+                                    setIsAssignmentModalOpen(true);
+                                }}
+                            />
+                        </div>
+                    )}
+
+                    {/* ══════════════════════════════════════════════════════════
+                        VIEW 4: EPICS TAB
+                    ══════════════════════════════════════════════════════════ */}
+                    {activeView === 'epic' && (
+                        <div className="space-y-4 animate-in fade-in duration-200">
+                            <EpicBreakdown
+                                epics={epics}
+                                epicGroups={epicGroups}
+                                epicPhases={epicPhases}
+                                epicPriorities={epicPriorities}
+                                project={project}
+                                tenantId={tenantId}
+                            />
+                        </div>
+                    )}
+
+                    {/* ══════════════════════════════════════════════════════════
+                        VIEW 5: CRITICAL PATH TAB (Gantt & CPA Synthesis)
+                    ══════════════════════════════════════════════════════════ */}
+                    {activeView === 'timeline' && (
+                        <div className="space-y-5 animate-in fade-in duration-200">
+                            {/* Schedule synthesis callout */}
+                            <CpaAiSummaryCard tasks={allTasks} project={project} />
+
+                            {/* CPA Schedule Panel */}
+                            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 shadow-2xs">
+                                <div className="flex items-center justify-between pb-4 border-b border-[var(--border)] mb-4">
+                                    <div>
+                                        <h2 className="font-heading font-bold text-sm text-[var(--foreground)] flex items-center gap-2">
+                                            <span>Critical Path Gantt Timeline</span>
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--warning)]/10 text-[var(--warning)] border border-[var(--warning)]/20">
+                                                Zero-Slack Pacing
+                                            </span>
+                                        </h2>
+                                        <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
+                                            Visualizing early start, late finish, and critical paths that dictate project delivery.
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-4 text-xs font-medium text-[var(--muted-foreground)]">
+                                        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[var(--warning)]" /> Critical path</span>
+                                        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[var(--cyan)]" /> In progress</span>
+                                        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[var(--success)]" /> Completed</span>
+                                    </div>
+                                </div>
+
+                                {/* Task Timeline Rows */}
+                                <div className="space-y-3">
+                                    {allTasks.map(task => {
+                                        const isCrit = Boolean(task.is_critical);
+                                        const normStatus = normalizeTaskStatus(task);
+                                        const isCompleted = normStatus === 'completed';
+
+                                        return (
+                                            <div
+                                                key={task.id}
+                                                onClick={() => setSelectedInspectorTask(task)}
+                                                className={`grid grid-cols-[240px_1fr_180px] items-center gap-4 p-3 rounded-lg border transition-all cursor-pointer ${
+                                                    isCrit
+                                                        ? 'border-[var(--warning)]/40 bg-[var(--warning)]/5'
+                                                        : 'border-[var(--border)] hover:bg-[var(--secondary)]/40'
+                                                }`}
+                                            >
+                                                <div className="min-w-0 pr-2">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="font-mono text-[10px] text-[var(--muted-foreground)]">#{task.id}</span>
+                                                        <p className="font-heading font-bold text-xs text-[var(--foreground)] truncate">
+                                                            {task.title}
+                                                        </p>
+                                                    </div>
+                                                    <p className="font-mono text-[10px] text-[var(--muted-foreground)] mt-0.5">
+                                                        {task.estimated_hours || 0}h work
+                                                    </p>
+                                                </div>
+
+                                                {/* Mini progress bar */}
+                                                <div className="relative h-6 rounded bg-[var(--secondary)]/70 overflow-hidden px-1 flex items-center">
+                                                    <div
+                                                        className={`h-4 rounded text-[9px] font-mono font-bold text-white px-2 flex items-center justify-between transition-all ${
+                                                            isCompleted ? 'bg-[var(--success)]' : isCrit ? 'bg-[var(--warning)]' : 'bg-[var(--cyan)]'
+                                                        }`}
+                                                        style={{ width: `${Math.min(100, Math.max(20, (Number(task.story_points || 3) * 12)))}%` }}
+                                                    >
+                                                        <span>{task.story_points || 3} pts</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <CpaTaskAiButton task={task} onClick={t => setAiModalTask(t)} />
+                                                    <CpaStatusBadge totalFloat={task.total_float} isCritical={task.is_critical} />
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ══════════════════════════════════════════════════════════
+                        VIEW 6: BOARD TAB (Kanban Columns)
+                    ══════════════════════════════════════════════════════════ */}
+                    {activeView === 'board' && (
+                        <div className="flex min-w-max gap-5 overflow-x-auto pb-4 custom-scrollbar animate-in fade-in duration-200">
+                            {Object.values(STATUS_CONFIG).map(col => {
+                                const colTasks = allTasks.filter(t => normalizeTaskStatus(t) === col.id);
+
+                                return (
+                                    <div
+                                        key={col.id}
+                                        onDragOver={e => {
+                                            e.preventDefault();
+                                            if (hoveredColId !== col.id) setHoveredColId(col.id);
                                         }}
-                                        onDragLeave={() => {
-                                            setHoveredColId(null);
+                                        onDragLeave={() => setHoveredColId(null)}
+                                        onDrop={e => {
+                                            e.preventDefault();
+                                            handleDropTask(col.id);
                                         }}
-                                        onDrop={(event) => {
-                                            event.preventDefault();
-                                            handleDropTask(group.id);
-                                        }}
-                                        className={`flex w-80 flex-col rounded-2xl border transition-all duration-200 ${hoveredColId === group.id && draggedTask && draggedTask.status !== group.id
-                                            ? 'border-brand ring-2 ring-brand/10 bg-brand/5'
-                                            : 'border-gray-250 dark:border-slate-800 bg-gray-100/70 dark:bg-slate-900/50'
-                                            }`}
+                                        className={`w-72 flex flex-col rounded-xl border transition-all ${
+                                            hoveredColId === col.id && draggedTask && normalizeTaskStatus(draggedTask) !== col.id
+                                                ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/20 bg-[var(--secondary)]'
+                                                : 'border-[var(--border)] bg-[var(--card)]'
+                                        }`}
                                     >
-                                        <header className={`flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-slate-800 rounded-t-2xl ${group.headerBgClass}`}>
-                                            <h2 className="text-xs font-extrabold uppercase tracking-wider text-gray-700 dark:text-slate-200">{group.title}</h2>
-                                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${group.className}`}>{group.tasks.length}</span>
-                                        </header>
-                                        <div className="space-y-3 p-3 overflow-y-auto max-h-[calc(100vh-230px)]">
-                                            {group.tasks.map(task => (
-                                                <KanbanCard
-                                                    key={task.id}
-                                                    task={task}
-                                                    onFindFit={handleFindFit}
-                                                    onEdit={handleEditTask}
-                                                    projectStartDate={project?.start_date}
-                                                    onDragStart={setDraggedTask}
-                                                />
-                                            ))}
-                                            {!group.tasks.length && (
-                                                <p className="py-10 text-center text-xs text-gray-400">No tasks in {group.title}</p>
+                                        {/* Column Header */}
+                                        <div className="flex items-center justify-between p-3 border-b border-[var(--border)]">
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: col.color }} />
+                                                <h3 className="font-heading font-bold text-xs uppercase tracking-wider text-[var(--foreground)]">
+                                                    {col.label}
+                                                </h3>
+                                            </div>
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[var(--secondary)] text-[var(--muted-foreground)]">
+                                                {colTasks.length}
+                                            </span>
+                                        </div>
+
+                                        {/* Column Task Cards */}
+                                        <div className="p-3 space-y-2.5 flex-1 overflow-y-auto max-h-[calc(100vh-280px)] custom-scrollbar">
+                                            {colTasks.map(task => {
+                                                const assignees = getTaskAssignees(task);
+                                                const primaryAssignee = assignees[0] || 'Unassigned';
+                                                const avatarColor = assigneeColorMap[primaryAssignee] || 'var(--primary)';
+
+                                                return (
+                                                    <div
+                                                        key={task.id}
+                                                        draggable={canManage}
+                                                        onDragStart={() => setDraggedTask(task)}
+                                                        onClick={() => setSelectedInspectorTask(task)}
+                                                        className="p-3 rounded-lg border border-[var(--border)] bg-[var(--secondary)]/30 hover:border-[var(--primary)]/60 hover:shadow-md transition-all cursor-grab active:cursor-grabbing group"
+                                                    >
+                                                        <div className="flex items-center justify-between mb-1.5">
+                                                            <span className="font-mono text-[10px] text-[var(--muted-foreground)]">#{task.id}</span>
+                                                            {task.is_critical && (
+                                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-[var(--warning)]/15 text-[var(--warning)] border border-[var(--warning)]/20">
+                                                                    Critical
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        <h4 className="font-heading font-bold text-xs text-[var(--foreground)] group-hover:text-[var(--primary)] transition-colors mb-2">
+                                                            {task.title}
+                                                        </h4>
+
+                                                        <div className="flex items-center justify-between pt-2 border-t border-[var(--border)]/40 text-[10px]">
+                                                            <span className="font-mono font-semibold text-[var(--muted-foreground)]">
+                                                                {task.story_points ?? (task.estimated_hours || 0)} SP
+                                                            </span>
+                                                            <div
+                                                                className="w-5 h-5 rounded-full text-[9px] font-mono font-bold text-white flex items-center justify-center shrink-0"
+                                                                style={{ backgroundColor: avatarColor }}
+                                                                title={primaryAssignee}
+                                                            >
+                                                                {getInitials(primaryAssignee)}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                            {colTasks.length === 0 && (
+                                                <div className="py-8 text-center text-xs text-[var(--muted-foreground)] font-mono">
+                                                    Empty
+                                                </div>
                                             )}
                                         </div>
-                                    </section>
-                                ))}
-                            </div>
-                        )
+                                    </div>
+                                );
+                            })}
+                        </div>
                     )}
+
                 </div>
             </div>
 
-            {/* Modals */}
+            {/* ══════════════════════════════════════════════════════════════════
+                SHARED TASK INSPECTOR SHEET (Opens on any task click)
+            ══════════════════════════════════════════════════════════════════ */}
+            {selectedInspectorTask && (
+                <TaskFlyoutInspector
+                    isOpen={Boolean(selectedInspectorTask)}
+                    task={selectedInspectorTask}
+                    onClose={() => setSelectedInspectorTask(null)}
+                    updateTask={handleUpdateTask}
+                    onUpdateStatus={(t, newStatus) => handleStatusChange(t, newStatus)}
+                    canManage={canManage}
+                    currentUserId={currentAuth?.user?.id}
+                    teamMembers={teamMembers}
+                />
+            )}
+
+            {/* ── Additional Modals Preserved ── */}
             <ManualTaskModal
                 isOpen={isManualTaskOpen}
                 onClose={() => setIsManualTaskOpen(false)}
@@ -1073,23 +1425,33 @@ export default function Show({ project, studio, teamMembers, auth, skills = [], 
                 teamMembers={teamMembers}
                 canManage={canManage}
             />
+
             <UpdateTaskStatusModal
                 isOpen={isStatusModalOpen}
                 onClose={() => setIsStatusModalOpen(false)}
                 task={statusEditingTask}
                 project={project}
                 tenantId={tenantId}
-                onSuccess={handleStatusSuccess}
+                onSuccess={(id, spStatus, kbStatus) => {
+                    handleUpdateTask(id, { sprint_status: spStatus, status: kbStatus });
+                }}
             />
+
             <ManageAssignmentModal
                 isOpen={isAssignmentModalOpen}
                 onClose={() => setIsAssignmentModalOpen(false)}
                 task={assignmentTask}
                 teamMembers={teamMembers}
-                onTriggerAi={handleTriggerAiBestFit}
+                onTriggerAi={t => setBestFitTask(t)}
                 project={project}
                 tenantId={tenantId}
                 onSuccess={handleAssignmentSuccess}
+            />
+
+            <CpaTaskAiModal
+                task={aiModalTask}
+                isOpen={Boolean(aiModalTask)}
+                onClose={() => setAiModalTask(null)}
             />
         </ProjectLayout>
     );

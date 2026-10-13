@@ -14,6 +14,7 @@ use App\Http\Controllers\TenantEpicGroupController;
 use App\Http\Controllers\TenantProjectController;
 use App\Http\Controllers\TenantReportController;
 use App\Http\Controllers\TenantScheduleController;
+use App\Http\Controllers\TenantSettingsController;
 use App\Http\Controllers\TenantTaskController;
 use App\Http\Controllers\TenantTeamController;
 use Illuminate\Support\Facades\Route;
@@ -112,13 +113,9 @@ Route::prefix('/studio/{tenant}')->middleware([
     Route::post('/projects/{project}/epic-attributes', [EpicAttributeController::class, 'store'])
         ->name('tenant.projects.epic-attributes.store');
 
-    Route::get('/settings', function () {
-        return Inertia::render('Tenant/Placeholder', [
-            'title' => 'Studio Settings',
-            'description' => 'Configure workspace details, developer roles, division integrations, and default GNN model thresholds.',
-            'status' => 'Active Configuration',
-        ]);
-    })->name('tenant.settings');
+    Route::get('/settings', [TenantSettingsController::class, 'index'])->name('tenant.settings');
+    Route::post('/settings/invite', [TenantSettingsController::class, 'generateInvite'])->name('tenant.settings.invite');
+    Route::patch('/settings', [TenantSettingsController::class, 'update'])->name('tenant.settings.update');
 
     Route::get('/docs', [TenantDocsController::class, 'index'])->name('tenant.docs');
     Route::post('/docs/archive', [TenantDocsController::class, 'archive'])->name('tenant.docs.archive');

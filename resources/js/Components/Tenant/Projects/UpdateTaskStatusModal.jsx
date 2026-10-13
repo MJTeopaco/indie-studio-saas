@@ -14,9 +14,9 @@ function getContrastColor(hexColor) {
 }
 
 const SPRINT_STATUSES = [
-    { value: 'ready_to_start', label: 'Ready to start', color: '#3b82f6', kanban: 'todo' },
-    { value: 'in_progress', label: 'In progress', color: '#f97316', kanban: 'in_progress' },
-    { value: 'waiting_for_review', label: 'Waiting for review', color: '#d97706', kanban: 'review' },
+    { value: 'ready_to_start', label: 'Ready to Start', color: '#3b82f6', kanban: 'todo' },
+    { value: 'in_progress', label: 'In Progress', color: '#f97316', kanban: 'in_progress' },
+    { value: 'waiting_for_review', label: 'Waiting for Review', color: '#d97706', kanban: 'review' },
     { value: 'done', label: 'Done', color: '#10b981', kanban: 'completed' },
     { value: 'stuck', label: 'Stuck', color: '#ef4444', kanban: 'in_progress' },
 ];

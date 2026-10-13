@@ -70,7 +70,7 @@ export default function CentralHub({ ownedStudios = [], joinedStudios = [], ...p
                         */}
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                             <JoinStudioModal
-                                triggerText="Join via code"
+                                triggerText="Join via Code"
                                 variant={canCreateStudio ? 'secondary' : 'primary'}
                                 className="w-full sm:w-auto"
                             />
@@ -82,7 +82,7 @@ export default function CentralHub({ ownedStudios = [], joinedStudios = [], ...p
                                     className="inline-flex items-center justify-center gap-2 rounded-xl border border-transparent bg-brand hover:bg-brand-light active:bg-brand-dark px-4 py-2.5 text-xs sm:text-sm font-heading font-semibold text-white shadow-2xs hover:shadow-md transition-all duration-150 active:scale-[0.98] focus-ring cursor-pointer w-full sm:w-auto"
                                 >
                                     <Plus className="w-4 h-4" />
-                                    <span>New studio</span>
+                                    <span>New Studio</span>
                                 </button>
                             )}
                         </div>
@@ -97,7 +97,7 @@ export default function CentralHub({ ownedStudios = [], joinedStudios = [], ...p
                                         id="managed-by-you-heading"
                                         className="font-heading font-semibold text-lg sm:text-xl text-text-primary tracking-tight"
                                     >
-                                        Managed by you
+                                        Managed by You
                                     </h2>
                                     <span
                                         className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-surface border border-surface-border text-text-muted shadow-2xs"
@@ -125,7 +125,7 @@ export default function CentralHub({ ownedStudios = [], joinedStudios = [], ...p
                                             <Plus className="w-5 h-5" />
                                         </div>
                                         <span className="font-heading font-semibold text-sm text-text-primary group-hover:text-brand transition-colors">
-                                            Create studio
+                                            Create Studio
                                         </span>
                                         <span className="text-xs text-text-muted mt-1">
                                             Start a new workspace
@@ -180,13 +180,13 @@ export default function CentralHub({ ownedStudios = [], joinedStudios = [], ...p
                                 <Layers className="w-7 h-7" />
                             </div>
                             <h2 className="font-heading text-lg sm:text-xl font-bold text-text-primary mb-2 tracking-tight">
-                                No workspaces yet
+                                No Workspaces Yet
                             </h2>
                             <p className="text-sm text-text-muted mb-6 max-w-md mx-auto leading-relaxed">
                                 You haven't joined any studios yet. Join an existing studio workspace using an invitation code.
                             </p>
                             <div className="flex justify-center">
-                                <JoinStudioModal triggerText="Join via code" variant="primary" />
+                                <JoinStudioModal triggerText="Join via Code" variant="primary" />
                             </div>
                         </div>
                     )}

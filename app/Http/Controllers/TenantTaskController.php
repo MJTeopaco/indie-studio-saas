@@ -8,6 +8,7 @@ use App\Models\Tenant\Project;
 use App\Models\Tenant\Task;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -38,6 +39,8 @@ class TenantTaskController extends Controller
                 'id' => $project->id,
                 'name' => $project->name,
                 'status' => $project->status,
+                'start_date' => $project->start_date?->format('Y-m-d'),
+                'target_end_date' => $project->target_end_date?->format('Y-m-d'),
             ])->all();
         } else {
             $assignedProjectIds = DB::table('project_members')
@@ -67,6 +70,8 @@ class TenantTaskController extends Controller
                     'id' => $project->id,
                     'name' => $project->name,
                     'status' => $project->status,
+                    'start_date' => $project->start_date?->format('Y-m-d'),
+                    'target_end_date' => $project->target_end_date?->format('Y-m-d'),
                 ])->all();
         }
 
@@ -119,15 +124,63 @@ class TenantTaskController extends Controller
                 }
             }
 
+            $projectStartDate = $project['start_date'] ?? null;
+            $projectCode = $this->deriveProjectCode($project['name']);
+
             $tasks[$project['id']] = $projectTasks
-                ->map(function (Task $task) use ($assignmentsByTask) {
+                ->map(function (Task $task) use ($assignmentsByTask, $project, $projectStartDate, $projectCode) {
                     $fallbackAssignee = $assignmentsByTask[$task->id] ?? null;
                     $assigneeName = $task->assignee ? $task->assignee->name : ($fallbackAssignee['name'] ?? null);
                     $assignedUserId = $task->assigned_user_id ?? ($fallbackAssignee['user_id'] ?? null);
 
+                    $startDate = null;
+                    $dueDate = null;
+
+                    if ($projectStartDate && $task->es !== null) {
+                        $startDate = $this->deriveWorkingDate($projectStartDate, (float) $task->es);
+                    }
+                    if ($projectStartDate && $task->ef !== null) {
+                        $dueDate = $this->deriveWorkingDate($projectStartDate, (float) $task->ef);
+                    }
+
+                    if ($task->hard_constraint_date) {
+                        $dueDate = $task->hard_constraint_date->format('Y-m-d');
+                    }
+
+                    if (! $startDate) {
+                        if ($task->sprint?->start_date) {
+                            $startDate = $task->sprint->start_date->format('Y-m-d');
+                        } elseif ($task->created_at) {
+                            $startDate = $task->created_at->format('Y-m-d');
+                        } else {
+                            $startDate = now()->format('Y-m-d');
+                        }
+                    }
+
+                    if (! $dueDate) {
+                        if ($task->sprint?->end_date) {
+                            $dueDate = $task->sprint->end_date->format('Y-m-d');
+                        } elseif ($task->days_until_deadline !== null) {
+                            $dueDate = Carbon::parse($startDate)->addDays($task->days_until_deadline)->toDateString();
+                        } else {
+                            $durationDays = max(1, (int) ceil(($task->estimated_hours ?? 8) / 8));
+                            $dueDate = Carbon::parse($startDate)->addDays($durationDays)->toDateString();
+                        }
+                    }
+
+                    if ($dueDate < $startDate) {
+                        $durationDays = max(1, (int) ceil(($task->estimated_hours ?? 8) / 8));
+                        $startDate = Carbon::parse($dueDate)->subDays($durationDays)->toDateString();
+                    }
+
+                    $taskKey = sprintf('%s-%03d', $projectCode, $task->id);
+
                     return [
                         'id' => $task->id,
                         'project_id' => $task->project_id,
+                        'project_name' => $project['name'],
+                        'project_code' => $projectCode,
+                        'task_key' => $taskKey,
                         'title' => $task->title,
                         'description' => $task->description,
                         'task_classification' => $task->task_classification,
@@ -152,12 +205,12 @@ class TenantTaskController extends Controller
                         'epic_id' => $task->epic_id,
                         'epic_name' => $task->epic?->name,
                         'epic_color' => $task->epic?->color,
-                        'dueDate' => $task->hard_constraint_date
-                            ? $task->hard_constraint_date->format('Y-m-d')
-                            : ($task->days_until_deadline !== null
-                                ? now()->addDays($task->days_until_deadline)->toDateString()
-                                : null),
-                        'startDate' => now()->toDateString(),
+                        'es' => $task->es,
+                        'ef' => $task->ef,
+                        'total_float' => $task->total_float,
+                        'dueDate' => $dueDate,
+                        'startDate' => $startDate,
+                        'created_at' => $task->created_at?->toIso8601String(),
                     ];
                 })->all();
         }
@@ -305,5 +358,51 @@ class TenantTaskController extends Controller
         }
 
         return redirect()->back()->with('success', 'Task status updated.');
+    }
+
+    /**
+     * Derive calendar date from a start date and working hours offset (skipping weekends).
+     */
+    private function deriveWorkingDate(?string $startDateStr, ?float $hoursOffset): ?string
+    {
+        if (! $startDateStr || $hoursOffset === null) {
+            return null;
+        }
+
+        $daysOffset = (int) floor($hoursOffset / 8);
+        $date = Carbon::parse($startDateStr);
+        $added = 0;
+
+        while ($added < $daysOffset) {
+            $date->addDay();
+            if (! $date->isWeekend()) {
+                $added++;
+            }
+        }
+
+        return $date->toDateString();
+    }
+
+    /**
+     * Derive a 2-4 letter uppercase project code from project name.
+     */
+    private function deriveProjectCode(string $name): string
+    {
+        $words = preg_split('/[\s\-_]+/', trim($name));
+        if (count($words) >= 2) {
+            $code = '';
+            foreach ($words as $w) {
+                if (! empty($w)) {
+                    $code .= strtoupper($w[0]);
+                }
+            }
+            if (strlen($code) >= 2 && strlen($code) <= 4) {
+                return $code;
+            }
+        }
+
+        $cleaned = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $name));
+
+        return substr($cleaned, 0, 3) ?: 'PRJ';
     }
 }

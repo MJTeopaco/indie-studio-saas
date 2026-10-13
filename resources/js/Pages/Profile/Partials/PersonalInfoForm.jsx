@@ -4,10 +4,6 @@ import {
     Camera, 
     Trash2, 
     Pencil, 
-    Check, 
-    X, 
-    Sparkles, 
-    ChevronDown, 
     Loader2
 } from 'lucide-react';
 import InputError from '@/Components/InputError';
@@ -21,7 +17,6 @@ export default function PersonalInfoForm({
     profile = null, 
     positions = [], 
     availableSkills = {}, 
-    joinedStudios = [], 
     status 
 }) {
     const fileInputRef = useRef(null);
@@ -32,6 +27,7 @@ export default function PersonalInfoForm({
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
     const [isDeleteAvatarModalOpen, setIsDeleteAvatarModalOpen] = useState(false);
     const [isDeletingAvatar, setIsDeletingAvatar] = useState(false);
+    const [avatarError, setAvatarError] = useState(false);
 
     // Modal & editing states
     const [isEditingEmail, setIsEditingEmail] = useState(false);
@@ -107,6 +103,7 @@ export default function PersonalInfoForm({
     const handleSaveProfile = (e) => {
         e.preventDefault();
 
+
         patch(route('profile.update'), {
             preserveScroll: true,
             onSuccess: () => {
@@ -153,10 +150,11 @@ export default function PersonalInfoForm({
                             <div className="w-14 h-14 rounded-full ring-2 ring-slate-200 dark:ring-slate-800 bg-slate-100 dark:bg-slate-800 overflow-hidden flex items-center justify-center font-heading font-bold text-base text-slate-700 dark:text-slate-200 shadow-2xs">
                                 {isUploadingAvatar ? (
                                     <Loader2 className="w-5 h-5 animate-spin text-brand" />
-                                ) : user.avatar ? (
+                                ) : user.avatar && !avatarError ? (
                                     <img
                                         src={user.avatar}
                                         alt={user.name}
+                                        onError={() => setAvatarError(true)}
                                         className="w-full h-full object-cover rounded-full"
                                     />
                                 ) : (
