@@ -1,235 +1,527 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
+import { 
+    Calendar, 
+    ChevronLeft, 
+    ChevronRight, 
+    Clock, 
+    User, 
+    AlertCircle, 
+    CheckCircle2, 
+    Flame, 
+    Layers,
+    ZoomIn,
+    ZoomOut
+} from 'lucide-react';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function parseDate(str) {
     if (!str) return null;
+    const parts = str.split('T')[0].split('-');
+    if (parts.length === 3) {
+        return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    }
     return new Date(str);
 }
 
+function formatDate(date) {
+    if (!date) return '';
+    return date.toISOString().slice(0, 10);
+}
+
 function daysBetween(a, b) {
-    return Math.ceil((b - a) / (1000 * 60 * 60 * 24));
+    const diff = Math.round((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24));
+    return diff;
 }
 
-// ── Avatar Stack ──────────────────────────────────────────────────────────────
-function AvatarStack({ names = [] }) {
-    return (
-        <div className="flex -space-x-1.5">
-            {names.slice(0, 3).map((n, i) => (
-                <div key={i} title={n}
-                    className="w-5 h-5 rounded-full bg-indigo-500 border border-white dark:border-slate-900 text-white text-[8px] font-bold flex items-center justify-center shrink-0">
-                    {n.charAt(0)}
-                </div>
-            ))}
-        </div>
-    );
+// Format date label for header: "Oct 9" or "10"
+function formatHeaderDay(date, isFirstOrNewMonth) {
+    const month = date.toLocaleString('en-US', { month: 'short' });
+    const day = date.getDate();
+    return isFirstOrNewMonth ? `${month} ${day}` : `${day}`;
 }
 
-const priorityWeight = {
-    Critical: 0,
-    CRITICAL: 0,
-    High: 1,
-    HIGH: 1,
-    Medium: 2,
-    MEDIUM: 2,
-    Low: 3,
-    LOW: 3,
-};
+// ── Color Themes by Project / Key Hash ─────────────────────────────────────────
+const THEME_PALETTES = [
+    {
+        // Purple / Mauve
+        bar: 'bg-purple-100/90 border-purple-300 text-purple-900 hover:bg-purple-200/90 dark:bg-purple-950/40 dark:border-purple-500/40 dark:text-purple-200 dark:hover:bg-purple-900/50',
+        badge: 'bg-white/90 border-purple-200 text-purple-800 dark:bg-purple-950/80 dark:border-purple-500/50 dark:text-purple-200',
+        indicator: 'bg-purple-500',
+    },
+    {
+        // Blue / Indigo
+        bar: 'bg-blue-100/90 border-blue-300 text-blue-900 hover:bg-blue-200/90 dark:bg-blue-950/40 dark:border-blue-500/40 dark:text-blue-200 dark:hover:bg-blue-900/50',
+        badge: 'bg-white/90 border-blue-200 text-blue-800 dark:bg-blue-950/80 dark:border-blue-500/50 dark:text-blue-200',
+        indicator: 'bg-blue-500',
+    },
+    {
+        // Cyan / Sky
+        bar: 'bg-cyan-100/90 border-cyan-300 text-cyan-900 hover:bg-cyan-200/90 dark:bg-cyan-950/40 dark:border-cyan-500/40 dark:text-cyan-200 dark:hover:bg-cyan-900/50',
+        badge: 'bg-white/90 border-cyan-200 text-cyan-800 dark:bg-cyan-950/80 dark:border-cyan-500/50 dark:text-cyan-200',
+        indicator: 'bg-cyan-500',
+    },
+    {
+        // Emerald / Green
+        bar: 'bg-emerald-100/90 border-emerald-300 text-emerald-900 hover:bg-emerald-200/90 dark:bg-emerald-950/40 dark:border-emerald-500/40 dark:text-emerald-200 dark:hover:bg-emerald-900/50',
+        badge: 'bg-white/90 border-emerald-200 text-emerald-800 dark:bg-emerald-950/80 dark:border-emerald-500/50 dark:text-emerald-200',
+        indicator: 'bg-emerald-500',
+    },
+    {
+        // Amber / Orange
+        bar: 'bg-amber-100/90 border-amber-300 text-amber-900 hover:bg-amber-200/90 dark:bg-amber-950/40 dark:border-amber-500/40 dark:text-amber-200 dark:hover:bg-amber-900/50',
+        badge: 'bg-white/90 border-amber-200 text-amber-800 dark:bg-amber-950/80 dark:border-amber-500/50 dark:text-amber-200',
+        indicator: 'bg-amber-500',
+    },
+    {
+        // Rose / Coral
+        bar: 'bg-rose-100/90 border-rose-300 text-rose-900 hover:bg-rose-200/90 dark:bg-rose-950/40 dark:border-rose-500/40 dark:text-rose-200 dark:hover:bg-rose-900/50',
+        badge: 'bg-white/90 border-rose-200 text-rose-800 dark:bg-rose-950/80 dark:border-rose-500/50 dark:text-rose-200',
+        indicator: 'bg-rose-500',
+    },
+];
 
-function sortByPriorityAndCriticality(tasks) {
-    return [...tasks].sort((a, b) => {
-        const aCritical = a.is_critical || Number(a.total_float) === 0;
-        const bCritical = b.is_critical || Number(b.total_float) === 0;
-        if (aCritical !== bCritical) return aCritical ? -1 : 1;
-        const priorityDiff = (priorityWeight[a.priority] ?? 2) - (priorityWeight[b.priority] ?? 2);
-        if (priorityDiff !== 0) return priorityDiff;
-        return Number(a.es ?? a.id ?? 0) - Number(b.es ?? b.id ?? 0);
-    });
+function getPaletteForTask(task, index) {
+    if (task.epic_color) {
+        // Can map epic color if custom
+    }
+    const seed = (Number(task.project_id || 0) * 7 + (task.id || index)) % THEME_PALETTES.length;
+    return THEME_PALETTES[seed];
 }
 
-// ── TimelineView ──────────────────────────────────────────────────────────────
+// ── TimelineView Component ───────────────────────────────────────────────────
 export default function TimelineView({ tasks = [], onTaskClick }) {
-    // Build a date range covering all tasks ± 2 days padding
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const scrollContainerRef = useRef(null);
 
-    const allDates = tasks.flatMap(t => [parseDate(t.startDate), parseDate(t.dueDate)]).filter(Boolean);
-    const minDate = allDates.length ? new Date(Math.min(...allDates)) : new Date(today.getTime() - 7 * 86400000);
-    const maxDate = allDates.length ? new Date(Math.max(...allDates)) : new Date(today.getTime() + 21 * 86400000);
-    minDate.setDate(minDate.getDate() - 2);
-    maxDate.setDate(maxDate.getDate() + 4);
+    // Zoom column width state: 64px, 80px (default), 96px
+    const [colWidth, setColWidth] = useState(80);
 
-    const totalDays = daysBetween(minDate, maxDate);
+    // Active hovered task for interactive tooltip
+    const [hoveredTask, setHoveredTask] = useState(null);
+    const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
-    // Build day headers (weekly groups)
-    const days = Array.from({ length: totalDays }, (_, i) => {
-        const d = new Date(minDate);
-        d.setDate(d.getDate() + i);
+    const today = useMemo(() => {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
         return d;
-    });
+    }, []);
 
-    // Week groups for month/week header
-    const months = [];
-    let lastMonth = null;
-    days.forEach((d, i) => {
-        const m = d.toLocaleString('default', { month: 'short', year: 'numeric' });
-        if (m !== lastMonth) {
-            months.push({ label: m, startIdx: i, count: 0 });
-            lastMonth = m;
+    // ── 1. Calculate Date Bounds & Grid Dimensions ───────────────────────────
+    const { minDate, maxDate, totalDays, days } = useMemo(() => {
+        if (!tasks.length) {
+            const min = new Date(today.getTime() - 3 * 86400000);
+            const max = new Date(today.getTime() + 11 * 86400000);
+            const count = daysBetween(min, max) + 1;
+            const daysArr = Array.from({ length: count }, (_, i) => {
+                const d = new Date(min);
+                d.setDate(d.getDate() + i);
+                return d;
+            });
+            return { minDate: min, maxDate: max, totalDays: count, days: daysArr };
         }
-        months[months.length - 1].count++;
-    });
 
-    const COL_W = 36; // px per day
-    const LEFT_W = 180; // px left label column
-    const ROW_H = 44;  // px per row
+        const validStartDates = [];
+        const validDueDates = [];
 
-    const STATUS_COLOR = {
-        todo:        'bg-gray-300 dark:bg-slate-600',
-        in_progress: 'bg-indigo-500',
-        review:      'bg-amber-500',
-        in_review:   'bg-amber-500',
-        completed:   'bg-emerald-500',
-        stuck:       'bg-rose-500',
+        tasks.forEach(t => {
+            const s = parseDate(t.startDate);
+            const d = parseDate(t.dueDate);
+            if (s) validStartDates.push(s);
+            if (d) validDueDates.push(d);
+        });
+
+        const allDates = [...validStartDates, ...validDueDates];
+        let minTime = allDates.length ? Math.min(...allDates.map(d => d.getTime())) : today.getTime();
+        let maxTime = allDates.length ? Math.max(...allDates.map(d => d.getTime())) : today.getTime();
+
+        const min = new Date(minTime);
+        const max = new Date(maxTime);
+
+        // Add 2 days before earliest task and 4 days after latest task for visual breathing room
+        min.setDate(min.getDate() - 2);
+        max.setDate(max.getDate() + 4);
+
+        // Ensure minimum 14 days visible
+        if (daysBetween(min, max) < 14) {
+            max.setDate(min.getDate() + 14);
+        }
+
+        const count = daysBetween(min, max) + 1;
+        const daysArr = Array.from({ length: count }, (_, i) => {
+            const d = new Date(min);
+            d.setDate(d.getDate() + i);
+            return d;
+        });
+
+        return { minDate: min, maxDate: max, totalDays: count, days: daysArr };
+    }, [tasks, today]);
+
+    // Position of today line in pixels
+    const todayOffsetDays = daysBetween(minDate, today);
+    const todayPixelLeft = todayOffsetDays >= 0 && todayOffsetDays < totalDays
+        ? todayOffsetDays * colWidth + colWidth / 2
+        : null;
+
+    // Pan date range buttons
+    const handlePan = (direction) => {
+        if (scrollContainerRef.current) {
+            const scrollAmount = direction * colWidth * 5;
+            scrollContainerRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+        }
     };
 
-    // Group tasks by client
-    const grouped = tasks.reduce((acc, t) => {
-        const grp = t.client || 'General';
-        if (!acc[grp]) acc[grp] = [];
-        acc[grp].push(t);
-        return acc;
-    }, {});
+    const handleJumpToToday = () => {
+        if (scrollContainerRef.current && todayPixelLeft !== null) {
+            const target = Math.max(0, todayPixelLeft - scrollContainerRef.current.clientWidth / 2 + 130);
+            scrollContainerRef.current.scrollTo({ left: target, behavior: 'smooth' });
+        }
+    };
 
-    // Sort tasks in each group by priority and criticality
-    Object.keys(grouped).forEach(key => {
-        grouped[key] = sortByPriorityAndCriticality(grouped[key]);
-    });
+    // Auto scroll near current tasks on mount
+    useEffect(() => {
+        if (scrollContainerRef.current) {
+            if (todayPixelLeft !== null) {
+                const target = Math.max(0, todayPixelLeft - 200);
+                scrollContainerRef.current.scrollTo({ left: target });
+            }
+        }
+    }, [todayPixelLeft]);
 
-    const todayOffset = daysBetween(minDate, today);
+    const LEFT_COL_W = 280; // Width of Task / milestone sticky left column
+    const ROW_HEIGHT = 52;  // Height of each task row
 
     return (
-        <div className="flex-1 overflow-auto p-6 space-y-4">
-            {/* Legend / Status Indicators */}
-            <div className="flex items-center justify-between bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-4 shadow-xs shrink-0">
-                <div>
-                    <h2 className="text-sm font-bold text-gray-900 dark:text-slate-100 font-heading">Tasks Timeline Gantt</h2>
-                    <p className="text-xs text-gray-500 font-sans">Tasks sorted by auto-priority (critical path first).</p>
+        <div className="flex-1 flex flex-col h-full bg-surface-elevated dark:bg-slate-950 border border-surface-border dark:border-slate-850 rounded-2xl overflow-hidden shadow-xs relative">
+            
+            {/* ── Top Timeline Controls Bar ── */}
+            <div className="px-5 py-3 border-b border-surface-border dark:border-slate-800/80 bg-surface/60 dark:bg-slate-900/60 flex items-center justify-between gap-3 shrink-0 flex-wrap">
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-text-primary dark:text-slate-200 uppercase tracking-wider font-heading">
+                        Schedule Gantt
+                    </span>
+                    <span className="text-[11px] font-mono text-text-muted dark:text-slate-400">
+                        ({tasks.length} task{tasks.length !== 1 ? 's' : ''})
+                    </span>
                 </div>
-                <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-gray-600 dark:text-slate-400 font-sans">
-                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" /> Completed</span>
-                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-indigo-500 inline-block" /> In Progress</span>
-                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-amber-500 inline-block" /> In Review</span>
-                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-gray-300 dark:bg-slate-600 inline-block" /> To Do</span>
-                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-rose-500 inline-block" /> Stuck</span>
+
+                <div className="flex items-center gap-2">
+                    {/* Date Navigation */}
+                    <div className="flex items-center bg-surface-elevated dark:bg-slate-900 border border-surface-border dark:border-slate-800 rounded-xl p-0.5 shadow-2xs">
+                        <button
+                            type="button"
+                            onClick={() => handlePan(-1)}
+                            className="p-1 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                            title="Scroll Left"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleJumpToToday}
+                            className="px-2.5 py-1 text-[11px] font-semibold text-text-muted hover:text-brand dark:hover:text-brand-light transition-colors cursor-pointer"
+                        >
+                            Today
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handlePan(1)}
+                            className="p-1 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                            title="Scroll Right"
+                        >
+                            <ChevronRight className="w-4 h-4" />
+                        </button>
+                    </div>
+
+                    {/* Zoom Density Controls */}
+                    <div className="flex items-center bg-surface-elevated dark:bg-slate-900 border border-surface-border dark:border-slate-800 rounded-xl p-0.5 shadow-2xs">
+                        <button
+                            type="button"
+                            onClick={() => setColWidth(w => Math.max(64, w - 12))}
+                            disabled={colWidth <= 64}
+                            className="p-1 rounded-lg text-text-muted hover:text-text-primary disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                            title="Zoom Out (Compact)"
+                        >
+                            <ZoomOut className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="text-[10px] font-mono font-medium text-text-muted px-1.5">
+                            {colWidth}px
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => setColWidth(w => Math.min(108, w + 12))}
+                            disabled={colWidth >= 108}
+                            className="p-1 rounded-lg text-text-muted hover:text-text-primary disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                            title="Zoom In (Spacious)"
+                        >
+                            <ZoomIn className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-xs overflow-hidden">
-                <div className="overflow-x-auto">
-                    <div style={{ minWidth: `${LEFT_W + totalDays * COL_W}px` }}>
-
-                        {/* Month header */}
-                        <div className="flex border-b border-gray-100 dark:border-slate-800/60 bg-gray-50/60 dark:bg-slate-800/20" style={{ marginLeft: LEFT_W }}>
-                            {months.map((m, i) => (
-                                <div key={i}
-                                    style={{ width: m.count * COL_W }}
-                                    className="text-[10px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider px-2 py-2 border-r border-gray-200/60 dark:border-slate-700/40 shrink-0">
-                                    {m.label}
-                                </div>
-                            ))}
+            {/* ── Scrollable Gantt Table Area ── */}
+            <div 
+                ref={scrollContainerRef}
+                className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar select-none relative"
+            >
+                <div 
+                    style={{ minWidth: `${LEFT_COL_W + totalDays * colWidth}px` }}
+                    className="relative flex flex-col"
+                >
+                    {/* ── HEADER ROW ── */}
+                    <div className="flex items-stretch border-b border-surface-border dark:border-slate-800 bg-surface/80 dark:bg-slate-900/90 sticky top-0 z-30 backdrop-blur-md">
+                        {/* Sticky Left Header: Task / milestone */}
+                        <div 
+                            style={{ width: `${LEFT_COL_W}px` }}
+                            className="shrink-0 px-5 py-3 flex items-center font-bold text-xs text-text-muted dark:text-slate-400 uppercase tracking-wider font-heading sticky left-0 z-40 bg-surface dark:bg-slate-900 border-r border-surface-border dark:border-slate-800/90 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.1)] dark:shadow-[4px_0_12px_-4px_rgba(0,0,0,0.5)]"
+                        >
+                            Task / milestone
                         </div>
 
-                        {/* Day header */}
-                        <div className="flex border-b border-gray-100 dark:border-slate-800/60">
-                            {/* Sticky label */}
-                            <div style={{ width: LEFT_W }} className="shrink-0 px-4 py-2 text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider bg-gray-50/60 dark:bg-slate-800/20 border-r border-gray-200 dark:border-slate-700/60">
-                                Task
-                            </div>
+                        {/* Date Columns Header: Oct 9 | 10 | 11 | 12 ... */}
+                        <div className="flex-1 flex">
                             {days.map((d, i) => {
+                                const isFirst = i === 0;
+                                const isNewMonth = !isFirst && d.getDate() === 1;
                                 const isToday = daysBetween(today, d) === 0;
                                 const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+
                                 return (
-                                    <div key={i}
-                                        style={{ width: COL_W }}
-                                        className={`shrink-0 flex flex-col items-center justify-center py-1.5 border-r border-gray-100 dark:border-slate-800/40 last:border-0 ${isWeekend ? 'bg-gray-50/60 dark:bg-slate-800/10' : ''} ${isToday ? 'bg-indigo-50 dark:bg-indigo-900/10' : ''}`}>
-                                        <span className={`text-[9px] font-semibold ${isToday ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 dark:text-slate-500'}`}>
-                                            {d.toLocaleDateString('en', { weekday: 'narrow' })}
-                                        </span>
-                                        <span className={`text-[10px] font-bold ${isToday ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-slate-400'}`}>
-                                            {d.getDate()}
+                                    <div
+                                        key={i}
+                                        style={{ width: `${colWidth}px` }}
+                                        className={`shrink-0 flex items-center justify-center py-3 border-r border-slate-200/60 dark:border-slate-800/60 text-center transition-colors ${
+                                            isToday 
+                                                ? 'bg-brand/10 text-brand font-bold dark:bg-brand/15' 
+                                                : isWeekend 
+                                                ? 'bg-slate-100/40 dark:bg-slate-900/30 text-text-muted/80 dark:text-slate-500' 
+                                                : 'text-text-muted dark:text-slate-400 font-medium'
+                                        }`}
+                                    >
+                                        <span className={`text-xs ${isFirst || isNewMonth ? 'font-bold text-text-primary dark:text-slate-200' : 'text-xs'}`}>
+                                            {formatHeaderDay(d, isFirst || isNewMonth)}
                                         </span>
                                     </div>
                                 );
                             })}
                         </div>
+                    </div>
 
-                        {/* Task rows */}
-                        {Object.entries(grouped).map(([group, groupTasks]) => (
-                            <div key={group}>
-                                {/* Group label */}
-                                <div className="flex items-center bg-gray-50/50 dark:bg-slate-800/20 border-b border-gray-100 dark:border-slate-800/40">
-                                    <div style={{ width: LEFT_W }} className="shrink-0 px-4 py-2 text-[10px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider border-r border-gray-200 dark:border-slate-700/60">
-                                        {group}
-                                    </div>
-                                    <div style={{ width: totalDays * COL_W }} className="h-8" />
-                                </div>
+                    {/* ── GRID BODY: TASK ROWS ── */}
+                    <div className="flex-1 relative">
+                        {/* Background Vertical Grid Lines Across All Rows */}
+                        <div 
+                            className="absolute inset-0 pointer-events-none flex"
+                            style={{ left: `${LEFT_COL_W}px` }}
+                        >
+                            {days.map((d, i) => {
+                                const isToday = daysBetween(today, d) === 0;
+                                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
 
-                                {groupTasks.map(task => {
-                                    const start = parseDate(task.startDate);
-                                    const end   = parseDate(task.dueDate);
-                                    const barStart = start ? Math.max(0, daysBetween(minDate, start)) : 0;
-                                    const barEnd   = end   ? Math.min(totalDays, daysBetween(minDate, end)) : barStart + 2;
-                                    const barW = Math.max(1, barEnd - barStart) * COL_W;
+                                return (
+                                    <div
+                                        key={i}
+                                        style={{ width: `${colWidth}px` }}
+                                        className={`h-full shrink-0 border-r border-slate-200/50 dark:border-slate-800/50 ${
+                                            isToday 
+                                                ? 'bg-brand/[0.03] dark:bg-brand/[0.04]' 
+                                                : isWeekend 
+                                                ? 'bg-slate-100/30 dark:bg-slate-900/20' 
+                                                : ''
+                                        }`}
+                                    />
+                                );
+                            })}
 
-                                    return (
-                                        <div key={task.id} className="flex items-center border-b border-gray-50 dark:border-slate-800/30 hover:bg-gray-50/40 dark:hover:bg-slate-800/10 transition-colors" style={{ height: ROW_H }}>
-                                            {/* Task label */}
-                                            <div onClick={() => onTaskClick?.(task)} style={{ width: LEFT_W }} className="shrink-0 px-4 flex flex-col justify-center border-r border-gray-200 dark:border-slate-700/60 h-full cursor-pointer hover:bg-gray-100/40 dark:hover:bg-slate-800/30">
-                                                <span className="text-xs font-semibold text-gray-800 dark:text-slate-200 truncate">{task.title}</span>
-                                                {task.assignee && (
-                                                    <span className="text-[10px] text-gray-400 dark:text-slate-500 truncate">{task.assignee}</span>
-                                                )}
-                                            </div>
+                            {/* Today Glowing Vertical Marker Line */}
+                            {todayPixelLeft !== null && (
+                                <div
+                                    className="absolute top-0 bottom-0 w-0.5 bg-brand z-20 pointer-events-none shadow-[0_0_8px_rgba(0,124,255,0.7)]"
+                                    style={{ left: `${todayPixelLeft}px` }}
+                                />
+                            )}
+                        </div>
 
-                                            {/* Gantt area */}
-                                            <div style={{ width: totalDays * COL_W }} className="relative h-full shrink-0">
-                                                {/* Weekend shading */}
-                                                {days.map((d, i) => (d.getDay() === 0 || d.getDay() === 6) ? (
-                                                    <div key={i}
-                                                        style={{ left: i * COL_W, width: COL_W, top: 0, bottom: 0 }}
-                                                        className="absolute bg-gray-50/80 dark:bg-slate-800/20 pointer-events-none" />
-                                                ) : null)}
+                        {/* Task Rows */}
+                        {tasks.map((task, rowIndex) => {
+                            const palette = getPaletteForTask(task, rowIndex);
 
-                                                {/* Today line */}
-                                                {todayOffset >= 0 && todayOffset <= totalDays && (
-                                                    <div
-                                                        className="absolute top-0 bottom-0 w-px bg-indigo-500 z-10 pointer-events-none"
-                                                        style={{ left: todayOffset * COL_W + COL_W / 2 }}
-                                                    />
-                                                )}
+                            // Compute Bar Bounds
+                            const startDate = parseDate(task.startDate);
+                            const dueDate = parseDate(task.dueDate);
 
-                                                {/* Task bar */}
-                                                {barW > 0 && (
-                                                    <div
-                                                        onClick={() => onTaskClick?.(task)}
-                                                        className={`absolute top-1/2 -translate-y-1/2 rounded-full flex items-center px-2 gap-1.5 shadow-xs cursor-pointer hover:scale-[1.02] active:scale-[0.98] transition-transform ${STATUS_COLOR[task.status] || STATUS_COLOR.todo}`}
-                                                        style={{ left: barStart * COL_W + 1, width: barW - 2, height: 24, minWidth: 24 }}
-                                                        title={`${task.title} — ${task.startDate} → ${task.dueDate}`}
-                                                    >
-                                                        <span className="text-white text-[9px] font-semibold truncate flex-1">{task.title}</span>
-                                                        {task.assignee && <AvatarStack names={[task.assignee]} />}
-                                                    </div>
-                                                )}
-                                            </div>
+                            let startOffset = startDate ? daysBetween(minDate, startDate) : 0;
+                            let endOffset = dueDate ? daysBetween(minDate, dueDate) : startOffset + 1;
+
+                            // Clamp bounds
+                            if (endOffset < startOffset) {
+                                endOffset = startOffset + 1;
+                            }
+
+                            const durationDays = Math.max(1, endOffset - startOffset + 1);
+                            const barLeft = startOffset * colWidth + 4;
+                            const barWidth = durationDays * colWidth - 8;
+
+                            // Formatted Points & Task Key
+                            const pts = task.story_points ?? Math.max(1, Math.round((task.estimated_hours || 8) / 4));
+                            const taskCode = task.task_key || `#${task.id}`;
+
+                            return (
+                                <div
+                                    key={task.id || rowIndex}
+                                    style={{ height: `${ROW_HEIGHT}px` }}
+                                    className="flex items-center border-b border-slate-200/60 dark:border-slate-800/60 hover:bg-slate-50/60 dark:hover:bg-slate-850/40 transition-colors group relative"
+                                >
+                                    {/* Sticky Left Column: Task / Milestone Title */}
+                                    <div
+                                        style={{ width: `${LEFT_COL_W}px` }}
+                                        onClick={() => onTaskClick?.(task)}
+                                        className="shrink-0 px-5 flex items-center gap-2.5 h-full sticky left-0 z-20 bg-surface-elevated group-hover:bg-slate-50/90 dark:bg-slate-950 dark:group-hover:bg-slate-900 border-r border-surface-border dark:border-slate-800/90 transition-colors cursor-pointer shadow-[4px_0_12px_-4px_rgba(0,0,0,0.08)] dark:shadow-[4px_0_12px_-4px_rgba(0,0,0,0.4)]"
+                                    >
+                                        <div className={`w-2 h-2 rounded-full shrink-0 ${palette.indicator}`} />
+                                        <div className="min-w-0 flex-1">
+                                            <p 
+                                                title={task.title}
+                                                className="text-xs font-semibold text-text-primary dark:text-slate-100 truncate group-hover:text-brand transition-colors"
+                                            >
+                                                {task.title}
+                                            </p>
+                                            {task.project_name && (
+                                                <p className="text-[10px] text-text-muted dark:text-slate-500 truncate">
+                                                    {task.project_name}
+                                                </p>
+                                            )}
                                         </div>
-                                    );
-                                })}
-                            </div>
-                        ))}
+                                    </div>
 
+                                    {/* Timeline Bar Area */}
+                                    <div 
+                                        className="flex-1 h-full relative"
+                                        style={{ width: `${totalDays * colWidth}px` }}
+                                    >
+                                        {/* Gantt Bar */}
+                                        <div
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onTaskClick?.(task);
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                setHoveredTask(task);
+                                                setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top - 8 });
+                                            }}
+                                            onMouseLeave={() => setHoveredTask(null)}
+                                            style={{
+                                                left: `${barLeft}px`,
+                                                width: `${barWidth}px`,
+                                                height: '34px',
+                                                top: '9px',
+                                            }}
+                                            className={`absolute rounded-md border flex items-center px-2.5 gap-2 transition-all duration-150 cursor-pointer shadow-xs hover:shadow-md hover:scale-[1.008] active:scale-[0.99] z-10 ${palette.bar}`}
+                                        >
+                                            {/* Pill Badge Inside Bar: [ EOV-120 · 8 pts ] */}
+                                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold tracking-tight shrink-0 border ${palette.badge}`}>
+                                                <span>{taskCode}</span>
+                                                <span className="opacity-50">·</span>
+                                                <span>{pts} pts</span>
+                                            </span>
+
+                                            {/* Task Name inside bar if space allows */}
+                                            {barWidth > 200 && (
+                                                <span className="text-[11px] font-medium truncate opacity-90">
+                                                    {task.title}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             </div>
+
+            {/* ── FLOATING HOVER INSPECTOR TOOLTIP ── */}
+            {hoveredTask && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        left: `${tooltipPos.x}px`,
+                        top: `${tooltipPos.y}px`,
+                        transform: 'translate(-50%, -100%)',
+                        zIndex: 9999,
+                    }}
+                    className="pointer-events-none min-w-[240px] max-w-[320px] p-3 rounded-xl bg-slate-900/95 dark:bg-slate-900/95 border border-slate-700/80 text-white shadow-2xl backdrop-blur-md animate-in fade-in-50 zoom-in-95 duration-100"
+                >
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="font-mono text-[10px] font-bold text-brand-light uppercase">
+                            {hoveredTask.task_key || `#${hoveredTask.id}`}
+                        </span>
+                        <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-slate-800 text-slate-300">
+                            {hoveredTask.status?.replace(/_/g, ' ') || 'To Do'}
+                        </span>
+                    </div>
+
+                    <h4 className="text-xs font-bold leading-snug line-clamp-2 text-white mb-2">
+                        {hoveredTask.title}
+                    </h4>
+
+                    <div className="space-y-1 text-[11px] border-t border-slate-800 pt-2 text-slate-300">
+                        <div className="flex items-center justify-between">
+                            <span className="text-slate-400 flex items-center gap-1">
+                                <Calendar className="w-3 h-3 text-slate-400" /> Date Span:
+                            </span>
+                            <span className="font-mono font-medium text-slate-200">
+                                {hoveredTask.startDate} → {hoveredTask.dueDate}
+                            </span>
+                        </div>
+
+                        {hoveredTask.estimated_hours && (
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-400 flex items-center gap-1">
+                                    <Clock className="w-3 h-3 text-slate-400" /> Estimate:
+                                </span>
+                                <span className="font-mono text-slate-200">
+                                    {hoveredTask.estimated_hours}h
+                                </span>
+                            </div>
+                        )}
+
+                        {hoveredTask.assignee && (
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-400 flex items-center gap-1">
+                                    <User className="w-3 h-3 text-slate-400" /> Assignee:
+                                </span>
+                                <span className="font-medium text-slate-200 truncate max-w-[140px]">
+                                    {hoveredTask.assignee}
+                                </span>
+                            </div>
+                        )}
+
+                        {hoveredTask.is_critical && (
+                            <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-amber-400 bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-800/50">
+                                <Flame className="w-3 h-3" />
+                                <span>Critical Path Task (Bottleneck)</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* ── Timeline Footer Status ── */}
+            <div className="px-5 py-2.5 bg-surface/80 dark:bg-slate-900/80 border-t border-surface-border dark:border-slate-800/80 flex items-center justify-between text-[11px] text-text-muted dark:text-slate-400 shrink-0">
+                <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="font-medium">All systems operational</span>
+                </div>
+                <div className="flex items-center gap-3">
+                    <span className="font-mono text-[10px]">
+                        Range: {formatDate(minDate)} → {formatDate(maxDate)}
+                    </span>
+                    <span className="text-text-muted/40">|</span>
+                    <span className="font-medium">Click any bar to edit task</span>
+                </div>
+            </div>
+
         </div>
     );
 }
