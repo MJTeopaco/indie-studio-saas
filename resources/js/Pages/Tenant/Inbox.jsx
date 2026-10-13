@@ -981,10 +981,6 @@ export default function Inbox({
     const [approveModalReq, setApproveModalReq] = useState(null);
     const [declineModalReq, setDeclineModalReq] = useState(null);
 
-    // Quick reply states
-    const [quickReplyText, setQuickReplyText] = useState('');
-    const [quickReplySuccess, setQuickReplySuccess] = useState(false);
-
     // Category count metrics
     const unreadCount = useMemo(() => notificationsList.filter(n => !n.read).length, [notificationsList]);
     const actionRequiredCount = useMemo(() =>
