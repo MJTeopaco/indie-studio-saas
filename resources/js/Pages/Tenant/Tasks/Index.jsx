@@ -134,18 +134,30 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
 
     // Inline update handler for Task Details Drawer
     const handleUpdateTask = (taskId, patch) => {
+        const sprintStatusMap = {
+            todo: 'ready_to_start',
+            in_progress: 'in_progress',
+            review: 'waiting_for_review',
+            completed: 'done',
+            stuck: 'stuck',
+        };
+        const augmentedPatch = { ...patch };
+        if (patch.status && !patch.sprint_status && sprintStatusMap[patch.status]) {
+            augmentedPatch.sprint_status = sprintStatusMap[patch.status];
+        }
+
         setLocalTasksMap(prev => {
             const copy = { ...prev };
             for (const pid of Object.keys(copy)) {
                 copy[pid] = copy[pid].map(t =>
-                    t.id === taskId ? { ...t, ...patch } : t
+                    t.id === taskId ? { ...t, ...augmentedPatch } : t
                 );
             }
             return copy;
         });
 
         if (selectedTask && selectedTask.id === taskId) {
-            setSelectedTask(prev => prev ? { ...prev, ...patch } : null);
+            setSelectedTask(prev => prev ? { ...prev, ...augmentedPatch } : null);
         }
 
         const targetProject = selectedTask?.project_id || projects[0]?.id;
@@ -156,7 +168,7 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
                     project: targetProject,
                     task: taskId,
                 }),
-                patch,
+                augmentedPatch,
                 { preserveScroll: true, preserveState: true }
             );
         }

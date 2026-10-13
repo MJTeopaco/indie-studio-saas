@@ -287,7 +287,7 @@ class TenantProjectController extends Controller
 
         RecomputeProjectSchedule::dispatchSync($projectModel->id);
 
-        if ($request->expectsJson() || $request->ajax()) {
+        if (! $request->header('X-Inertia') && ($request->expectsJson() || $request->ajax())) {
             return response()->json(['status' => 'success', 'project' => $projectModel]);
         }
 
@@ -426,7 +426,7 @@ class TenantProjectController extends Controller
 
         RecomputeProjectSchedule::dispatchSync($projectModel->id);
 
-        if ($request->expectsJson()) {
+        if (! $request->header('X-Inertia') && $request->expectsJson()) {
             return response()->json([
                 'status' => 'success',
                 'message' => 'Tasks saved successfully. The timeline is being recalculated.',
@@ -696,7 +696,7 @@ class TenantProjectController extends Controller
 
         RecomputeProjectSchedule::dispatchSync($projectModel->id);
 
-        if ($request->expectsJson()) {
+        if (! $request->header('X-Inertia') && $request->expectsJson()) {
             return response()->json([
                 'status' => 'success',
                 'message' => 'Hierarchy saved successfully. The timeline is being recalculated.',
@@ -775,7 +775,7 @@ class TenantProjectController extends Controller
 
         RecomputeProjectSchedule::dispatchSync($projectModel->id);
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if (! $request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
             return response()->json([
                 'status' => 'success',
                 'task' => $task,
@@ -898,6 +898,31 @@ class TenantProjectController extends Controller
             ]);
         }
 
+        // ── Status ↔ sprint_status sync ────────────────────────────────────
+        if (isset($validated['sprint_status']) && ! isset($validated['status'])) {
+            $map = [
+                'ready_to_start' => 'todo',
+                'in_progress' => 'in_progress',
+                'waiting_for_review' => 'review',
+                'done' => 'completed',
+                'stuck' => 'stuck',
+            ];
+            if (isset($map[$validated['sprint_status']])) {
+                $validated['status'] = $map[$validated['sprint_status']];
+            }
+        } elseif (isset($validated['status']) && ! isset($validated['sprint_status'])) {
+            $map = [
+                'todo' => 'ready_to_start',
+                'in_progress' => 'in_progress',
+                'review' => 'waiting_for_review',
+                'completed' => 'done',
+                'stuck' => 'stuck',
+            ];
+            if (isset($map[$validated['status']])) {
+                $validated['sprint_status'] = $map[$validated['status']];
+            }
+        }
+
         $oldAssignedId = $taskModel->assigned_user_id;
 
         DB::transaction(function () use ($taskModel, $validated, $oldAssignedId): void {
@@ -948,7 +973,7 @@ class TenantProjectController extends Controller
 
         RecomputeProjectSchedule::dispatchSync($projectModel->id);
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if (! $request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
             return response()->json([
                 'status' => 'success',
                 'task' => $taskModel,
@@ -1011,7 +1036,7 @@ class TenantProjectController extends Controller
 
         $sprint = $projectModel->sprints()->create($validated);
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if (! $request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
             return response()->json([
                 'status' => 'success',
                 'sprint' => $sprint,
@@ -1368,7 +1393,7 @@ class TenantProjectController extends Controller
 
         $sprintModel->update($validated);
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if (! $request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
             return response()->json([
                 'status' => 'success',
                 'sprint' => $sprintModel,
@@ -1453,7 +1478,7 @@ class TenantProjectController extends Controller
             }
         });
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if (! $request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
             return response()->json([
                 'status' => 'success',
                 'sprint' => $sprintModel,

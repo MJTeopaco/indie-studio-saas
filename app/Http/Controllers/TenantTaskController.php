@@ -348,7 +348,7 @@ class TenantTaskController extends Controller
             Log::warning('TaskStatusUpdated broadcast failed: '.$e->getMessage());
         }
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if (! $request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
             return response()->json([
                 'status' => 'success',
                 'task' => array_merge($taskModel->toArray(), [
