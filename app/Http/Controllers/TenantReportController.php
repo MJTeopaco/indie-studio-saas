@@ -258,12 +258,13 @@ class TenantReportController extends Controller
     /**
      * Delete an archived report.
      */
-    public function deleteReport(Request $request, $tenant, $reportId)
+    public function deleteReport(Request $request, $report = null, $extra = null)
     {
-        $tenantId = tenant('id') ?? (string) $tenant;
+        $tenantId = tenant('id') ?? (string) $request->route('tenant');
         $user = $request->user();
 
-        $report = Report::findOrFail($reportId);
+        $targetReportId = $extra ?? $report ?? $request->route('report') ?? $request->route('reportId');
+        $report = Report::findOrFail($targetReportId);
 
         // Authorization: Creator or Leader/Manager can delete
         $isLeader = $this->reportDataService->isLeaderOrManager($user, $tenantId);

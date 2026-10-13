@@ -1137,6 +1137,7 @@ export default function Inbox({
     const photoInputRef = useRef(null);
     const chatEndRef = useRef(null);
     const chatContainerRef = useRef(null);
+    const isInitialLoadRef = useRef(true);
     const [showScrollDown, setShowScrollDown] = useState(false);
     const pollingRef = useRef(null);
 
@@ -1328,6 +1329,7 @@ export default function Inbox({
             setLastId(null);
             return;
         }
+        isInitialLoadRef.current = true;
         setMessages([]);
         setLastId(null);
         setReplyingTo(null);
@@ -1416,15 +1418,27 @@ export default function Inbox({
         };
     }, [workspaceSlug, selectedChat?.id]);
 
-    // Auto-scroll to bottom on new message
+    // Auto-scroll to bottom on new message or initial load
     useEffect(() => {
         const el = chatContainerRef.current;
         if (!el) return;
+        if (isInitialLoadRef.current) {
+            el.scrollTop = el.scrollHeight;
+            isInitialLoadRef.current = false;
+            return;
+        }
         const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
         if (distFromBottom < 150) {
-            chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
         }
     }, [messages]);
+
+    // Keep parent layout scrolled to top so child chat elements never push ancestor containers
+    useEffect(() => {
+        const mainEl = document.getElementById('main-content');
+        if (mainEl && mainEl.scrollTop > 0) mainEl.scrollTop = 0;
+        if (typeof window !== 'undefined' && window.scrollY > 0) window.scrollTo(0, 0);
+    }, [activeTab, selectedChat?.id]);
 
     const handleChatScroll = () => {
         const el = chatContainerRef.current;
@@ -1432,7 +1446,14 @@ export default function Inbox({
         setShowScrollDown(el.scrollHeight - el.scrollTop - el.clientHeight > 80);
     };
 
-    const scrollToBottom = () => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const scrollToBottom = () => {
+        if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTo({
+                top: chatContainerRef.current.scrollHeight,
+                behavior: 'smooth',
+            });
+        }
+    };
 
     // ── Load Channel Shared Assets ───────────────────────────────────────────
     const loadAssets = useCallback(async (channelId) => {
@@ -1578,8 +1599,16 @@ export default function Inbox({
 
     const jumpToMessage = (msgId) => {
         const el = document.getElementById(`msg-${msgId}`);
-        if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const container = chatContainerRef.current;
+        if (el && container) {
+            const elRect = el.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            const targetScrollTop = container.scrollTop + (elRect.top - containerRect.top) - (containerRect.clientHeight / 2) + (elRect.height / 2);
+
+            container.scrollTo({
+                top: Math.max(0, targetScrollTop),
+                behavior: 'smooth',
+            });
             setHighlightedMsgId(msgId);
             setTimeout(() => setHighlightedMsgId(null), 2200);
         }
@@ -1878,10 +1907,10 @@ export default function Inbox({
                 forwarding={sending}
             />
 
-            <div className="flex flex-col min-h-screen bg-slate-50/60 dark:bg-slate-950 text-slate-800 dark:text-slate-100">
+            <div className="flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/60 dark:bg-slate-950 text-slate-800 dark:text-slate-100">
 
                 {/* ── Top Header ── */}
-                <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-20 shadow-2xs">
+                <div className="shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 z-20 shadow-2xs">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div className="flex items-center gap-3.5">
@@ -1949,15 +1978,15 @@ export default function Inbox({
                 </div>
 
                 {/* ── Main View Area ── */}
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 w-full flex-1 flex flex-col">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 w-full flex-1 min-h-0 flex flex-col overflow-hidden">
 
                     {/* ================================================================
                         NOTIFICATIONS TAB
                     ================================================================ */}
                     {activeTab === 'notifications' && (
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 min-h-0 items-start">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 min-h-0 h-full">
                             {/* Left — Feed List */}
-                            <div className="lg:col-span-5 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full max-h-[calc(100vh-175px)]">
+                            <div className="lg:col-span-5 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full min-h-0">
                                 {/* Search & Category Filter Header */}
                                 <div className="p-3.5 border-b border-slate-100 dark:border-slate-800 space-y-2.5 shrink-0 bg-slate-50/50 dark:bg-slate-900/50">
                                     <div className="relative">
@@ -2021,7 +2050,7 @@ export default function Inbox({
                                 </div>
 
                                 {/* Notification List */}
-                                <div className="divide-y divide-slate-100 dark:divide-slate-800 overflow-y-auto flex-1">
+                                <div className="divide-y divide-slate-100 dark:divide-slate-800 overflow-y-auto flex-1 min-h-0">
                                     {filteredNotifications.length === 0 ? (
                                         <div className="py-20 px-6 text-center flex flex-col items-center gap-2.5">
                                             <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
@@ -2137,9 +2166,9 @@ export default function Inbox({
                             </div>
 
                             {/* Right — Detail / Context Inspection Pane */}
-                            <div className="lg:col-span-7 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full max-h-[calc(100vh-175px)]">
+                            <div className="lg:col-span-7 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full min-h-0">
                                 {activeNotification ? (
-                                    <div className="flex flex-col h-full overflow-y-auto">
+                                    <div className="flex flex-col h-full overflow-y-auto min-h-0">
                                         {/* Inspection Header */}
                                         <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-linear-to-br from-slate-50 to-indigo-50/20 dark:from-slate-900 dark:to-indigo-950/20">
                                             <div className="flex items-start justify-between gap-4">
@@ -2449,10 +2478,10 @@ export default function Inbox({
                         TEAM MESSAGES TAB
                     ================================================================ */}
                     {activeTab === 'messages' && (
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0 items-start">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 min-h-0 h-full">
 
                             {/* Left — Sidebar */}
-                            <div className="lg:col-span-4 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full max-h-[calc(100vh-180px)]">
+                            <div className="lg:col-span-4 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full min-h-0">
                                 <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
                                     <div>
                                         <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Team Messages</h3>
@@ -2487,7 +2516,7 @@ export default function Inbox({
                                     </div>
                                 </div>
 
-                                <div className={`${SCROLL_CLS} flex-1 p-3 space-y-4`}>
+                                <div className={`${SCROLL_CLS} flex-1 min-h-0 p-3 space-y-4`}>
 
                                     {/* Channels */}
                                     <div>
@@ -2628,7 +2657,7 @@ export default function Inbox({
                                 onDragLeave={handleDragLeave}
                                 onDrop={handleDrop}
                                 onPaste={handlePaste}
-                                className="lg:col-span-8 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-[calc(100vh-180px)] relative">
+                                className="lg:col-span-8 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden h-full min-h-0 relative">
 
                                 {!selectedChat ? (
                                     <div className="flex-1 flex flex-col items-center justify-center p-8 text-center select-none h-full bg-slate-50/50 dark:bg-slate-900/50">
@@ -2777,7 +2806,7 @@ export default function Inbox({
 
                                 {/* Messages Feed */}
                                 <div ref={chatContainerRef} onScroll={handleChatScroll}
-                                    className={`${SCROLL_CLS} flex-1 p-6 space-y-4`}>
+                                    className={`${SCROLL_CLS} flex-1 min-h-0 p-6 space-y-4`}>
 
                                     {loadingMessages ? (
                                         <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-400">

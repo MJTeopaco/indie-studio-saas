@@ -5,11 +5,13 @@ import {
     ShieldCheck, 
     ArrowLeft, 
     LogOut, 
-    Sparkles 
+    Sparkles,
+    CalendarClock
 } from 'lucide-react';
 import SystemToast from '@/Components/SystemToast';
 import PersonalInfoForm from './Partials/PersonalInfoForm';
 import PrivacySecurityForm from './Partials/PrivacySecurityForm';
+import AvailabilityForm from './Partials/AvailabilityForm';
 
 export default function Edit({
     user = {},
@@ -17,9 +19,10 @@ export default function Edit({
     positions = [],
     availableSkills = {},
     joinedStudios = [],
+    leaveHistory = [],
     status,
 }) {
-    const [activeTab, setActiveTab] = useState('personal'); // 'personal' | 'security'
+    const [activeTab, setActiveTab] = useState('personal'); // 'personal' | 'availability' | 'security'
 
     const userInitials = user.name
         ? user.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
@@ -29,8 +32,14 @@ export default function Edit({
         {
             id: 'personal',
             label: 'Personal Information',
-            desc: 'Avatar, skills & working status',
+            desc: 'Avatar, identity & technical skills',
             icon: User,
+        },
+        {
+            id: 'availability',
+            label: 'Availability & Status',
+            desc: 'Operational state & leave ledger',
+            icon: CalendarClock,
         },
         {
             id: 'security',
@@ -135,8 +144,8 @@ export default function Edit({
             </aside>
 
             {/* ── Right Content Area ── */}
-            <main className="flex-1 overflow-y-auto px-5 sm:px-10 lg:px-14 py-8 sm:py-12">
-                <div className="max-w-3xl mx-auto">
+            <main className="flex-1 overflow-y-auto px-5 sm:px-8 lg:px-12 py-8 sm:py-10">
+                <div className="max-w-5xl 2xl:max-w-6xl mx-auto">
                     {activeTab === 'personal' && (
                         <div className="animate-in fade-in duration-200">
                             <PersonalInfoForm
@@ -146,6 +155,16 @@ export default function Edit({
                                 availableSkills={availableSkills}
                                 joinedStudios={joinedStudios}
                                 status={status}
+                            />
+                        </div>
+                    )}
+
+                    {activeTab === 'availability' && (
+                        <div className="animate-in fade-in duration-200">
+                            <AvailabilityForm
+                                user={user}
+                                joinedStudios={joinedStudios}
+                                leaveHistory={leaveHistory}
                             />
                         </div>
                     )}
