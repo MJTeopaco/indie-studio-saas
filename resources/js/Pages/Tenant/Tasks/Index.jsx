@@ -7,7 +7,7 @@ import TimelineView from '@/Components/Tenant/Tasks/TimelineView';
 import DueView      from '@/Components/Tenant/Tasks/DueView';
 import ManualTaskModal from '@/Components/Tenant/Projects/ManualTaskModal';
 import MemberTaskDetailModal from '@/Components/Tenant/Tasks/MemberTaskDetailModal';
-import { Plus, Search, ChevronDown, PackageX, SlidersHorizontal } from 'lucide-react';
+import { Search, ChevronDown, PackageX, SlidersHorizontal } from 'lucide-react';
 
 // ── View Tab Config ───────────────────────────────────────────────────────────
 const VIEWS = [
@@ -199,21 +199,6 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
                                 </div>
                             )}
 
-                            {selectedProjectId && (
-                                <Link
-                                    href={route('tenant.projects.show', { tenant: activeWorkspace, project: selectedProjectId })}
-                                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-brand text-white hover:bg-brand-light shadow-2xs hover:shadow-2xs transition-all active:scale-[0.98] focus-ring"
-                                >
-                                    {hasManagerRights ? (
-                                        <>
-                                            <Plus className="w-3.5 h-3.5" />
-                                            <span>Manage Tasks</span>
-                                        </>
-                                    ) : (
-                                        <span>Project Details</span>
-                                    )}
-                                </Link>
-                            )}
                         </div>
                     </div>
                 </div>

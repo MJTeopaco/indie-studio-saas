@@ -155,213 +155,163 @@ class HandleInertiaRequests extends Middleware
 
             // Share total inbox/notification count (reviews pending + unstarted tasks)
             'inboxNotificationCount' => function () use ($request) {
-                if (! tenant() || ! $request->user()) {
-                    return 0;
-                }
-                try {
-                    $user = $request->user();
-                    $reviewTasksCount = Task::where('reviewer_user_id', $user->id)
-                        ->where(function ($q) {
-                            $q->where('status', 'review')
-                                ->orWhere('sprint_status', 'waiting_for_review');
-                        })
-                        ->count();
-
-                    $unstartedTasksCount = Task::where(function ($q) use ($user) {
-                        $q->where('assigned_user_id', $user->id);
-
-                        if (Schema::hasTable('assignments')) {
-                            $q->orWhereIn('id', function ($sub) use ($user) {
-                                $sub->select('task_id')
-                                    ->from('assignments')
-                                    ->where('employee_user_id', $user->id)
-                                    ->where('status', 'active');
-                            });
-                        }
-                    })
-                        ->where(function ($q) {
-                            $q->where('status', 'todo')
-                                ->orWhere('sprint_status', 'ready_to_start');
-                        })
-                        ->count();
-
-                    $messageNotifCount = 0;
-                    if (Schema::hasTable('channel_messages')) {
-                        $userReads = collect();
-                        if (Schema::hasTable('channel_reads')) {
-                            $userReads = ChannelRead::where('user_id', $user->id)->get()->keyBy('channel_id');
-                        }
-
-                        $messages = ChannelMessage::where('user_id', '!=', $user->id)
-                            ->where('is_unsent', false)
-                            ->where(function ($q) use ($user) {
-                                $q->where(function ($sq) use ($user) {
-                                    $sq->where('channel_id', 'like', "dm-{$user->id}_%")
-                                        ->orWhere('channel_id', 'like', "dm-%_{$user->id}")
-                                        ->orWhere('channel_id', 'like', "dm-{$user->id}-%")
-                                        ->orWhere('channel_id', 'like', "dm-%-{$user->id}");
-                                })->orWhere('channel_id', 'not like', 'dm-%');
-                            })
-                            ->where('created_at', '>=', now()->subDays(5))
-                            ->get();
-
-                        $messageNotifCount = $messages->filter(function ($msg) use ($userReads) {
-                            $userRead = $userReads->get($msg->channel_id);
-                            if (! $userRead) {
-                                return true;
-                            }
-                            if ($userRead->last_read_message_id && $msg->id <= $userRead->last_read_message_id) {
-                                return false;
-                            }
-                            if ($userRead->last_read_at && $msg->created_at <= $userRead->last_read_at) {
-                                return false;
-                            }
-
-                            return true;
-                        })->count();
-                    }
-
-                    $pendingLeaveCount = 0;
-                    if (Schema::hasTable('tasks')) {
-                        try {
-                            $currentUserMember = DB::connection(config('tenancy.database.central_connection', 'central'))
-                                ->table('studio_members')
-                                ->where('studio_id', tenant('id'))
-                                ->where('user_id', $user->id)
-                                ->first();
-
-                            $currentUserRole = $currentUserMember ? $currentUserMember->role : 'member';
-                            $isOwner = $currentUserRole === 'owner' || $user->role === User::ROLE_ADMIN;
-                            $isLeader = in_array($currentUserRole, ['leader', 'manager']);
-
-                            if ($isOwner || $isLeader) {
-                                $leaveQuery = LeaveRequest::where('studio_id', tenant('id'))
-                                    ->where('status', 'pending');
-
-                                if (! $isOwner) {
-                                    $leaveQuery->where('requester_role', 'member')
-                                        ->where('user_id', '!=', $user->id);
-                                }
-
-                                $pendingLeaveCount = $leaveQuery->count();
-                            }
-                        } catch (\Exception $e) {
-                        }
-                    }
-
-                    $notificationsTotal = $reviewTasksCount + $unstartedTasksCount + $pendingLeaveCount;
-
-                    return $notificationsTotal + $messageNotifCount;
-                } catch (\Exception $e) {
-                    return 0;
-                }
+                return $this->getInboxUnreadStats($request)['total'];
             },
 
             'inboxUnreadBreakdown' => function () use ($request) {
-                if (! tenant() || ! $request->user()) {
-                    return ['notifications' => 0, 'messages' => 0, 'total' => 0];
-                }
-                try {
-                    $user = $request->user();
-                    $reviewTasksCount = Task::where('reviewer_user_id', $user->id)
-                        ->where(function ($q) {
-                            $q->where('status', 'review')
-                                ->orWhere('sprint_status', 'waiting_for_review');
-                        })
-                        ->count();
-
-                    $unstartedTasksCount = Task::where(function ($q) use ($user) {
-                        $q->where('assigned_user_id', $user->id);
-
-                        if (Schema::hasTable('assignments')) {
-                            $q->orWhereIn('id', function ($sub) use ($user) {
-                                $sub->select('task_id')
-                                    ->from('assignments')
-                                    ->where('employee_user_id', $user->id)
-                                    ->where('status', 'active');
-                            });
-                        }
-                    })
-                        ->where(function ($q) {
-                            $q->where('status', 'todo')
-                                ->orWhere('sprint_status', 'ready_to_start');
-                        })
-                        ->count();
-
-                    $messageNotifCount = 0;
-                    if (Schema::hasTable('channel_messages')) {
-                        $userReads = collect();
-                        if (Schema::hasTable('channel_reads')) {
-                            $userReads = ChannelRead::where('user_id', $user->id)->get()->keyBy('channel_id');
-                        }
-
-                        $messages = ChannelMessage::where('user_id', '!=', $user->id)
-                            ->where('is_unsent', false)
-                            ->where(function ($q) use ($user) {
-                                $q->where(function ($sq) use ($user) {
-                                    $sq->where('channel_id', 'like', "dm-{$user->id}_%")
-                                        ->orWhere('channel_id', 'like', "dm-%_{$user->id}")
-                                        ->orWhere('channel_id', 'like', "dm-{$user->id}-%")
-                                        ->orWhere('channel_id', 'like', "dm-%-{$user->id}");
-                                })->orWhere('channel_id', 'not like', 'dm-%');
-                            })
-                            ->where('created_at', '>=', now()->subDays(5))
-                            ->get();
-
-                        $messageNotifCount = $messages->filter(function ($msg) use ($userReads) {
-                            $userRead = $userReads->get($msg->channel_id);
-                            if (! $userRead) {
-                                return true;
-                            }
-                            if ($userRead->last_read_message_id && $msg->id <= $userRead->last_read_message_id) {
-                                return false;
-                            }
-                            if ($userRead->last_read_at && $msg->created_at <= $userRead->last_read_at) {
-                                return false;
-                            }
-
-                            return true;
-                        })->count();
-                    }
-
-                    $pendingLeaveCount = 0;
-                    if (Schema::hasTable('tasks')) {
-                        try {
-                            $currentUserMember = DB::connection(config('tenancy.database.central_connection', 'central'))
-                                ->table('studio_members')
-                                ->where('studio_id', tenant('id'))
-                                ->where('user_id', $user->id)
-                                ->first();
-
-                            $currentUserRole = $currentUserMember ? $currentUserMember->role : 'member';
-                            $isOwner = $currentUserRole === 'owner' || (auth()->check() && auth()->user()->role === User::ROLE_ADMIN);
-
-                            if ($isOwner || in_array($currentUserRole, ['leader', 'manager'])) {
-                                $leaveQuery = LeaveRequest::where('studio_id', tenant('id'))
-                                    ->where('status', 'pending');
-
-                                if (! $isOwner) {
-                                    $leaveQuery->where('requester_role', 'member')
-                                        ->where('user_id', '!=', $user->id);
-                                }
-
-                                $pendingLeaveCount = $leaveQuery->count();
-                            }
-                        } catch (\Exception $e) {
-                        }
-                    }
-
-                    $notificationsCount = $reviewTasksCount + $unstartedTasksCount + $pendingLeaveCount;
-
-                    return [
-                        'notifications' => $notificationsCount,
-                        'messages' => $messageNotifCount,
-                        'total' => $notificationsCount + $messageNotifCount,
-                    ];
-                } catch (\Exception $e) {
-                    return ['notifications' => 0, 'messages' => 0, 'total' => 0];
-                }
+                return $this->getInboxUnreadStats($request);
             },
         ];
+    }
+
+    private function getInboxUnreadStats(Request $request): array
+    {
+        $default = ['notifications' => 0, 'messages' => 0, 'total' => 0];
+        if (! tenant() || ! $request->user()) {
+            return $default;
+        }
+
+        try {
+            $user = $request->user();
+
+            $readNotifKeys = [];
+            if (Schema::hasTable('channel_reads')) {
+                $readNotifKeys = ChannelRead::where('user_id', $user->id)
+                    ->where('channel_id', 'like', 'notif:%')
+                    ->pluck('channel_id')
+                    ->all();
+            }
+
+            $reviewTasksCount = Task::where('reviewer_user_id', $user->id)
+                ->where(function ($q) {
+                    $q->where('status', 'review')
+                        ->orWhere('sprint_status', 'waiting_for_review');
+                })
+                ->pluck('id')
+                ->filter(fn ($id) => ! in_array("notif:task-{$id}-review_request", $readNotifKeys))
+                ->count();
+
+            $unstartedTasksCount = Task::where(function ($q) use ($user) {
+                $q->where('assigned_user_id', $user->id);
+
+                if (Schema::hasTable('assignments')) {
+                    $q->orWhereIn('id', function ($sub) use ($user) {
+                        $sub->select('task_id')
+                            ->from('assignments')
+                            ->where('employee_user_id', $user->id)
+                            ->where('status', 'active');
+                    });
+                }
+            })
+                ->where(function ($q) {
+                    $q->where('status', 'todo')
+                        ->orWhere('sprint_status', 'ready_to_start');
+                })
+                ->pluck('id')
+                ->filter(fn ($id) => ! in_array("notif:task-{$id}-task_assigned", $readNotifKeys))
+                ->count();
+
+            $messageNotifCount = 0;
+            if (Schema::hasTable('channel_messages')) {
+                $userReads = collect();
+                if (Schema::hasTable('channel_reads')) {
+                    $userReads = ChannelRead::where('user_id', $user->id)->get()->keyBy('channel_id');
+                }
+
+                $messages = ChannelMessage::where('user_id', '!=', $user->id)
+                    ->where('is_unsent', false)
+                    ->where(function ($q) use ($user) {
+                        $q->where(function ($sq) use ($user) {
+                            $sq->where('channel_id', 'like', "dm-{$user->id}_%")
+                                ->orWhere('channel_id', 'like', "dm-%_{$user->id}")
+                                ->orWhere('channel_id', 'like', "dm-{$user->id}-%")
+                                ->orWhere('channel_id', 'like', "dm-%-{$user->id}");
+                        })->orWhere('channel_id', 'not like', 'dm-%');
+                    })
+                    ->where('created_at', '>=', now()->subDays(5))
+                    ->get();
+
+                $messageNotifCount = $messages->filter(function ($msg) use ($userReads) {
+                    $userRead = $userReads->get($msg->channel_id);
+                    if (! $userRead) {
+                        return true;
+                    }
+                    if ($userRead->last_read_message_id && $msg->id <= $userRead->last_read_message_id) {
+                        return false;
+                    }
+                    if ($userRead->last_read_at && $msg->created_at <= $userRead->last_read_at) {
+                        return false;
+                    }
+
+                    return true;
+                })->count();
+            }
+
+            $pendingLeaveCount = 0;
+            if (Schema::hasTable('tasks') && Schema::hasTable('leave_requests')) {
+                try {
+                    $currentUserMember = DB::connection(config('tenancy.database.central_connection', 'central'))
+                        ->table('studio_members')
+                        ->where('studio_id', tenant('id'))
+                        ->where('user_id', $user->id)
+                        ->first();
+
+                    $currentUserRole = $currentUserMember ? $currentUserMember->role : 'member';
+                    $isOwner = $currentUserRole === 'owner' || (auth()->check() && auth()->user()->role === User::ROLE_ADMIN);
+
+                    if ($isOwner || in_array($currentUserRole, ['leader', 'manager'])) {
+                        $leaveQuery = LeaveRequest::where('studio_id', tenant('id'))
+                            ->where('status', 'pending');
+
+                        if (! $isOwner) {
+                            $leaveQuery->where('requester_role', 'member')
+                                ->where('user_id', '!=', $user->id);
+                        }
+
+                        $pendingLeaveCount = $leaveQuery->pluck('id')
+                            ->filter(fn ($id) => ! in_array("notif:leave-req-{$id}", $readNotifKeys))
+                            ->count();
+                    }
+                } catch (\Exception $e) {
+                }
+            }
+
+            $pendingEstimatesNotif = 0;
+            try {
+                if (! in_array('notif:estimates-pending', $readNotifKeys)) {
+                    $hasPending = Task::where('story_points_locked', false)
+                        ->where('needs_estimate_review', false)
+                        ->get()
+                        ->contains(function ($task) use ($user) {
+                            $isEstimator = empty($task->expected_estimators)
+                                ? $task->assigned_user_id === $user->id
+                                : in_array($user->id, $task->expected_estimators);
+
+                            if (! $isEstimator) {
+                                return false;
+                            }
+
+                            return ! TaskEstimateSubmission::where('task_id', $task->id)
+                                ->where('developer_id', $user->id)
+                                ->exists();
+                        });
+
+                    if ($hasPending) {
+                        $pendingEstimatesNotif = 1;
+                    }
+                }
+            } catch (\Exception $e) {
+            }
+
+            $notificationsCount = $reviewTasksCount + $unstartedTasksCount + $pendingLeaveCount + $pendingEstimatesNotif;
+
+            return [
+                'notifications' => $notificationsCount,
+                'messages' => $messageNotifCount,
+                'total' => $notificationsCount + $messageNotifCount,
+            ];
+        } catch (\Exception $e) {
+            return $default;
+        }
     }
 }

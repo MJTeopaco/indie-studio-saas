@@ -857,6 +857,15 @@ class TenantDashboardController extends Controller
         $studio = Studio::find(tenant('id'));
         $user = auth()->user();
 
+        $readNotifIds = [];
+        if (Schema::hasTable('channel_reads')) {
+            $readNotifIds = ChannelRead::where('user_id', $user->id)
+                ->where('channel_id', 'like', 'notif:%')
+                ->pluck('channel_id')
+                ->map(fn ($cid) => substr($cid, 6))
+                ->all();
+        }
+
         $myTasks = [];
         $notifications = [];
 
@@ -885,7 +894,7 @@ class TenantDashboardController extends Controller
 
             $myTasks = $assignedTasks->map(fn (Task $task) => $this->formatTaskForMember($task, $user))->values()->all();
 
-            $notifications = collect($myTasks)->map(function ($t) {
+            $notifications = collect($myTasks)->map(function ($t) use ($readNotifIds) {
                 $type = null;
                 $title = null;
                 $body = null;
@@ -942,7 +951,7 @@ class TenantDashboardController extends Controller
                     'epic_color' => $t['epic_color'] ?? null,
                     'priority' => $t['priority'] ?? null,
                     'days_until_deadline' => $t['days_until_deadline'] ?? null,
-                    'read' => false,
+                    'read' => in_array('task-'.$t['id'].'-'.$type, $readNotifIds),
                     'created_at_human' => 'Today',
                 ];
             })->filter()->values()->all();
@@ -983,7 +992,7 @@ class TenantDashboardController extends Controller
                 'epic_color' => null,
                 'priority' => 'high',
                 'days_until_deadline' => null,
-                'read' => false,
+                'read' => in_array('estimates-pending', $readNotifIds),
                 'created_at_human' => 'Pending',
             ];
         }
@@ -1085,7 +1094,7 @@ class TenantDashboardController extends Controller
                                 'due_date' => $t->hard_constraint_date ? Carbon::parse($t->hard_constraint_date)->format('M d, Y') : 'No deadline',
                             ])->all(),
                         ],
-                        'read' => false,
+                        'read' => in_array('leave-req-'.$req->id, $readNotifIds),
                         'created_at_human' => $req->created_at ? $req->created_at->diffForHumans() : 'Pending',
                     ];
                 })->all();
@@ -1311,23 +1320,73 @@ class TenantDashboardController extends Controller
     {
         $user = $request->user();
 
-        if (Schema::hasTable('channel_reads') && Schema::hasTable('channel_messages')) {
-            $activeChannels = ChannelMessage::where('created_at', '>=', now()->subDays(14))
-                ->select('channel_id', DB::raw('MAX(id) as max_id'))
-                ->groupBy('channel_id')
-                ->get();
+        if (Schema::hasTable('channel_reads')) {
+            if (Schema::hasTable('channel_messages')) {
+                $activeChannels = ChannelMessage::where('created_at', '>=', now()->subDays(14))
+                    ->select('channel_id', DB::raw('MAX(id) as max_id'))
+                    ->groupBy('channel_id')
+                    ->get();
 
-            foreach ($activeChannels as $ch) {
+                foreach ($activeChannels as $ch) {
+                    ChannelRead::updateOrCreate(
+                        [
+                            'channel_id' => $ch->channel_id,
+                            'user_id' => $user->id,
+                        ],
+                        [
+                            'last_read_message_id' => $ch->max_id,
+                            'last_read_at' => now(),
+                        ]
+                    );
+                }
+            }
+
+            if (Schema::hasTable('tasks')) {
+                $assignedTaskIds = Task::where('assigned_user_id', $user->id)
+                    ->orWhere('reviewer_user_id', $user->id)
+                    ->pluck('id');
+
+                foreach ($assignedTaskIds as $tId) {
+                    foreach (['task_assigned', 'review_request', 'overdue', 'stuck'] as $tType) {
+                        ChannelRead::updateOrCreate(
+                            [
+                                'channel_id' => "notif:task-{$tId}-{$tType}",
+                                'user_id' => $user->id,
+                            ],
+                            [
+                                'last_read_at' => now(),
+                            ]
+                        );
+                    }
+                }
+
                 ChannelRead::updateOrCreate(
                     [
-                        'channel_id' => $ch->channel_id,
+                        'channel_id' => 'notif:estimates-pending',
                         'user_id' => $user->id,
                     ],
                     [
-                        'last_read_message_id' => $ch->max_id,
                         'last_read_at' => now(),
                     ]
                 );
+            }
+
+            if (Schema::hasTable('leave_requests')) {
+                $pendingLeaveIds = LeaveRequest::where('studio_id', tenant('id'))
+                    ->where('status', 'pending')
+                    ->pluck('id');
+
+                foreach ($pendingLeaveIds as $lId) {
+                    ChannelRead::updateOrCreate(
+                        [
+                            'channel_id' => "notif:leave-req-{$lId}",
+                            'user_id' => $user->id,
+                        ],
+                        [
+                            'last_read_at' => now(),
+                        ]
+                    );
+                }
             }
         }
 
@@ -1353,6 +1412,39 @@ class TenantDashboardController extends Controller
                         'last_read_at' => now(),
                     ]
                 );
+            }
+        } elseif (Schema::hasTable('channel_reads')) {
+            ChannelRead::updateOrCreate(
+                [
+                    'channel_id' => 'notif:'.$id,
+                    'user_id' => $user->id,
+                ],
+                [
+                    'last_read_at' => now(),
+                ]
+            );
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    public function markNotificationUnread(Request $request, string $id): JsonResponse
+    {
+        $user = $request->user();
+
+        if (Schema::hasTable('channel_reads')) {
+            if (str_starts_with($id, 'msg-') || str_starts_with($id, 'channel-') || str_starts_with($id, 'mention-')) {
+                $msgId = (int) preg_replace('/^[a-z]+-/', '', $id);
+                $msg = ChannelMessage::find($msgId);
+                if ($msg) {
+                    ChannelRead::where('channel_id', $msg->channel_id)
+                        ->where('user_id', $user->id)
+                        ->delete();
+                }
+            } else {
+                ChannelRead::where('channel_id', 'notif:'.$id)
+                    ->where('user_id', $user->id)
+                    ->delete();
             }
         }
 
