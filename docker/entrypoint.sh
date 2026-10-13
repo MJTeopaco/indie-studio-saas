@@ -53,6 +53,13 @@ php artisan view:cache
 # ── Link storage ──────────────────────────────────────────────────────────────
 php artisan storage:link --force 2>/dev/null || true
 
+# ── Configure Apache port for Railway / dynamic environments ─────────────────
+if [ -n "$PORT" ]; then
+  echo "🌐 Binding Apache to PORT=${PORT}..."
+  sed -i "s/Listen 80/Listen ${PORT}/g" /etc/apache2/ports.conf
+  sed -i "s/:80/:${PORT}/g" /etc/apache2/sites-available/*.conf
+fi
+
 echo "✅ Bootstrap complete. Starting Apache..."
 
 exec "$@"
