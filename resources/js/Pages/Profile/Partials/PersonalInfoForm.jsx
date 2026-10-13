@@ -4,7 +4,10 @@ import {
     Camera, 
     Trash2, 
     Pencil, 
-    Loader2
+    Loader2,
+    X,
+    ChevronDown,
+    Sparkles
 } from 'lucide-react';
 import InputError from '@/Components/InputError';
 import { showToast } from '@/Components/SystemToast';
