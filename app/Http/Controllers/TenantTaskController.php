@@ -275,8 +275,8 @@ class TenantTaskController extends Controller
         }
 
         $validated = $request->validate([
-            'status' => 'sometimes|required|string|in:todo,in_progress,review,completed,stuck',
-            'sprint_status' => 'sometimes|nullable|string|in:ready_to_start,in_progress,waiting_for_review,done,stuck',
+            'status' => 'sometimes|required|string|in:todo,in_progress,review,completed,stuck,overdue',
+            'sprint_status' => 'sometimes|nullable|string|in:ready_to_start,in_progress,waiting_for_review,done,stuck,overdue',
             'story_points' => 'sometimes|nullable|integer|min:0|max:100',
             'github_link' => 'sometimes|nullable|url|max:500',
         ]);
@@ -289,6 +289,7 @@ class TenantTaskController extends Controller
                 'waiting_for_review' => 'review',
                 'done' => 'completed',
                 'stuck' => 'stuck',
+                'overdue' => 'overdue',
             ];
             if (isset($map[$validated['sprint_status']])) {
                 $validated['status'] = $map[$validated['sprint_status']];
@@ -300,6 +301,7 @@ class TenantTaskController extends Controller
                 'review' => 'waiting_for_review',
                 'completed' => 'done',
                 'stuck' => 'stuck',
+                'overdue' => 'overdue',
             ];
             if (isset($map[$validated['status']])) {
                 $validated['sprint_status'] = $map[$validated['status']];

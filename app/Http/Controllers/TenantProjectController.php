@@ -722,7 +722,7 @@ class TenantProjectController extends Controller
             'estimated_hours' => 'required|numeric|min:0',
             'hard_constraint_date' => 'nullable|date',
             'priority' => 'required|string|in:Low,Medium,High,Critical',
-            'status' => 'required|string|in:todo,in_progress,review,completed,stuck',
+            'status' => 'required|string|in:todo,in_progress,review,completed,stuck,overdue',
             'depends_on' => 'nullable|array',
             'depends_on.*' => 'integer',
             'task_classification' => 'nullable|string|max:255',
@@ -833,7 +833,7 @@ class TenantProjectController extends Controller
             }
 
             $validated = $request->validate([
-                'status' => 'sometimes|required|string|in:todo,in_progress,review,completed,stuck',
+                'status' => 'sometimes|required|string|in:todo,in_progress,review,completed,stuck,overdue',
                 'sprint_status' => 'sometimes|nullable|string|max:50',
             ]);
 
@@ -845,6 +845,7 @@ class TenantProjectController extends Controller
                     'waiting_for_review' => 'review',
                     'done' => 'completed',
                     'stuck' => 'stuck',
+                    'overdue' => 'overdue',
                 ];
                 if (isset($map[$validated['sprint_status']])) {
                     $validated['status'] = $map[$validated['sprint_status']];
@@ -856,6 +857,7 @@ class TenantProjectController extends Controller
                     'review' => 'waiting_for_review',
                     'completed' => 'done',
                     'stuck' => 'stuck',
+                    'overdue' => 'overdue',
                 ];
                 if (isset($map[$validated['status']])) {
                     $validated['sprint_status'] = $map[$validated['status']];
@@ -884,7 +886,7 @@ class TenantProjectController extends Controller
                 'estimated_hours' => 'sometimes|required|numeric|min:0',
                 'hard_constraint_date' => 'nullable|date',
                 'priority' => 'sometimes|required|string|in:Low,Medium,High,Critical',
-                'status' => 'sometimes|required|string|in:todo,in_progress,review,completed,stuck',
+                'status' => 'sometimes|required|string|in:todo,in_progress,review,completed,stuck,overdue',
                 'sprint_status' => 'sometimes|nullable|string|max:50',
                 'depends_on' => 'sometimes|array',
                 'depends_on.*' => 'integer',
@@ -906,6 +908,7 @@ class TenantProjectController extends Controller
                 'waiting_for_review' => 'review',
                 'done' => 'completed',
                 'stuck' => 'stuck',
+                'overdue' => 'overdue',
             ];
             if (isset($map[$validated['sprint_status']])) {
                 $validated['status'] = $map[$validated['sprint_status']];
@@ -917,6 +920,7 @@ class TenantProjectController extends Controller
                 'review' => 'waiting_for_review',
                 'completed' => 'done',
                 'stuck' => 'stuck',
+                'overdue' => 'overdue',
             ];
             if (isset($map[$validated['status']])) {
                 $validated['sprint_status'] = $map[$validated['status']];
