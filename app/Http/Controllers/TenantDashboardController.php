@@ -803,7 +803,7 @@ class TenantDashboardController extends Controller
         $upcomingTasks = Task::with(['project', 'assignee'])
             ->where('status', '!=', 'completed')
             ->orderByRaw("CASE WHEN hard_constraint_date IS NOT NULL THEN hard_constraint_date ELSE '9999-12-31' END ASC")
-            ->orderByRaw("CASE WHEN days_until_deadline IS NOT NULL THEN days_until_deadline ELSE 999 END ASC")
+            ->orderByRaw('CASE WHEN days_until_deadline IS NOT NULL THEN days_until_deadline ELSE 999 END ASC')
             ->latest('updated_at')
             ->take(12)
             ->get()
@@ -988,6 +988,7 @@ class TenantDashboardController extends Controller
     {
         $studio = Studio::find(tenant('id'));
         $user = auth()->user();
+        $isManager = $this->resolveIsManager($user, tenant('id'));
 
         $readNotifIds = [];
         if (Schema::hasTable('channel_reads')) {
@@ -1042,7 +1043,10 @@ class TenantDashboardController extends Controller
 
                 $isReviewForMe = ! empty($t['is_reviewer']) && in_array($t['sprint_status'] ?? $t['status'] ?? '', ['waiting_for_review', 'review']);
                 $isNewAssignment = ! empty($t['is_doer']) && (in_array($t['sprint_status'] ?? '', ['ready_to_start', '']) || ($t['sprint_status'] === null && $t['status'] === 'todo'));
-                $isOverdue = isset($t['days_until_deadline']) && $t['days_until_deadline'] !== null && $t['days_until_deadline'] < 0;
+                $isOverdue = (isset($t['days_until_deadline']) && $t['days_until_deadline'] !== null && $t['days_until_deadline'] < 0)
+                    || (! empty($t['dueDate']) && $t['dueDate'] < now()->toDateString())
+                    || (! empty($t['hard_constraint_date']) && $t['hard_constraint_date'] < now()->toDateString())
+                    || (($t['status'] ?? '') === 'overdue');
                 $isStuck = ($t['sprint_status'] ?? $t['status'] ?? '') === 'stuck';
 
                 if ($isReviewForMe) {
@@ -1051,16 +1055,11 @@ class TenantDashboardController extends Controller
                     $body = "{$t['assignee']} submitted \"{$t['title']}\" for your peer code review.";
                     $icon = 'eye';
                     $color = 'blue';
-                } elseif ($isNewAssignment) {
-                    $type = 'task_assigned';
-                    $title = 'New Task Assigned';
-                    $body = "You were assigned to \"{$t['title']}\"".(! empty($t['project_name']) ? " in {$t['project_name']}" : '').'. Ready to start!';
-                    $icon = 'clipboard';
-                    $color = 'indigo';
                 } elseif ($isOverdue) {
+                    $daysOverdue = abs((int) ($t['days_until_deadline'] ?? 1));
                     $type = 'overdue';
                     $title = 'Task Overdue Alert';
-                    $body = "\"{$t['title']}\" is past due by ".abs($t['days_until_deadline']).' day(s). Update progress or flag as stuck.';
+                    $body = "\"{$t['title']}\" is past due by {$daysOverdue} day(s). Please update progress or coordinate with your team leader.";
                     $icon = 'alert';
                     $color = 'rose';
                 } elseif ($isStuck) {
@@ -1069,6 +1068,12 @@ class TenantDashboardController extends Controller
                     $body = "\"{$t['title']}\" is currently flagged as blocked. Team lead assistance needed.";
                     $icon = 'ban';
                     $color = 'rose';
+                } elseif ($isNewAssignment) {
+                    $type = 'task_assigned';
+                    $title = 'New Task Assigned';
+                    $body = "You were assigned to \"{$t['title']}\"".(! empty($t['project_name']) ? " in {$t['project_name']}" : '').'. Ready to start!';
+                    $icon = 'clipboard';
+                    $color = 'indigo';
                 }
 
                 if (! $type) {
@@ -1096,6 +1101,54 @@ class TenantDashboardController extends Controller
                     'created_at_human' => 'Today',
                 ];
             })->filter()->values()->all();
+
+            // Team Leader Overdue Notifications
+            if ($isManager) {
+                try {
+                    $teamOverdueTasks = Task::with(['assignee', 'project', 'epic'])
+                        ->where('status', '!=', 'completed')
+                        ->where(function ($q) use ($user) {
+                            $q->where('assigned_user_id', '!=', $user->id)
+                                ->orWhereNull('assigned_user_id');
+                        })
+                        ->where(function ($q) {
+                            $q->where(function ($sq) {
+                                $sq->whereNotNull('days_until_deadline')
+                                    ->where('days_until_deadline', '<', 0);
+                            })->orWhere(function ($sq) {
+                                $sq->whereNotNull('hard_constraint_date')
+                                    ->where('hard_constraint_date', '<', now()->toDateString());
+                            })->orWhere('status', 'overdue');
+                        })
+                        ->get();
+
+                    foreach ($teamOverdueTasks as $lt) {
+                        $notifId = "task-{$lt->id}-leader-overdue";
+                        $assigneeName = $lt->assignee?->name ?? 'Unassigned';
+                        $daysOverdue = abs((int) ($lt->days_until_deadline ?? 1));
+
+                        $notifications[] = [
+                            'id' => $notifId,
+                            'type' => 'overdue',
+                            'title' => 'Team Overdue: '.$lt->title,
+                            'body' => "Task #{$lt->id} \"{$lt->title}\" assigned to {$assigneeName} is past due by {$daysOverdue} day(s). Action or reassignment required.",
+                            'icon' => 'alert',
+                            'color' => 'rose',
+                            'task_id' => $lt->id,
+                            'task_title' => $lt->title,
+                            'task' => $this->formatTaskForMember($lt, $user),
+                            'project_name' => $lt->project?->name ?? null,
+                            'epic_name' => $lt->epic?->name ?? null,
+                            'epic_color' => $lt->epic?->color ?? null,
+                            'priority' => $lt->priority ?? 'High',
+                            'days_until_deadline' => $lt->days_until_deadline,
+                            'read' => in_array($notifId, $readNotificationIds),
+                            'created_at_human' => 'Overdue',
+                        ];
+                    }
+                } catch (\Exception $e) {
+                }
+            }
         } catch (\Exception $e) {
             $notifications = [];
         }
@@ -1671,6 +1724,70 @@ class TenantDashboardController extends Controller
                     'is_liked' => false,
                 ];
             }
+
+            // Overdue Tasks in Activity Feed
+            try {
+                $overdueFeedQuery = Task::with(['assignee', 'project'])
+                    ->where('status', '!=', 'completed')
+                    ->where(function ($q) {
+                        $q->where(function ($sq) {
+                            $sq->whereNotNull('days_until_deadline')
+                                ->where('days_until_deadline', '<', 0);
+                        })->orWhere(function ($sq) {
+                            $sq->whereNotNull('hard_constraint_date')
+                                ->where('hard_constraint_date', '<', now()->toDateString());
+                        })->orWhere('status', 'overdue');
+                    });
+
+                if (! $isManager) {
+                    $overdueFeedQuery->where(function ($q) use ($user) {
+                        $q->where('assigned_user_id', $user->id);
+                    });
+                }
+
+                foreach ($overdueFeedQuery->take(10)->get() as $ot) {
+                    $notifId = ((int) $ot->assigned_user_id === (int) $user->id)
+                        ? "task-{$ot->id}-overdue"
+                        : "task-{$ot->id}-leader-overdue";
+                    $isRead = in_array($notifId, $readNotificationIds);
+                    $daysOverdue = abs((int) ($ot->days_until_deadline ?? 1));
+                    $assigneeName = $ot->assignee?->name ?? 'Unassigned';
+
+                    $feed[] = [
+                        'id' => $notifId,
+                        'feed_type' => 'overdue',
+                        'title' => "Task Overdue: {$ot->title}",
+                        'context_name' => "Tasks > {$ot->project?->name} > #{$ot->id}",
+                        'context_type' => 'task',
+                        'context_url' => url("/studio/{$tenantId}/tasks"),
+                        'channel_id' => null,
+                        'task_id' => $ot->id,
+                        'task' => [
+                            'id' => $ot->id,
+                            'title' => $ot->title,
+                            'status' => $ot->status,
+                            'priority' => $ot->priority ?? 'CRITICAL',
+                        ],
+                        'author' => [
+                            'id' => null,
+                            'name' => 'Sprint Watchdog',
+                            'avatar' => null,
+                            'role' => 'System Alert',
+                            'initials' => 'SW',
+                        ],
+                        'body' => "Task #{$ot->id} '{$ot->title}' (assigned to {$assigneeName}) is past due by {$daysOverdue} day(s). Action or reassignment required.",
+                        'attachments' => [],
+                        'created_at' => $ot->updated_at?->toIso8601String() ?? now()->toIso8601String(),
+                        'created_at_human' => 'Overdue',
+                        'is_read' => (bool) $isRead,
+                        'is_mention' => true,
+                        'likes_count' => 0,
+                        'is_liked' => false,
+                    ];
+                }
+            } catch (\Throwable $e) {
+                // Ignore fallback
+            }
         } catch (\Throwable $e) {
             // Ignore fallback
         }
@@ -1784,6 +1901,15 @@ class TenantDashboardController extends Controller
                 $notifIds[] = "task-{$t->id}-overdue";
                 $notifIds[] = "task-{$t->id}-stuck";
             }
+
+            if ($this->resolveIsManager($user, tenant('id'))) {
+                $allStudioTasks = Task::pluck('id');
+                foreach ($allStudioTasks as $atId) {
+                    $notifIds[] = "task-{$atId}-leader-overdue";
+                    $notifIds[] = "task-{$atId}-leader-stuck";
+                }
+            }
+
             $notifIds[] = 'estimates-pending';
 
             if (Schema::hasTable('leave_requests')) {

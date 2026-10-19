@@ -91,6 +91,14 @@ const STATUS_CONFIG = {
         bgClass: 'bg-[var(--success)]',
         badgeBg: 'bg-[var(--success)]/10 text-[var(--success)] border-[var(--success)]/25',
     },
+    overdue: {
+        id: 'overdue',
+        label: 'Overdue',
+        sprintKey: 'overdue',
+        color: '#f43f5e',
+        bgClass: 'bg-rose-500',
+        badgeBg: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25',
+    },
     stuck: {
         id: 'stuck',
         label: 'Blocked',
@@ -144,6 +152,23 @@ function normalizeTaskStatus(task) {
     const s = task.status || '';
     const sp = task.sprint_status || '';
     if (s === 'completed' || sp === 'done') return 'completed';
+    if (s === 'overdue' || sp === 'overdue') return 'overdue';
+
+    if (task.days_until_deadline !== null && task.days_until_deadline !== undefined && Number(task.days_until_deadline) < 0) {
+        return 'overdue';
+    }
+
+    const targetDate = task.dueDate || task.due_date || task.hard_constraint_date;
+    if (targetDate) {
+        const due = new Date(targetDate);
+        if (!isNaN(due.getTime())) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            due.setHours(0, 0, 0, 0);
+            if (due.getTime() < today.getTime()) return 'overdue';
+        }
+    }
+
     if (s === 'stuck' || sp === 'stuck') return 'stuck';
     if (s === 'review' || sp === 'waiting_for_review') return 'review';
     if (s === 'in_progress' || sp === 'in_progress') return 'in_progress';
@@ -1288,7 +1313,7 @@ export default function Show({
                         VIEW 6: BOARD TAB (Kanban Columns)
                     ══════════════════════════════════════════════════════════ */}
                     {activeView === 'board' && (
-                        <div className="flex min-w-max gap-5 overflow-x-auto pb-4 custom-scrollbar animate-in fade-in duration-200">
+                        <div className="flex min-w-max gap-5 overflow-x-auto pb-8 custom-scrollbar animate-in fade-in duration-200 items-start">
                             {Object.values(STATUS_CONFIG).map(col => {
                                 const colTasks = allTasks.filter(t => normalizeTaskStatus(t) === col.id);
 
@@ -1296,18 +1321,18 @@ export default function Show({
                                     <div
                                         key={col.id}
                                         onDragOver={e => {
-                                            e.preventDefault();
-                                            if (hoveredColId !== col.id) setHoveredColId(col.id);
+                                             e.preventDefault();
+                                             if (hoveredColId !== col.id) setHoveredColId(col.id);
                                         }}
                                         onDragLeave={() => setHoveredColId(null)}
                                         onDrop={e => {
-                                            e.preventDefault();
-                                            handleDropTask(col.id);
+                                             e.preventDefault();
+                                             handleDropTask(col.id);
                                         }}
-                                        className={`w-72 flex flex-col rounded-xl border transition-all ${
-                                            hoveredColId === col.id && draggedTask && normalizeTaskStatus(draggedTask) !== col.id
-                                                ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/20 bg-[var(--secondary)]'
-                                                : 'border-[var(--border)] bg-[var(--card)]'
+                                        className={`w-72 flex flex-col rounded-xl border min-h-[500px] transition-all ${
+                                             hoveredColId === col.id && draggedTask && normalizeTaskStatus(draggedTask) !== col.id
+                                                 ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/20 bg-[var(--secondary)]'
+                                                 : 'border-[var(--border)] bg-[var(--card)]'
                                         }`}
                                     >
                                         {/* Column Header */}
@@ -1324,7 +1349,7 @@ export default function Show({
                                         </div>
 
                                         {/* Column Task Cards */}
-                                        <div className="p-3 space-y-2.5 flex-1 overflow-y-auto max-h-[calc(100vh-280px)] custom-scrollbar">
+                                        <div className="p-3 space-y-2.5 flex-1">
                                             {colTasks.map(task => {
                                                 const assignees = getTaskAssignees(task);
                                                 const primaryAssignee = assignees[0] || 'Unassigned';

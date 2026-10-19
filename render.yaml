@@ -71,6 +71,31 @@ services:
       - key: ML_ENGINE_SECRET
         sync: false          # set in dashboard — must match the HF Space secret
 
+      # ── Mail Configuration (Gmail SMTP for reports & alerts) ───────────
+      - key: MAIL_MAILER
+        value: smtp
+
+      - key: MAIL_HOST
+        value: smtp.gmail.com
+
+      - key: MAIL_PORT
+        value: "587"
+
+      - key: MAIL_USERNAME
+        value: vaultera.studiosprint@gmail.com
+
+      - key: MAIL_PASSWORD
+        value: rifbppjrygniksbr
+
+      - key: MAIL_ENCRYPTION
+        value: tls
+
+      - key: MAIL_FROM_ADDRESS
+        value: vaultera.studiosprint@gmail.com
+
+      - key: MAIL_FROM_NAME
+        value: SprintStudio
+
 databases:
   - name: indie-studio-db
     databaseName: indie_studio_db

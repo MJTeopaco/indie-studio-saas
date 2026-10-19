@@ -8,6 +8,8 @@ use App\Models\Position;
 use App\Models\Skill;
 use App\Models\Studio;
 use App\Models\Tenant\ChannelMessage;
+use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;

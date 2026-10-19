@@ -237,28 +237,84 @@ class HandleInertiaRequests extends Middleware
                 ->filter(fn ($id) => empty($readSet["task-{$id}-task_assigned"]))
                 ->count();
 
-            // Overdue and stuck alerts
+            // Overdue and stuck alerts for member & team leader
             $alertTasksCount = 0;
-            $myActiveTasks = Task::where(function ($q) use ($user) {
-                $q->where('assigned_user_id', $user->id);
-                if (Schema::hasTable('assignments')) {
-                    $q->orWhereIn('id', function ($sub) use ($user) {
-                        $sub->select('task_id')
-                            ->from('assignments')
-                            ->where('employee_user_id', $user->id)
-                            ->where('status', 'active');
-                    });
-                }
-            })
-                ->where('status', '!=', 'completed')
-                ->get(['id', 'status', 'sprint_status', 'days_until_deadline']);
+            $isLeaderOrOwner = false;
+            if ($user->role === User::ROLE_ADMIN) {
+                $isLeaderOrOwner = true;
+            } else {
+                $memberRecord = DB::connection(config('tenancy.database.central_connection', 'central'))
+                    ->table('studio_members')
+                    ->where('studio_id', tenant('id'))
+                    ->where('user_id', $user->id)
+                    ->first();
+                $isLeaderOrOwner = $memberRecord && in_array($memberRecord->role, ['owner', 'leader', 'manager']);
+            }
 
-            foreach ($myActiveTasks as $at) {
-                if ($at->days_until_deadline !== null && $at->days_until_deadline < 0 && empty($readSet["task-{$at->id}-overdue"])) {
-                    $alertTasksCount++;
+            if ($isLeaderOrOwner) {
+                $studioOverdueTasks = Task::where('status', '!=', 'completed')
+                    ->where(function ($q) {
+                        $q->where(function ($sq) {
+                            $sq->whereNotNull('days_until_deadline')
+                                ->where('days_until_deadline', '<', 0);
+                        })->orWhere(function ($sq) {
+                            $sq->whereNotNull('hard_constraint_date')
+                                ->where('hard_constraint_date', '<', now()->toDateString());
+                        })->orWhere('status', 'overdue');
+                    })
+                    ->get(['id', 'assigned_user_id', 'status', 'sprint_status', 'days_until_deadline']);
+
+                foreach ($studioOverdueTasks as $tot) {
+                    $readKey = ((int) $tot->assigned_user_id === (int) $user->id)
+                        ? "task-{$tot->id}-overdue"
+                        : "task-{$tot->id}-leader-overdue";
+
+                    if (empty($readSet[$readKey])) {
+                        $alertTasksCount++;
+                    }
                 }
-                if (($at->sprint_status === 'stuck' || $at->status === 'stuck') && empty($readSet["task-{$at->id}-stuck"])) {
-                    $alertTasksCount++;
+
+                $studioStuckTasks = Task::where('status', '!=', 'completed')
+                    ->where(function ($q) {
+                        $q->where('status', 'stuck')->orWhere('sprint_status', 'stuck');
+                    })
+                    ->get(['id', 'assigned_user_id']);
+
+                foreach ($studioStuckTasks as $st) {
+                    $readKey = ((int) $st->assigned_user_id === (int) $user->id)
+                        ? "task-{$st->id}-stuck"
+                        : "task-{$st->id}-leader-stuck";
+
+                    if (empty($readSet[$readKey])) {
+                        $alertTasksCount++;
+                    }
+                }
+            } else {
+                $myActiveTasks = Task::where(function ($q) use ($user) {
+                    $q->where('assigned_user_id', $user->id);
+                    if (Schema::hasTable('assignments')) {
+                        $q->orWhereIn('id', function ($sub) use ($user) {
+                            $sub->select('task_id')
+                                ->from('assignments')
+                                ->where('employee_user_id', $user->id)
+                                ->where('status', 'active');
+                        });
+                    }
+                })
+                    ->where('status', '!=', 'completed')
+                    ->get(['id', 'status', 'sprint_status', 'days_until_deadline', 'hard_constraint_date']);
+
+                foreach ($myActiveTasks as $at) {
+                    $isTaskOverdue = ($at->days_until_deadline !== null && $at->days_until_deadline < 0)
+                        || ($at->hard_constraint_date && $at->hard_constraint_date < now()->toDateString())
+                        || $at->status === 'overdue';
+
+                    if ($isTaskOverdue && empty($readSet["task-{$at->id}-overdue"])) {
+                        $alertTasksCount++;
+                    }
+                    if (($at->sprint_status === 'stuck' || $at->status === 'stuck') && empty($readSet["task-{$at->id}-stuck"])) {
+                        $alertTasksCount++;
+                    }
                 }
             }
 

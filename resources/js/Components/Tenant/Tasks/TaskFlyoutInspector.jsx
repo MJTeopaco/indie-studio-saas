@@ -19,8 +19,9 @@ const SPRINT_STATUS_OPTIONS = [
     { value: 'todo', label: 'To Do' },
     { value: 'in_progress', label: 'In Progress' },
     { value: 'review', label: 'Under Review' },
-    { value: 'completed', label: 'Done' },
+    { value: 'overdue', label: 'Overdue' },
     { value: 'stuck', label: 'Blocked / Stuck' },
+    { value: 'completed', label: 'Done' },
 ];
 
 const PRIORITY_OPTIONS = [
