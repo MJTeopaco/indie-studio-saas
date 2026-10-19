@@ -153,12 +153,25 @@ function normalizeTaskStatus(task) {
     const sp = task.sprint_status || '';
     if (s === 'completed' || sp === 'done') return 'completed';
     if (s === 'overdue' || sp === 'overdue') return 'overdue';
-    if (s === 'stuck' || sp === 'stuck') return 'stuck';
-    if (s === 'review' || sp === 'waiting_for_review') return 'review';
-    if (s === 'in_progress' || sp === 'in_progress') return 'in_progress';
+
     if (task.days_until_deadline !== null && task.days_until_deadline !== undefined && Number(task.days_until_deadline) < 0) {
         return 'overdue';
     }
+
+    const targetDate = task.dueDate || task.due_date || task.hard_constraint_date;
+    if (targetDate) {
+        const due = new Date(targetDate);
+        if (!isNaN(due.getTime())) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            due.setHours(0, 0, 0, 0);
+            if (due.getTime() < today.getTime()) return 'overdue';
+        }
+    }
+
+    if (s === 'stuck' || sp === 'stuck') return 'stuck';
+    if (s === 'review' || sp === 'waiting_for_review') return 'review';
+    if (s === 'in_progress' || sp === 'in_progress') return 'in_progress';
     return 'todo';
 }
 

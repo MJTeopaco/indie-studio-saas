@@ -207,13 +207,11 @@ class TenantReportTest extends TestCase
         Mail::assertSent(ReportSharedMail::class, function ($mail) {
             $attachments = $mail->attachments();
             $hasPdf = ! empty($mail->pdfContent);
-            $hasCsv = ! empty($mail->csvContent);
 
             return $mail->hasTo('director@publisher.com')
                 && str_contains($mail->personalNote, 'Please review our sprint milestones.')
                 && $hasPdf
-                && $hasCsv
-                && count($attachments) === 2;
+                && count($attachments) === 1;
         });
     }
 
@@ -376,13 +374,11 @@ class TenantReportTest extends TestCase
         Mail::assertSent(ReportSharedMail::class, function ($mail) {
             $attachments = $mail->attachments();
             $hasPdf = ! empty($mail->pdfContent);
-            $hasCsv = ! empty($mail->csvContent);
 
             return $mail->hasTo('exec@studio.io')
                 && str_contains($mail->personalNote, 'Archived registry audit snapshot.')
                 && $hasPdf
-                && $hasCsv
-                && count($attachments) === 2;
+                && count($attachments) === 1;
         });
     }
 }

@@ -50,20 +50,15 @@ export function isTaskOverdue(task) {
         if (Number(task.days_until_deadline) < 0) return true;
     }
 
-    if (task.dueDate) {
-        const due = new Date(task.dueDate);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        due.setHours(0, 0, 0, 0);
-        if (due.getTime() < today.getTime()) return true;
-    }
-
-    if (task.hard_constraint_date) {
-        const hard = new Date(task.hard_constraint_date);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        hard.setHours(0, 0, 0, 0);
-        if (hard.getTime() < today.getTime()) return true;
+    const targetDate = task.dueDate || task.due_date || task.hard_constraint_date;
+    if (targetDate) {
+        const due = new Date(targetDate);
+        if (!isNaN(due.getTime())) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            due.setHours(0, 0, 0, 0);
+            if (due.getTime() < today.getTime()) return true;
+        }
     }
 
     return false;
@@ -276,10 +271,10 @@ export default function BoardView({ tasks = [], onTaskClick, onStatusChange }) {
 
     const tasksByCol = {
         todo:        tasks.filter(t => t.status === 'todo' && !isTaskOverdue(t)),
-        in_progress: tasks.filter(t => t.status === 'in_progress'),
-        review:      tasks.filter(t => t.status === 'review' || t.status === 'in_review'),
-        overdue:     tasks.filter(t => (t.status === 'overdue' || (isTaskOverdue(t) && t.status === 'todo')) && t.status !== 'completed'),
-        stuck:       tasks.filter(t => t.status === 'stuck' || t.sprint_status === 'stuck'),
+        in_progress: tasks.filter(t => t.status === 'in_progress' && !isTaskOverdue(t)),
+        review:      tasks.filter(t => (t.status === 'review' || t.status === 'in_review') && !isTaskOverdue(t)),
+        stuck:       tasks.filter(t => (t.status === 'stuck' || t.sprint_status === 'stuck') && !isTaskOverdue(t)),
+        overdue:     tasks.filter(t => t.status !== 'completed' && (t.status === 'overdue' || isTaskOverdue(t))),
         completed:   tasks.filter(t => t.status === 'completed'),
     };
 

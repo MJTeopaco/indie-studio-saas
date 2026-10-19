@@ -1688,7 +1688,7 @@ export default function ReportsIndex({
                                             type="button"
                                             onClick={() => {
                                                 setChatRecipientType(val);
-                                                setChatRecipientId(val === 'channel' ? 'general' : '');
+                                                setChatRecipientId(val === 'channel' ? 'ch-general' : '');
                                             }}
                                             className={`py-2 px-3 rounded-xl text-xs font-bold border cursor-pointer ${
                                                 chatRecipientType === val
@@ -1714,26 +1714,33 @@ export default function ReportsIndex({
                                         className="w-full text-xs rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white py-2.5 px-3 focus:ring-brand focus:border-brand"
                                     >
                                         <option value="">Select a member...</option>
-                                        {teamMembers.filter(m => m.id !== currentUser?.id).map(m => (
+                                        {teamMembers.filter(m => String(m.id) !== String(currentUser?.id)).map(m => (
                                             <option key={m.id} value={m.id}>
                                                 {m.name} ({m.email})
                                             </option>
                                         ))}
                                     </select>
+                                    {teamMembers.filter(m => String(m.id) !== String(currentUser?.id)).length === 0 && (
+                                        <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                                            No other team members found in this studio.
+                                        </p>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                                        Channel Name <span className="text-rose-500">*</span>
+                                        Team Channel <span className="text-rose-500">*</span>
                                     </label>
-                                    <input
-                                        type="text"
+                                    <select
                                         required
                                         value={chatRecipientId}
                                         onChange={e => setChatRecipientId(e.target.value)}
-                                        placeholder="e.g. general, sprint-reviews"
                                         className="w-full text-xs rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white py-2.5 px-3 focus:ring-brand focus:border-brand"
-                                    />
+                                    >
+                                        <option value="ch-general">#general — Studio-wide announcements & discussion</option>
+                                        <option value="ch-sprint">#sprint-room — Active sprint execution & blocker coordination</option>
+                                        <option value="ch-dev">#dev-help — Code reviews, technical questions & architecture</option>
+                                    </select>
                                 </div>
                             )}
 

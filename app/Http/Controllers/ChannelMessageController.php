@@ -33,7 +33,16 @@ class ChannelMessageController extends Controller
         $afterId = $request->query('after_id');
         $user = $request->user();
 
-        $query = ChannelMessage::where('channel_id', $channelId)
+        $channelIds = [$channelId];
+        if ($channelId === 'ch-general' || $channelId === 'general') {
+            $channelIds = ['ch-general', 'general'];
+        } elseif ($channelId === 'ch-sprint' || $channelId === 'sprint-room' || $channelId === 'sprint') {
+            $channelIds = ['ch-sprint', 'sprint-room', 'sprint'];
+        } elseif ($channelId === 'ch-dev' || $channelId === 'dev-help' || $channelId === 'dev') {
+            $channelIds = ['ch-dev', 'dev-help', 'dev'];
+        }
+
+        $query = ChannelMessage::whereIn('channel_id', $channelIds)
             ->where(function ($q) use ($user) {
                 if ($user) {
                     $q->whereNull('deleted_for_user_ids')

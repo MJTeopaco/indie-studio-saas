@@ -3,6 +3,7 @@ import { Head, Link, usePage, router } from '@inertiajs/react';
 import TenantLayout from '@/Layouts/TenantLayout';
 import MemberTaskDetailModal from '@/Components/Tenant/Tasks/MemberTaskDetailModal';
 import LeaveApprovalConfirmDialog from '@/Components/Tenant/LeaveApprovalConfirmDialog';
+import SharedReportModal from '@/Components/Tenant/Reports/SharedReportModal';
 import { showToast } from '@/Components/SystemToast';
 import {
     Bell,
@@ -1237,6 +1238,7 @@ export default function Inbox({
     const [emailModalOpen, setEmailModalOpen] = useState(false);
     const [sendingEmail, setSendingEmail] = useState(false);
     const [lightboxImage, setLightboxImage] = useState(null);
+    const [selectedReportModal, setSelectedReportModal] = useState(null);
 
     // Reply, Forward, Pin, Copy & Assets State
     const [replyingTo, setReplyingTo] = useState(null);
@@ -3183,13 +3185,14 @@ export default function Inbox({
                                                                                     </div>
                                                                                 </div>
 
-                                                                                <a
-                                                                                    href={att.report_url || `/studio/${workspaceSlug}/reports`}
-                                                                                    className="w-full py-2 px-3 rounded-xl bg-brand hover:bg-brand-dark text-white transition-all text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs"
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => setSelectedReportModal(att)}
+                                                                                    className="w-full py-2 px-3 rounded-xl bg-brand hover:bg-brand-dark text-white transition-all text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-98"
                                                                                 >
                                                                                     <span>View Full Interactive Report</span>
                                                                                     <ExternalLink className="w-3.5 h-3.5" />
-                                                                                </a>
+                                                                                </button>
                                                                             </div>
                                                                         );
                                                                     }
@@ -3435,6 +3438,17 @@ export default function Inbox({
                 mode="reject"
                 isLoading={Boolean(leaveActionProcessingId)}
             />
+
+            {/* Full Interactive Shared Report Modal with Download as PDF */}
+            {selectedReportModal && (
+                <SharedReportModal
+                    isOpen={Boolean(selectedReportModal)}
+                    onClose={() => setSelectedReportModal(null)}
+                    reportAttachment={selectedReportModal}
+                    workspaceSlug={workspaceSlug}
+                    studioName={studio?.name || 'SprintStudio'}
+                />
+            )}
         </TenantLayout>
     );
 }
