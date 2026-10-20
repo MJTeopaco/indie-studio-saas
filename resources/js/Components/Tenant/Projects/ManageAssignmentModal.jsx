@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X, Loader2, Sparkles, UserPlus, AlertCircle } from 'lucide-react';
 import { router } from '@inertiajs/react';
 import axios from 'axios';
@@ -24,6 +24,22 @@ export default function ManageAssignmentModal({ isOpen, onClose, task, teamMembe
             setErrorMessage(null);
         }
     }, [isOpen, task]);
+
+    // Arrange members alphabetically A-Z, placing selected members at the top
+    const sortedTeamMembers = useMemo(() => {
+        if (!Array.isArray(teamMembers)) return [];
+
+        return [...teamMembers].sort((a, b) => {
+            const aSelected = selectedMembers.includes(Number(a.id));
+            const bSelected = selectedMembers.includes(Number(b.id));
+
+            if (aSelected !== bSelected) {
+                return aSelected ? -1 : 1;
+            }
+
+            return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
+        });
+    }, [teamMembers, selectedMembers]);
 
     const handleToggleMember = (memberId) => {
         const id = Number(memberId);
@@ -145,22 +161,41 @@ export default function ManageAssignmentModal({ isOpen, onClose, task, teamMembe
                         )}
 
                         <div className="max-h-60 overflow-y-auto pr-2 space-y-2">
-                            {teamMembers.length === 0 ? (
+                            {sortedTeamMembers.length === 0 ? (
                                 <p className="text-center text-sm text-gray-500 py-4">No team members available.</p>
                             ) : (
-                                teamMembers.map(member => (
-                                    <label key={member.id} className="flex items-center p-3 rounded-lg border border-gray-100 hover:bg-gray-50 dark:border-slate-800 dark:hover:bg-slate-800/50 cursor-pointer transition-colors">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedMembers.includes(Number(member.id))}
-                                            onChange={() => handleToggleMember(member.id)}
-                                            className="w-4 h-4 rounded-sm border-gray-300 text-brand focus:ring-brand"
-                                        />
-                                        <div className="ml-3">
-                                            <span className="block text-sm font-bold text-gray-900 dark:text-slate-100">{member.name}</span>
-                                        </div>
-                                    </label>
-                                ))
+                                sortedTeamMembers.map(member => {
+                                    const isSelected = selectedMembers.includes(Number(member.id));
+                                    return (
+                                        <label
+                                            key={member.id}
+                                            className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                                                isSelected
+                                                    ? 'border-brand/40 bg-brand/5 dark:border-brand/40 dark:bg-brand/10'
+                                                    : 'border-gray-100 hover:bg-gray-50 dark:border-slate-800 dark:hover:bg-slate-800/50'
+                                            }`}
+                                        >
+                                            <div className="flex items-center">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isSelected}
+                                                    onChange={() => handleToggleMember(member.id)}
+                                                    className="w-4 h-4 rounded-sm border-gray-300 text-brand focus:ring-brand cursor-pointer"
+                                                />
+                                                <div className="ml-3">
+                                                    <span className={`block text-sm font-bold ${isSelected ? 'text-brand dark:text-brand-light' : 'text-gray-900 dark:text-slate-100'}`}>
+                                                        {member.name}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            {isSelected && (
+                                                <span className="text-[11px] font-semibold text-brand dark:text-brand-light bg-brand/10 dark:bg-brand/20 px-2 py-0.5 rounded-full">
+                                                    Selected
+                                                </span>
+                                            )}
+                                        </label>
+                                    );
+                                })
                             )}
                         </div>
 
