@@ -986,7 +986,7 @@ class TenantProjectController extends Controller
 
         RecomputeProjectSchedule::dispatchSync($projectModel->id);
 
-        if (! $request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
+        if ($request->wantsJson() || (! $request->header('X-Inertia') && $request->ajax())) {
             return response()->json([
                 'status' => 'success',
                 'task' => $taskModel,

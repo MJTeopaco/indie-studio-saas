@@ -1,31 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { X, Loader2, Sparkles, UserPlus } from 'lucide-react';
+import { X, Loader2, Sparkles, UserPlus, AlertCircle } from 'lucide-react';
+import { router } from '@inertiajs/react';
 import axios from 'axios';
+import { showToast } from '@/Components/SystemToast';
 
-export default function ManageAssignmentModal({ isOpen, onClose, task, teamMembers, onTriggerAi, project, tenantId, onSuccess }) {
+export default function ManageAssignmentModal({ isOpen, onClose, task, teamMembers = [], onTriggerAi, project, tenantId, onSuccess }) {
     if (!isOpen || !task) return null;
 
     const [activeTab, setActiveTab] = useState('manual'); // 'manual' or 'ai'
     const [selectedMembers, setSelectedMembers] = useState([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [errorMessage, setErrorMessage] = useState(null);
 
     useEffect(() => {
         if (isOpen && task) {
             // Extract existing assignees
             const currentAssignees = Array.isArray(task.assignees) 
-                ? task.assignees.map(a => a.id)
-                : (task.assignee ? [task.assignee.id] : []);
+                ? task.assignees.map(a => (typeof a === 'object' && a !== null ? a.id : a))
+                : (task.assignee ? [task.assignee.id] : (task.assigned_user_id ? [task.assigned_user_id] : []));
             
-            setSelectedMembers(currentAssignees);
+            setSelectedMembers(currentAssignees.map(Number).filter(id => !isNaN(id) && id > 0));
             setActiveTab('manual');
+            setErrorMessage(null);
         }
     }, [isOpen, task]);
 
     const handleToggleMember = (memberId) => {
+        const id = Number(memberId);
         setSelectedMembers(prev => 
-            prev.includes(memberId)
-                ? prev.filter(id => id !== memberId)
-                : [...prev, memberId]
+            prev.includes(id)
+                ? prev.filter(item => item !== id)
+                : [...prev, id]
         );
     };
 
@@ -37,20 +42,36 @@ export default function ManageAssignmentModal({ isOpen, onClose, task, teamMembe
     const handleSaveManual = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
+        setErrorMessage(null);
         
+        const numericMemberIds = selectedMembers.map(Number);
+        const resolvedProjectId = project?.id || task.project_id;
+
         try {
-            const response = await axios.patch(route('tenant.projects.tasks.update', { tenant: tenantId, project: project.id, task: task.id }), {
-                assignees: selectedMembers,
-            }, {
-                headers: { 'X-Inertia': 'true' }
+            await axios.patch(route('tenant.projects.tasks.update', {
+                tenant: tenantId,
+                project: resolvedProjectId,
+                task: task.id
+            }), {
+                assignees: numericMemberIds,
             });
             
             // Map selected IDs back to member objects for UI update
-            const newAssignees = selectedMembers.map(id => teamMembers.find(m => m.id === id)).filter(Boolean);
-            onSuccess(task.id, newAssignees);
+            const newAssignees = numericMemberIds
+                .map(id => teamMembers.find(m => Number(m.id) === Number(id)))
+                .filter(Boolean);
+            
+            showToast('Assignments saved successfully.', 'success');
+            if (onSuccess) {
+                onSuccess(task.id, newAssignees);
+            }
+            router.reload({ only: ['project', 'sprints', 'backlogTasks'] });
             onClose();
         } catch (error) {
             console.error('Error saving manual assignments', error);
+            const msg = error.response?.data?.message || 'Failed to save assignments. Please try again.';
+            setErrorMessage(msg);
+            showToast(msg, 'error');
         } finally {
             setIsSubmitting(false);
         }
@@ -108,7 +129,7 @@ export default function ManageAssignmentModal({ isOpen, onClose, task, teamMembe
                         <button
                             type="button"
                             onClick={handleAiClick}
-                            className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-purple-700 shadow-xs shadow-purple-500/30 transition-all"
+                            className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-purple-700 shadow-xs shadow-purple-500/30 transition-all cursor-pointer"
                         >
                             <Sparkles className="h-4 w-4" />
                             Run AI Analysis
@@ -116,6 +137,13 @@ export default function ManageAssignmentModal({ isOpen, onClose, task, teamMembe
                     </div>
                 ) : (
                     <form onSubmit={handleSaveManual} className="space-y-4">
+                        {errorMessage && (
+                            <div className="flex items-center gap-2 p-3 text-xs text-red-700 bg-red-50 rounded-lg dark:bg-red-950/40 dark:text-red-400 border border-red-200 dark:border-red-900/50 mb-3">
+                                <AlertCircle className="w-4 h-4 shrink-0" />
+                                <span>{errorMessage}</span>
+                            </div>
+                        )}
+
                         <div className="max-h-60 overflow-y-auto pr-2 space-y-2">
                             {teamMembers.length === 0 ? (
                                 <p className="text-center text-sm text-gray-500 py-4">No team members available.</p>
@@ -124,7 +152,7 @@ export default function ManageAssignmentModal({ isOpen, onClose, task, teamMembe
                                     <label key={member.id} className="flex items-center p-3 rounded-lg border border-gray-100 hover:bg-gray-50 dark:border-slate-800 dark:hover:bg-slate-800/50 cursor-pointer transition-colors">
                                         <input
                                             type="checkbox"
-                                            checked={selectedMembers.includes(member.id)}
+                                            checked={selectedMembers.includes(Number(member.id))}
                                             onChange={() => handleToggleMember(member.id)}
                                             className="w-4 h-4 rounded-sm border-gray-300 text-brand focus:ring-brand"
                                         />
@@ -148,7 +176,7 @@ export default function ManageAssignmentModal({ isOpen, onClose, task, teamMembe
                             <button 
                                 type="submit" 
                                 disabled={isSubmitting}
-                                className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2 text-sm font-bold text-white hover:bg-brand-600 disabled:opacity-50 transition-colors shadow-xs shadow-brand/30"
+                                className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2 text-sm font-bold text-white hover:bg-brand-600 disabled:opacity-50 transition-colors shadow-xs shadow-brand/30 cursor-pointer"
                             >
                                 {isSubmitting ? (
                                     <>

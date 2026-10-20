@@ -402,11 +402,11 @@ export default function Show({
     };
 
     const handleUpdateTask = (taskId, fields) => {
-        setTaskRows(rows => rows.map(t => (t.id === taskId ? { ...t, ...fields } : t)));
-        if (selectedInspectorTask?.id === taskId) {
+        setTaskRows(rows => rows.map(t => (Number(t.id) === Number(taskId) ? { ...t, ...fields } : t)));
+        if (Number(selectedInspectorTask?.id) === Number(taskId)) {
             setSelectedInspectorTask(prev => ({ ...prev, ...fields }));
         }
-        window.dispatchEvent(new CustomEvent('task-updated', { detail: { taskId, updates: fields } }));
+        window.dispatchEvent(new CustomEvent('task-updated', { detail: { taskId: Number(taskId), updates: fields } }));
     };
 
     const handleStatusChange = (task, newStatus) => {
