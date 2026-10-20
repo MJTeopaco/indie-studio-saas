@@ -270,6 +270,7 @@ export default function Show({
     const [statusEditingTask, setStatusEditingTask] = useState(null);
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
     const [aiModalTask, setAiModalTask] = useState(null);
+    const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false);
 
     useEffect(() => {
         setTaskRows(project?.tasks || []);
@@ -467,7 +468,7 @@ export default function Show({
 
     const projectKey = project?.key || project?.code || (project?.name ? project.name.substring(0, 3).toUpperCase() : 'PRJ');
     const projectType = project?.type || project?.category || 'Internal tooling';
-    const techStack = project?.tech_stack || project?.description || 'C++';
+    const techStack = project?.tech_stack || null;
 
     return (
         <ProjectLayout auth={currentAuth} project={project} studioName={studio?.name}>
@@ -487,10 +488,16 @@ export default function Show({
                             <h1 className="font-heading font-bold text-[25px] leading-tight text-[var(--foreground)] tracking-tight">
                                 {project?.name || 'Forge Engine'}
                             </h1>
-                            {/* Project Type */}
-                            <p className="text-[11px] text-[var(--muted-foreground)] mt-0.5">
-                                {projectType} · {techStack}
-                            </p>
+                            {/* Project Type & Stack */}
+                            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-[var(--muted-foreground)]">
+                                <span>{projectType}</span>
+                                {techStack && (
+                                    <>
+                                        <span className="text-[var(--border)]">•</span>
+                                        <span className="font-mono text-[10px] text-[var(--foreground)]">{techStack}</span>
+                                    </>
+                                )}
+                            </div>
                         </div>
 
                         {/* Top Actions: Status Badge & Add Task */}
@@ -737,9 +744,14 @@ export default function Show({
 
                                 {/* Project details (narrow panel, padding 14px 18px) */}
                                 <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-[14px_18px] shadow-2xs flex flex-col justify-between">
-                                    <h2 className="font-heading font-bold text-sm text-[var(--foreground)] mb-2.5">
-                                        Project details
-                                    </h2>
+                                    <div className="flex items-center justify-between gap-2 mb-3">
+                                        <h2 className="font-heading font-bold text-sm text-[var(--foreground)]">
+                                            Project details
+                                        </h2>
+                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-medium bg-[var(--muted)] text-[var(--muted-foreground)] border border-[var(--border)]/60">
+                                            {projectType}
+                                        </span>
+                                    </div>
 
                                     {/* 2x2 dl grid */}
                                     <dl className="grid grid-cols-2 gap-y-3 gap-x-4 text-xs">
@@ -784,11 +796,44 @@ export default function Show({
                                         </div>
                                     </dl>
 
-                                    {/* Mini visual overlay strip */}
-                                    <div className="mt-3.5 pt-2.5 border-t border-[var(--border)]/60 flex items-center justify-between text-[11px] text-[var(--muted-foreground)]">
-                                        <span className="font-mono text-[10px]">{projectType}</span>
-                                        <span className="font-mono text-[10px] text-[var(--foreground)] font-semibold">{techStack}</span>
-                                    </div>
+                                    {/* Description / Scope Overview */}
+                                    {project?.description ? (
+                                        <div className="mt-3.5 pt-3 border-t border-[var(--border)]/60 flex flex-col justify-between flex-1">
+                                            <div>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+                                                        Scope & Overview
+                                                    </span>
+                                                    {project.description.length > 90 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setIsDescriptionModalOpen(true)}
+                                                            className="text-[10px] font-medium text-[var(--primary)] hover:underline inline-flex items-center gap-0.5 cursor-pointer transition-colors"
+                                                        >
+                                                            <span>Read full</span>
+                                                            <ChevronRight className="w-3 h-3" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <p className="text-[11px] text-[var(--muted-foreground)] line-clamp-2 leading-relaxed">
+                                                    {project.description}
+                                                </p>
+                                            </div>
+                                            {techStack && (
+                                                <div className="mt-2.5 pt-2 border-t border-[var(--border)]/40 flex items-center justify-between text-[10px] font-mono text-[var(--muted-foreground)]">
+                                                    <span>Stack</span>
+                                                    <span className="text-[var(--foreground)] font-semibold truncate max-w-[160px]">{techStack}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        techStack && (
+                                            <div className="mt-3.5 pt-2.5 border-t border-[var(--border)]/60 flex items-center justify-between text-[11px] text-[var(--muted-foreground)]">
+                                                <span className="font-mono text-[10px]">Stack</span>
+                                                <span className="font-mono text-[10px] text-[var(--foreground)] font-semibold truncate max-w-[180px]">{techStack}</span>
+                                            </div>
+                                        )
+                                    )}
                                 </div>
 
                             </div>
@@ -1478,6 +1523,57 @@ export default function Show({
                 isOpen={Boolean(aiModalTask)}
                 onClose={() => setAiModalTask(null)}
             />
+
+            {/* Project Description Modal */}
+            {isDescriptionModalOpen && project?.description && (
+                <div 
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4" 
+                    onClick={() => setIsDescriptionModalOpen(false)}
+                >
+                    <div 
+                        className="w-full max-w-xl rounded-2xl bg-[var(--card)] border border-[var(--border)] p-6 shadow-2xl text-[var(--foreground)] flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200" 
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between border-b border-[var(--border)]/70 pb-3 mb-4">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
+                                    <Target className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <h2 className="text-base font-bold font-heading text-[var(--foreground)]">
+                                        Project Overview & Scope
+                                    </h2>
+                                    <p className="text-xs text-[var(--muted-foreground)] font-mono">
+                                        {project?.name} ({projectKey})
+                                    </p>
+                                </div>
+                            </div>
+                            <button 
+                                type="button" 
+                                onClick={() => setIsDescriptionModalOpen(false)} 
+                                className="p-1 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors cursor-pointer"
+                                aria-label="Close modal"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="overflow-y-auto pr-2 space-y-4 text-xs sm:text-sm text-[var(--foreground)]/90 leading-relaxed font-sans whitespace-pre-line select-text">
+                            {project.description}
+                        </div>
+
+                        <div className="mt-5 pt-3 border-t border-[var(--border)]/70 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setIsDescriptionModalOpen(false)}
+                                className="px-4 py-2 rounded-lg bg-[var(--muted)] hover:bg-[var(--border)] text-xs font-semibold text-[var(--foreground)] transition-colors cursor-pointer"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </ProjectLayout>
     );
 }
