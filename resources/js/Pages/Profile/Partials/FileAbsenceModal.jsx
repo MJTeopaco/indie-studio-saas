@@ -17,7 +17,8 @@ import {
     Users,
     Heart,
     Lock,
-    ShieldCheck
+    ShieldCheck,
+    AlertTriangle
 } from 'lucide-react';
 import { showToast } from '@/Components/SystemToast';
 
@@ -117,10 +118,6 @@ export default function FileAbsenceModal({
     const isOwner = Boolean(activeStudio?.is_owner || activeStudio?.role === 'owner');
     const isLeader = !isOwner && ['leader', 'manager'].includes(activeStudio?.role);
 
-    // Emergency validation
-    const minChars = 15;
-    const reasonLength = emergencyReason.trim().length;
-    const isEmergencyReasonValid = reasonLength >= minChars;
 
     const handleApplyPreset = (days) => {
         const start = startDate ? new Date(startDate) : new Date();
