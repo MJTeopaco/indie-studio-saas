@@ -3,7 +3,7 @@ import axios from 'axios';
 import { router } from '@inertiajs/react';
 import {
     X, Cpu, Loader2, Trophy, ArrowRight,
-    CheckCircle2, Brain, Sparkles, AlertCircle, User
+    CheckCircle2, Brain, Sparkles, AlertCircle, User, Activity
 } from 'lucide-react';
 
 // ─── Animated loading state for BestFit GNN + LLM inference ─────────────────
@@ -11,6 +11,7 @@ function GNNLoadingView() {
     const steps = [
         { icon: Brain,    label: 'Vectorising task requirements' },
         { icon: Cpu,      label: 'Running GNN inference'         },
+        { icon: Activity, label: 'Evaluating workload & health'  },
         { icon: Sparkles, label: 'Synthesising explanation'      },
     ];
     const [activeStep, setActiveStep] = useState(0);
@@ -18,7 +19,7 @@ function GNNLoadingView() {
     useEffect(() => {
         const interval = setInterval(() => {
             setActiveStep(s => (s < steps.length - 1 ? s + 1 : s));
-        }, 4000);
+        }, 3000);
         return () => clearInterval(interval);
     }, []);
 
@@ -38,7 +39,7 @@ function GNNLoadingView() {
 
             <div className="text-center">
                 <p className="text-sm font-bold text-gray-900 dark:text-slate-100">Finding Best Fit Candidates</p>
-                <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">Running GNN + LLM analysis on your team…</p>
+                <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">Running GNN + operational governor + LLM analysis on your team…</p>
             </div>
 
             <div className="w-full max-w-xs space-y-2">
@@ -70,17 +71,27 @@ function GNNLoadingView() {
 }
 
 // ─── Score bar ────────────────────────────────────────────────────────────────
-function ScoreBar({ score }) {
-    const pct = Math.round(score * 100);
+function ScoreBar({ score, rawScore, multiplier, penaltyReason }) {
+    const pct = Math.round((score ?? 0) * 100);
+    const rawPct = rawScore !== undefined ? Math.round(rawScore * 100) : pct;
+    const isPenalized = multiplier !== undefined && multiplier < 1.0;
     const colour = pct >= 75 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-400' : 'bg-rose-400';
     return (
-        <div className="flex items-center gap-2">
-            <div className="flex-1 h-1.5 rounded-full bg-gray-100 dark:bg-slate-700 overflow-hidden">
-                <div className={`h-full rounded-full ${colour} transition-all duration-700`} style={{ width: `${pct}%` }} />
+        <div className="space-y-1">
+            <div className="flex items-center gap-2">
+                <div className="flex-1 h-1.5 rounded-full bg-gray-100 dark:bg-slate-700 overflow-hidden">
+                    <div className={`h-full rounded-full ${colour} transition-all duration-700`} style={{ width: `${pct}%` }} />
+                </div>
+                <span className={`text-[11px] font-bold ${pct >= 75 ? 'text-emerald-500' : pct >= 50 ? 'text-amber-500' : 'text-rose-400'}`}>
+                    {pct}% fit
+                </span>
             </div>
-            <span className={`text-[11px] font-bold ${pct >= 75 ? 'text-emerald-500' : pct >= 50 ? 'text-amber-500' : 'text-rose-400'}`}>
-                {pct}%
-            </span>
+            {isPenalized && (
+                <div className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                    <AlertCircle className="w-3 h-3 shrink-0" />
+                    <span>Raw GNN {rawPct}% · {penaltyReason || 'Capacity adjusted'}</span>
+                </div>
+            )}
         </div>
     );
 }
@@ -186,6 +197,24 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
 
     const getMemberInitial = (userId) => getMemberName(userId).charAt(0).toUpperCase();
 
+    const getCandidateHealth = (candidate) => {
+        if (candidate.health) return candidate.health;
+        const m = teamMembers?.find(item => Number(item.id) === Number(candidate.user_id));
+        return m?.health || { label: 'Healthy', tone: 'success' };
+    };
+
+    const getCandidateUtil = (candidate) => {
+        if (candidate.utilization_rate !== undefined) return candidate.utilization_rate;
+        const m = teamMembers?.find(item => Number(item.id) === Number(candidate.user_id));
+        return m?.utilization_rate ?? 0;
+    };
+
+    const getCandidateWorkingStatus = (candidate) => {
+        if (candidate.working_status) return candidate.working_status;
+        const m = teamMembers?.find(item => Number(item.id) === Number(candidate.user_id));
+        return m?.working_status || 'active';
+    };
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
             <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden border border-gray-200 dark:border-slate-700">
@@ -247,6 +276,24 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
                                         {candidates.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((candidate, idx) => {
                                             const originalIdx = (currentPage - 1) * itemsPerPage + idx;
                                             const isSelected = assignedUserIds.has(Number(candidate.user_id));
+
+                                            const health = getCandidateHealth(candidate);
+                                            const utilizationRate = getCandidateUtil(candidate);
+                                            const workingStatus = getCandidateWorkingStatus(candidate);
+                                            const isUnavailable = ['on_leave', 'emergency'].includes(workingStatus);
+
+                                            const healthBadgeClasses = health.label === 'At Risk'
+                                                ? 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800'
+                                                : health.label === 'Watchlist'
+                                                ? 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800'
+                                                : 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800';
+
+                                            const utilChipClasses = utilizationRate >= 95
+                                                ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800'
+                                                : utilizationRate >= 80
+                                                ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800'
+                                                : 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800';
+
                                             return (
                                                 <div
                                                     key={originalIdx}
@@ -273,10 +320,31 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
 
                                                     {/* Info */}
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-sm font-bold text-gray-900 dark:text-slate-100 truncate">
-                                                            {getMemberName(candidate.user_id)}
-                                                        </p>
-                                                        <ScoreBar score={candidate.match_fit_score} />
+                                                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                                                            <p className="text-sm font-bold text-gray-900 dark:text-slate-100 truncate">
+                                                                {getMemberName(candidate.user_id)}
+                                                            </p>
+                                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                                {isUnavailable ? (
+                                                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800">
+                                                                        {workingStatus === 'on_leave' ? 'On Leave' : 'Emergency'}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${healthBadgeClasses}`}>
+                                                                        {health.label}
+                                                                    </span>
+                                                                )}
+                                                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${utilChipClasses}`}>
+                                                                    {utilizationRate}% util
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <ScoreBar
+                                                            score={candidate.match_fit_score}
+                                                            rawScore={candidate.raw_match_fit_score}
+                                                            multiplier={candidate.capacity_multiplier}
+                                                            penaltyReason={candidate.capacity_penalty_reason}
+                                                        />
                                                     </div>
 
                                                     {/* Checkbox proxy */}

@@ -11,6 +11,7 @@ use App\Services\MLEngineService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class MLEngineIntegrationController extends Controller
 {
@@ -303,6 +304,10 @@ class MLEngineIntegrationController extends Controller
         $response = $this->mlService->getBestFit($payload);
 
         if ($response['status'] === 'success' && ! empty($response['results'])) {
+            // Apply capacity multiplier & health governor (Two-Stage Neuro-Symbolic Governor)
+            $operationalMetrics = $this->getStudioMemberOperationalMetrics();
+            $response['results'] = $this->applyCapacityGovernor($response['results'], $operationalMetrics);
+
             // Grab the CPA schedule (if any) to ground the LLM
             $cpaSchedule = null;
             if ($task->es !== null && $task->is_critical !== null) {
@@ -509,25 +514,31 @@ class MLEngineIntegrationController extends Controller
                 ->filter(fn (array $c): bool => $teamMemberIds->has($c['user_id']))
                 ->values()
                 ->all();
+
+            $operationalMetrics = $this->getStudioMemberOperationalMetrics();
+            $response['results'] = $this->applyCapacityGovernor($response['results'], $operationalMetrics);
         }
 
         // Still give the manager named, selectable members if the ML service is
         // offline or cannot rank a newly created studio profile. This prevents
         // an empty recommendation screen while keeping the source transparent.
         if (empty($response['results']) && ! empty($employeeProfiles)) {
+            $operationalMetrics = $this->getStudioMemberOperationalMetrics();
+            $fallbackResults = collect($employeeProfiles)
+                ->sortByDesc('experience_years')
+                ->map(fn (array $profile): array => [
+                    'user_id' => $profile['user_id'],
+                    'display_name' => $profile['display_name'],
+                    'match_fit_score' => 0,
+                    'match_source' => 'manual_fallback',
+                ])
+                ->values()
+                ->all();
+
             $response = [
                 'status' => 'success',
                 'match_source' => 'manual_fallback',
-                'results' => collect($employeeProfiles)
-                    ->sortByDesc('experience_years')
-                    ->map(fn (array $profile): array => [
-                        'user_id' => $profile['user_id'],
-                        'display_name' => $profile['display_name'],
-                        'match_fit_score' => 0,
-                        'match_source' => 'manual_fallback',
-                    ])
-                    ->values()
-                    ->all(),
+                'results' => $this->applyCapacityGovernor($fallbackResults, $operationalMetrics),
             ];
         }
 
@@ -761,5 +772,180 @@ class MLEngineIntegrationController extends Controller
             'status' => 'error',
             'message' => 'Unsupported action type.',
         ], 400);
+    }
+
+    /**
+     * Compute real-time operational capacity metrics (utilization, health, working status)
+     * for all studio members in the active tenant.
+     *
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>> keyed by user_id
+     */
+    protected function getStudioMemberOperationalMetrics(): \Illuminate\Support\Collection
+    {
+        $tenantId = tenant('id');
+        User::resolveStudioMembersLeaveStatus($tenantId);
+
+        $studio = Studio::with(['users.globalProfile'])->find($tenantId);
+        if (! $studio || $studio->users->isEmpty()) {
+            return collect();
+        }
+
+        $userIds = $studio->users->pluck('id');
+
+        $assignedTaskRows = Task::query()
+            ->select(['id', 'assigned_user_id', 'status', 'estimated_hours'])
+            ->whereIn('assigned_user_id', $userIds)
+            ->get();
+
+        $assignmentTaskIdsByUser = collect();
+        if (Schema::hasTable('assignments')) {
+            $assignmentTaskIdsByUser = DB::table('assignments')
+                ->select('employee_user_id', 'task_id')
+                ->whereIn('employee_user_id', $userIds)
+                ->where('status', 'active')
+                ->get()
+                ->groupBy('employee_user_id')
+                ->map(fn ($rows) => collect($rows)->pluck('task_id')->unique()->values());
+        }
+
+        $historicalTaskIds = $assignmentTaskIdsByUser->flatten()->filter()->unique()->values();
+        $historicalTaskRows = $historicalTaskIds->isNotEmpty()
+            ? Task::query()
+                ->select(['id', 'assigned_user_id', 'status', 'estimated_hours'])
+                ->whereIn('id', $historicalTaskIds)
+                ->get()
+            : collect();
+
+        $memberTaskRows = $assignedTaskRows->concat($historicalTaskRows)->unique('id')->values();
+        $assignedTasksByUser = $assignedTaskRows->groupBy('assigned_user_id');
+        $activeStatuses = ['todo', 'in_progress', 'review'];
+
+        return $studio->users->mapWithKeys(function ($user) use ($assignedTasksByUser, $assignmentTaskIdsByUser, $memberTaskRows, $activeStatuses) {
+            $maxHoursPerWeek = (int) ($user->globalProfile->max_hours_per_week ?? 40);
+
+            $historicalIds = collect($assignmentTaskIdsByUser->get($user->id, collect()));
+            $historicalTasks = $historicalIds->isNotEmpty()
+                ? $memberTaskRows->whereIn('id', $historicalIds->all())
+                : collect();
+
+            $assignedTasks = collect($assignedTasksByUser->get($user->id, collect()));
+            $allUserTasks = $assignedTasks->concat($historicalTasks)->unique('id')->values();
+
+            $activeTasks = $allUserTasks->whereIn('status', $activeStatuses);
+            $reviewTasksCount = $allUserTasks->where('status', 'review')->count();
+            $activeLoadHours = (float) $activeTasks->sum(fn ($t) => (float) ($t->estimated_hours ?? 0));
+
+            $utilizationRate = $maxHoursPerWeek > 0
+                ? (int) max(0, min(100, round(($activeLoadHours / $maxHoursPerWeek) * 100)))
+                : 0;
+
+            $revisionRate = $allUserTasks->isNotEmpty()
+                ? (int) round(($reviewTasksCount / $allUserTasks->count()) * 100)
+                : 0;
+
+            $healthLabel = 'Healthy';
+            $healthTone = 'success';
+            if ($utilizationRate >= 95 || $revisionRate >= 70) {
+                $healthLabel = 'At Risk';
+                $healthTone = 'danger';
+            } elseif ($utilizationRate >= 80 || $revisionRate >= 45) {
+                $healthLabel = 'Watchlist';
+                $healthTone = 'warning';
+            }
+
+            return [
+                $user->id => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'working_status' => $user->pivot->working_status ?? 'active',
+                    'leave_start_date' => $user->pivot->leave_start_date ?? null,
+                    'leave_end_date' => $user->pivot->leave_end_date ?? null,
+                    'leave_request_status' => $user->pivot->leave_request_status ?? 'none',
+                    'max_hours_per_week' => $maxHoursPerWeek,
+                    'active_load_hours' => round($activeLoadHours, 1),
+                    'active_tasks_count' => $activeTasks->count(),
+                    'utilization_rate' => $utilizationRate,
+                    'revision_rate' => $revisionRate,
+                    'health' => [
+                        'label' => $healthLabel,
+                        'tone' => $healthTone,
+                    ],
+                ],
+            ];
+        });
+    }
+
+    /**
+     * Apply capacity multiplier penalty to GNN candidate results (Two-Stage Neuro-Symbolic Governor).
+     *
+     * Stage 1: GNN Link Prediction calculates raw technical skill match (raw_match_fit_score).
+     * Stage 2: Deterministic Operational Governor adjusts candidate score based on health & utilization.
+     *
+     * Multipliers:
+     * - On Leave / Emergency: 0.0 (Unavailable)
+     * - At Risk / >= 95% util: 0.60 (40% burnout penalty; 97% drops to ~58%)
+     * - Watchlist / >= 80% util: 0.85 (15% capacity penalty; 97% drops to ~82%)
+     * - Healthy / < 80% util: 1.0 (No penalty; preserves full GNN score)
+     */
+    protected function applyCapacityGovernor(array $gnnCandidates, \Illuminate\Support\Collection $metricsByUserId): array
+    {
+        $adjusted = [];
+
+        foreach ($gnnCandidates as $candidate) {
+            $userId = (int) ($candidate['user_id'] ?? $candidate['employee_id'] ?? 0);
+            $metrics = $metricsByUserId->get($userId);
+
+            $rawScore = (float) ($candidate['match_fit_score'] ?? 0.0);
+            $workingStatus = $metrics['working_status'] ?? 'active';
+            $utilizationRate = (int) ($metrics['utilization_rate'] ?? 0);
+            $health = $metrics['health'] ?? ['label' => 'Healthy', 'tone' => 'success'];
+            $healthLabel = is_array($health) ? ($health['label'] ?? 'Healthy') : (string) $health;
+            $healthTone = is_array($health) ? ($health['tone'] ?? 'success') : 'success';
+            $activeLoadHours = (float) ($metrics['active_load_hours'] ?? 0.0);
+            $maxHoursPerWeek = (int) ($metrics['max_hours_per_week'] ?? 40);
+
+            $capacityMultiplier = 1.0;
+            $penaltyReason = null;
+
+            if (in_array($workingStatus, ['on_leave', 'emergency'])) {
+                $capacityMultiplier = 0.0;
+                $penaltyReason = $workingStatus === 'on_leave' ? 'On Leave' : 'Emergency';
+            } elseif ($healthLabel === 'At Risk' || $utilizationRate >= 95) {
+                $capacityMultiplier = 0.60;
+                $penaltyReason = "High Workload ({$utilizationRate}% util, {$healthLabel})";
+            } elseif ($healthLabel === 'Watchlist' || $utilizationRate >= 80) {
+                $capacityMultiplier = 0.85;
+                $penaltyReason = "Near Capacity ({$utilizationRate}% util, {$healthLabel})";
+            }
+
+            $compositeScore = round(max(0.0, min(1.0, $rawScore * $capacityMultiplier)), 3);
+
+            $candidate['user_id'] = $userId;
+            $candidate['raw_match_fit_score'] = round($rawScore, 3);
+            $candidate['match_fit_score'] = $compositeScore;
+            $candidate['capacity_multiplier'] = $capacityMultiplier;
+            $candidate['capacity_penalty_reason'] = $penaltyReason;
+            $candidate['utilization_rate'] = $utilizationRate;
+            $candidate['health'] = [
+                'label' => $healthLabel,
+                'tone' => $healthTone,
+            ];
+            $candidate['working_status'] = $workingStatus;
+            $candidate['active_load_hours'] = $activeLoadHours;
+            $candidate['max_hours_per_week'] = $maxHoursPerWeek;
+
+            $adjusted[] = $candidate;
+        }
+
+        // Re-rank candidates descending by composite match_fit_score, breaking ties with raw skill score
+        usort($adjusted, function ($a, $b) {
+            if ($b['match_fit_score'] !== $a['match_fit_score']) {
+                return $b['match_fit_score'] <=> $a['match_fit_score'];
+            }
+            return ($b['raw_match_fit_score'] ?? 0) <=> ($a['raw_match_fit_score'] ?? 0);
+        });
+
+        return $adjusted;
     }
 }

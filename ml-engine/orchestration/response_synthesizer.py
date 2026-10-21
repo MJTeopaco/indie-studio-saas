@@ -30,11 +30,22 @@ logger = logging.getLogger(__name__)
 _ASSIGNMENT_EXPLAIN_SYSTEM = """You are a project management assistant explaining AI assignment recommendations.
 You will receive JSON data containing the target task (if provided), developer candidate match results, optional schedule constraints, and a resource_deficit_flag.
 
+Each candidate includes:
+- `display_name`: Developer name
+- `match_fit_score`: Final composite fit score (factoring both technical skill match and capacity)
+- `raw_match_fit_score`: Raw GNN technical skill match score
+- `capacity_multiplier` & `capacity_penalty_reason`: Capacity governor adjustments (e.g., penalty applied for high workload or at-risk health)
+- `utilization_rate`: Current workload percentage
+- `health`: Workload health assessment (Healthy, Watchlist, At Risk)
+- `working_status`: Operational status (active, on_leave, emergency)
+- `skill_overlap`: List of matched technical skills
+
 Write a clear, professional 2-4 sentence summary following these rules:
 1. If resource_deficit_flag is true (meaning all candidate match scores are below 50%), DO NOT confidently recommend them. Instead, issue a Capacity Warning explaining why the top candidates scored poorly and suggest options like upskilling, adjusting deadlines, or workload reallocation.
-2. If resource_deficit_flag is false, state clearly who is recommended for the task and explain WHY based on their matching skill overlap with the task.
-3. ONLY mention critical path or scheduling constraints if 'cpa_schedule' is explicitly provided and non-null in the JSON.
-4. CRITICAL RULE: DO NOT mention missing data, null values, or the Critical Path Algorithm if no scheduling constraints are provided in the payload. Do not speculate or invent numbers. Write in plain English."""
+2. If resource_deficit_flag is false, state clearly who is the top recommended developer for the task and explain WHY based on their matching skills and available capacity.
+3. Capacity, Health & Burnout Awareness: If any candidate has a high raw technical match (e.g., raw_match_fit_score >= 80%) but was deprioritized or penalized due to being At Risk, overloaded (utilization >= 80% or 95%), or on leave, explicitly explain this operational trade-off. Emphasize that the system prioritizes an available, healthy developer over an overloaded candidate to protect team health and guarantee timely delivery.
+4. ONLY mention critical path or scheduling constraints if 'cpa_schedule' is explicitly provided and non-null in the JSON.
+5. CRITICAL RULE: DO NOT mention missing data, null values, or the Critical Path Algorithm if no scheduling constraints are provided in the payload. Do not speculate or invent numbers. Write in plain English."""
 
 _RISK_ALERT_SYSTEM = """You are a project risk analyst. You will receive a JSON object describing
 project risks (overdue tasks, overloaded employees, conflicts). Write a brief plain-language
@@ -139,14 +150,16 @@ def synthesize_assignment_explanation(
     cpa_schedule: optional output from /schedule/compute with critical_path list
     task: optional task dict with title, difficulty, required_skills
     """
-    payload_candidates = [
-        c for c in gnn_results if c.get("match_fit_score", 0) >= 0.50
-    ][:3]
+    # Take top 3 candidates by composite score
+    top_composite = gnn_results[:3]
+    # Also include any high-skill candidate who was deprioritized due to capacity penalty
+    high_skill_penalized = [
+        c for c in gnn_results[3:6]
+        if c.get("raw_match_fit_score", 0) >= 0.75 and c.get("capacity_multiplier", 1.0) < 1.0
+    ]
+    payload_candidates = top_composite + high_skill_penalized[:1]
 
-    deficit_warning = False
-    if not payload_candidates:
-        payload_candidates = gnn_results[:2]
-        deficit_warning = True
+    deficit_warning = all(c.get("match_fit_score", 0) < 0.50 for c in payload_candidates) if payload_candidates else True
 
     payload = json.dumps(
         {
@@ -163,15 +176,30 @@ def synthesize_assignment_explanation(
         # Fallback: build a plain summary without LLM
         lines = []
         if deficit_warning:
-            lines.append("⚠️ Resource Deficit Detected: No candidates scored above 50% fit for this task. Closest matches:")
+            lines.append("⚠️ Resource Deficit Detected: No candidates scored above 50% capacity-adjusted fit for this task. Closest matches:")
         else:
-            lines.append("AI assignment recommendations (LLM offline — summary only):")
+            lines.append("AI assignment recommendations (Capacity-governed):")
 
         for i, r in enumerate(payload_candidates, 1):
             score_pct = int(r.get("match_fit_score", 0) * 100)
+            raw_score_pct = int(r.get("raw_match_fit_score", r.get("match_fit_score", 0)) * 100)
             overlap = ", ".join(r.get("skill_overlap", [])[:4]) or "general fit"
+            util = r.get("utilization_rate")
+            health_obj = r.get("health")
+            health_label = health_obj.get("label") if isinstance(health_obj, dict) else (health_obj or "Healthy")
+            working_status = r.get("working_status", "active")
+
+            status_note = ""
+            if working_status in ("on_leave", "emergency"):
+                status_note = f" [{working_status.replace('_', ' ').title()} - Unavailable]"
+            elif r.get("capacity_multiplier", 1.0) < 1.0:
+                reason = r.get("capacity_penalty_reason", f"{util}% util, {health_label}")
+                status_note = f" (Adjusted from {raw_score_pct}%: {reason})"
+            elif util is not None:
+                status_note = f" ({health_label}, {util}% util)"
+
             lines.append(
-                f"{i}. {r.get('display_name', 'Developer')} — {score_pct}% fit "
+                f"{i}. {r.get('display_name', 'Developer')} — {score_pct}% fit{status_note} "
                 f"(matched on: {overlap})"
             )
 
