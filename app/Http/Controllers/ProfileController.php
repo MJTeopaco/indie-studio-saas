@@ -541,12 +541,18 @@ class ProfileController extends Controller
         $request->validate([
             'scope' => ['required', 'string', 'in:all,specific'],
             'studio_id' => ['nullable', 'string', 'required_if:scope,specific'],
-            'reason' => ['required', 'string', 'min:15', 'max:500'],
+            'emergency_category' => ['nullable', 'string', 'in:medical,family,bereavement,disaster,other'],
+            'confidential_note' => ['nullable', 'string', 'max:500'],
+            'reason' => ['nullable', 'string', 'max:500'],
             'estimated_return_date' => ['nullable', 'date', 'after_or_equal:today'],
         ]);
 
         $user = $request->user();
-        $reason = $request->reason;
+        $category = $request->input('emergency_category', LeaveRequest::EMERGENCY_CAT_OTHER);
+        $categoryLabels = LeaveRequest::emergencyCategoryLabels();
+        $categoryLabel = $categoryLabels[$category] ?? 'Emergency Absence';
+        $confidentialNote = $request->input('confidential_note') ?: ($request->filled('reason') && $request->input('reason') !== $categoryLabel ? $request->input('reason') : null);
+        $reason = $categoryLabel;
         $returnDate = $request->estimated_return_date;
 
         if ($request->scope === 'specific') {
@@ -578,9 +584,11 @@ class ProfileController extends Controller
                     'user_id' => $user->id,
                     'requester_role' => 'owner',
                     'request_type' => LeaveRequest::TYPE_EMERGENCY,
+                    'emergency_category' => $category,
                     'leave_start_date' => now()->toDateString(),
                     'leave_end_date' => $returnDate,
                     'reason' => $reason,
+                    'confidential_note' => $confidentialNote,
                     'status' => 'approved',
                     'reviewed_by' => $user->id,
                     'reviewed_at' => now(),
@@ -611,9 +619,11 @@ class ProfileController extends Controller
                 'user_id' => $user->id,
                 'requester_role' => $isLeader ? 'leader' : 'member',
                 'request_type' => LeaveRequest::TYPE_EMERGENCY,
+                'emergency_category' => $category,
                 'leave_start_date' => now()->toDateString(),
                 'leave_end_date' => $returnDate,
                 'reason' => $reason,
+                'confidential_note' => $confidentialNote,
                 'status' => 'pending',
             ]);
 
@@ -659,9 +669,11 @@ class ProfileController extends Controller
                     'user_id' => $user->id,
                     'requester_role' => 'owner',
                     'request_type' => LeaveRequest::TYPE_EMERGENCY,
+                    'emergency_category' => $category,
                     'leave_start_date' => now()->toDateString(),
                     'leave_end_date' => $returnDate,
                     'reason' => $reason,
+                    'confidential_note' => $confidentialNote,
                     'status' => 'approved',
                     'reviewed_by' => $user->id,
                     'reviewed_at' => now(),
@@ -682,9 +694,11 @@ class ProfileController extends Controller
                     'user_id' => $user->id,
                     'requester_role' => $isLeader ? 'leader' : 'member',
                     'request_type' => LeaveRequest::TYPE_EMERGENCY,
+                    'emergency_category' => $category,
                     'leave_start_date' => now()->toDateString(),
                     'leave_end_date' => $returnDate,
                     'reason' => $reason,
+                    'confidential_note' => $confidentialNote,
                     'status' => 'pending',
                 ]);
 

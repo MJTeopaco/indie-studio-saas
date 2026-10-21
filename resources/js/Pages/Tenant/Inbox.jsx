@@ -21,6 +21,8 @@ import {
     Send,
     Hash,
     ShieldCheck,
+    ShieldAlert,
+    Lock,
     Plus,
     Trash2,
     X,
@@ -862,6 +864,10 @@ const TYPE_CONFIG = {
     leave_request: {
         label: 'Leave Request',
         badgeClass: 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/60',
+    },
+    emergency_declaration: {
+        label: 'Emergency',
+        badgeClass: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/60',
     },
     estimate_pending: {
         label: 'Estimation',
@@ -2422,9 +2428,10 @@ export default function Inbox({
                                             </div>
                                         </div>
 
-                                        {/* Leave Request Review Module */}
-                                        {activeNotification.type === 'leave_request' && activeNotification.leave_request && (() => {
+                                        {/* Leave Request & Emergency Declaration Review Module */}
+                                        {['leave_request', 'emergency_declaration'].includes(activeNotification.type) && activeNotification.leave_request && (() => {
                                             const req = activeNotification.leave_request;
+                                            const isEmergency = activeNotification.type === 'emergency_declaration' || req.request_type === 'emergency';
                                             const isLeaderReq = req.requester_role === 'leader';
                                             const isProcessing = leaveActionProcessingId === req.id;
                                             const hasConflicts = req.conflicting_tasks && req.conflicting_tasks.length > 0;
@@ -2432,13 +2439,19 @@ export default function Inbox({
                                             return (
                                                 <div className="p-5 space-y-4">
                                                     {/* Requester Identity Card */}
-                                                    <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                    <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                                                        isEmergency 
+                                                            ? 'bg-rose-500/5 dark:bg-rose-950/20 border-rose-500/30' 
+                                                            : 'bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80'
+                                                    }`}>
                                                         <div className="flex items-center gap-3">
                                                             <div className="relative">
                                                                 {req.avatar ? (
                                                                     <img src={req.avatar} alt={req.user_name} className="w-12 h-12 rounded-xl object-cover ring-2 ring-slate-200 dark:ring-slate-700" />
                                                                 ) : (
-                                                                    <div className="w-12 h-12 rounded-xl bg-linear-to-tr from-brand to-indigo-600 text-white font-black text-sm flex items-center justify-center ring-2 ring-slate-200 dark:ring-slate-700">
+                                                                    <div className={`w-12 h-12 rounded-xl text-white font-black text-sm flex items-center justify-center ring-2 ring-slate-200 dark:ring-slate-700 ${
+                                                                        isEmergency ? 'bg-linear-to-tr from-rose-600 to-rose-700' : 'bg-linear-to-tr from-brand to-indigo-600'
+                                                                    }`}>
                                                                         {req.user_name.slice(0, 2).toUpperCase()}
                                                                     </div>
                                                                 )}
@@ -2452,8 +2465,12 @@ export default function Inbox({
                                                             <div>
                                                                 <div className="flex items-center gap-2">
                                                                     <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">{req.user_name}</h4>
-                                                                    <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                                                                        {isLeaderReq ? 'Team Leader' : 'Team Member'}
+                                                                    <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
+                                                                        isEmergency
+                                                                            ? 'bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300'
+                                                                            : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                                                                    }`}>
+                                                                        {isEmergency ? '🚨 Emergency Absence' : (isLeaderReq ? 'Team Leader' : 'Team Member')}
                                                                     </span>
                                                                 </div>
                                                                 <p className="text-[11px] text-slate-500 mt-0.5">
@@ -2461,57 +2478,128 @@ export default function Inbox({
                                                                 </p>
                                                             </div>
                                                         </div>
+
+                                                        {isEmergency && (
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="px-2.5 py-1 rounded-md text-[10px] font-mono font-bold uppercase bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/25">
+                                                                    Urgent Triage
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                     </div>
 
                                                     {/* Leave Duration & Handover Details */}
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                                                        <div className="p-4 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 space-y-2">
-                                                            <div className="flex items-center justify-between text-xs font-semibold text-amber-900 dark:text-amber-200">
-                                                                <span className="flex items-center gap-1.5">
-                                                                    <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                                                                    Absence Window
-                                                                </span>
-                                                                <span className="px-2 py-0.5 rounded-sm text-[10px] font-mono font-bold bg-amber-200/80 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200">
-                                                                    {req.calendar_days} Calendar Day{req.calendar_days === 1 ? '' : 's'}
-                                                                </span>
-                                                            </div>
-                                                            <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                                                {req.leave_start_formatted || req.leave_start_date} → {req.leave_end_formatted || req.leave_end_date}
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 space-y-1.5">
-                                                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                                                Handover & Reason
-                                                            </div>
-                                                            <p className="text-xs text-slate-700 dark:text-slate-300 italic line-clamp-3">
-                                                                "{req.reason || 'No specific notes provided.'}"
-                                                            </p>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Task Conflict Intelligence */}
-                                                    <div className="space-y-2">
-                                                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                                            Schedule Conflict Analysis
-                                                        </div>
-                                                        {hasConflicts ? (
-                                                            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 space-y-2">
-                                                                <div className="flex items-center gap-2 text-xs font-bold text-amber-800 dark:text-amber-300">
-                                                                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                                                                    <span>
-                                                                        Attention: {req.conflicting_tasks.length} task{req.conflicting_tasks.length === 1 ? '' : 's'} scheduled with deadlines during this absence:
+                                                    {isEmergency ? (
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                                            <div className="p-4 rounded-2xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/40 space-y-2">
+                                                                <div className="flex items-center justify-between text-xs font-semibold text-rose-900 dark:text-rose-200">
+                                                                    <span className="flex items-center gap-1.5">
+                                                                        <ShieldAlert className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                                                                        Emergency Classification
+                                                                    </span>
+                                                                    <span className="px-2 py-0.5 rounded-sm text-[10px] font-mono font-bold bg-rose-200/80 dark:bg-rose-900/60 text-rose-800 dark:text-rose-200">
+                                                                        {req.emergency_category ? req.emergency_category.toUpperCase() : 'URGENT'}
                                                                     </span>
                                                                 </div>
-                                                                <div className="space-y-1 pl-6">
+                                                                <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                                                    {req.emergency_category_label || req.reason || 'Operational Emergency'}
+                                                                </div>
+                                                                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                                    {req.leave_end_formatted ? `Estimated Return: ${req.leave_end_formatted}` : 'Return date currently unspecified'}
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50 dark:bg-slate-900/40 space-y-1.5">
+                                                                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                                                                    <Lock className="w-3 h-3 text-slate-400" />
+                                                                    <span>Confidential Leadership Note</span>
+                                                                </div>
+                                                                <p className="text-xs text-slate-700 dark:text-slate-300 italic line-clamp-3">
+                                                                    "{req.confidential_note || 'No private note provided for leadership.'}"
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                                            <div className="p-4 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 space-y-2">
+                                                                <div className="flex items-center justify-between text-xs font-semibold text-amber-900 dark:text-amber-200">
+                                                                    <span className="flex items-center gap-1.5">
+                                                                        <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                                                        Absence Window
+                                                                    </span>
+                                                                    <span className="px-2 py-0.5 rounded-sm text-[10px] font-mono font-bold bg-amber-200/80 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200">
+                                                                        {req.calendar_days} Calendar Day{req.calendar_days === 1 ? '' : 's'}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                                                    {req.leave_start_formatted || req.leave_start_date} → {req.leave_end_formatted || req.leave_end_date}
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 space-y-1.5">
+                                                                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                                    Handover & Reason
+                                                                </div>
+                                                                <p className="text-xs text-slate-700 dark:text-slate-300 italic line-clamp-3">
+                                                                    "{req.reason || 'No specific notes provided.'}"
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Task Conflict & Triage Intelligence */}
+                                                    <div className="space-y-2">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                                {isEmergency ? 'In-Flight Tasks Requiring Triage / Reassignment' : 'Schedule Conflict Analysis'}
+                                                            </span>
+                                                            {isEmergency && (
+                                                                <span className="text-xs font-mono font-bold text-rose-600 dark:text-rose-400">
+                                                                    {req.conflicting_tasks?.length || 0} active
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {hasConflicts ? (
+                                                            <div className={`p-3.5 rounded-xl border space-y-2.5 ${
+                                                                isEmergency 
+                                                                    ? 'bg-rose-500/10 dark:bg-rose-950/20 border-rose-500/30' 
+                                                                    : 'bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50'
+                                                            }`}>
+                                                                <div className={`flex items-center gap-2 text-xs font-bold ${
+                                                                    isEmergency ? 'text-rose-800 dark:text-rose-300' : 'text-amber-800 dark:text-amber-300'
+                                                                }`}>
+                                                                    <AlertCircle className={`w-4 h-4 shrink-0 ${isEmergency ? 'text-rose-600' : 'text-amber-600'}`} />
+                                                                    <span>
+                                                                        {isEmergency
+                                                                            ? `Sprint Impact: ${req.conflicting_tasks.length} task${req.conflicting_tasks.length === 1 ? '' : 's'} assigned to this member need immediate reassignment:`
+                                                                            : `Attention: ${req.conflicting_tasks.length} task${req.conflicting_tasks.length === 1 ? '' : 's'} scheduled with deadlines during this absence:`}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="space-y-1.5">
                                                                     {req.conflicting_tasks.map((task) => (
-                                                                        <div key={task.id} className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-rose-500/20 flex items-center justify-between gap-2 text-xs">
-                                                                            <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">{task.title}</span>
-                                                                            <div className="flex items-center gap-2 shrink-0">
-                                                                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-sm uppercase font-bold bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300">
-                                                                                    Due {task.due_date}
+                                                                        <div key={task.id} className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2 text-xs">
+                                                                            <div className="min-w-0 space-y-0.5">
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    {task.is_critical && (
+                                                                                        <span className="text-[9px] font-mono px-1.5 py-0.2 rounded uppercase font-bold bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30">
+                                                                                            ⚡ Critical Path
+                                                                                        </span>
+                                                                                    )}
+                                                                                    <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">{task.title}</span>
+                                                                                </div>
+                                                                                <span className="text-[10px] text-slate-500 font-mono">
+                                                                                    Due {task.due_date} {task.estimated_hours ? `• ${task.estimated_hours}h` : ''}
                                                                                 </span>
                                                                             </div>
+                                                                            {task.project_id && (
+                                                                                <a
+                                                                                    href={route('tenant.projects.show', { project: task.project_id })}
+                                                                                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors shrink-0 flex items-center gap-1"
+                                                                                >
+                                                                                    <span>Reassign</span>
+                                                                                    <ArrowRight className="w-3 h-3" />
+                                                                                </a>
+                                                                            )}
                                                                         </div>
                                                                     ))}
                                                                 </div>
@@ -2519,12 +2607,12 @@ export default function Inbox({
                                                         ) : (
                                                             <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/50 flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300">
                                                                 <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                                                                <span>No deadline conflicts. Assigned tasks are scheduled outside this window.</span>
+                                                                <span>{isEmergency ? 'No in-flight tasks assigned. Sprint velocity intact.' : 'No deadline conflicts. Assigned tasks are scheduled outside this window.'}</span>
                                                             </div>
                                                         )}
                                                     </div>
 
-                                                    {/* Approval Footer */}
+                                                    {/* Approval / Acknowledgement Footer */}
                                                     <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2.5">
                                                         <button
                                                             type="button"
@@ -2532,19 +2620,25 @@ export default function Inbox({
                                                             onClick={() => setDeclineModalReq(req)}
                                                             className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 hover:text-rose-600 text-xs font-semibold transition-colors disabled:opacity-50"
                                                         >
-                                                            Decline
+                                                            {isEmergency ? 'Decline Declaration' : 'Decline'}
                                                         </button>
                                                         <button
                                                             type="button"
                                                             disabled={isProcessing}
                                                             onClick={() => handleApproveLeave(req)}
-                                                            className="px-5 py-2.5 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5">
+                                                            className={`px-5 py-2.5 rounded-xl text-white text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5 ${
+                                                                isEmergency 
+                                                                    ? 'bg-linear-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800' 
+                                                                    : 'bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700'
+                                                            }`}>
                                                             {isProcessing ? (
                                                                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                            ) : isEmergency ? (
+                                                                <ShieldAlert className="w-3.5 h-3.5" />
                                                             ) : (
                                                                 <Check className="w-3.5 h-3.5" />
                                                             )}
-                                                            <span>Approve Leave Request</span>
+                                                            <span>{isEmergency ? 'Acknowledge Emergency & Triage' : 'Approve Leave Request'}</span>
                                                         </button>
                                                     </div>
                                                 </div>

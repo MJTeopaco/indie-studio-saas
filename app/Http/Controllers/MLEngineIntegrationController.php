@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Jobs\RecomputeProjectSchedule;
 use App\Models\Studio;
+use App\Models\Tenant\ActivityLog;
 use App\Models\Tenant\Project;
 use App\Models\Tenant\Task;
 use App\Models\User;
@@ -393,13 +394,68 @@ class MLEngineIntegrationController extends Controller
         $score = $validated['match_fit_score'] ?? null;
 
         DB::transaction(function () use ($task, $userIds, $assignedBy, $score): void {
-            DB::table('assignments')
+            $now = now();
+            $primaryNewUserId = $userIds[0] ?? null;
+
+            // Fetch current active assignments to determine handovers
+            $existingActive = DB::table('assignments')
                 ->where('task_id', $task->id)
                 ->where('status', 'active')
-                ->update(['status' => 'cancelled']);
+                ->get();
 
-            $now = now();
-            foreach ($userIds as $userId) {
+            foreach ($existingActive as $activeAssignment) {
+                // If this member remains assigned, skip handover
+                if (in_array($activeAssignment->employee_user_id, $userIds)) {
+                    continue;
+                }
+
+                $outgoingUserId = $activeAssignment->employee_user_id;
+
+                // Check central studio_members for emergency working status
+                $isEmergency = DB::connection(config('tenancy.database.central_connection', 'central'))
+                    ->table('studio_members')
+                    ->where('studio_id', tenant('id'))
+                    ->where('user_id', $outgoingUserId)
+                    ->where('working_status', 'emergency')
+                    ->exists();
+
+                $handoverReason = $isEmergency ? 'emergency_absence' : 'reassigned';
+
+                DB::table('assignments')
+                    ->where('id', $activeAssignment->id)
+                    ->update([
+                        'status' => 'handed_over',
+                        'handover_reason' => $handoverReason,
+                        'handed_over_at' => $now,
+                        'handed_over_to_user_id' => $primaryNewUserId,
+                        'updated_at' => $now,
+                    ]);
+
+                // Record audit log entry
+                if (Schema::hasTable('activity_logs')) {
+                    $outgoingUser = User::find($outgoingUserId);
+                    $targetUser = $primaryNewUserId ? User::find($primaryNewUserId) : null;
+
+                    ActivityLog::create([
+                        'subject_type' => 'task',
+                        'subject_id' => $task->id,
+                        'field' => 'assignment_handover',
+                        'old_value' => $outgoingUser ? $outgoingUser->name : "User #{$outgoingUserId}",
+                        'new_value' => $targetUser ? $targetUser->name : 'Unassigned',
+                        'user_id' => auth()->id(),
+                        'user_name' => auth()->user()?->name ?? 'System',
+                    ]);
+                }
+            }
+
+            // Insert newly assigned members
+            $currentlyActiveUserIds = $existingActive
+                ->whereIn('employee_user_id', $userIds)
+                ->pluck('employee_user_id')
+                ->all();
+            $newAssigneeIds = array_diff($userIds, $currentlyActiveUserIds);
+
+            foreach ($newAssigneeIds as $userId) {
                 DB::table('assignments')->insert([
                     'task_id' => $task->id,
                     'employee_user_id' => $userId,
@@ -418,10 +474,30 @@ class MLEngineIntegrationController extends Controller
             $task->update(['assigned_user_id' => $userIds[0] ?? null]);
         });
 
+        // Assemble co-contributors for return payload
+        $handoverAssignments = DB::table('assignments')
+            ->where('task_id', $task->id)
+            ->where('status', 'handed_over')
+            ->orderByDesc('handed_over_at')
+            ->get();
+        $coUserIds = $handoverAssignments->pluck('employee_user_id')->unique()->all();
+        $coUsers = empty($coUserIds) ? collect() : User::findMany($coUserIds)->keyBy('id');
+        $coContributors = $handoverAssignments->map(function ($h) use ($coUsers) {
+            $u = $coUsers->get($h->employee_user_id);
+            return [
+                'id' => $h->employee_user_id,
+                'name' => $u ? $u->name : "User #{$h->employee_user_id}",
+                'email' => $u ? $u->email : null,
+                'handover_reason' => $h->handover_reason,
+                'handed_over_at' => $h->handed_over_at ? Carbon::parse($h->handed_over_at)->diffForHumans() : null,
+            ];
+        })->values()->all();
+
         return response()->json([
             'status' => 'success',
             'task_id' => $task->id,
             'assignees' => $assignees->map(fn (User $u): array => $u->only(['id', 'name']))->all(),
+            'co_contributors' => $coContributors,
         ]);
     }
 

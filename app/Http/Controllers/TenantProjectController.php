@@ -13,6 +13,7 @@ use App\Models\Tenant\Project;
 use App\Models\Tenant\Sprint;
 use App\Models\Tenant\Task;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -263,9 +264,31 @@ class TenantProjectController extends Controller
                 ->groupBy('task_id')
             : collect();
 
-        $projectModel->tasks->each(function (Task $task) use ($assignmentIdsByTask, $membersById): void {
+        $handoverAssignmentsByTask = Schema::hasTable('assignments')
+            ? DB::table('assignments')
+                ->whereIn('task_id', $projectModel->tasks->pluck('id'))
+                ->where('status', 'handed_over')
+                ->orderByDesc('handed_over_at')
+                ->get(['task_id', 'employee_user_id', 'handover_reason', 'handed_over_at', 'handed_over_to_user_id'])
+                ->groupBy('task_id')
+            : collect();
+
+        $projectModel->tasks->each(function (Task $task) use ($assignmentIdsByTask, $handoverAssignmentsByTask, $membersById): void {
             $task->setAttribute('assignees', collect($assignmentIdsByTask->get($task->id, []))
                 ->map(fn ($assignment) => $membersById->get($assignment->employee_user_id))
+                ->filter()
+                ->values()
+                ->all());
+
+            $task->setAttribute('co_contributors', collect($handoverAssignmentsByTask->get($task->id, []))
+                ->map(function ($assignment) use ($membersById) {
+                    $m = $membersById->get($assignment->employee_user_id);
+                    if (! $m) return null;
+                    return array_merge($m, [
+                        'handover_reason' => $assignment->handover_reason,
+                        'handed_over_at' => $assignment->handed_over_at ? Carbon::parse($assignment->handed_over_at)->diffForHumans() : null,
+                    ]);
+                })
                 ->filter()
                 ->values()
                 ->all());
@@ -293,7 +316,7 @@ class TenantProjectController extends Controller
             'epicGroups' => function () use ($projectModel) {
                 return $projectModel->epicGroups()->orderBy('is_default', 'asc')->orderBy('display_order', 'asc')->get();
             },
-            'sprints' => function () use ($projectModel, &$assignmentIdsByTask, &$membersById) {
+            'sprints' => function () use ($projectModel, &$assignmentIdsByTask, &$handoverAssignmentsByTask, &$membersById) {
                 return $projectModel->sprints()
                     ->orderBy('created_at')
                     ->with(['tasks' => function ($q) {
@@ -303,10 +326,23 @@ class TenantProjectController extends Controller
                             'task_classification', 'story_points',
                             'github_link', 'assigned_user_id', 'priority',
                         ])->with('epic:id,name,color');
-                    }])->get()->map(function ($sprint) use (&$assignmentIdsByTask, &$membersById) {
-                        $sprint->tasks->each(function ($task) use (&$assignmentIdsByTask, &$membersById) {
+                    }])->get()->map(function ($sprint) use (&$assignmentIdsByTask, &$handoverAssignmentsByTask, &$membersById) {
+                        $sprint->tasks->each(function ($task) use (&$assignmentIdsByTask, &$handoverAssignmentsByTask, &$membersById) {
                             $task->setAttribute('assignees', collect($assignmentIdsByTask->get($task->id, []))
                                 ->map(fn ($assignment) => $membersById->get($assignment->employee_user_id))
+                                ->filter()
+                                ->values()
+                                ->all());
+
+                            $task->setAttribute('co_contributors', collect($handoverAssignmentsByTask->get($task->id, []))
+                                ->map(function ($assignment) use ($membersById) {
+                                    $m = $membersById->get($assignment->employee_user_id);
+                                    if (! $m) return null;
+                                    return array_merge($m, [
+                                        'handover_reason' => $assignment->handover_reason,
+                                        'handed_over_at' => $assignment->handed_over_at ? Carbon::parse($assignment->handed_over_at)->diffForHumans() : null,
+                                    ]);
+                                })
                                 ->filter()
                                 ->values()
                                 ->all());

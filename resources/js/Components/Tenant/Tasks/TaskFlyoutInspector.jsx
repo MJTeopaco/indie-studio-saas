@@ -15,6 +15,7 @@ import {
     ChevronDown,
     SlidersHorizontal,
     User,
+    Users,
     Tag,
 } from 'lucide-react';
 import { showToast } from '@/Components/SystemToast';
@@ -424,6 +425,36 @@ export default function TaskFlyoutInspector({
                                             <ChevronDown className="w-3.5 h-3.5 text-[var(--muted-foreground)] absolute right-2.5 top-3 pointer-events-none" />
                                         </div>
                                     </div>
+
+                                    {/* Co-Contributors & Handover Attribution */}
+                                    {task?.co_contributors && task.co_contributors.length > 0 && (
+                                        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs space-y-2">
+                                            <div className="flex items-center justify-between text-amber-700 dark:text-amber-300 font-bold text-[11px] uppercase tracking-wider">
+                                                <span className="flex items-center gap-1.5">
+                                                    <Users className="w-3.5 h-3.5 text-amber-500" />
+                                                    Co-Contributors & Handover
+                                                </span>
+                                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-800 dark:text-amber-200">
+                                                    {task.co_contributors.length} prior {task.co_contributors.length === 1 ? 'member' : 'members'}
+                                                </span>
+                                            </div>
+                                            <div className="space-y-1.5 divide-y divide-amber-500/10 pt-0.5">
+                                                {task.co_contributors.map((contrib, idx) => (
+                                                    <div key={idx} className="pt-1.5 first:pt-0 flex items-center justify-between text-xs text-slate-700 dark:text-slate-300">
+                                                        <div className="flex items-center gap-1.5 truncate">
+                                                            <span className="w-5 h-5 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center font-bold text-[10px] shrink-0">
+                                                                🤝
+                                                            </span>
+                                                            <span className="font-semibold truncate">{contrib.name}</span>
+                                                        </div>
+                                                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono shrink-0 ml-2">
+                                                            {contrib.handover_reason === 'emergency_absence' ? 'Emergency Absence' : 'Handed Over'} {contrib.handed_over_at ? `(${contrib.handed_over_at})` : ''}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Priority */}
                                     <div className="flex items-center justify-between gap-4">

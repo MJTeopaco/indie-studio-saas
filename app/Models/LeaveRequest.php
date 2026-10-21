@@ -15,6 +15,23 @@ class LeaveRequest extends Model
 
     const TYPE_EMERGENCY = 'emergency';
 
+    const EMERGENCY_CAT_MEDICAL = 'medical';
+    const EMERGENCY_CAT_FAMILY = 'family';
+    const EMERGENCY_CAT_BEREAVEMENT = 'bereavement';
+    const EMERGENCY_CAT_DISASTER = 'disaster';
+    const EMERGENCY_CAT_OTHER = 'other';
+
+    public static function emergencyCategoryLabels(): array
+    {
+        return [
+            self::EMERGENCY_CAT_MEDICAL => 'Medical / Health Emergency',
+            self::EMERGENCY_CAT_FAMILY => 'Family & Personal Care Emergency',
+            self::EMERGENCY_CAT_BEREAVEMENT => 'Bereavement / Compassionate Leave',
+            self::EMERGENCY_CAT_DISASTER => 'Severe Infrastructure / Disaster',
+            self::EMERGENCY_CAT_OTHER => 'Other Urgent Operational Emergency',
+        ];
+    }
+
     protected $table = 'leave_requests';
 
     protected $fillable = [
@@ -22,9 +39,11 @@ class LeaveRequest extends Model
         'user_id',
         'requester_role',
         'request_type',
+        'emergency_category',
         'leave_start_date',
         'leave_end_date',
         'reason',
+        'confidential_note',
         'status',
         'reviewed_by',
         'reviewed_at',

@@ -1227,27 +1227,34 @@ class TenantDashboardController extends Controller
                     $assignedTasks = Task::query()
                         ->where('assigned_user_id', $req->user_id)
                         ->where('status', '!=', 'completed')
-                        ->get(['id', 'title', 'status', 'priority', 'hard_constraint_date', 'estimated_hours']);
+                        ->get(['id', 'title', 'status', 'priority', 'hard_constraint_date', 'estimated_hours', 'is_critical', 'project_id']);
 
                     $start = $req->leave_start_date ? Carbon::parse($req->leave_start_date) : null;
                     $end = $req->leave_end_date ? Carbon::parse($req->leave_end_date) : null;
 
-                    $conflicts = $assignedTasks->filter(function ($task) use ($start, $end) {
-                        if (! $task->hard_constraint_date || ! $start || ! $end) {
-                            return false;
-                        }
-                        $due = Carbon::parse($task->hard_constraint_date);
+                    $isEmergency = ($req->request_type ?? 'leave') === LeaveRequest::TYPE_EMERGENCY;
+                    $categoryLabels = LeaveRequest::emergencyCategoryLabels();
+                    $catLabel = $isEmergency && $req->emergency_category && isset($categoryLabels[$req->emergency_category])
+                        ? $categoryLabels[$req->emergency_category]
+                        : ($req->reason ?: 'Emergency Absence');
 
-                        return $due->betweenIncluded($start, $end);
-                    })->values();
+                    $conflicts = $isEmergency
+                        ? $assignedTasks
+                        : $assignedTasks->filter(function ($task) use ($start, $end) {
+                            if (! $task->hard_constraint_date || ! $start || ! $end) {
+                                return false;
+                            }
+                            $due = Carbon::parse($task->hard_constraint_date);
+
+                            return $due->betweenIncluded($start, $end);
+                        })->values();
 
                     $calendarDays = $start && $end ? $start->diffInDays($end) + 1 : 0;
-                    $isEmergency = ($req->request_type ?? 'leave') === 'emergency';
                     $roleLabel = $req->requester_role === 'leader' ? 'Team Leader' : 'Team Member';
                     $notifId = 'leave-req-'.$req->id;
                     $title = $isEmergency ? "🚨 Emergency Declared: {$reqUser->name}" : "Leave Request: {$reqUser->name}";
                     $body = $isEmergency
-                        ? "{$reqUser->name} ({$roleLabel}) declared an operational emergency: \"{$req->reason}\"".($end ? ' (Est. return: '.$end->format('M d, Y').')' : '')
+                        ? "{$reqUser->name} ({$roleLabel}) declared an emergency: {$catLabel}".($end ? ' (Est. return: '.$end->format('M d, Y').')' : '')
                         : "{$reqUser->name} ({$roleLabel}) requested absence from ".($start ? $start->format('M d, Y') : '').' to '.($end ? $end->format('M d, Y') : '')." ({$calendarDays} calendar day".($calendarDays === 1 ? '' : 's').').'.($req->reason ? " Handover: {$req->reason}" : '');
 
                     return [
@@ -1273,6 +1280,10 @@ class TenantDashboardController extends Controller
                             'avatar' => $reqUser ? $reqUser->avatar : null,
                             'position' => $reqPos,
                             'requester_role' => $req->requester_role,
+                            'request_type' => $req->request_type ?? 'leave',
+                            'emergency_category' => $req->emergency_category,
+                            'emergency_category_label' => $catLabel,
+                            'confidential_note' => $req->confidential_note,
                             'leave_start_date' => $start ? $start->format('Y-m-d') : null,
                             'leave_end_date' => $end ? $end->format('Y-m-d') : null,
                             'leave_start_formatted' => $start ? $start->format('M d, Y') : '',
@@ -1286,7 +1297,10 @@ class TenantDashboardController extends Controller
                                 'title' => $t->title,
                                 'status' => $t->status,
                                 'priority' => $t->priority,
+                                'is_critical' => (bool) $t->is_critical,
+                                'estimated_hours' => $t->estimated_hours,
                                 'due_date' => $t->hard_constraint_date ? Carbon::parse($t->hard_constraint_date)->format('M d, Y') : 'No deadline',
+                                'project_id' => $t->project_id,
                             ])->all(),
                         ],
                         'read' => in_array($notifId, $readNotificationIds),
