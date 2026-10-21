@@ -145,8 +145,8 @@ class TenantProjectController extends Controller
      */
     public function show($project, $routeProject = null)
     {
-        $project = $routeProject ?? $project;
-        $studio = Studio::find(tenant('id'));
+        $studio = Studio::with(['users.globalProfile'])->find(tenant('id'));
+        User::resolveStudioMembersLeaveStatus(tenant('id'));
 
         $projectModel = Project::with([
             'tasks.assignee',
@@ -165,7 +165,90 @@ class TenantProjectController extends Controller
             abort(403, 'Unauthorized access. Only assigned members or team leaders can view this project.');
         }
 
-        $teamMembers = $studio ? $studio->users()->get()->map(fn ($u) => ['id' => $u->id, 'name' => $u->name]) : [];
+        $teamMembers = [];
+        if ($studio && $studio->users->isNotEmpty()) {
+            $userIds = $studio->users->pluck('id');
+
+            $assignedTaskRows = Task::query()
+                ->select(['id', 'assigned_user_id', 'status', 'estimated_hours'])
+                ->whereIn('assigned_user_id', $userIds)
+                ->get();
+
+            $assignmentTaskIdsByUser = collect();
+            if (Schema::hasTable('assignments')) {
+                $assignmentTaskIdsByUser = DB::table('assignments')
+                    ->select('employee_user_id', 'task_id')
+                    ->whereIn('employee_user_id', $userIds)
+                    ->where('status', 'active')
+                    ->get()
+                    ->groupBy('employee_user_id')
+                    ->map(fn ($rows) => collect($rows)->pluck('task_id')->unique()->values());
+            }
+
+            $historicalTaskIds = $assignmentTaskIdsByUser->flatten()->filter()->unique()->values();
+            $historicalTaskRows = $historicalTaskIds->isNotEmpty()
+                ? Task::query()
+                    ->select(['id', 'assigned_user_id', 'status', 'estimated_hours'])
+                    ->whereIn('id', $historicalTaskIds)
+                    ->get()
+                : collect();
+
+            $memberTaskRows = $assignedTaskRows->concat($historicalTaskRows)->unique('id')->values();
+            $assignedTasksByUser = $assignedTaskRows->groupBy('assigned_user_id');
+            $activeStatuses = ['todo', 'in_progress', 'review'];
+
+            $teamMembers = $studio->users->map(function ($user) use ($assignedTasksByUser, $assignmentTaskIdsByUser, $memberTaskRows, $activeStatuses) {
+                $maxHoursPerWeek = (int) ($user->globalProfile->max_hours_per_week ?? 40);
+
+                $historicalIds = collect($assignmentTaskIdsByUser->get($user->id, collect()));
+                $historicalTasks = $historicalIds->isNotEmpty()
+                    ? $memberTaskRows->whereIn('id', $historicalIds->all())
+                    : collect();
+
+                $assignedTasks = collect($assignedTasksByUser->get($user->id, collect()));
+                $allUserTasks = $assignedTasks->concat($historicalTasks)->unique('id')->values();
+
+                $activeTasks = $allUserTasks->whereIn('status', $activeStatuses);
+                $reviewTasksCount = $allUserTasks->where('status', 'review')->count();
+                $activeLoadHours = (float) $activeTasks->sum(fn ($t) => (float) ($t->estimated_hours ?? 0));
+
+                $utilizationRate = $maxHoursPerWeek > 0
+                    ? (int) max(0, min(100, round(($activeLoadHours / $maxHoursPerWeek) * 100)))
+                    : 0;
+
+                $revisionRate = $allUserTasks->isNotEmpty()
+                    ? (int) round(($reviewTasksCount / $allUserTasks->count()) * 100)
+                    : 0;
+
+                $healthLabel = 'Healthy';
+                $healthTone = 'success';
+                if ($utilizationRate >= 95 || $revisionRate >= 70) {
+                    $healthLabel = 'At Risk';
+                    $healthTone = 'danger';
+                } elseif ($utilizationRate >= 80 || $revisionRate >= 45) {
+                    $healthLabel = 'Watchlist';
+                    $healthTone = 'warning';
+                }
+
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'working_status' => $user->pivot->working_status ?? 'active',
+                    'leave_start_date' => $user->pivot->leave_start_date ?? null,
+                    'leave_end_date' => $user->pivot->leave_end_date ?? null,
+                    'leave_request_status' => $user->pivot->leave_request_status ?? 'none',
+                    'max_hours_per_week' => $maxHoursPerWeek,
+                    'active_load_hours' => round($activeLoadHours, 1),
+                    'active_tasks_count' => $activeTasks->count(),
+                    'utilization_rate' => $utilizationRate,
+                    'health' => [
+                        'label' => $healthLabel,
+                        'tone' => $healthTone,
+                    ],
+                ];
+            })->values()->all();
+        }
         $membersById = collect($teamMembers)->keyBy('id');
 
         // Users live in the central database while assignments live in the

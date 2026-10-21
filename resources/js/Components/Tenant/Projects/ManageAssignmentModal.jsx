@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Loader2, Sparkles, UserPlus, AlertCircle } from 'lucide-react';
+import { X, Loader2, Sparkles, UserPlus, AlertCircle, Info } from 'lucide-react';
 import { router } from '@inertiajs/react';
 import axios from 'axios';
 import { showToast } from '@/Components/SystemToast';
+import PortaledTooltip from '@/Components/UI/PortaledTooltip';
 
 export default function ManageAssignmentModal({ isOpen, onClose, task, teamMembers = [], onTriggerAi, project, tenantId, onSuccess }) {
     if (!isOpen || !task) return null;
@@ -95,7 +96,7 @@ export default function ManageAssignmentModal({ isOpen, onClose, task, teamMembe
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs" onClick={onClose}>
-            <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900 border border-gray-100 dark:border-slate-800" onClick={e => e.stopPropagation()}>
+            <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900 border border-gray-100 dark:border-slate-800" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4 dark:border-slate-800">
                     <div>
                         <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Manage Assignment</h2>
@@ -106,7 +107,7 @@ export default function ManageAssignmentModal({ isOpen, onClose, task, teamMembe
                     </button>
                 </div>
 
-                <div className="flex rounded-xl bg-gray-100 p-1 dark:bg-slate-800 mb-6">
+                <div className="flex rounded-xl bg-gray-100 p-1 dark:bg-slate-800 mb-5">
                     <button
                         type="button"
                         onClick={() => setActiveTab('manual')}
@@ -160,39 +161,159 @@ export default function ManageAssignmentModal({ isOpen, onClose, task, teamMembe
                             </div>
                         )}
 
-                        <div className="max-h-60 overflow-y-auto pr-2 space-y-2">
+                        <div className="flex items-center justify-between text-[11px] text-gray-500 dark:text-slate-400 px-1">
+                            <div className="flex items-center gap-1.5">
+                                <span className="font-medium text-gray-700 dark:text-slate-300">Assignee Bandwidth & Health</span>
+                                <PortaledTooltip
+                                    tooltipContent={
+                                        <div className="rounded-xl bg-slate-900 p-3 text-xs text-slate-200 shadow-2xl border border-slate-700 max-w-xs leading-relaxed z-50 text-left">
+                                            <p className="font-bold text-white mb-1">
+                                                Understanding Utilization Rate
+                                            </p>
+                                            <p className="text-slate-300 text-[11px]">
+                                                Measures active sprint workload against weekly contract limits to prevent developer fatigue and bottlenecking.
+                                            </p>
+                                            <div className="mt-2 pt-2 border-t border-slate-800 text-[10px] space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+                                                    <span><strong className="text-slate-100">&lt; 80%: Healthy</strong> (Available bandwidth)</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0"></span>
+                                                    <span><strong className="text-slate-100">80% – 94%: Watchlist</strong> (Near full capacity)</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0"></span>
+                                                    <span><strong className="text-slate-100">≥ 95%: At Risk</strong> (Overloaded / high burnout)</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                >
+                                    <button 
+                                        type="button" 
+                                        onClick={(e) => e.stopPropagation()} 
+                                        className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 transition-colors cursor-help p-0.5 inline-flex items-center"
+                                        aria-label="Utilization info"
+                                    >
+                                        <Info className="w-3.5 h-3.5" />
+                                    </button>
+                                </PortaledTooltip>
+                            </div>
+                            <span className="font-mono text-gray-500">{selectedMembers.length} selected</span>
+                        </div>
+
+                        <div className="max-h-72 overflow-y-auto pr-1 space-y-2 custom-scrollbar">
                             {sortedTeamMembers.length === 0 ? (
                                 <p className="text-center text-sm text-gray-500 py-4">No team members available.</p>
                             ) : (
                                 sortedTeamMembers.map(member => {
                                     const isSelected = selectedMembers.includes(Number(member.id));
+                                    const initial = (member.name || 'U').charAt(0).toUpperCase();
+                                    const activeTasks = member.active_tasks_count ?? 0;
+                                    const activeHours = Number(member.active_load_hours ?? 0);
+                                    const maxHours = Number(member.max_hours_per_week ?? 40);
+                                    const utilRate = member.utilization_rate ?? (maxHours > 0 ? Math.round((activeHours / maxHours) * 100) : 0);
+
+                                    const health = member.health || { label: 'Healthy', tone: 'success' };
+                                    const isEmergency = member.working_status === 'emergency';
+                                    const isOnLeave = member.working_status === 'on_leave';
+                                    const isLeavePending = member.leave_request_status === 'pending' && !isOnLeave;
+                                    const isUnavailable = isEmergency || isOnLeave;
+
+                                    const healthBadgeClass =
+                                        health.tone === 'danger'
+                                            ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-800/40 dark:bg-red-950/30 dark:text-red-400'
+                                            : health.tone === 'warning'
+                                            ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800/40 dark:bg-amber-950/30 dark:text-amber-400'
+                                            : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/30 dark:text-emerald-400';
+
+                                    const utilPillClass =
+                                        utilRate >= 95
+                                            ? 'text-red-700 bg-red-50 dark:bg-red-950/40 dark:text-red-300 border-red-200 dark:border-red-900/40'
+                                            : utilRate >= 80
+                                            ? 'text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 dark:border-amber-900/40'
+                                            : 'text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900/40';
+
                                     return (
                                         <label
                                             key={member.id}
-                                            className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                                            className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
                                                 isSelected
                                                     ? 'border-brand/40 bg-brand/5 dark:border-brand/40 dark:bg-brand/10'
-                                                    : 'border-gray-100 hover:bg-gray-50 dark:border-slate-800 dark:hover:bg-slate-800/50'
-                                            }`}
+                                                    : 'border-gray-100 hover:bg-gray-50/80 dark:border-slate-800 dark:hover:bg-slate-800/50'
+                                            } ${isUnavailable ? 'opacity-80' : ''}`}
                                         >
-                                            <div className="flex items-center">
+                                            <div className="flex items-center gap-3 min-w-0">
                                                 <input
                                                     type="checkbox"
                                                     checked={isSelected}
                                                     onChange={() => handleToggleMember(member.id)}
-                                                    className="w-4 h-4 rounded-sm border-gray-300 text-brand focus:ring-brand cursor-pointer"
+                                                    className="w-4 h-4 rounded-sm border-gray-300 text-brand focus:ring-brand cursor-pointer shrink-0"
                                                 />
-                                                <div className="ml-3">
-                                                    <span className={`block text-sm font-bold ${isSelected ? 'text-brand dark:text-brand-light' : 'text-gray-900 dark:text-slate-100'}`}>
+
+                                                <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 flex items-center justify-center text-xs font-bold font-mono text-gray-700 dark:text-slate-300 shrink-0">
+                                                    {initial}
+                                                </div>
+
+                                                <div className="min-w-0">
+                                                    <span className={`block text-sm font-bold truncate ${isSelected ? 'text-brand dark:text-brand-light' : 'text-gray-900 dark:text-slate-100'}`}>
                                                         {member.name}
                                                     </span>
+
+                                                    <div className="text-[11px] text-gray-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5 truncate">
+                                                        {isEmergency ? (
+                                                            <span className="text-red-600 dark:text-red-400 font-medium">Emergency absence declared</span>
+                                                        ) : isOnLeave ? (
+                                                            <span className="text-amber-600 dark:text-amber-400 font-medium">
+                                                                On leave {member.leave_end_date ? `until ${member.leave_end_date}` : ''}
+                                                            </span>
+                                                        ) : (
+                                                            <>
+                                                                <span className="font-medium text-gray-700 dark:text-slate-300">
+                                                                    {activeTasks} active {activeTasks === 1 ? 'task' : 'tasks'}
+                                                                </span>
+                                                                <span className="text-gray-300 dark:text-slate-600">•</span>
+                                                                <PortaledTooltip
+                                                                    tooltipContent={
+                                                                        <div className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs text-slate-200 shadow-xl border border-slate-700 whitespace-nowrap z-50 text-left">
+                                                                            <span className="font-semibold text-white">{activeHours}h</span> assigned of <span className="font-semibold text-white">{maxHours}h</span> weekly capacity
+                                                                        </div>
+                                                                    }
+                                                                >
+                                                                    <span className={`inline-flex items-center font-semibold cursor-help px-1.5 py-0.2 rounded text-[10px] border ${utilPillClass}`}>
+                                                                        {utilRate}% utilization
+                                                                    </span>
+                                                                </PortaledTooltip>
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
-                                            {isSelected && (
-                                                <span className="text-[11px] font-semibold text-brand dark:text-brand-light bg-brand/10 dark:bg-brand/20 px-2 py-0.5 rounded-full">
-                                                    Selected
+
+                                            <div className="flex items-center gap-1.5 shrink-0 ml-3">
+                                                {/* Exception badges */}
+                                                {isEmergency && (
+                                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400">
+                                                        Emergency
+                                                    </span>
+                                                )}
+                                                {isOnLeave && (
+                                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400">
+                                                        On Leave
+                                                    </span>
+                                                )}
+                                                {isLeavePending && (
+                                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400">
+                                                        Leave Pending
+                                                    </span>
+                                                )}
+
+                                                {/* Health badge */}
+                                                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${healthBadgeClass}`}>
+                                                    {health.label}
                                                 </span>
-                                            )}
+                                            </div>
                                         </label>
                                     );
                                 })
