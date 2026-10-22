@@ -731,50 +731,14 @@ class ProfileController extends Controller
     }
 
     /**
-     * Notify workspace managers/leads that an engineer has resolved an emergency and returned to active.
+     * Handle cleanup when an engineer resolves an emergency and returns to active status.
+     * In accordance with workplace privacy and HR standards, emergency declarations and resolutions
+     * are strictly confidential and NEVER broadcasted into public team chat channels.
+     * Leadership is privately informed via dynamic management notifications in TenantDashboardController.
      */
     protected function notifyEmergencyResolved(User $user, ?string $studioId = null): void
     {
-        try {
-            $studioQuery = DB::table('studio_members')->where('user_id', $user->id);
-            if ($studioId) {
-                $studioQuery->where('studio_id', $studioId);
-            }
-            $memberships = $studioQuery->get();
-
-            foreach ($memberships as $membership) {
-                $studio = Studio::find($membership->studio_id);
-                if (! $studio) {
-                    continue;
-                }
-
-                $leaders = DB::table('studio_members')
-                    ->where('studio_id', $membership->studio_id)
-                    ->whereIn('role', ['owner', 'leader', 'manager'])
-                    ->where('user_id', '!=', $user->id)
-                    ->pluck('user_id')
-                    ->all();
-
-                if (empty($leaders)) {
-                    continue;
-                }
-
-                $studio->run(function () use ($user, $leaders) {
-                    if (Schema::hasTable('channel_messages')) {
-                        ChannelMessage::create([
-                            'channel_id' => 'ch-general',
-                            'user_id' => $user->id,
-                            'sender_name' => 'System Notice',
-                            'sender_role' => 'system',
-                            'body' => "Operational Update: **{$user->name}** has resolved their emergency declaration and returned to the active pool.",
-                            'mentions' => $leaders,
-                        ]);
-                    }
-                });
-            }
-        } catch (\Throwable $e) {
-            // Fail safely without blocking user status update
-        }
+        // Public chat broadcasting disabled for employee privacy.
     }
 
     /**

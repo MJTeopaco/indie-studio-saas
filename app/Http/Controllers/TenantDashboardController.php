@@ -1214,7 +1214,10 @@ class TenantDashboardController extends Controller
                             ->orWhere(function ($eq) {
                                 $eq->where('request_type', LeaveRequest::TYPE_EMERGENCY)
                                     ->where('status', 'approved')
-                                    ->where('created_at', '>=', now()->subDays(14));
+                                    ->where(function ($dateQ) {
+                                        $dateQ->where('created_at', '>=', now()->subDays(14))
+                                            ->orWhere('resolved_at', '>=', now()->subDays(14));
+                                    });
                             });
                     });
 
@@ -1240,40 +1243,55 @@ class TenantDashboardController extends Controller
                     $end = $req->leave_end_date ? Carbon::parse($req->leave_end_date) : null;
 
                     $isEmergency = ($req->request_type ?? 'leave') === LeaveRequest::TYPE_EMERGENCY;
+                    $isResolved = $isEmergency && ! empty($req->resolved_at);
                     $isAcknowledged = $req->status === 'approved';
                     $categoryLabels = LeaveRequest::emergencyCategoryLabels();
                     $catLabel = $isEmergency && $req->emergency_category && isset($categoryLabels[$req->emergency_category])
                         ? $categoryLabels[$req->emergency_category]
                         : ($req->reason ?: 'Emergency Absence');
 
-                    $conflicts = $isEmergency
+                    $conflicts = ($isEmergency && ! $isResolved)
                         ? $assignedTasks
-                        : $assignedTasks->filter(function ($task) use ($start, $end) {
+                        : ($isResolved ? collect() : $assignedTasks->filter(function ($task) use ($start, $end) {
                             if (! $task->hard_constraint_date || ! $start || ! $end) {
                                 return false;
                             }
                             $due = Carbon::parse($task->hard_constraint_date);
 
                             return $due->betweenIncluded($start, $end);
-                        })->values();
+                        })->values());
 
                     $calendarDays = $start && $end ? $start->diffInDays($end) + 1 : 0;
                     $roleLabel = $req->requester_role === 'leader' ? 'Team Leader' : 'Team Member';
-                    $notifId = 'leave-req-'.$req->id;
-                    $title = $isEmergency
-                        ? ($isAcknowledged ? "🚨 Emergency Absence: {$reqUser->name}" : "🚨 Emergency Declared: {$reqUser->name}")
-                        : "Leave Request: {$reqUser->name}";
-                    $body = $isEmergency
-                        ? "{$reqUser->name} ({$roleLabel}) declared an emergency: {$catLabel}".($end ? ' (Est. return: '.$end->format('M d, Y').')' : '').($isAcknowledged ? ' [Acknowledged • Reassign Tasks]' : '')
-                        : "{$reqUser->name} ({$roleLabel}) requested absence from ".($start ? $start->format('M d, Y') : '').' to '.($end ? $end->format('M d, Y') : '')." ({$calendarDays} calendar day".($calendarDays === 1 ? '' : 's').').'.($req->reason ? " Handover: {$req->reason}" : '');
+                    $notifId = $isResolved ? 'leave-req-'.$req->id.'-resolved' : 'leave-req-'.$req->id;
+
+                    if ($isResolved) {
+                        $title = "✅ {$reqUser->name} is Back Online";
+                        $body = "{$reqUser->name} ({$roleLabel}) has returned to active status and is available for sprint task assignments.";
+                        $type = 'emergency_resolved';
+                        $icon = 'check-circle';
+                        $color = 'emerald';
+                    } elseif ($isEmergency) {
+                        $title = $isAcknowledged ? "🚨 Emergency Absence: {$reqUser->name}" : "🚨 Emergency Declared: {$reqUser->name}";
+                        $body = "{$reqUser->name} ({$roleLabel}) declared an emergency: {$catLabel}".($end ? ' (Est. return: '.$end->format('M d, Y').')' : '').($isAcknowledged ? ' [Acknowledged • Reassign Tasks]' : '');
+                        $type = 'emergency_declaration';
+                        $icon = 'ban';
+                        $color = 'rose';
+                    } else {
+                        $title = "Leave Request: {$reqUser->name}";
+                        $body = "{$reqUser->name} ({$roleLabel}) requested absence from ".($start ? $start->format('M d, Y') : '').' to '.($end ? $end->format('M d, Y') : '')." ({$calendarDays} calendar day".($calendarDays === 1 ? '' : 's').').'.($req->reason ? " Handover: {$req->reason}" : '');
+                        $type = 'leave_request';
+                        $icon = 'calendar';
+                        $color = 'amber';
+                    }
 
                     return [
                         'id' => $notifId,
-                        'type' => $isEmergency ? 'emergency_declaration' : 'leave_request',
+                        'type' => $type,
                         'title' => $title,
                         'body' => $body,
-                        'icon' => $isEmergency ? 'ban' : 'calendar',
-                        'color' => $isEmergency ? 'rose' : 'amber',
+                        'icon' => $icon,
+                        'color' => $color,
                         'priority' => null,
                         'task_id' => null,
                         'task_title' => null,
@@ -1293,6 +1311,9 @@ class TenantDashboardController extends Controller
                             'request_type' => $req->request_type ?? 'leave',
                             'status' => $req->status,
                             'is_acknowledged' => $isAcknowledged,
+                            'is_resolved' => $isResolved,
+                            'resolved_at' => $req->resolved_at ? Carbon::parse($req->resolved_at)->diffForHumans() : null,
+                            'resolved_at_formatted' => $req->resolved_at ? Carbon::parse($req->resolved_at)->format('M d, Y h:i A') : null,
                             'reviewed_at' => $req->reviewed_at ? $req->reviewed_at->diffForHumans() : null,
                             'emergency_category' => $req->emergency_category,
                             'emergency_category_label' => $catLabel,
@@ -1316,8 +1337,8 @@ class TenantDashboardController extends Controller
                                 'project_id' => $t->project_id,
                             ])->all(),
                         ],
-                        'read' => in_array($notifId, $readNotificationIds) || $isAcknowledged,
-                        'created_at_human' => $req->created_at ? $req->created_at->diffForHumans() : 'Pending',
+                        'read' => in_array($notifId, $readNotificationIds) || ($isAcknowledged && ! $isResolved),
+                        'created_at_human' => $isResolved && $req->resolved_at ? Carbon::parse($req->resolved_at)->diffForHumans() : ($req->created_at ? $req->created_at->diffForHumans() : 'Pending'),
                     ];
                 })->all();
 
@@ -1888,20 +1909,40 @@ class TenantDashboardController extends Controller
             }
 
             if (Schema::hasTable('leave_requests')) {
-                $pendingLeaveIds = LeaveRequest::where('studio_id', tenant('id'))
-                    ->where('status', 'pending')
-                    ->pluck('id');
+                $leaveReqs = LeaveRequest::where('studio_id', tenant('id'))
+                    ->where(function ($q) {
+                        $q->where('status', 'pending')
+                            ->orWhere(function ($eq) {
+                                $eq->where('request_type', LeaveRequest::TYPE_EMERGENCY)
+                                    ->where('status', 'approved')
+                                    ->whereNotNull('resolved_at')
+                                    ->where('resolved_at', '>=', now()->subDays(14));
+                            });
+                    })
+                    ->get(['id', 'resolved_at']);
 
-                foreach ($pendingLeaveIds as $lId) {
+                foreach ($leaveReqs as $lr) {
                     ChannelRead::updateOrCreate(
                         [
-                            'channel_id' => "notif:leave-req-{$lId}",
+                            'channel_id' => "notif:leave-req-{$lr->id}",
                             'user_id' => $user->id,
                         ],
                         [
                             'last_read_at' => now(),
                         ]
                     );
+
+                    if (! empty($lr->resolved_at)) {
+                        ChannelRead::updateOrCreate(
+                            [
+                                'channel_id' => "notif:leave-req-{$lr->id}-resolved",
+                                'user_id' => $user->id,
+                            ],
+                            [
+                                'last_read_at' => now(),
+                            ]
+                        );
+                    }
                 }
             }
         }
@@ -1940,9 +1981,23 @@ class TenantDashboardController extends Controller
             $notifIds[] = 'estimates-pending';
 
             if (Schema::hasTable('leave_requests')) {
-                $leaveReqs = LeaveRequest::where('studio_id', tenant('id'))->where('status', 'pending')->pluck('id');
-                foreach ($leaveReqs as $lId) {
-                    $notifIds[] = "leave-req-{$lId}";
+                $leaveReqs = LeaveRequest::where('studio_id', tenant('id'))
+                    ->where(function ($q) {
+                        $q->where('status', 'pending')
+                            ->orWhere(function ($eq) {
+                                $eq->where('request_type', LeaveRequest::TYPE_EMERGENCY)
+                                    ->where('status', 'approved')
+                                    ->whereNotNull('resolved_at')
+                                    ->where('resolved_at', '>=', now()->subDays(14));
+                            });
+                    })
+                    ->get(['id', 'resolved_at']);
+
+                foreach ($leaveReqs as $lr) {
+                    $notifIds[] = "leave-req-{$lr->id}";
+                    if (! empty($lr->resolved_at)) {
+                        $notifIds[] = "leave-req-{$lr->id}-resolved";
+                    }
                 }
             }
 

@@ -403,15 +403,27 @@ class HandleInertiaRequests extends Middleware
 
                     if ($isOwner || in_array($currentUserRole, ['leader', 'manager'])) {
                         $leaveQuery = LeaveRequest::where('studio_id', tenant('id'))
-                            ->where('status', 'pending');
+                            ->where(function ($q) {
+                                $q->where('status', 'pending')
+                                    ->orWhere(function ($eq) {
+                                        $eq->where('request_type', LeaveRequest::TYPE_EMERGENCY)
+                                            ->where('status', 'approved')
+                                            ->whereNotNull('resolved_at')
+                                            ->where('resolved_at', '>=', now()->subDays(14));
+                                    });
+                            });
 
                         if (! $isOwner) {
                             $leaveQuery->where('requester_role', 'member')
                                 ->where('user_id', '!=', $user->id);
                         }
 
-                        $pendingLeaveCount = $leaveQuery->pluck('id')
-                            ->filter(fn ($id) => empty($readSet["leave-req-{$id}"]))
+                        $pendingLeaveCount = $leaveQuery->get(['id', 'resolved_at'])
+                            ->filter(function ($item) use ($readSet) {
+                                $notifKey = ! empty($item->resolved_at) ? "leave-req-{$item->id}-resolved" : "leave-req-{$item->id}";
+
+                                return empty($readSet[$notifKey]);
+                            })
                             ->count();
                     }
                 } catch (\Exception $e) {

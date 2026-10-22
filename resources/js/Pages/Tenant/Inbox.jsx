@@ -869,6 +869,10 @@ const TYPE_CONFIG = {
         label: 'Emergency',
         badgeClass: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/60',
     },
+    emergency_resolved: {
+        label: 'Active Member',
+        badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60',
+    },
     estimate_pending: {
         label: 'Estimation',
         badgeClass: 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200/80 dark:border-purple-800/60',
@@ -997,7 +1001,7 @@ export default function Inbox({
         notificationsList.filter(n => ['direct_message', 'channel_mention'].includes(n.type) && !n.read).length,
     [notificationsList]);
     const alertsNotifCount = useMemo(() =>
-        notificationsList.filter(n => ['overdue', 'stuck'].includes(n.type) && !n.read).length,
+        notificationsList.filter(n => ['overdue', 'stuck', 'emergency_resolved'].includes(n.type) && !n.read).length,
     [notificationsList]);
 
     const handleApproveLeave = (leaveReq) => {
@@ -1145,7 +1149,7 @@ export default function Inbox({
                 return ['direct_message', 'channel_mention'].includes(item.type);
             }
             if (notifFilter === 'alerts') {
-                return ['overdue', 'stuck'].includes(item.type);
+                return ['overdue', 'stuck', 'emergency_resolved'].includes(item.type);
             }
             return true;
         });
@@ -2335,9 +2339,14 @@ export default function Inbox({
                                                                         {notif.leave_request.calendar_days}d absence
                                                                     </span>
                                                                 )}
-                                                                {notif.type === 'emergency_declaration' && notif.leave_request && (
+                                                                {notif.type === 'emergency_declaration' && notif.leave_request && !notif.leave_request?.is_resolved && (
                                                                     <span className="text-[10px] font-medium text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.2 rounded border border-rose-200/60 dark:border-rose-800/40">
                                                                         🚨 {notif.leave_request.is_acknowledged ? 'Reassign Tasks' : (notif.leave_request.emergency_category_label || 'Emergency')}
+                                                                    </span>
+                                                                )}
+                                                                {(notif.type === 'emergency_resolved' || notif.leave_request?.is_resolved) && (
+                                                                    <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.2 rounded border border-emerald-200/60 dark:border-emerald-800/40">
+                                                                        ✅ Back Online
                                                                     </span>
                                                                 )}
                                                                 {notif.channel_id && (
@@ -2453,9 +2462,10 @@ export default function Inbox({
                                         </div>
 
                                         {/* Leave Request & Emergency Declaration Review Module */}
-                                        {['leave_request', 'emergency_declaration'].includes(activeNotification.type) && activeNotification.leave_request && (() => {
+                                        {['leave_request', 'emergency_declaration', 'emergency_resolved'].includes(activeNotification.type) && activeNotification.leave_request && (() => {
                                             const req = activeNotification.leave_request;
-                                            const isEmergency = activeNotification.type === 'emergency_declaration' || req.request_type === 'emergency';
+                                            const isResolved = activeNotification.type === 'emergency_resolved' || !!req.is_resolved;
+                                            const isEmergency = (activeNotification.type === 'emergency_declaration' || req.request_type === 'emergency') && !isResolved;
                                             const isLeaderReq = req.requester_role === 'leader';
                                             const isProcessing = leaveActionProcessingId === req.id;
                                             const hasConflicts = req.conflicting_tasks && req.conflicting_tasks.length > 0;
@@ -2464,7 +2474,9 @@ export default function Inbox({
                                                 <div className="p-5 space-y-4">
                                                     {/* Requester Identity Card */}
                                                     <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                                                        isEmergency 
+                                                        isResolved
+                                                            ? 'bg-emerald-500/5 dark:bg-emerald-950/20 border-emerald-500/30'
+                                                            : isEmergency 
                                                             ? 'bg-rose-500/5 dark:bg-rose-950/20 border-rose-500/30' 
                                                             : 'bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80'
                                                     }`}>
@@ -2474,7 +2486,11 @@ export default function Inbox({
                                                                     <img src={req.avatar} alt={req.user_name} className="w-12 h-12 rounded-xl object-cover ring-2 ring-slate-200 dark:ring-slate-700" />
                                                                 ) : (
                                                                     <div className={`w-12 h-12 rounded-xl text-white font-black text-sm flex items-center justify-center ring-2 ring-slate-200 dark:ring-slate-700 ${
-                                                                        isEmergency ? 'bg-linear-to-tr from-rose-600 to-rose-700' : 'bg-linear-to-tr from-brand to-indigo-600'
+                                                                        isResolved
+                                                                            ? 'bg-linear-to-tr from-emerald-600 to-teal-600'
+                                                                            : isEmergency
+                                                                            ? 'bg-linear-to-tr from-rose-600 to-rose-700'
+                                                                            : 'bg-linear-to-tr from-brand to-indigo-600'
                                                                     }`}>
                                                                         {req.user_name.slice(0, 2).toUpperCase()}
                                                                     </div>
@@ -2490,11 +2506,13 @@ export default function Inbox({
                                                                 <div className="flex items-center gap-2">
                                                                     <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">{req.user_name}</h4>
                                                                     <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
-                                                                        isEmergency
+                                                                        isResolved
+                                                                            ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
+                                                                            : isEmergency
                                                                             ? 'bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300'
                                                                             : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                                                                     }`}>
-                                                                        {isEmergency ? '🚨 Emergency Absence' : (isLeaderReq ? 'Team Leader' : 'Team Member')}
+                                                                        {isResolved ? '✅ Active Status Restored' : isEmergency ? '🚨 Emergency Absence' : (isLeaderReq ? 'Team Leader' : 'Team Member')}
                                                                     </span>
                                                                 </div>
                                                                 <p className="text-[11px] text-slate-500 mt-0.5">
@@ -2503,7 +2521,13 @@ export default function Inbox({
                                                             </div>
                                                         </div>
 
-                                                        {isEmergency && (
+                                                        {isResolved ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="px-2.5 py-1 rounded-md text-[10px] font-mono font-bold uppercase border bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/25">
+                                                                    Back Online
+                                                                </span>
+                                                            </div>
+                                                        ) : isEmergency ? (
                                                             <div className="flex items-center gap-2">
                                                                 <span className={`px-2.5 py-1 rounded-md text-[10px] font-mono font-bold uppercase border ${
                                                                     req.is_acknowledged || req.status === 'approved'
@@ -2513,11 +2537,38 @@ export default function Inbox({
                                                                     {req.is_acknowledged || req.status === 'approved' ? 'Reassignment Pending' : 'Action Needed'}
                                                                 </span>
                                                             </div>
-                                                        )}
+                                                        ) : null}
                                                     </div>
 
-                                                    {/* Leave Duration & Handover Details */}
-                                                    {isEmergency ? (
+                                                    {/* Leave Duration, Handover, or Back Online Details */}
+                                                    {isResolved ? (
+                                                        <div className="p-4 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/40 space-y-3">
+                                                            <div className="flex items-center justify-between text-xs font-semibold text-emerald-900 dark:text-emerald-200">
+                                                                <span className="flex items-center gap-1.5 font-bold">
+                                                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                                                                    Member Availability Restored
+                                                                </span>
+                                                                <span className="px-2 py-0.5 rounded-sm text-[10px] font-mono font-bold bg-emerald-200/80 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
+                                                                    {req.resolved_at ? `RETURNED ${req.resolved_at.toUpperCase()}` : 'ACTIVE'}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+                                                                <strong>{req.user_name}</strong> has resolved their emergency declaration and returned to active working status. Capacity is restored and this member is ready for sprint task assignments.
+                                                            </p>
+                                                            <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-emerald-200/60 dark:border-emerald-900/30">
+                                                                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                                    Review projects and sprint workload:
+                                                                </span>
+                                                                <Link
+                                                                    href={route('tenant.projects.index', { tenant: workspaceSlug })}
+                                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-xs"
+                                                                >
+                                                                    <span>View Projects & Sprints</span>
+                                                                    <ArrowRight className="w-3.5 h-3.5" />
+                                                                </Link>
+                                                            </div>
+                                                        </div>
+                                                    ) : isEmergency ? (
                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                                                             <div className="p-4 rounded-2xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/40 space-y-2">
                                                                 <div className="flex items-center justify-between text-xs font-semibold text-rose-900 dark:text-rose-200">
@@ -2576,77 +2627,89 @@ export default function Inbox({
                                                     )}
 
                                                     {/* In-Flight Tasks & Reassignment Intelligence */}
-                                                    <div className="space-y-2">
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                                                {isEmergency ? 'In-Flight Tasks Requiring Reassignment' : 'Schedule Conflict Analysis'}
-                                                            </span>
-                                                            {isEmergency && (
-                                                                <span className="text-xs font-mono font-bold text-rose-600 dark:text-rose-400">
-                                                                    {req.conflicting_tasks?.length || 0} active
+                                                    {!isResolved && (
+                                                        <div className="space-y-2">
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                                    {isEmergency ? 'In-Flight Tasks Requiring Reassignment' : 'Schedule Conflict Analysis'}
                                                                 </span>
+                                                                {isEmergency && (
+                                                                    <span className="text-xs font-mono font-bold text-rose-600 dark:text-rose-400">
+                                                                        {req.conflicting_tasks?.length || 0} active
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {hasConflicts ? (
+                                                                <div className={`p-3.5 rounded-xl border space-y-2.5 ${
+                                                                    isEmergency 
+                                                                        ? 'bg-rose-500/10 dark:bg-rose-950/20 border-rose-500/30' 
+                                                                        : 'bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50'
+                                                                }`}>
+                                                                    <div className={`flex items-center gap-2 text-xs font-bold ${
+                                                                        isEmergency ? 'text-rose-800 dark:text-rose-300' : 'text-amber-800 dark:text-amber-300'
+                                                                    }`}>
+                                                                        <AlertCircle className={`w-4 h-4 shrink-0 ${isEmergency ? 'text-rose-600' : 'text-amber-600'}`} />
+                                                                        <span>
+                                                                            {isEmergency
+                                                                                ? `Sprint Impact: ${req.conflicting_tasks.length} task${req.conflicting_tasks.length === 1 ? '' : 's'} assigned to this member need immediate reassignment:`
+                                                                                : `Attention: ${req.conflicting_tasks.length} task${req.conflicting_tasks.length === 1 ? '' : 's'} scheduled with deadlines during this absence:`}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="space-y-1.5">
+                                                                        {req.conflicting_tasks.map((task) => (
+                                                                            <div key={task.id} className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2 text-xs">
+                                                                                <div className="min-w-0 space-y-0.5">
+                                                                                    <div className="flex items-center gap-1.5">
+                                                                                        {task.is_critical && (
+                                                                                            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded uppercase font-bold bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30">
+                                                                                                ⚡ Critical Path
+                                                                                            </span>
+                                                                                        )}
+                                                                                        <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">{task.title}</span>
+                                                                                    </div>
+                                                                                    <span className="text-[10px] text-slate-500 font-mono">
+                                                                                        Due {task.due_date} {task.estimated_hours ? `• ${task.estimated_hours}h` : ''}
+                                                                                    </span>
+                                                                                </div>
+                                                                                {task.project_id && (
+                                                                                    <Link
+                                                                                        href={route('tenant.projects.show', {
+                                                                                            tenant: workspaceSlug,
+                                                                                            project: task.project_id,
+                                                                                            view: 'sprint',
+                                                                                            reassign_task_id: task.id,
+                                                                                        })}
+                                                                                        className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors shrink-0 flex items-center gap-1"
+                                                                                    >
+                                                                                        <span>Reassign</span>
+                                                                                        <ArrowRight className="w-3 h-3" />
+                                                                                    </Link>
+                                                                                )}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/50 flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300">
+                                                                    <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                                                                    <span>{isEmergency ? 'No in-flight tasks assigned. Sprint velocity intact.' : 'No deadline conflicts. Assigned tasks are scheduled outside this window.'}</span>
+                                                                </div>
                                                             )}
                                                         </div>
-                                                        {hasConflicts ? (
-                                                            <div className={`p-3.5 rounded-xl border space-y-2.5 ${
-                                                                isEmergency 
-                                                                    ? 'bg-rose-500/10 dark:bg-rose-950/20 border-rose-500/30' 
-                                                                    : 'bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50'
-                                                            }`}>
-                                                                <div className={`flex items-center gap-2 text-xs font-bold ${
-                                                                    isEmergency ? 'text-rose-800 dark:text-rose-300' : 'text-amber-800 dark:text-amber-300'
-                                                                }`}>
-                                                                    <AlertCircle className={`w-4 h-4 shrink-0 ${isEmergency ? 'text-rose-600' : 'text-amber-600'}`} />
-                                                                    <span>
-                                                                        {isEmergency
-                                                                            ? `Sprint Impact: ${req.conflicting_tasks.length} task${req.conflicting_tasks.length === 1 ? '' : 's'} assigned to this member need immediate reassignment:`
-                                                                            : `Attention: ${req.conflicting_tasks.length} task${req.conflicting_tasks.length === 1 ? '' : 's'} scheduled with deadlines during this absence:`}
-                                                                    </span>
-                                                                </div>
-                                                                <div className="space-y-1.5">
-                                                                    {req.conflicting_tasks.map((task) => (
-                                                                        <div key={task.id} className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2 text-xs">
-                                                                            <div className="min-w-0 space-y-0.5">
-                                                                                <div className="flex items-center gap-1.5">
-                                                                                    {task.is_critical && (
-                                                                                        <span className="text-[9px] font-mono px-1.5 py-0.2 rounded uppercase font-bold bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30">
-                                                                                            ⚡ Critical Path
-                                                                                        </span>
-                                                                                    )}
-                                                                                    <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">{task.title}</span>
-                                                                                </div>
-                                                                                <span className="text-[10px] text-slate-500 font-mono">
-                                                                                    Due {task.due_date} {task.estimated_hours ? `• ${task.estimated_hours}h` : ''}
-                                                                                </span>
-                                                                            </div>
-                                                                            {task.project_id && (
-                                                                                <Link
-                                                                                    href={route('tenant.projects.show', {
-                                                                                        tenant: workspaceSlug,
-                                                                                        project: task.project_id,
-                                                                                        view: 'sprint',
-                                                                                        reassign_task_id: task.id,
-                                                                                    })}
-                                                                                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors shrink-0 flex items-center gap-1"
-                                                                                >
-                                                                                    <span>Reassign</span>
-                                                                                    <ArrowRight className="w-3 h-3" />
-                                                                                </Link>
-                                                                            )}
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/50 flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300">
-                                                                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                                                                <span>{isEmergency ? 'No in-flight tasks assigned. Sprint velocity intact.' : 'No deadline conflicts. Assigned tasks are scheduled outside this window.'}</span>
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                                    )}
 
-                                                    {/* Approval / Acknowledgement Footer */}
-                                                    {req.is_acknowledged || req.status === 'approved' ? (
+                                                    {/* Approval / Acknowledgement / Return Status Footer */}
+                                                    {isResolved ? (
+                                                        <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 w-full">
+                                                            <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-1.5 rounded-xl border border-emerald-200/80 dark:border-emerald-800/40">
+                                                                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                                                <span>Active Status Restored • Available for Assignments</span>
+                                                            </div>
+                                                            <span className="text-[11px] text-slate-400 font-mono">
+                                                                {req.resolved_at_formatted || (req.resolved_at ? `Resolved ${req.resolved_at}` : 'Active')}
+                                                            </span>
+                                                        </div>
+                                                    ) : req.is_acknowledged || req.status === 'approved' ? (
                                                         <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 w-full">
                                                             <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-1.5 rounded-xl border border-emerald-200/80 dark:border-emerald-800/40">
                                                                 <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
