@@ -2339,12 +2339,16 @@ export default function Inbox({
                                                                         {notif.leave_request.calendar_days}d absence
                                                                     </span>
                                                                 )}
-                                                                {notif.type === 'emergency_declaration' && notif.leave_request && !notif.leave_request?.is_resolved && (
-                                                                    <span className="text-[10px] font-medium text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.2 rounded border border-rose-200/60 dark:border-rose-800/40">
-                                                                        🚨 {notif.leave_request.is_acknowledged ? 'Reassign Tasks' : (notif.leave_request.emergency_category_label || 'Emergency')}
+                                                                {notif.type === 'emergency_declaration' && notif.leave_request && (
+                                                                    <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded border ${
+                                                                        notif.leave_request.is_resolved
+                                                                            ? 'text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                                                                            : 'text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border-rose-200/60 dark:border-rose-800/40'
+                                                                    }`}>
+                                                                        🚨 {notif.leave_request.is_resolved ? 'Emergency (Concluded)' : (notif.leave_request.is_acknowledged ? 'Reassign Tasks' : (notif.leave_request.emergency_category_label || 'Emergency'))}
                                                                     </span>
                                                                 )}
-                                                                {(notif.type === 'emergency_resolved' || notif.leave_request?.is_resolved) && (
+                                                                {notif.type === 'emergency_resolved' && (
                                                                     <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.2 rounded border border-emerald-200/60 dark:border-emerald-800/40">
                                                                         ✅ Back Online
                                                                     </span>
@@ -2464,8 +2468,9 @@ export default function Inbox({
                                         {/* Leave Request & Emergency Declaration Review Module */}
                                         {['leave_request', 'emergency_declaration', 'emergency_resolved'].includes(activeNotification.type) && activeNotification.leave_request && (() => {
                                             const req = activeNotification.leave_request;
-                                            const isResolved = activeNotification.type === 'emergency_resolved' || !!req.is_resolved;
-                                            const isEmergency = (activeNotification.type === 'emergency_declaration' || req.request_type === 'emergency') && !isResolved;
+                                            const isResolvedNotification = activeNotification.type === 'emergency_resolved';
+                                            const isEmergencyDeclaration = activeNotification.type === 'emergency_declaration' || (req.request_type === 'emergency' && !isResolvedNotification);
+                                            const isResolvedReq = !!req.is_resolved;
                                             const isLeaderReq = req.requester_role === 'leader';
                                             const isProcessing = leaveActionProcessingId === req.id;
                                             const hasConflicts = req.conflicting_tasks && req.conflicting_tasks.length > 0;
@@ -2474,10 +2479,12 @@ export default function Inbox({
                                                 <div className="p-5 space-y-4">
                                                     {/* Requester Identity Card */}
                                                     <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                                                        isResolved
+                                                        isResolvedNotification
                                                             ? 'bg-emerald-500/5 dark:bg-emerald-950/20 border-emerald-500/30'
-                                                            : isEmergency 
-                                                            ? 'bg-rose-500/5 dark:bg-rose-950/20 border-rose-500/30' 
+                                                            : isEmergencyDeclaration 
+                                                            ? (isResolvedReq 
+                                                                ? 'bg-slate-500/5 dark:bg-slate-800/40 border-slate-300 dark:border-slate-700' 
+                                                                : 'bg-rose-500/5 dark:bg-rose-950/20 border-rose-500/30') 
                                                             : 'bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80'
                                                     }`}>
                                                         <div className="flex items-center gap-3">
@@ -2486,10 +2493,10 @@ export default function Inbox({
                                                                     <img src={req.avatar} alt={req.user_name} className="w-12 h-12 rounded-xl object-cover ring-2 ring-slate-200 dark:ring-slate-700" />
                                                                 ) : (
                                                                     <div className={`w-12 h-12 rounded-xl text-white font-black text-sm flex items-center justify-center ring-2 ring-slate-200 dark:ring-slate-700 ${
-                                                                        isResolved
+                                                                        isResolvedNotification
                                                                             ? 'bg-linear-to-tr from-emerald-600 to-teal-600'
-                                                                            : isEmergency
-                                                                            ? 'bg-linear-to-tr from-rose-600 to-rose-700'
+                                                                            : isEmergencyDeclaration
+                                                                            ? (isResolvedReq ? 'bg-linear-to-tr from-slate-600 to-slate-700' : 'bg-linear-to-tr from-rose-600 to-rose-700')
                                                                             : 'bg-linear-to-tr from-brand to-indigo-600'
                                                                     }`}>
                                                                         {req.user_name.slice(0, 2).toUpperCase()}
@@ -2506,13 +2513,19 @@ export default function Inbox({
                                                                 <div className="flex items-center gap-2">
                                                                     <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">{req.user_name}</h4>
                                                                     <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
-                                                                        isResolved
+                                                                        isResolvedNotification
                                                                             ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
-                                                                            : isEmergency
-                                                                            ? 'bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300'
+                                                                            : isEmergencyDeclaration
+                                                                            ? (isResolvedReq
+                                                                                ? 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                                                                : 'bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300')
                                                                             : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                                                                     }`}>
-                                                                        {isResolved ? '✅ Active Status Restored' : isEmergency ? '🚨 Emergency Absence' : (isLeaderReq ? 'Team Leader' : 'Team Member')}
+                                                                        {isResolvedNotification 
+                                                                            ? '✅ Active Status Restored' 
+                                                                            : isEmergencyDeclaration 
+                                                                            ? (isResolvedReq ? '🚨 Emergency (Concluded)' : '🚨 Emergency Absence') 
+                                                                            : (isLeaderReq ? 'Team Leader' : 'Team Member')}
                                                                     </span>
                                                                 </div>
                                                                 <p className="text-[11px] text-slate-500 mt-0.5">
@@ -2521,27 +2534,33 @@ export default function Inbox({
                                                             </div>
                                                         </div>
 
-                                                        {isResolved ? (
+                                                        {isResolvedNotification ? (
                                                             <div className="flex items-center gap-2">
                                                                 <span className="px-2.5 py-1 rounded-md text-[10px] font-mono font-bold uppercase border bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/25">
                                                                     Back Online
                                                                 </span>
                                                             </div>
-                                                        ) : isEmergency ? (
+                                                        ) : isEmergencyDeclaration ? (
                                                             <div className="flex items-center gap-2">
-                                                                <span className={`px-2.5 py-1 rounded-md text-[10px] font-mono font-bold uppercase border ${
-                                                                    req.is_acknowledged || req.status === 'approved'
-                                                                        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/25'
-                                                                        : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/25'
-                                                                }`}>
-                                                                    {req.is_acknowledged || req.status === 'approved' ? 'Reassignment Pending' : 'Action Needed'}
-                                                                </span>
+                                                                {isResolvedReq ? (
+                                                                    <span className="px-2.5 py-1 rounded-md text-[10px] font-mono font-bold uppercase border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700">
+                                                                        Concluded • Returned
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className={`px-2.5 py-1 rounded-md text-[10px] font-mono font-bold uppercase border ${
+                                                                        req.is_acknowledged || req.status === 'approved'
+                                                                            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/25'
+                                                                            : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/25'
+                                                                    }`}>
+                                                                        {req.is_acknowledged || req.status === 'approved' ? 'Reassignment Pending' : 'Action Needed'}
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                         ) : null}
                                                     </div>
 
                                                     {/* Leave Duration, Handover, or Back Online Details */}
-                                                    {isResolved ? (
+                                                    {isResolvedNotification ? (
                                                         <div className="p-4 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/40 space-y-3">
                                                             <div className="flex items-center justify-between text-xs font-semibold text-emerald-900 dark:text-emerald-200">
                                                                 <span className="flex items-center gap-1.5 font-bold">
@@ -2568,23 +2587,40 @@ export default function Inbox({
                                                                 </Link>
                                                             </div>
                                                         </div>
-                                                    ) : isEmergency ? (
+                                                    ) : isEmergencyDeclaration ? (
                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                                                            <div className="p-4 rounded-2xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/40 space-y-2">
-                                                                <div className="flex items-center justify-between text-xs font-semibold text-rose-900 dark:text-rose-200">
+                                                            <div className={`p-4 rounded-2xl border space-y-2 ${
+                                                                isResolvedReq 
+                                                                    ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700' 
+                                                                    : 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-200/80 dark:border-rose-900/40'
+                                                            }`}>
+                                                                <div className={`flex items-center justify-between text-xs font-semibold ${
+                                                                    isResolvedReq ? 'text-slate-900 dark:text-slate-200' : 'text-rose-900 dark:text-rose-200'
+                                                                }`}>
                                                                     <span className="flex items-center gap-1.5">
-                                                                        <ShieldAlert className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                                                                        <ShieldAlert className={`w-3.5 h-3.5 ${isResolvedReq ? 'text-slate-500' : 'text-rose-600 dark:text-rose-400'}`} />
                                                                         Emergency Classification
                                                                     </span>
-                                                                    <span className="px-2 py-0.5 rounded-sm text-[10px] font-mono font-bold bg-rose-200/80 dark:bg-rose-900/60 text-rose-800 dark:text-rose-200">
+                                                                    <span className={`px-2 py-0.5 rounded-sm text-[10px] font-mono font-bold ${
+                                                                        isResolvedReq
+                                                                            ? 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200'
+                                                                            : 'bg-rose-200/80 dark:bg-rose-900/60 text-rose-800 dark:text-rose-200'
+                                                                    }`}>
                                                                         {req.emergency_category ? req.emergency_category.toUpperCase() : 'URGENT'}
                                                                     </span>
                                                                 </div>
                                                                 <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
                                                                     {req.emergency_category_label || req.reason || 'Operational Emergency'}
                                                                 </div>
-                                                                <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                                                                    {req.leave_end_formatted ? `Estimated Return: ${req.leave_end_formatted}` : 'Return date currently unspecified'}
+                                                                <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                                                                    <span>
+                                                                        {req.leave_end_formatted ? `Estimated Return: ${req.leave_end_formatted}` : 'Return date currently unspecified'}
+                                                                    </span>
+                                                                    {isResolvedReq && (
+                                                                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold font-mono text-[10px]">
+                                                                            ✓ Returned {req.resolved_at_formatted || req.resolved_at}
+                                                                        </span>
+                                                                    )}
                                                                 </div>
                                                             </div>
 
@@ -2627,31 +2663,43 @@ export default function Inbox({
                                                     )}
 
                                                     {/* In-Flight Tasks & Reassignment Intelligence */}
-                                                    {!isResolved && (
+                                                    {!isResolvedNotification && (
                                                         <div className="space-y-2">
                                                             <div className="flex items-center justify-between">
                                                                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                                                    {isEmergency ? 'In-Flight Tasks Requiring Reassignment' : 'Schedule Conflict Analysis'}
+                                                                    {isEmergencyDeclaration 
+                                                                        ? (isResolvedReq ? 'Tasks During Emergency Window' : 'In-Flight Tasks Requiring Reassignment') 
+                                                                        : 'Schedule Conflict Analysis'}
                                                                 </span>
-                                                                {isEmergency && (
-                                                                    <span className="text-xs font-mono font-bold text-rose-600 dark:text-rose-400">
+                                                                {isEmergencyDeclaration && (
+                                                                    <span className={`text-xs font-mono font-bold ${isResolvedReq ? 'text-slate-500' : 'text-rose-600 dark:text-rose-400'}`}>
                                                                         {req.conflicting_tasks?.length || 0} active
                                                                     </span>
                                                                 )}
                                                             </div>
                                                             {hasConflicts ? (
                                                                 <div className={`p-3.5 rounded-xl border space-y-2.5 ${
-                                                                    isEmergency 
-                                                                        ? 'bg-rose-500/10 dark:bg-rose-950/20 border-rose-500/30' 
+                                                                    isEmergencyDeclaration 
+                                                                        ? (isResolvedReq 
+                                                                            ? 'bg-slate-50 dark:bg-slate-800/30 border-slate-200 dark:border-slate-700/80' 
+                                                                            : 'bg-rose-500/10 dark:bg-rose-950/20 border-rose-500/30') 
                                                                         : 'bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50'
                                                                 }`}>
                                                                     <div className={`flex items-center gap-2 text-xs font-bold ${
-                                                                        isEmergency ? 'text-rose-800 dark:text-rose-300' : 'text-amber-800 dark:text-amber-300'
+                                                                        isEmergencyDeclaration 
+                                                                            ? (isResolvedReq ? 'text-slate-700 dark:text-slate-300' : 'text-rose-800 dark:text-rose-300') 
+                                                                            : 'text-amber-800 dark:text-amber-300'
                                                                     }`}>
-                                                                        <AlertCircle className={`w-4 h-4 shrink-0 ${isEmergency ? 'text-rose-600' : 'text-amber-600'}`} />
+                                                                        <AlertCircle className={`w-4 h-4 shrink-0 ${
+                                                                            isEmergencyDeclaration 
+                                                                                ? (isResolvedReq ? 'text-slate-500' : 'text-rose-600') 
+                                                                                : 'text-amber-600'
+                                                                        }`} />
                                                                         <span>
-                                                                            {isEmergency
-                                                                                ? `Sprint Impact: ${req.conflicting_tasks.length} task${req.conflicting_tasks.length === 1 ? '' : 's'} assigned to this member need immediate reassignment:`
+                                                                            {isEmergencyDeclaration
+                                                                                ? (isResolvedReq
+                                                                                    ? `Emergency Window Impact: ${req.conflicting_tasks.length} task${req.conflicting_tasks.length === 1 ? '' : 's'} were active during this emergency period:`
+                                                                                    : `Sprint Impact: ${req.conflicting_tasks.length} task${req.conflicting_tasks.length === 1 ? '' : 's'} assigned to this member need immediate reassignment:`)
                                                                                 : `Attention: ${req.conflicting_tasks.length} task${req.conflicting_tasks.length === 1 ? '' : 's'} scheduled with deadlines during this absence:`}
                                                                         </span>
                                                                     </div>
@@ -2681,7 +2729,7 @@ export default function Inbox({
                                                                                         })}
                                                                                         className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors shrink-0 flex items-center gap-1"
                                                                                     >
-                                                                                        <span>Reassign</span>
+                                                                                        <span>{isResolvedReq ? 'View Task' : 'Reassign'}</span>
                                                                                         <ArrowRight className="w-3 h-3" />
                                                                                     </Link>
                                                                                 )}
@@ -2692,14 +2740,14 @@ export default function Inbox({
                                                             ) : (
                                                                 <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/50 flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300">
                                                                     <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                                                                    <span>{isEmergency ? 'No in-flight tasks assigned. Sprint velocity intact.' : 'No deadline conflicts. Assigned tasks are scheduled outside this window.'}</span>
+                                                                    <span>{isEmergencyDeclaration ? (isResolvedReq ? 'No tasks were disrupted during this emergency window.' : 'No in-flight tasks assigned. Sprint velocity intact.') : 'No deadline conflicts. Assigned tasks are scheduled outside this window.'}</span>
                                                                 </div>
                                                             )}
                                                         </div>
                                                     )}
 
                                                     {/* Approval / Acknowledgement / Return Status Footer */}
-                                                    {isResolved ? (
+                                                    {isResolvedNotification ? (
                                                         <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 w-full">
                                                             <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-1.5 rounded-xl border border-emerald-200/80 dark:border-emerald-800/40">
                                                                 <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -2707,6 +2755,16 @@ export default function Inbox({
                                                             </div>
                                                             <span className="text-[11px] text-slate-400 font-mono">
                                                                 {req.resolved_at_formatted || (req.resolved_at ? `Resolved ${req.resolved_at}` : 'Active')}
+                                                            </span>
+                                                        </div>
+                                                    ) : isEmergencyDeclaration && isResolvedReq ? (
+                                                        <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 w-full">
+                                                            <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                                                                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                                                <span>Emergency Concluded • Member Back Active</span>
+                                                            </div>
+                                                            <span className="text-[11px] text-slate-400 font-mono">
+                                                                {req.resolved_at_formatted ? `Returned ${req.resolved_at_formatted}` : (req.resolved_at ? `Returned ${req.resolved_at}` : 'Concluded')}
                                                             </span>
                                                         </div>
                                                     ) : req.is_acknowledged || req.status === 'approved' ? (
@@ -2727,25 +2785,25 @@ export default function Inbox({
                                                                 onClick={() => setDeclineModalReq(req)}
                                                                 className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 hover:text-rose-600 text-xs font-semibold transition-colors disabled:opacity-50"
                                                             >
-                                                                {isEmergency ? 'Decline Declaration' : 'Decline'}
+                                                                {isEmergencyDeclaration ? 'Decline Declaration' : 'Decline'}
                                                             </button>
                                                             <button
                                                                 type="button"
                                                                 disabled={isProcessing}
                                                                 onClick={() => handleApproveLeave(req)}
                                                                 className={`px-5 py-2.5 rounded-xl text-white text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5 ${
-                                                                    isEmergency 
+                                                                    isEmergencyDeclaration 
                                                                         ? 'bg-linear-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800' 
                                                                         : 'bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700'
                                                                 }`}>
                                                                 {isProcessing ? (
                                                                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                                ) : isEmergency ? (
+                                                                ) : isEmergencyDeclaration ? (
                                                                     <ShieldAlert className="w-3.5 h-3.5" />
                                                                 ) : (
                                                                     <Check className="w-3.5 h-3.5" />
                                                                 )}
-                                                                <span>{isEmergency ? 'Acknowledge Emergency' : 'Approve Leave Request'}</span>
+                                                                <span>{isEmergencyDeclaration ? 'Acknowledge Emergency' : 'Approve Leave Request'}</span>
                                                             </button>
                                                         </div>
                                                     )}

@@ -418,13 +418,16 @@ class HandleInertiaRequests extends Middleware
                                 ->where('user_id', '!=', $user->id);
                         }
 
-                        $pendingLeaveCount = $leaveQuery->get(['id', 'resolved_at'])
-                            ->filter(function ($item) use ($readSet) {
-                                $notifKey = ! empty($item->resolved_at) ? "leave-req-{$item->id}-resolved" : "leave-req-{$item->id}";
-
-                                return empty($readSet[$notifKey]);
-                            })
-                            ->count();
+                        $pendingLeaveCount = 0;
+                        $leaveItems = $leaveQuery->get(['id', 'status', 'resolved_at']);
+                        foreach ($leaveItems as $item) {
+                            if ($item->status === 'pending' && empty($readSet["leave-req-{$item->id}"])) {
+                                $pendingLeaveCount++;
+                            }
+                            if (! empty($item->resolved_at) && empty($readSet["leave-req-{$item->id}-resolved"])) {
+                                $pendingLeaveCount++;
+                            }
+                        }
                     }
                 } catch (\Exception $e) {
                 }
