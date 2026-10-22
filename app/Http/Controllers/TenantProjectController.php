@@ -13,6 +13,7 @@ use App\Models\Tenant\Project;
 use App\Models\Tenant\Sprint;
 use App\Models\Tenant\Task;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -145,8 +146,8 @@ class TenantProjectController extends Controller
      */
     public function show($project, $routeProject = null)
     {
-        $project = $routeProject ?? $project;
-        $studio = Studio::find(tenant('id'));
+        $studio = Studio::with(['users.globalProfile'])->find(tenant('id'));
+        User::resolveStudioMembersLeaveStatus(tenant('id'));
 
         $projectModel = Project::with([
             'tasks.assignee',
@@ -165,7 +166,90 @@ class TenantProjectController extends Controller
             abort(403, 'Unauthorized access. Only assigned members or team leaders can view this project.');
         }
 
-        $teamMembers = $studio ? $studio->users()->get()->map(fn ($u) => ['id' => $u->id, 'name' => $u->name]) : [];
+        $teamMembers = [];
+        if ($studio && $studio->users->isNotEmpty()) {
+            $userIds = $studio->users->pluck('id');
+
+            $assignedTaskRows = Task::query()
+                ->select(['id', 'assigned_user_id', 'status', 'estimated_hours'])
+                ->whereIn('assigned_user_id', $userIds)
+                ->get();
+
+            $assignmentTaskIdsByUser = collect();
+            if (Schema::hasTable('assignments')) {
+                $assignmentTaskIdsByUser = DB::table('assignments')
+                    ->select('employee_user_id', 'task_id')
+                    ->whereIn('employee_user_id', $userIds)
+                    ->where('status', 'active')
+                    ->get()
+                    ->groupBy('employee_user_id')
+                    ->map(fn ($rows) => collect($rows)->pluck('task_id')->unique()->values());
+            }
+
+            $historicalTaskIds = $assignmentTaskIdsByUser->flatten()->filter()->unique()->values();
+            $historicalTaskRows = $historicalTaskIds->isNotEmpty()
+                ? Task::query()
+                    ->select(['id', 'assigned_user_id', 'status', 'estimated_hours'])
+                    ->whereIn('id', $historicalTaskIds)
+                    ->get()
+                : collect();
+
+            $memberTaskRows = $assignedTaskRows->concat($historicalTaskRows)->unique('id')->values();
+            $assignedTasksByUser = $assignedTaskRows->groupBy('assigned_user_id');
+            $activeStatuses = ['todo', 'in_progress', 'review'];
+
+            $teamMembers = $studio->users->map(function ($user) use ($assignedTasksByUser, $assignmentTaskIdsByUser, $memberTaskRows, $activeStatuses) {
+                $maxHoursPerWeek = (int) ($user->globalProfile->max_hours_per_week ?? 40);
+
+                $historicalIds = collect($assignmentTaskIdsByUser->get($user->id, collect()));
+                $historicalTasks = $historicalIds->isNotEmpty()
+                    ? $memberTaskRows->whereIn('id', $historicalIds->all())
+                    : collect();
+
+                $assignedTasks = collect($assignedTasksByUser->get($user->id, collect()));
+                $allUserTasks = $assignedTasks->concat($historicalTasks)->unique('id')->values();
+
+                $activeTasks = $allUserTasks->whereIn('status', $activeStatuses);
+                $reviewTasksCount = $allUserTasks->where('status', 'review')->count();
+                $activeLoadHours = (float) $activeTasks->sum(fn ($t) => (float) ($t->estimated_hours ?? 0));
+
+                $utilizationRate = $maxHoursPerWeek > 0
+                    ? (int) max(0, min(100, round(($activeLoadHours / $maxHoursPerWeek) * 100)))
+                    : 0;
+
+                $revisionRate = $allUserTasks->isNotEmpty()
+                    ? (int) round(($reviewTasksCount / $allUserTasks->count()) * 100)
+                    : 0;
+
+                $healthLabel = 'Healthy';
+                $healthTone = 'success';
+                if ($utilizationRate >= 95 || $revisionRate >= 70) {
+                    $healthLabel = 'At Risk';
+                    $healthTone = 'danger';
+                } elseif ($utilizationRate >= 80 || $revisionRate >= 45) {
+                    $healthLabel = 'Watchlist';
+                    $healthTone = 'warning';
+                }
+
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'working_status' => $user->pivot->working_status ?? 'active',
+                    'leave_start_date' => $user->pivot->leave_start_date ?? null,
+                    'leave_end_date' => $user->pivot->leave_end_date ?? null,
+                    'leave_request_status' => $user->pivot->leave_request_status ?? 'none',
+                    'max_hours_per_week' => $maxHoursPerWeek,
+                    'active_load_hours' => round($activeLoadHours, 1),
+                    'active_tasks_count' => $activeTasks->count(),
+                    'utilization_rate' => $utilizationRate,
+                    'health' => [
+                        'label' => $healthLabel,
+                        'tone' => $healthTone,
+                    ],
+                ];
+            })->values()->all();
+        }
         $membersById = collect($teamMembers)->keyBy('id');
 
         // Users live in the central database while assignments live in the
@@ -180,9 +264,31 @@ class TenantProjectController extends Controller
                 ->groupBy('task_id')
             : collect();
 
-        $projectModel->tasks->each(function (Task $task) use ($assignmentIdsByTask, $membersById): void {
+        $handoverAssignmentsByTask = Schema::hasTable('assignments')
+            ? DB::table('assignments')
+                ->whereIn('task_id', $projectModel->tasks->pluck('id'))
+                ->where('status', 'handed_over')
+                ->orderByDesc('handed_over_at')
+                ->get(['task_id', 'employee_user_id', 'handover_reason', 'handed_over_at', 'handed_over_to_user_id'])
+                ->groupBy('task_id')
+            : collect();
+
+        $projectModel->tasks->each(function (Task $task) use ($assignmentIdsByTask, $handoverAssignmentsByTask, $membersById): void {
             $task->setAttribute('assignees', collect($assignmentIdsByTask->get($task->id, []))
                 ->map(fn ($assignment) => $membersById->get($assignment->employee_user_id))
+                ->filter()
+                ->values()
+                ->all());
+
+            $task->setAttribute('co_contributors', collect($handoverAssignmentsByTask->get($task->id, []))
+                ->map(function ($assignment) use ($membersById) {
+                    $m = $membersById->get($assignment->employee_user_id);
+                    if (! $m) return null;
+                    return array_merge($m, [
+                        'handover_reason' => $assignment->handover_reason,
+                        'handed_over_at' => $assignment->handed_over_at ? Carbon::parse($assignment->handed_over_at)->diffForHumans() : null,
+                    ]);
+                })
                 ->filter()
                 ->values()
                 ->all());
@@ -210,7 +316,7 @@ class TenantProjectController extends Controller
             'epicGroups' => function () use ($projectModel) {
                 return $projectModel->epicGroups()->orderBy('is_default', 'asc')->orderBy('display_order', 'asc')->get();
             },
-            'sprints' => function () use ($projectModel, &$assignmentIdsByTask, &$membersById) {
+            'sprints' => function () use ($projectModel, &$assignmentIdsByTask, &$handoverAssignmentsByTask, &$membersById) {
                 return $projectModel->sprints()
                     ->orderBy('created_at')
                     ->with(['tasks' => function ($q) {
@@ -220,10 +326,23 @@ class TenantProjectController extends Controller
                             'task_classification', 'story_points',
                             'github_link', 'assigned_user_id', 'priority',
                         ])->with('epic:id,name,color');
-                    }])->get()->map(function ($sprint) use (&$assignmentIdsByTask, &$membersById) {
-                        $sprint->tasks->each(function ($task) use (&$assignmentIdsByTask, &$membersById) {
+                    }])->get()->map(function ($sprint) use (&$assignmentIdsByTask, &$handoverAssignmentsByTask, &$membersById) {
+                        $sprint->tasks->each(function ($task) use (&$assignmentIdsByTask, &$handoverAssignmentsByTask, &$membersById) {
                             $task->setAttribute('assignees', collect($assignmentIdsByTask->get($task->id, []))
                                 ->map(fn ($assignment) => $membersById->get($assignment->employee_user_id))
+                                ->filter()
+                                ->values()
+                                ->all());
+
+                            $task->setAttribute('co_contributors', collect($handoverAssignmentsByTask->get($task->id, []))
+                                ->map(function ($assignment) use ($membersById) {
+                                    $m = $membersById->get($assignment->employee_user_id);
+                                    if (! $m) return null;
+                                    return array_merge($m, [
+                                        'handover_reason' => $assignment->handover_reason,
+                                        'handed_over_at' => $assignment->handed_over_at ? Carbon::parse($assignment->handed_over_at)->diffForHumans() : null,
+                                    ]);
+                                })
                                 ->filter()
                                 ->values()
                                 ->all());
@@ -986,7 +1105,7 @@ class TenantProjectController extends Controller
 
         RecomputeProjectSchedule::dispatchSync($projectModel->id);
 
-        if (! $request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
+        if ($request->wantsJson() || (! $request->header('X-Inertia') && $request->ajax())) {
             return response()->json([
                 'status' => 'success',
                 'task' => $taskModel,

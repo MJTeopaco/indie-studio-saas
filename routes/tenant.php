@@ -70,6 +70,10 @@ Route::prefix('/studio/{tenant}')->middleware([
 
     Route::patch('/tasks/{task}/status', [TenantTaskController::class, 'updateStatus'])
         ->name('tenant.tasks.update-status');
+    Route::post('/tasks/{task}/flag-complexity', [TenantTaskController::class, 'flagComplexity'])
+        ->name('tenant.tasks.flag-complexity');
+    Route::post('/tasks/{task}/resolve-complexity', [TenantTaskController::class, 'resolveComplexity'])
+        ->name('tenant.tasks.resolve-complexity');
 
     Route::get('/schedule', [TenantScheduleController::class, 'index'])
         ->name('tenant.schedule');

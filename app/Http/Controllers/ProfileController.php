@@ -541,12 +541,18 @@ class ProfileController extends Controller
         $request->validate([
             'scope' => ['required', 'string', 'in:all,specific'],
             'studio_id' => ['nullable', 'string', 'required_if:scope,specific'],
-            'reason' => ['required', 'string', 'min:15', 'max:500'],
+            'emergency_category' => ['nullable', 'string', 'in:medical,family,bereavement,disaster,other'],
+            'confidential_note' => ['nullable', 'string', 'max:500'],
+            'reason' => ['nullable', 'string', 'max:500'],
             'estimated_return_date' => ['nullable', 'date', 'after_or_equal:today'],
         ]);
 
         $user = $request->user();
-        $reason = $request->reason;
+        $category = $request->input('emergency_category', LeaveRequest::EMERGENCY_CAT_OTHER);
+        $categoryLabels = LeaveRequest::emergencyCategoryLabels();
+        $categoryLabel = $categoryLabels[$category] ?? 'Emergency Absence';
+        $confidentialNote = $request->input('confidential_note') ?: ($request->filled('reason') && $request->input('reason') !== $categoryLabel ? $request->input('reason') : null);
+        $reason = $categoryLabel;
         $returnDate = $request->estimated_return_date;
 
         if ($request->scope === 'specific') {
@@ -578,9 +584,11 @@ class ProfileController extends Controller
                     'user_id' => $user->id,
                     'requester_role' => 'owner',
                     'request_type' => LeaveRequest::TYPE_EMERGENCY,
+                    'emergency_category' => $category,
                     'leave_start_date' => now()->toDateString(),
                     'leave_end_date' => $returnDate,
                     'reason' => $reason,
+                    'confidential_note' => $confidentialNote,
                     'status' => 'approved',
                     'reviewed_by' => $user->id,
                     'reviewed_at' => now(),
@@ -611,9 +619,11 @@ class ProfileController extends Controller
                 'user_id' => $user->id,
                 'requester_role' => $isLeader ? 'leader' : 'member',
                 'request_type' => LeaveRequest::TYPE_EMERGENCY,
+                'emergency_category' => $category,
                 'leave_start_date' => now()->toDateString(),
                 'leave_end_date' => $returnDate,
                 'reason' => $reason,
+                'confidential_note' => $confidentialNote,
                 'status' => 'pending',
             ]);
 
@@ -659,9 +669,11 @@ class ProfileController extends Controller
                     'user_id' => $user->id,
                     'requester_role' => 'owner',
                     'request_type' => LeaveRequest::TYPE_EMERGENCY,
+                    'emergency_category' => $category,
                     'leave_start_date' => now()->toDateString(),
                     'leave_end_date' => $returnDate,
                     'reason' => $reason,
+                    'confidential_note' => $confidentialNote,
                     'status' => 'approved',
                     'reviewed_by' => $user->id,
                     'reviewed_at' => now(),
@@ -682,9 +694,11 @@ class ProfileController extends Controller
                     'user_id' => $user->id,
                     'requester_role' => $isLeader ? 'leader' : 'member',
                     'request_type' => LeaveRequest::TYPE_EMERGENCY,
+                    'emergency_category' => $category,
                     'leave_start_date' => now()->toDateString(),
                     'leave_end_date' => $returnDate,
                     'reason' => $reason,
+                    'confidential_note' => $confidentialNote,
                     'status' => 'pending',
                 ]);
 
@@ -717,50 +731,14 @@ class ProfileController extends Controller
     }
 
     /**
-     * Notify workspace managers/leads that an engineer has resolved an emergency and returned to active.
+     * Handle cleanup when an engineer resolves an emergency and returns to active status.
+     * In accordance with workplace privacy and HR standards, emergency declarations and resolutions
+     * are strictly confidential and NEVER broadcasted into public team chat channels.
+     * Leadership is privately informed via dynamic management notifications in TenantDashboardController.
      */
     protected function notifyEmergencyResolved(User $user, ?string $studioId = null): void
     {
-        try {
-            $studioQuery = DB::table('studio_members')->where('user_id', $user->id);
-            if ($studioId) {
-                $studioQuery->where('studio_id', $studioId);
-            }
-            $memberships = $studioQuery->get();
-
-            foreach ($memberships as $membership) {
-                $studio = Studio::find($membership->studio_id);
-                if (! $studio) {
-                    continue;
-                }
-
-                $leaders = DB::table('studio_members')
-                    ->where('studio_id', $membership->studio_id)
-                    ->whereIn('role', ['owner', 'leader', 'manager'])
-                    ->where('user_id', '!=', $user->id)
-                    ->pluck('user_id')
-                    ->all();
-
-                if (empty($leaders)) {
-                    continue;
-                }
-
-                $studio->run(function () use ($user, $leaders) {
-                    if (Schema::hasTable('channel_messages')) {
-                        ChannelMessage::create([
-                            'channel_id' => 'ch-general',
-                            'user_id' => $user->id,
-                            'sender_name' => 'System Notice',
-                            'sender_role' => 'system',
-                            'body' => "Operational Update: **{$user->name}** has resolved their emergency declaration and returned to the active pool.",
-                            'mentions' => $leaders,
-                        ]);
-                    }
-                });
-            }
-        } catch (\Throwable $e) {
-            // Fail safely without blocking user status update
-        }
+        // Public chat broadcasting disabled for employee privacy.
     }
 
     /**

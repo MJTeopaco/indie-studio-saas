@@ -12,9 +12,53 @@ import {
     ShieldAlert, 
     Send,
     Info,
-    CalendarPlus
+    CalendarPlus,
+    Activity,
+    Users,
+    Heart,
+    Lock,
+    ShieldCheck,
+    AlertTriangle
 } from 'lucide-react';
 import { showToast } from '@/Components/SystemToast';
+
+const EMERGENCY_CATEGORIES = [
+    {
+        id: 'medical',
+        label: 'Medical / Health Emergency',
+        description: 'Sudden illness, medical procedure, or acute healthcare condition',
+        icon: Activity,
+        badge: 'Medical',
+    },
+    {
+        id: 'family',
+        label: 'Family & Dependent Care',
+        description: 'Urgent family crisis, dependent care, or immediate family emergency',
+        icon: Users,
+        badge: 'Family',
+    },
+    {
+        id: 'bereavement',
+        label: 'Bereavement / Compassionate',
+        description: 'Loss of an immediate family member or loved one',
+        icon: Heart,
+        badge: 'Compassionate',
+    },
+    {
+        id: 'disaster',
+        label: 'Disaster / Infrastructure',
+        description: 'Severe weather, power grid blackout, or natural disaster',
+        icon: AlertTriangle,
+        badge: 'Disaster',
+    },
+    {
+        id: 'other',
+        label: 'Other Urgent Operational Emergency',
+        description: 'Other unforeseen acute circumstances preventing work',
+        icon: ShieldAlert,
+        badge: 'Operational',
+    },
+];
 
 export default function FileAbsenceModal({
     isOpen,
@@ -41,7 +85,8 @@ export default function FileAbsenceModal({
     const [leaveReason, setLeaveReason] = useState('');
 
     // Emergency fields
-    const [emergencyReason, setEmergencyReason] = useState('');
+    const [emergencyCategory, setEmergencyCategory] = useState('medical');
+    const [confidentialNote, setConfidentialNote] = useState('');
     const [estimatedReturnDate, setEstimatedReturnDate] = useState('');
 
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -53,7 +98,8 @@ export default function FileAbsenceModal({
             setStartDate(todayStr);
             setEndDate('');
             setLeaveReason('');
-            setEmergencyReason('');
+            setEmergencyCategory('medical');
+            setConfidentialNote('');
             setEstimatedReturnDate('');
         } else {
             document.body.style.overflow = '';
@@ -72,10 +118,6 @@ export default function FileAbsenceModal({
     const isOwner = Boolean(activeStudio?.is_owner || activeStudio?.role === 'owner');
     const isLeader = !isOwner && ['leader', 'manager'].includes(activeStudio?.role);
 
-    // Emergency validation
-    const minChars = 15;
-    const reasonLength = emergencyReason.trim().length;
-    const isEmergencyReasonValid = reasonLength >= minChars;
 
     const handleApplyPreset = (days) => {
         const start = startDate ? new Date(startDate) : new Date();
@@ -132,17 +174,21 @@ export default function FileAbsenceModal({
             });
         } else {
             // Emergency
-            if (!isEmergencyReasonValid) {
-                showToast(`Emergency reason must be at least ${minChars} characters for operational context.`, 'warning');
+            if (!emergencyCategory) {
+                showToast('Please select an emergency category.', 'warning');
                 return;
             }
 
             setIsSubmitting(true);
+            const selectedCatObj = EMERGENCY_CATEGORIES.find(c => c.id === emergencyCategory);
+            const categoryLabel = selectedCatObj ? selectedCatObj.label : 'Emergency Absence';
 
             router.post(route('profile.emergency-status.store'), {
                 scope,
                 studio_id: scope === 'specific' ? studioId : null,
-                reason: emergencyReason.trim(),
+                emergency_category: emergencyCategory,
+                confidential_note: confidentialNote.trim() || null,
+                reason: categoryLabel,
                 estimated_return_date: estimatedReturnDate || null,
             }, {
                 preserveScroll: true,
@@ -467,39 +513,88 @@ export default function FileAbsenceModal({
                     )}
 
                     {/* DYNAMIC FIELDS: EMERGENCY MODE */}
+                    {/* DYNAMIC FIELDS: EMERGENCY MODE */}
                     {!isLeave && (
                         <>
-                            {/* Emergency Reason (Required, min 15 chars) */}
+                            {/* Privacy Notice */}
+                            <div className="p-4 rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/30 flex items-start gap-3 shadow-2xs">
+                                <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                                <div className="space-y-0.5 text-slate-700 dark:text-slate-300 text-xs sm:text-sm">
+                                    <strong className="text-slate-900 dark:text-white block font-bold">
+                                        Standardized Category Privacy Protection
+                                    </strong>
+                                    <span>
+                                        To protect your health and personal privacy, notification feeds and activity logs only display your standardized category label. Any private notes are strictly restricted to leadership.
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Emergency Category Selector */}
+                            <div className="space-y-2.5">
+                                <label className="text-sm font-bold text-slate-900 dark:text-white flex items-center justify-between">
+                                    <span>Emergency Category <span className="text-rose-500">*</span></span>
+                                    <span className="text-xs font-mono font-medium text-slate-500 dark:text-slate-400">Broad classification</span>
+                                </label>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                    {EMERGENCY_CATEGORIES.map((cat) => {
+                                        const IconComponent = cat.icon;
+                                        const isSelected = emergencyCategory === cat.id;
+                                        return (
+                                            <button
+                                                key={cat.id}
+                                                type="button"
+                                                onClick={() => setEmergencyCategory(cat.id)}
+                                                className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
+                                                    isSelected
+                                                        ? 'bg-rose-500/10 border-rose-500 text-slate-900 dark:text-white ring-2 ring-rose-500/40 shadow-xs'
+                                                        : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700'
+                                                }`}
+                                            >
+                                                <div className={`p-2 rounded-xl shrink-0 ${
+                                                    isSelected 
+                                                        ? 'bg-rose-500 text-white' 
+                                                        : 'bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                                }`}>
+                                                    <IconComponent className="w-4 h-4" />
+                                                </div>
+                                                <div className="space-y-0.5">
+                                                    <div className="font-bold text-xs sm:text-sm">
+                                                        {cat.label}
+                                                    </div>
+                                                    <div className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                                                        {cat.description}
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Confidential Note for Leadership (Optional) */}
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
-                                    <label className="text-sm font-bold text-slate-900 dark:text-white">
-                                        Emergency Nature & Context <span className="text-rose-500">*</span>
+                                    <label className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                        <Lock className="w-3.5 h-3.5 text-slate-400" />
+                                        <span>Confidential Note for Leadership</span>
+                                        <span className="text-xs font-normal text-slate-400 dark:text-slate-500">(Optional)</span>
                                     </label>
-                                    <span className={`text-xs font-mono font-bold ${
-                                        isEmergencyReasonValid 
-                                            ? 'text-emerald-600 dark:text-emerald-400' 
-                                            : 'text-amber-600 dark:text-amber-400'
-                                    }`}>
-                                        {reasonLength} / {minChars} min chars
+                                    <span className="text-[11px] font-mono text-slate-400">
+                                        {confidentialNote.length} / 500 chars
                                     </span>
                                 </div>
                                 <textarea
                                     rows={3}
-                                    value={emergencyReason}
-                                    onChange={(e) => setEmergencyReason(e.target.value)}
-                                    placeholder="e.g., Severe power outage in sector, unable to connect until morning..."
-                                    className={`w-full px-4 py-3 text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:ring-1 font-medium ${
-                                        emergencyReason && !isEmergencyReasonValid 
-                                            ? 'border-amber-400 dark:border-amber-500 focus:ring-amber-500' 
-                                            : 'border-slate-300 dark:border-slate-700 focus:ring-rose-500'
-                                    }`}
-                                    required
+                                    maxLength={500}
+                                    value={confidentialNote}
+                                    onChange={(e) => setConfidentialNote(e.target.value)}
+                                    placeholder="Optional private message for leadership/manager review only (e.g. key handoff links or emergency contact info)..."
+                                    className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:ring-1 focus:ring-rose-500 font-medium"
                                 />
-                                {emergencyReason && !isEmergencyReasonValid && (
-                                    <p className="text-xs sm:text-sm font-medium text-amber-700 dark:text-amber-400">
-                                        Please provide at least {minChars - reasonLength} more character{minChars - reasonLength === 1 ? '' : 's'} of actionable context for sprint leads.
-                                    </p>
-                                )}
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                    <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                                    Never published to public dashboards or notifications. Only accessible to the Studio Owner.
+                                </p>
                             </div>
 
                             {/* Estimated Return Date (Optional) */}
@@ -537,7 +632,7 @@ export default function FileAbsenceModal({
 
                         <button
                             type="submit"
-                            disabled={isSubmitting || (!isLeave && !isEmergencyReasonValid)}
+                            disabled={isSubmitting || (!isLeave && !emergencyCategory)}
                             className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-white text-sm font-bold shadow-xs hover:shadow-md disabled:opacity-50 transition-all cursor-pointer ${
                                 isLeave
                                     ? 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800'

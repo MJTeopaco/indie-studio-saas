@@ -407,4 +407,153 @@ class TenantTaskController extends Controller
 
         return substr($cleaned, 0, 3) ?: 'PRJ';
     }
+
+    /**
+     * Flag task complexity issue (Member / Assignee).
+     */
+    public function flagComplexity(Request $request, $task, $routeTask = null)
+    {
+        if ($routeTask !== null) {
+            $task = $routeTask;
+        }
+
+        $taskModel = $task instanceof Task ? $task : Task::findOrFail($task);
+        $user = auth()->user();
+
+        $isManager = false;
+        if ($user && $user->role === User::ROLE_ADMIN) {
+            $isManager = true;
+        } else {
+            $centralConn = config('tenancy.database.central_connection', 'central');
+            if (Schema::connection($centralConn)->hasTable('studio_members')) {
+                $member = DB::connection($centralConn)
+                    ->table('studio_members')
+                    ->where('studio_id', tenant('id'))
+                    ->where('user_id', $user->id)
+                    ->first();
+                $role = $member ? $member->role : 'member';
+                $isManager = in_array($role, ['owner', 'leader', 'manager']);
+            }
+        }
+
+        $isDoer = ((int) $taskModel->assigned_user_id === (int) $user->id);
+        if (Schema::hasTable('assignments')) {
+            $isDoer = $isDoer || DB::table('assignments')
+                ->where('task_id', $taskModel->id)
+                ->where('employee_user_id', $user->id)
+                ->where('status', 'active')
+                ->exists();
+        }
+
+        if (! $isManager && ! $isDoer) {
+            abort(403, 'Unauthorized. Only the assigned member or manager can flag complexity for this task.');
+        }
+
+        $validated = $request->validate([
+            'suggested_story_points' => 'required|integer|in:1,2,3,5,8,13,21,34',
+            'feedback' => 'required|string|min:3|max:1000',
+        ]);
+
+        $taskModel->update([
+            'needs_estimate_review' => true,
+            'suggested_story_points' => $validated['suggested_story_points'],
+            'estimate_review_note' => $validated['feedback'],
+        ]);
+
+        try {
+            $studioId = (string) (tenant('id') ?? $request->route('tenant'));
+            broadcast(new TaskStatusUpdated(
+                $studioId,
+                (int) $taskModel->id,
+                (string) ($taskModel->status ?? ''),
+                $taskModel->toArray()
+            ))->toOthers();
+        } catch (\Throwable $e) {
+            Log::warning('TaskStatusUpdated broadcast failed on flagComplexity: '.$e->getMessage());
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Complexity issue flagged successfully. Manager has been notified.',
+            'task' => $taskModel->load(['assignee', 'reviewer', 'project', 'epic', 'sprint']),
+        ]);
+    }
+
+    /**
+     * Resolve flagged complexity (Manager).
+     */
+    public function resolveComplexity(Request $request, $task, $routeTask = null)
+    {
+        if ($routeTask !== null) {
+            $task = $routeTask;
+        }
+
+        $taskModel = $task instanceof Task ? $task : Task::findOrFail($task);
+        $user = auth()->user();
+
+        $isManager = false;
+        if ($user && $user->role === User::ROLE_ADMIN) {
+            $isManager = true;
+        } else {
+            $centralConn = config('tenancy.database.central_connection', 'central');
+            if (Schema::connection($centralConn)->hasTable('studio_members')) {
+                $member = DB::connection($centralConn)
+                    ->table('studio_members')
+                    ->where('studio_id', tenant('id'))
+                    ->where('user_id', $user->id)
+                    ->first();
+                $role = $member ? $member->role : 'member';
+                $isManager = in_array($role, ['owner', 'leader', 'manager']);
+            }
+        }
+
+        if (! $isManager) {
+            abort(403, 'Unauthorized. Only managers can resolve complexity flags.');
+        }
+
+        $validated = $request->validate([
+            'action' => 'required|string|in:accept,modify,dismiss',
+            'story_points' => 'required_if:action,accept,modify|nullable|integer|in:1,2,3,5,8,13,21,34',
+        ]);
+
+        $updates = [
+            'needs_estimate_review' => false,
+            'suggested_story_points' => null,
+        ];
+
+        if (in_array($validated['action'], ['accept', 'modify']) && ! empty($validated['story_points'])) {
+            $updates['story_points'] = $validated['story_points'];
+            $updates['story_points_locked'] = true;
+        }
+
+        $taskModel->update($updates);
+
+        if (in_array($validated['action'], ['accept', 'modify'])) {
+            try {
+                app(\App\Services\EstimationService::class)->deriveDurationForTask($taskModel);
+            } catch (\Throwable $e) {
+                Log::warning('EstimationService deriveDurationForTask failed on resolveComplexity: '.$e->getMessage());
+            }
+        }
+
+        try {
+            $studioId = (string) (tenant('id') ?? $request->route('tenant'));
+            broadcast(new TaskStatusUpdated(
+                $studioId,
+                (int) $taskModel->id,
+                (string) ($taskModel->status ?? ''),
+                $taskModel->toArray()
+            ))->toOthers();
+        } catch (\Throwable $e) {
+            Log::warning('TaskStatusUpdated broadcast failed on resolveComplexity: '.$e->getMessage());
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => $validated['action'] === 'dismiss'
+                ? 'Complexity flag dismissed.'
+                : 'Task Story Points updated successfully.',
+            'task' => $taskModel->load(['assignee', 'reviewer', 'project', 'epic', 'sprint']),
+        ]);
+    }
 }

@@ -21,6 +21,8 @@ import {
     Send,
     Hash,
     ShieldCheck,
+    ShieldAlert,
+    Lock,
     Plus,
     Trash2,
     X,
@@ -863,9 +865,17 @@ const TYPE_CONFIG = {
         label: 'Leave Request',
         badgeClass: 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/60',
     },
-    estimate_pending: {
-        label: 'Estimation',
-        badgeClass: 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200/80 dark:border-purple-800/60',
+    emergency_declaration: {
+        label: 'Emergency',
+        badgeClass: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/60',
+    },
+    emergency_resolved: {
+        label: 'Active Member',
+        badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60',
+    },
+    task_complexity_flagged: {
+        label: 'Complexity Review',
+        badgeClass: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/60',
     },
     overdue: {
         label: 'Overdue',
@@ -976,6 +986,8 @@ export default function Inbox({
     const [detailModalOpen, setDetailModalOpen] = useState(false);
     const [quickReplyText, setQuickReplyText] = useState('');
     const [quickReplySuccess, setQuickReplySuccess] = useState(false);
+    const [managerAdjustSp, setManagerAdjustSp] = useState(null);
+    const [isResolvingComplexity, setIsResolvingComplexity] = useState(false);
 
     // Leave approval states
     const [leaveActionProcessingId, setLeaveActionProcessingId] = useState(null);
@@ -985,13 +997,13 @@ export default function Inbox({
     // Category count metrics
     const unreadCount = useMemo(() => notificationsList.filter(n => !n.read).length, [notificationsList]);
     const actionRequiredCount = useMemo(() =>
-        notificationsList.filter(n => ['leave_request', 'review_request', 'estimate_pending'].includes(n.type) && !n.read).length,
+        notificationsList.filter(n => ['leave_request', 'emergency_declaration', 'review_request', 'task_complexity_flagged'].includes(n.type) && !n.read).length,
     [notificationsList]);
     const messagesNotifCount = useMemo(() =>
         notificationsList.filter(n => ['direct_message', 'channel_mention'].includes(n.type) && !n.read).length,
     [notificationsList]);
     const alertsNotifCount = useMemo(() =>
-        notificationsList.filter(n => ['overdue', 'stuck'].includes(n.type) && !n.read).length,
+        notificationsList.filter(n => ['overdue', 'stuck', 'emergency_resolved'].includes(n.type) && !n.read).length,
     [notificationsList]);
 
     const handleApproveLeave = (leaveReq) => {
@@ -1005,9 +1017,28 @@ export default function Inbox({
         router.post(route('tenant.team.leave-requests.approve', { tenant: workspaceSlug, id: leaveReq.id }), {}, {
             preserveScroll: true,
             onSuccess: () => {
-                showToast(`Leave request approved for ${leaveReq.user_name}.`, 'success');
+                const isEmergency = leaveReq.request_type === 'emergency';
+                showToast(isEmergency ? `Emergency acknowledged for ${leaveReq.user_name}.` : `Leave request approved for ${leaveReq.user_name}.`, 'success');
                 setApproveModalReq(null);
-                setNotificationsList(prev => prev.filter(n => n.id !== `leave-req-${leaveReq.id}`));
+                setNotificationsList(prev => prev.map(n => {
+                    if (n.id === `leave-req-${leaveReq.id}`) {
+                        return {
+                            ...n,
+                            read: true,
+                            title: isEmergency 
+                                ? `🚨 Emergency Absence: ${leaveReq.user_name}` 
+                                : `🏖️ Leave Approved: ${leaveReq.user_name}`,
+                            icon: isEmergency ? 'ban' : 'check-circle',
+                            color: isEmergency ? 'rose' : 'emerald',
+                            leave_request: {
+                                ...n.leave_request,
+                                status: 'approved',
+                                is_acknowledged: isEmergency,
+                            }
+                        };
+                    }
+                    return n;
+                }));
             },
             onError: (errs) => {
                 const msg = Object.values(errs)[0] || 'Failed to approve leave request.';
@@ -1114,13 +1145,13 @@ export default function Inbox({
             if (onlyUnread && item.read) return false;
 
             if (notifFilter === 'action') {
-                return ['leave_request', 'review_request', 'estimate_pending'].includes(item.type);
+                return ['leave_request', 'emergency_declaration', 'review_request', 'task_complexity_flagged'].includes(item.type);
             }
             if (notifFilter === 'messages') {
                 return ['direct_message', 'channel_mention'].includes(item.type);
             }
             if (notifFilter === 'alerts') {
-                return ['overdue', 'stuck'].includes(item.type);
+                return ['overdue', 'stuck', 'emergency_resolved'].includes(item.type);
             }
             return true;
         });
@@ -1135,6 +1166,12 @@ export default function Inbox({
         if (!activeNotification?.task_id) return null;
         return myTasks.find(t => t.id === activeNotification.task_id) || activeNotification.task || null;
     }, [activeNotification, myTasks]);
+
+    useEffect(() => {
+        if (activeNotification?.type === 'task_complexity_flagged' && activeTask) {
+            setManagerAdjustSp(activeTask.suggested_story_points || activeTask.story_points || 5);
+        }
+    }, [activeNotification?.id, activeTask?.id, activeTask?.suggested_story_points]);
 
     // ── CHANNELS STATE ───────────────────────────────────────────────────────
     const [channels, setChannels] = useState(DEFAULT_CHANNELS);
@@ -1997,7 +2034,6 @@ export default function Inbox({
         markAsRead(notif.id);
     };
 
-    // ── Notification handlers ────────────────────────────────────────────────
     const handleSendQuickReply = () => {
         if (!quickReplyText.trim()) return;
         setQuickReplySuccess(true);
@@ -2006,7 +2042,40 @@ export default function Inbox({
     };
 
     const handleOpenTaskDetail = (task) => { if (!task) return; setSelectedTask(task); setDetailModalOpen(true); };
-    const handleTaskUpdated = () => { if (activeNotification) markAsRead(activeNotification.id); };
+    const handleTaskUpdated = (updatedTask) => {
+        if (activeNotification) markAsRead(activeNotification.id);
+        if (updatedTask) {
+            setNotificationsList(prev => prev.map(n => n.task_id === updatedTask.id ? { ...n, task: { ...n.task, ...updatedTask } } : n));
+        }
+    };
+
+    const handleResolveComplexity = async (action) => {
+        if (!activeTask) return;
+        setIsResolvingComplexity(true);
+        try {
+            const url = route('tenant.tasks.resolve-complexity', {
+                tenant: workspaceSlug,
+                task: activeTask.id,
+            });
+            const chosenSp = action === 'dismiss' ? null : Number(managerAdjustSp || activeTask.suggested_story_points || activeTask.story_points || 5);
+            const res = await axios.post(url, {
+                action,
+                story_points: chosenSp,
+            });
+            showToast(res.data?.message || 'Complexity resolution saved.', 'success');
+            markAsRead(activeNotification.id);
+
+            const updatedTask = res.data?.task;
+            if (updatedTask) {
+                setNotificationsList(prev => prev.map(n => n.id === activeNotification.id ? { ...n, read: true, task: { ...n.task, ...updatedTask } } : n));
+            }
+        } catch (err) {
+            console.error('Failed to resolve complexity', err);
+            showToast(err.response?.data?.message || 'Could not resolve complexity.', 'error');
+        } finally {
+            setIsResolvingComplexity(false);
+        }
+    };
 
     const iconMap = {
         eye: Eye,
@@ -2306,8 +2375,26 @@ export default function Inbox({
                                                                     </span>
                                                                 )}
                                                                 {notif.type === 'leave_request' && notif.leave_request && (
-                                                                    <span className="text-[10px] font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.2 rounded border border-amber-200/60 dark:border-amber-800/40">
-                                                                        {notif.leave_request.calendar_days}d absence
+                                                                    <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded border ${
+                                                                        notif.leave_request.status === 'approved'
+                                                                            ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200/60 dark:border-emerald-800/40'
+                                                                            : 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-200/60 dark:border-amber-800/40'
+                                                                    }`}>
+                                                                        {notif.leave_request.status === 'approved' ? `✓ Approved (${notif.leave_request.calendar_days}d)` : `${notif.leave_request.calendar_days}d absence`}
+                                                                    </span>
+                                                                )}
+                                                                {notif.type === 'emergency_declaration' && notif.leave_request && (
+                                                                    <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded border ${
+                                                                        notif.leave_request.is_resolved
+                                                                            ? 'text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                                                                            : 'text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border-rose-200/60 dark:border-rose-800/40'
+                                                                    }`}>
+                                                                        🚨 {notif.leave_request.is_resolved ? 'Emergency (Concluded)' : (notif.leave_request.is_acknowledged ? 'Reassign Tasks' : (notif.leave_request.emergency_category_label || 'Emergency'))}
+                                                                    </span>
+                                                                )}
+                                                                {notif.type === 'emergency_resolved' && (
+                                                                    <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.2 rounded border border-emerald-200/60 dark:border-emerald-800/40">
+                                                                        ✅ Back Online
                                                                     </span>
                                                                 )}
                                                                 {notif.channel_id && (
@@ -2422,9 +2509,13 @@ export default function Inbox({
                                             </div>
                                         </div>
 
-                                        {/* Leave Request Review Module */}
-                                        {activeNotification.type === 'leave_request' && activeNotification.leave_request && (() => {
+                                        {/* Leave Request & Emergency Declaration Review Module */}
+                                        {['leave_request', 'emergency_declaration', 'emergency_resolved'].includes(activeNotification.type) && activeNotification.leave_request && (() => {
                                             const req = activeNotification.leave_request;
+                                            const isResolvedNotification = activeNotification.type === 'emergency_resolved';
+                                            const isEmergencyDeclaration = activeNotification.type === 'emergency_declaration' || (req.request_type === 'emergency' && !isResolvedNotification);
+                                            const isResolvedReq = !!req.is_resolved;
+                                            const isLeaveApproved = req.status === 'approved';
                                             const isLeaderReq = req.requester_role === 'leader';
                                             const isProcessing = leaveActionProcessingId === req.id;
                                             const hasConflicts = req.conflicting_tasks && req.conflicting_tasks.length > 0;
@@ -2432,13 +2523,31 @@ export default function Inbox({
                                             return (
                                                 <div className="p-5 space-y-4">
                                                     {/* Requester Identity Card */}
-                                                    <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                    <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                                                        isResolvedNotification
+                                                            ? 'bg-emerald-500/5 dark:bg-emerald-950/20 border-emerald-500/30'
+                                                            : isEmergencyDeclaration 
+                                                            ? (isResolvedReq 
+                                                                ? 'bg-slate-500/5 dark:bg-slate-800/40 border-slate-300 dark:border-slate-700' 
+                                                                : 'bg-rose-500/5 dark:bg-rose-950/20 border-rose-500/30') 
+                                                            : isLeaveApproved
+                                                            ? 'bg-emerald-500/5 dark:bg-emerald-950/20 border-emerald-500/30'
+                                                            : 'bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80'
+                                                    }`}>
                                                         <div className="flex items-center gap-3">
                                                             <div className="relative">
                                                                 {req.avatar ? (
                                                                     <img src={req.avatar} alt={req.user_name} className="w-12 h-12 rounded-xl object-cover ring-2 ring-slate-200 dark:ring-slate-700" />
                                                                 ) : (
-                                                                    <div className="w-12 h-12 rounded-xl bg-linear-to-tr from-brand to-indigo-600 text-white font-black text-sm flex items-center justify-center ring-2 ring-slate-200 dark:ring-slate-700">
+                                                                    <div className={`w-12 h-12 rounded-xl text-white font-black text-sm flex items-center justify-center ring-2 ring-slate-200 dark:ring-slate-700 ${
+                                                                        isResolvedNotification
+                                                                            ? 'bg-linear-to-tr from-emerald-600 to-teal-600'
+                                                                            : isEmergencyDeclaration
+                                                                            ? (isResolvedReq ? 'bg-linear-to-tr from-slate-600 to-slate-700' : 'bg-linear-to-tr from-rose-600 to-rose-700')
+                                                                            : isLeaveApproved
+                                                                            ? 'bg-linear-to-tr from-emerald-600 to-teal-600'
+                                                                            : 'bg-linear-to-tr from-brand to-indigo-600'
+                                                                    }`}>
                                                                         {req.user_name.slice(0, 2).toUpperCase()}
                                                                     </div>
                                                                 )}
@@ -2452,8 +2561,24 @@ export default function Inbox({
                                                             <div>
                                                                 <div className="flex items-center gap-2">
                                                                     <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">{req.user_name}</h4>
-                                                                    <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                                                                        {isLeaderReq ? 'Team Leader' : 'Team Member'}
+                                                                    <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
+                                                                        isResolvedNotification
+                                                                            ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
+                                                                            : isEmergencyDeclaration
+                                                                            ? (isResolvedReq
+                                                                                ? 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                                                                : 'bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300')
+                                                                            : isLeaveApproved
+                                                                            ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
+                                                                            : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                                                                    }`}>
+                                                                        {isResolvedNotification 
+                                                                            ? '✅ Active Status Restored' 
+                                                                            : isEmergencyDeclaration 
+                                                                            ? (isResolvedReq ? '🚨 Emergency (Concluded)' : '🚨 Emergency Absence') 
+                                                                            : isLeaveApproved
+                                                                            ? '🏖️ Leave Approved'
+                                                                            : (isLeaderReq ? 'Team Leader' : 'Team Member')}
                                                                     </span>
                                                                 </div>
                                                                 <p className="text-[11px] text-slate-500 mt-0.5">
@@ -2461,92 +2586,296 @@ export default function Inbox({
                                                                 </p>
                                                             </div>
                                                         </div>
+
+                                                        {isResolvedNotification ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="px-2.5 py-1 rounded-md text-[10px] font-mono font-bold uppercase border bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/25">
+                                                                    Back Online
+                                                                </span>
+                                                            </div>
+                                                        ) : isEmergencyDeclaration ? (
+                                                            <div className="flex items-center gap-2">
+                                                                {isResolvedReq ? (
+                                                                    <span className="px-2.5 py-1 rounded-md text-[10px] font-mono font-bold uppercase border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700">
+                                                                        Concluded • Returned
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className={`px-2.5 py-1 rounded-md text-[10px] font-mono font-bold uppercase border ${
+                                                                        req.is_acknowledged || req.status === 'approved'
+                                                                            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/25'
+                                                                            : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/25'
+                                                                    }`}>
+                                                                        {req.is_acknowledged || req.status === 'approved' ? 'Reassignment Pending' : 'Action Needed'}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        ) : isLeaveApproved ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="px-2.5 py-1 rounded-md text-[10px] font-mono font-bold uppercase border bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/25">
+                                                                    Approved
+                                                                </span>
+                                                            </div>
+                                                        ) : null}
                                                     </div>
 
-                                                    {/* Leave Duration & Handover Details */}
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                                                        <div className="p-4 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 space-y-2">
-                                                            <div className="flex items-center justify-between text-xs font-semibold text-amber-900 dark:text-amber-200">
-                                                                <span className="flex items-center gap-1.5">
-                                                                    <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                                                                    Absence Window
+                                                    {/* Leave Duration, Handover, or Back Online Details */}
+                                                    {isResolvedNotification ? (
+                                                        <div className="p-4 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/40 space-y-3">
+                                                            <div className="flex items-center justify-between text-xs font-semibold text-emerald-900 dark:text-emerald-200">
+                                                                <span className="flex items-center gap-1.5 font-bold">
+                                                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                                                                    Member Availability Restored
                                                                 </span>
-                                                                <span className="px-2 py-0.5 rounded-sm text-[10px] font-mono font-bold bg-amber-200/80 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200">
-                                                                    {req.calendar_days} Calendar Day{req.calendar_days === 1 ? '' : 's'}
+                                                                <span className="px-2 py-0.5 rounded-sm text-[10px] font-mono font-bold bg-emerald-200/80 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
+                                                                    {req.resolved_at ? `RETURNED ${req.resolved_at.toUpperCase()}` : 'ACTIVE'}
                                                                 </span>
                                                             </div>
-                                                            <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                                                {req.leave_start_formatted || req.leave_start_date} → {req.leave_end_formatted || req.leave_end_date}
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 space-y-1.5">
-                                                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                                                Handover & Reason
-                                                            </div>
-                                                            <p className="text-xs text-slate-700 dark:text-slate-300 italic line-clamp-3">
-                                                                "{req.reason || 'No specific notes provided.'}"
+                                                            <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+                                                                <strong>{req.user_name}</strong> has resolved their emergency declaration and returned to active working status. Capacity is restored and this member is ready for sprint task assignments.
                                                             </p>
+                                                            <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-emerald-200/60 dark:border-emerald-900/30">
+                                                                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                                    Review projects and sprint workload:
+                                                                </span>
+                                                                <Link
+                                                                    href={route('tenant.projects.index', { tenant: workspaceSlug })}
+                                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-xs"
+                                                                >
+                                                                    <span>View Projects & Sprints</span>
+                                                                    <ArrowRight className="w-3.5 h-3.5" />
+                                                                </Link>
+                                                            </div>
                                                         </div>
-                                                    </div>
-
-                                                    {/* Task Conflict Intelligence */}
-                                                    <div className="space-y-2">
-                                                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                                            Schedule Conflict Analysis
-                                                        </div>
-                                                        {hasConflicts ? (
-                                                            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 space-y-2">
-                                                                <div className="flex items-center gap-2 text-xs font-bold text-amber-800 dark:text-amber-300">
-                                                                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                                                                    <span>
-                                                                        Attention: {req.conflicting_tasks.length} task{req.conflicting_tasks.length === 1 ? '' : 's'} scheduled with deadlines during this absence:
+                                                    ) : isEmergencyDeclaration ? (
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                                            <div className={`p-4 rounded-2xl border space-y-2 ${
+                                                                isResolvedReq 
+                                                                    ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700' 
+                                                                    : 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-200/80 dark:border-rose-900/40'
+                                                            }`}>
+                                                                <div className={`flex items-center justify-between text-xs font-semibold ${
+                                                                    isResolvedReq ? 'text-slate-900 dark:text-slate-200' : 'text-rose-900 dark:text-rose-200'
+                                                                }`}>
+                                                                    <span className="flex items-center gap-1.5">
+                                                                        <ShieldAlert className={`w-3.5 h-3.5 ${isResolvedReq ? 'text-slate-500' : 'text-rose-600 dark:text-rose-400'}`} />
+                                                                        Emergency Classification
+                                                                    </span>
+                                                                    <span className={`px-2 py-0.5 rounded-sm text-[10px] font-mono font-bold ${
+                                                                        isResolvedReq
+                                                                            ? 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200'
+                                                                            : 'bg-rose-200/80 dark:bg-rose-900/60 text-rose-800 dark:text-rose-200'
+                                                                    }`}>
+                                                                        {req.emergency_category ? req.emergency_category.toUpperCase() : 'URGENT'}
                                                                     </span>
                                                                 </div>
-                                                                <div className="space-y-1 pl-6">
-                                                                    {req.conflicting_tasks.map((task) => (
-                                                                        <div key={task.id} className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-rose-500/20 flex items-center justify-between gap-2 text-xs">
-                                                                            <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">{task.title}</span>
-                                                                            <div className="flex items-center gap-2 shrink-0">
-                                                                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-sm uppercase font-bold bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300">
-                                                                                    Due {task.due_date}
-                                                                                </span>
-                                                                            </div>
-                                                                        </div>
-                                                                    ))}
+                                                                <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                                                    {req.emergency_category_label || req.reason || 'Operational Emergency'}
+                                                                </div>
+                                                                <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                                                                    <span>
+                                                                        {req.leave_end_formatted ? `Estimated Return: ${req.leave_end_formatted}` : 'Return date currently unspecified'}
+                                                                    </span>
+                                                                    {isResolvedReq && (
+                                                                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold font-mono text-[10px]">
+                                                                            ✓ Returned {req.resolved_at_formatted || req.resolved_at}
+                                                                        </span>
+                                                                    )}
                                                                 </div>
                                                             </div>
-                                                        ) : (
-                                                            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/50 flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300">
-                                                                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                                                                <span>No deadline conflicts. Assigned tasks are scheduled outside this window.</span>
-                                                            </div>
-                                                        )}
-                                                    </div>
 
-                                                    {/* Approval Footer */}
-                                                    <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2.5">
-                                                        <button
-                                                            type="button"
-                                                            disabled={isProcessing}
-                                                            onClick={() => setDeclineModalReq(req)}
-                                                            className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 hover:text-rose-600 text-xs font-semibold transition-colors disabled:opacity-50"
-                                                        >
-                                                            Decline
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            disabled={isProcessing}
-                                                            onClick={() => handleApproveLeave(req)}
-                                                            className="px-5 py-2.5 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5">
-                                                            {isProcessing ? (
-                                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50 dark:bg-slate-900/40 space-y-1.5">
+                                                                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                                                                    <Lock className="w-3 h-3 text-slate-400" />
+                                                                    <span>Confidential Leadership Note</span>
+                                                                </div>
+                                                                <p className="text-xs text-slate-700 dark:text-slate-300 italic line-clamp-3">
+                                                                    "{req.confidential_note || 'No private note provided for leadership.'}"
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                                            <div className="p-4 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 space-y-2">
+                                                                <div className="flex items-center justify-between text-xs font-semibold text-amber-900 dark:text-amber-200">
+                                                                    <span className="flex items-center gap-1.5">
+                                                                        <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                                                        Absence Window
+                                                                    </span>
+                                                                    <span className="px-2 py-0.5 rounded-sm text-[10px] font-mono font-bold bg-amber-200/80 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200">
+                                                                        {req.calendar_days} Calendar Day{req.calendar_days === 1 ? '' : 's'}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                                                    {req.leave_start_formatted || req.leave_start_date} → {req.leave_end_formatted || req.leave_end_date}
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 space-y-1.5">
+                                                                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                                    Handover & Reason
+                                                                </div>
+                                                                <p className="text-xs text-slate-700 dark:text-slate-300 italic line-clamp-3">
+                                                                    "{req.reason || 'No specific notes provided.'}"
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* In-Flight Tasks & Reassignment Intelligence */}
+                                                    {!isResolvedNotification && (
+                                                        <div className="space-y-2">
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                                    {isEmergencyDeclaration 
+                                                                        ? (isResolvedReq ? 'Tasks During Emergency Window' : 'In-Flight Tasks Requiring Reassignment') 
+                                                                        : 'Schedule Conflict Analysis'}
+                                                                </span>
+                                                                {isEmergencyDeclaration && (
+                                                                    <span className={`text-xs font-mono font-bold ${isResolvedReq ? 'text-slate-500' : 'text-rose-600 dark:text-rose-400'}`}>
+                                                                        {req.conflicting_tasks?.length || 0} active
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {hasConflicts ? (
+                                                                <div className={`p-3.5 rounded-xl border space-y-2.5 ${
+                                                                    isEmergencyDeclaration 
+                                                                        ? (isResolvedReq 
+                                                                            ? 'bg-slate-50 dark:bg-slate-800/30 border-slate-200 dark:border-slate-700/80' 
+                                                                            : 'bg-rose-500/10 dark:bg-rose-950/20 border-rose-500/30') 
+                                                                        : 'bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50'
+                                                                }`}>
+                                                                    <div className={`flex items-center gap-2 text-xs font-bold ${
+                                                                        isEmergencyDeclaration 
+                                                                            ? (isResolvedReq ? 'text-slate-700 dark:text-slate-300' : 'text-rose-800 dark:text-rose-300') 
+                                                                            : 'text-amber-800 dark:text-amber-300'
+                                                                    }`}>
+                                                                        <AlertCircle className={`w-4 h-4 shrink-0 ${
+                                                                            isEmergencyDeclaration 
+                                                                                ? (isResolvedReq ? 'text-slate-500' : 'text-rose-600') 
+                                                                                : 'text-amber-600'
+                                                                        }`} />
+                                                                        <span>
+                                                                            {isEmergencyDeclaration
+                                                                                ? (isResolvedReq
+                                                                                    ? `Emergency Window Impact: ${req.conflicting_tasks.length} task${req.conflicting_tasks.length === 1 ? '' : 's'} were active during this emergency period:`
+                                                                                    : `Sprint Impact: ${req.conflicting_tasks.length} task${req.conflicting_tasks.length === 1 ? '' : 's'} assigned to this member need immediate reassignment:`)
+                                                                                : `Attention: ${req.conflicting_tasks.length} task${req.conflicting_tasks.length === 1 ? '' : 's'} scheduled with deadlines during this absence:`}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="space-y-1.5">
+                                                                        {req.conflicting_tasks.map((task) => (
+                                                                            <div key={task.id} className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2 text-xs">
+                                                                                <div className="min-w-0 space-y-0.5">
+                                                                                    <div className="flex items-center gap-1.5">
+                                                                                        {task.is_critical && (
+                                                                                            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded uppercase font-bold bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30">
+                                                                                                ⚡ Critical Path
+                                                                                            </span>
+                                                                                        )}
+                                                                                        <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">{task.title}</span>
+                                                                                    </div>
+                                                                                    <span className="text-[10px] text-slate-500 font-mono">
+                                                                                        Due {task.due_date} {task.estimated_hours ? `• ${task.estimated_hours}h` : ''}
+                                                                                    </span>
+                                                                                </div>
+                                                                                {task.project_id && (
+                                                                                    <Link
+                                                                                        href={route('tenant.projects.show', {
+                                                                                            tenant: workspaceSlug,
+                                                                                            project: task.project_id,
+                                                                                            view: 'sprint',
+                                                                                            reassign_task_id: task.id,
+                                                                                        })}
+                                                                                        className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors shrink-0 flex items-center gap-1"
+                                                                                    >
+                                                                                        <span>{isResolvedReq ? 'View Task' : 'Reassign'}</span>
+                                                                                        <ArrowRight className="w-3 h-3" />
+                                                                                    </Link>
+                                                                                )}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
                                                             ) : (
-                                                                <Check className="w-3.5 h-3.5" />
+                                                                <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/50 flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300">
+                                                                    <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                                                                    <span>{isEmergencyDeclaration ? (isResolvedReq ? 'No tasks were disrupted during this emergency window.' : 'No in-flight tasks assigned. Sprint velocity intact.') : 'No deadline conflicts. Assigned tasks are scheduled outside this window.'}</span>
+                                                                </div>
                                                             )}
-                                                            <span>Approve Leave Request</span>
-                                                        </button>
-                                                    </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Approval / Acknowledgement / Return Status Footer */}
+                                                    {isResolvedNotification ? (
+                                                        <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 w-full">
+                                                            <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-1.5 rounded-xl border border-emerald-200/80 dark:border-emerald-800/40">
+                                                                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                                                <span>Active Status Restored • Available for Assignments</span>
+                                                            </div>
+                                                            <span className="text-[11px] text-slate-400 font-mono">
+                                                                {req.resolved_at_formatted || (req.resolved_at ? `Resolved ${req.resolved_at}` : 'Active')}
+                                                            </span>
+                                                        </div>
+                                                    ) : isEmergencyDeclaration && isResolvedReq ? (
+                                                        <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 w-full">
+                                                            <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                                                                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                                                <span>Emergency Concluded • Member Back Active</span>
+                                                            </div>
+                                                            <span className="text-[11px] text-slate-400 font-mono">
+                                                                {req.resolved_at_formatted ? `Returned ${req.resolved_at_formatted}` : (req.resolved_at ? `Returned ${req.resolved_at}` : 'Concluded')}
+                                                            </span>
+                                                        </div>
+                                                    ) : isEmergencyDeclaration && (req.is_acknowledged || req.status === 'approved') ? (
+                                                        <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 w-full">
+                                                            <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-1.5 rounded-xl border border-emerald-200/80 dark:border-emerald-800/40">
+                                                                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                                                <span>Emergency Acknowledged • Reassign Tasks</span>
+                                                            </div>
+                                                            <span className="text-[11px] text-slate-400 font-mono">
+                                                                {req.reviewed_at ? `Acknowledged ${req.reviewed_at}` : 'Reassignment pending'}
+                                                            </span>
+                                                        </div>
+                                                    ) : !isEmergencyDeclaration && req.status === 'approved' ? (
+                                                        <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 w-full">
+                                                            <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-1.5 rounded-xl border border-emerald-200/80 dark:border-emerald-800/40">
+                                                                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                                                <span>Leave Request Approved • Schedule Updated</span>
+                                                            </div>
+                                                            <span className="text-[11px] text-slate-400 font-mono">
+                                                                {req.reviewed_at ? `Approved ${req.reviewed_at}` : 'Approved'}
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2.5">
+                                                            <button
+                                                                type="button"
+                                                                disabled={isProcessing}
+                                                                onClick={() => setDeclineModalReq(req)}
+                                                                className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 hover:text-rose-600 text-xs font-semibold transition-colors disabled:opacity-50"
+                                                            >
+                                                                {isEmergencyDeclaration ? 'Decline Declaration' : 'Decline'}
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                disabled={isProcessing}
+                                                                onClick={() => handleApproveLeave(req)}
+                                                                className={`px-5 py-2.5 rounded-xl text-white text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5 ${
+                                                                    isEmergencyDeclaration 
+                                                                        ? 'bg-linear-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800' 
+                                                                        : 'bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700'
+                                                                }`}>
+                                                                {isProcessing ? (
+                                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                                ) : isEmergencyDeclaration ? (
+                                                                    <ShieldAlert className="w-3.5 h-3.5" />
+                                                                ) : (
+                                                                    <Check className="w-3.5 h-3.5" />
+                                                                )}
+                                                                <span>{isEmergencyDeclaration ? 'Acknowledge Emergency' : 'Approve Leave Request'}</span>
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })()}
@@ -2576,28 +2905,95 @@ export default function Inbox({
                                             </div>
                                         )}
 
-                                        {/* Estimate Pending Voting Module */}
-                                        {activeNotification.type === 'estimate_pending' && !activeTask && (
+                                        {/* Complexity Flagged Review Module for Manager */}
+                                        {activeNotification.type === 'task_complexity_flagged' && activeTask && (
                                             <div className="p-5 space-y-3">
                                                 <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                                    Sprint Planning Action
+                                                    Complexity Issue Review
                                                 </div>
-                                                <div className="p-4 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/50 dark:bg-amber-950/20 space-y-3">
-                                                    <div className="flex items-center gap-2 text-xs font-bold text-amber-900 dark:text-amber-200">
-                                                        <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                                                        <span>Story Point Voting Required</span>
+                                                <div className="p-4 rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/60 dark:bg-amber-950/20 space-y-3.5">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300">
+                                                                <AlertTriangle className="w-4 h-4" />
+                                                            </span>
+                                                            <span className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                                                                Member Flagged Complexity
+                                                            </span>
+                                                        </div>
+                                                        <span className="px-2.5 py-0.5 rounded text-[11px] font-mono font-bold bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200">
+                                                            Proposed: {activeTask.suggested_story_points ?? '—'} SP
+                                                        </span>
                                                     </div>
-                                                    <p className="text-xs text-slate-600 dark:text-slate-300">
-                                                        {activeNotification.body}
-                                                    </p>
-                                                    <Link
-                                                        href={`/studio/${workspaceSlug}/estimates/pending`}
-                                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-colors shadow-2xs"
-                                                    >
-                                                        <Sparkles className="w-3.5 h-3.5" />
-                                                        <span>Open Fibonacci Estimation Queue</span>
-                                                        <ArrowRight className="w-3.5 h-3.5" />
-                                                    </Link>
+
+                                                    <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/70 border border-amber-200/60 dark:border-amber-900/40 text-xs text-slate-700 dark:text-slate-300 space-y-1">
+                                                        <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                                                            <span>Note from {activeTask.assignee || 'Assigned Member'}:</span>
+                                                            <span className="font-mono">Current: {activeTask.story_points ?? 0} SP</span>
+                                                        </div>
+                                                        <p className="italic leading-relaxed">
+                                                            "{activeTask.estimate_review_note || 'No comment provided.'}"
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                                                            <span>Decide Final Story Points:</span>
+                                                            <span className="font-mono text-amber-600 dark:text-amber-400 font-bold">
+                                                                {managerAdjustSp ?? activeTask.suggested_story_points ?? activeTask.story_points} SP
+                                                            </span>
+                                                        </label>
+                                                        <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
+                                                            {[1, 2, 3, 5, 8, 13, 21, 34].map(val => (
+                                                                <button
+                                                                    key={val}
+                                                                    type="button"
+                                                                    onClick={() => setManagerAdjustSp(val)}
+                                                                    className={`py-1.5 rounded-lg font-mono text-xs font-bold border transition-all cursor-pointer ${
+                                                                        (managerAdjustSp ?? activeTask.suggested_story_points ?? activeTask.story_points) === val
+                                                                            ? 'bg-amber-500 text-white border-amber-600 shadow-xs ring-1 ring-amber-400'
+                                                                            : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-amber-400'
+                                                                    }`}
+                                                                >
+                                                                    {val}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="pt-2 border-t border-amber-200/60 dark:border-amber-900/40 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleOpenTaskDetail(activeTask)}
+                                                            className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1"
+                                                        >
+                                                            <Eye className="w-3.5 h-3.5" />
+                                                            <span>Open Full Task</span>
+                                                        </button>
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                type="button"
+                                                                disabled={isResolvingComplexity}
+                                                                onClick={() => handleResolveComplexity('dismiss')}
+                                                                className="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                                                            >
+                                                                Dismiss Flag
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                disabled={isResolvingComplexity}
+                                                                onClick={() => handleResolveComplexity('accept')}
+                                                                className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                                                            >
+                                                                {isResolvingComplexity ? (
+                                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                                ) : (
+                                                                    <Check className="w-3.5 h-3.5" />
+                                                                )}
+                                                                <span>Update to {managerAdjustSp ?? activeTask.suggested_story_points ?? activeTask.story_points} SP</span>
+                                                            </button>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         )}
@@ -2642,17 +3038,11 @@ export default function Inbox({
                                                         <button
                                                             type="button"
                                                             onClick={() => handleOpenTaskDetail(activeTask)}
-                                                            className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:opacity-90 transition-opacity flex items-center gap-1.5"
+                                                            className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:opacity-90 transition-opacity flex items-center gap-1.5 cursor-pointer"
                                                         >
                                                             <Eye className="w-3.5 h-3.5" />
                                                             <span>Open Full Task Details</span>
                                                         </button>
-                                                        {activeNotification.type === 'estimate_pending' && (
-                                                            <Link href={`/studio/${activeWorkspace}/estimates/pending`}
-                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 text-white hover:bg-amber-600 transition-colors shadow-2xs">
-                                                                <Sparkles className="w-3.5 h-3.5" /><span>Vote Story Points Now</span>
-                                                            </Link>
-                                                        )}
                                                     </div>
                                                 </div>
                                                 <div className="pt-2">

@@ -20,6 +20,7 @@ import {
     ExternalLink,
 } from 'lucide-react';
 import axios from 'axios';
+import FlagComplexityModal from './FlagComplexityModal';
 
 /**
  * Status chip — compact colored badge.
@@ -85,18 +86,19 @@ function ConfirmDialog({ isOpen, title, message, confirmLabel, confirmColor = 'b
 }
 
 export default function MemberTaskDetailModal({ isOpen, onClose, task, tenantId, currentUserId, onTaskUpdated }) {
-    if (!isOpen || !task) return null;
-
+    const [currentTask, setCurrentTask] = useState(task);
     const [actualSp, setActualSp] = useState(task.actual_story_points ?? '');
     const [githubLink, setGithubLink] = useState(task.github_link || '');
     const [isSaving, setIsSaving] = useState(false);
     const [errorMsg, setErrorMsg] = useState(null);
+    const [isFlagModalOpen, setIsFlagModalOpen] = useState(false);
 
     // Confirmation dialog state
     const [confirm, setConfirm] = useState(null); // { action, label, color, message }
 
     useEffect(() => {
         if (task) {
+            setCurrentTask(task);
             setActualSp(task.actual_story_points ?? '');
             setGithubLink(task.github_link || '');
             setErrorMsg(null);
@@ -104,7 +106,9 @@ export default function MemberTaskDetailModal({ isOpen, onClose, task, tenantId,
         }
     }, [task]);
 
-    const currentStatus = task.status || 'todo';
+    if (!isOpen || !task) return null;
+
+    const currentStatus = (currentTask || task).status || 'todo';
     const hasReviewer = !!task.reviewer_user_id;
     const isDoer = currentUserId && (
         Number(task.assigned_user_id) === Number(currentUserId)
@@ -196,13 +200,6 @@ export default function MemberTaskDetailModal({ isOpen, onClose, task, tenantId,
                             <CheckCheck className="w-3.5 h-3.5" /> Mark as Done
                         </button>
                     )}
-                    <button
-                        type="button"
-                        onClick={() => setConfirm({ action: 'stuck', label: 'Mark as Stuck', color: 'rose', message: `Do you really want to mark the task "${task.title}" as stuck?` })}
-                        className={`${btnBase} bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:hover:bg-rose-950`}
-                    >
-                        <AlertTriangle className="w-3.5 h-3.5" /> Mark as Blocked
-                    </button>
                 </div>
             );
         }
@@ -421,21 +418,32 @@ export default function MemberTaskDetailModal({ isOpen, onClose, task, tenantId,
                         </div>
 
                         {/* Flag Complexity (UX Escape Hatch) */}
-                        <div className="p-4 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 space-y-1.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                            <div>
-                                <label className="block text-xs font-bold text-amber-800 dark:text-amber-300">
-                                    Flag Complexity Issue
-                                </label>
-                                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">
-                                    Is this task harder than {task.story_points} SP?
+                        <div className="p-4 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 space-y-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                            <div className="space-y-0.5">
+                                <div className="flex items-center gap-2">
+                                    <label className="block text-xs font-bold text-amber-800 dark:text-amber-300">
+                                        Flag Complexity Issue
+                                    </label>
+                                    {currentTask.needs_estimate_review && (
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200">
+                                            Awaiting Review
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                                    {currentTask.needs_estimate_review
+                                        ? `Proposed: ${currentTask.suggested_story_points ?? '—'} SP (Current: ${currentTask.story_points ?? '0'} SP) • Note: "${currentTask.estimate_review_note || ''}"`
+                                        : `Is this task harder than ${currentTask.story_points ?? 0} SP?`}
                                 </p>
                             </div>
-                            <Link
-                                href={`/studio/${tenantId}/inbox?channel=ch-sprint&message=${encodeURIComponent(`Hi, I'm flagging complexity for task #${task.id} "${task.title}". The original estimate of ${task.story_points} SP seems too low because `)}`}
-                                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors shrink-0 whitespace-nowrap"
+                            <button
+                                type="button"
+                                onClick={() => setIsFlagModalOpen(true)}
+                                className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors shrink-0 whitespace-nowrap cursor-pointer flex items-center gap-1.5 shadow-2xs"
                             >
-                                Notify Manager
-                            </Link>
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                <span>{currentTask.needs_estimate_review ? 'Update Flag' : 'Notify Manager'}</span>
+                            </button>
                         </div>
 
                         {/* Action Buttons */}
@@ -467,6 +475,18 @@ export default function MemberTaskDetailModal({ isOpen, onClose, task, tenantId,
                     </div>
                 </div>
             </div>
+
+            {/* Flag Complexity Pop-up Modal */}
+            <FlagComplexityModal
+                isOpen={isFlagModalOpen}
+                onClose={() => setIsFlagModalOpen(false)}
+                task={currentTask}
+                tenantId={tenantId}
+                onComplexityFlagged={(updatedTask) => {
+                    setCurrentTask(updatedTask);
+                    if (onTaskUpdated) onTaskUpdated(updatedTask);
+                }}
+            />
 
             {/* Confirmation overlay */}
             <ConfirmDialog

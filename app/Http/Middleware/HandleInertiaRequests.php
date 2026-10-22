@@ -127,33 +127,7 @@ class HandleInertiaRequests extends Middleware
             },
 
             // Share pending estimates count for the current user
-            'pendingEstimatesCount' => function () use ($request) {
-                if (! tenant() || ! $request->user()) {
-                    return 0;
-                }
-                try {
-                    $user = $request->user();
-
-                    return Task::where('story_points_locked', false)
-                        ->where('needs_estimate_review', false)
-                        ->get()
-                        ->filter(function ($task) use ($user) {
-                            if (empty($task->expected_estimators)) {
-                                return $task->assigned_user_id === $user->id;
-                            }
-
-                            return in_array($user->id, $task->expected_estimators);
-                        })
-                        ->filter(function ($task) use ($user) {
-                            return ! TaskEstimateSubmission::where('task_id', $task->id)
-                                ->where('developer_id', $user->id)
-                                ->exists();
-                        })
-                        ->count();
-                } catch (\Exception $e) {
-                    return 0;
-                }
-            },
+            'pendingEstimatesCount' => fn () => 0,
 
             // Share total inbox/notification count (reviews pending + unstarted tasks)
             'inboxNotificationCount' => function () use ($request) {
@@ -318,30 +292,14 @@ class HandleInertiaRequests extends Middleware
                 }
             }
 
-            // Pending estimates bundle notification
-            $pendingEstimatesNotif = 0;
-            if (empty($readSet['estimates-pending'])) {
+            // Flagged complexity tasks notification for manager
+            $flaggedTasksCount = 0;
+            if ($isLeaderOrOwner) {
                 try {
-                    $hasPending = Task::where('story_points_locked', false)
-                        ->where('needs_estimate_review', false)
+                    $flaggedTasksCount = Task::where('needs_estimate_review', true)
                         ->get()
-                        ->contains(function ($task) use ($user) {
-                            $isEstimator = empty($task->expected_estimators)
-                                ? $task->assigned_user_id === $user->id
-                                : in_array($user->id, $task->expected_estimators);
-
-                            if (! $isEstimator) {
-                                return false;
-                            }
-
-                            return ! TaskEstimateSubmission::where('task_id', $task->id)
-                                ->where('developer_id', $user->id)
-                                ->exists();
-                        });
-
-                    if ($hasPending) {
-                        $pendingEstimatesNotif = 1;
-                    }
+                        ->filter(fn ($t) => empty($readSet["task-{$t->id}-complexity_flagged"]))
+                        ->count();
                 } catch (\Exception $e) {
                 }
             }
@@ -389,9 +347,10 @@ class HandleInertiaRequests extends Middleware
             }
 
             $pendingLeaveCount = 0;
-            if (Schema::hasTable('leave_requests')) {
+            $centralConnection = config('tenancy.database.central_connection', 'central');
+            if (Schema::connection($centralConnection)->hasTable('leave_requests')) {
                 try {
-                    $currentUserMember = DB::connection(config('tenancy.database.central_connection', 'central'))
+                    $currentUserMember = DB::connection($centralConnection)
                         ->table('studio_members')
                         ->where('studio_id', tenant('id'))
                         ->where('user_id', $user->id)
@@ -402,22 +361,37 @@ class HandleInertiaRequests extends Middleware
 
                     if ($isOwner || in_array($currentUserRole, ['leader', 'manager'])) {
                         $leaveQuery = LeaveRequest::where('studio_id', tenant('id'))
-                            ->where('status', 'pending');
+                            ->where(function ($q) {
+                                $q->where('status', 'pending')
+                                    ->orWhere(function ($eq) {
+                                        $eq->where('request_type', LeaveRequest::TYPE_EMERGENCY)
+                                            ->where('status', 'approved')
+                                            ->whereNotNull('resolved_at')
+                                            ->where('resolved_at', '>=', now()->subDays(14));
+                                    });
+                            });
 
                         if (! $isOwner) {
                             $leaveQuery->where('requester_role', 'member')
                                 ->where('user_id', '!=', $user->id);
                         }
 
-                        $pendingLeaveCount = $leaveQuery->pluck('id')
-                            ->filter(fn ($id) => empty($readSet["leave-req-{$id}"]))
-                            ->count();
+                        $pendingLeaveCount = 0;
+                        $leaveItems = $leaveQuery->get(['id', 'status', 'resolved_at']);
+                        foreach ($leaveItems as $item) {
+                            if ($item->status === 'pending' && empty($readSet["leave-req-{$item->id}"])) {
+                                $pendingLeaveCount++;
+                            }
+                            if (! empty($item->resolved_at) && empty($readSet["leave-req-{$item->id}-resolved"])) {
+                                $pendingLeaveCount++;
+                            }
+                        }
                     }
                 } catch (\Exception $e) {
                 }
             }
 
-            $notificationsCount = $reviewTasksCount + $unstartedTasksCount + $pendingLeaveCount + $alertTasksCount + $pendingEstimatesNotif;
+            $notificationsCount = $reviewTasksCount + $unstartedTasksCount + $pendingLeaveCount + $alertTasksCount + $flaggedTasksCount;
 
             return [
                 'notifications' => $notificationsCount,
