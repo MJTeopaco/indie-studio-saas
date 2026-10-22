@@ -200,13 +200,6 @@ export default function MemberTaskDetailModal({ isOpen, onClose, task, tenantId,
                             <CheckCheck className="w-3.5 h-3.5" /> Mark as Done
                         </button>
                     )}
-                    <button
-                        type="button"
-                        onClick={() => setConfirm({ action: 'stuck', label: 'Mark as Stuck', color: 'rose', message: `Do you really want to mark the task "${task.title}" as stuck?` })}
-                        className={`${btnBase} bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:hover:bg-rose-950`}
-                    >
-                        <AlertTriangle className="w-3.5 h-3.5" /> Mark as Blocked
-                    </button>
                 </div>
             );
         }
