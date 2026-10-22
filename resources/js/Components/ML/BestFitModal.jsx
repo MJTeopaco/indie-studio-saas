@@ -3,7 +3,7 @@ import axios from 'axios';
 import { router } from '@inertiajs/react';
 import {
     X, Cpu, Loader2, Trophy, ArrowRight,
-    CheckCircle2, Brain, Sparkles, AlertCircle, User, Activity
+    CheckCircle2, Brain, Sparkles, AlertCircle, User, Activity, Ban
 } from 'lucide-react';
 
 // ─── Animated loading state for BestFit GNN + LLM inference ─────────────────
@@ -113,10 +113,17 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
             setCandidates([]);
             setExplanation(null);
             setError(null);
-            // Preserve every existing assignment, not only the primary assignee.
+            // Preserve existing assignments, but exclude any member currently in emergency
+            const emergencyMemberIds = new Set(
+                (teamMembers ?? [])
+                    .filter(m => m.working_status === 'emergency')
+                    .map(m => Number(m.id))
+            );
+
             const existingIds = new Set((task.assignees?.length ? task.assignees : [task.assignee])
                 .filter(Boolean)
-                .map(member => Number(member.id)));
+                .map(member => Number(member.id))
+                .filter(id => !emergencyMemberIds.has(id)));
             setAssignedUserIds(existingIds);
             setCurrentPage(1);
             fetchBestFit();
@@ -151,9 +158,15 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
     };
 
     const toggleAssign = (candidateId) => {
+        const id = Number(candidateId);
+        const candidate = candidates.find(c => Number(c.user_id) === id);
+        const workingStatus = candidate ? getCandidateWorkingStatus(candidate) : null;
+        if (workingStatus === 'emergency') {
+            return; // Candidate is in emergency, picking disabled
+        }
+
         setAssignedUserIds(prev => {
             const next = new Set(prev);
-            const id = Number(candidateId);
             if (next.has(id)) {
                 next.delete(id);
             } else {
@@ -280,6 +293,7 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
                                             const health = getCandidateHealth(candidate);
                                             const utilizationRate = getCandidateUtil(candidate);
                                             const workingStatus = getCandidateWorkingStatus(candidate);
+                                            const isEmergency = workingStatus === 'emergency';
                                             const isUnavailable = ['on_leave', 'emergency'].includes(workingStatus);
 
                                             const healthBadgeClasses = health.label === 'At Risk'
@@ -297,23 +311,25 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
                                             return (
                                                 <div
                                                     key={originalIdx}
-                                                    className={`flex items-center gap-4 p-4 rounded-xl border transition-colors cursor-pointer ${
-                                                        isSelected
-                                                            ? 'border-emerald-500/50 bg-emerald-50/50 dark:bg-emerald-900/10'
-                                                            : 'border-gray-200 dark:border-slate-700 hover:border-brand/40 bg-white dark:bg-slate-800/50'
+                                                    className={`flex items-center gap-4 p-4 rounded-xl border transition-colors ${
+                                                        isEmergency
+                                                            ? 'border-dashed border-rose-300 dark:border-rose-900/60 bg-rose-50/20 dark:bg-rose-950/20 opacity-75 cursor-not-allowed'
+                                                            : isSelected
+                                                            ? 'border-emerald-500/50 bg-emerald-50/50 dark:bg-emerald-900/10 cursor-pointer'
+                                                            : 'border-gray-200 dark:border-slate-700 hover:border-brand/40 bg-white dark:bg-slate-800/50 cursor-pointer'
                                                     }`}
-                                                    onClick={() => toggleAssign(candidate.user_id)}
+                                                    onClick={isEmergency ? undefined : () => toggleAssign(candidate.user_id)}
                                                 >
                                                     {/* Rank badge */}
                                                     <div className={`w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center shrink-0 ${
-                                                        originalIdx === 0 ? 'bg-amber-400/20 text-amber-600' : 'bg-gray-100 dark:bg-slate-700 text-gray-400'
+                                                        isEmergency ? 'bg-rose-100 dark:bg-rose-950/40 text-rose-500' : originalIdx === 0 ? 'bg-amber-400/20 text-amber-600' : 'bg-gray-100 dark:bg-slate-700 text-gray-400'
                                                     }`}>
                                                         {originalIdx + 1}
                                                     </div>
 
                                                     {/* Avatar */}
                                                     <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-white shrink-0 ${
-                                                        isSelected ? 'bg-emerald-500' : 'bg-linear-to-br from-brand to-brand-dark shadow-xs'
+                                                        isEmergency ? 'bg-slate-400 dark:bg-slate-700' : isSelected ? 'bg-emerald-500' : 'bg-linear-to-br from-brand to-brand-dark shadow-xs'
                                                     }`}>
                                                         {isSelected ? <CheckCircle2 className="w-5 h-5" /> : getMemberInitial(candidate.user_id)}
                                                     </div>
@@ -321,13 +337,18 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
                                                     {/* Info */}
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center justify-between gap-2 mb-1.5">
-                                                            <p className="text-sm font-bold text-gray-900 dark:text-slate-100 truncate">
+                                                            <p className={`text-sm font-bold truncate ${isEmergency ? 'text-gray-600 dark:text-slate-400' : 'text-gray-900 dark:text-slate-100'}`}>
                                                                 {getMemberName(candidate.user_id)}
                                                             </p>
                                                             <div className="flex items-center gap-1.5 shrink-0">
-                                                                {isUnavailable ? (
-                                                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800">
-                                                                        {workingStatus === 'on_leave' ? 'On Leave' : 'Emergency'}
+                                                                {isEmergency ? (
+                                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-rose-100 text-rose-700 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800 flex items-center gap-1 shadow-2xs">
+                                                                        <span>🚨</span>
+                                                                        <span>Emergency Absence</span>
+                                                                    </span>
+                                                                ) : isUnavailable ? (
+                                                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800">
+                                                                        On Leave
                                                                     </span>
                                                                 ) : (
                                                                     <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${healthBadgeClasses}`}>
@@ -345,14 +366,28 @@ export default function BestFitModal({ isOpen, onClose, task, teamMembers, tenan
                                                             multiplier={candidate.capacity_multiplier}
                                                             penaltyReason={candidate.capacity_penalty_reason}
                                                         />
+                                                        {isEmergency && (
+                                                            <p className="text-[10px] font-medium text-rose-600 dark:text-rose-400 mt-1">
+                                                                Unavailable for assignment due to emergency absence
+                                                            </p>
+                                                        )}
                                                     </div>
 
-                                                    {/* Checkbox proxy */}
-                                                    <div className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition-colors ${
-                                                        isSelected ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-gray-300 dark:border-slate-600'
-                                                    }`}>
-                                                        {isSelected && <CheckCircle2 className="w-3.5 h-3.5" />}
-                                                    </div>
+                                                    {/* Checkbox proxy / Ban indicator */}
+                                                    {isEmergency ? (
+                                                        <div 
+                                                            className="w-5 h-5 rounded-md border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 flex items-center justify-center shrink-0 cursor-not-allowed"
+                                                            title="Cannot assign - declared emergency absence"
+                                                        >
+                                                            <Ban className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
+                                                        </div>
+                                                    ) : (
+                                                        <div className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition-colors ${
+                                                            isSelected ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-gray-300 dark:border-slate-600'
+                                                        }`}>
+                                                            {isSelected && <CheckCircle2 className="w-3.5 h-3.5" />}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })}

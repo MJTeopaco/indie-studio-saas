@@ -1011,9 +1011,28 @@ export default function Inbox({
         router.post(route('tenant.team.leave-requests.approve', { tenant: workspaceSlug, id: leaveReq.id }), {}, {
             preserveScroll: true,
             onSuccess: () => {
-                showToast(`Leave request approved for ${leaveReq.user_name}.`, 'success');
+                const isEmergency = leaveReq.request_type === 'emergency';
+                showToast(isEmergency ? `Emergency acknowledged for ${leaveReq.user_name}.` : `Leave request approved for ${leaveReq.user_name}.`, 'success');
                 setApproveModalReq(null);
-                setNotificationsList(prev => prev.filter(n => n.id !== `leave-req-${leaveReq.id}`));
+                if (isEmergency) {
+                    setNotificationsList(prev => prev.map(n => {
+                        if (n.id === `leave-req-${leaveReq.id}`) {
+                            return {
+                                ...n,
+                                read: true,
+                                title: `🚨 Emergency (In Triage): ${leaveReq.user_name}`,
+                                leave_request: {
+                                    ...n.leave_request,
+                                    status: 'approved',
+                                    is_acknowledged: true,
+                                }
+                            };
+                        }
+                        return n;
+                    }));
+                } else {
+                    setNotificationsList(prev => prev.filter(n => n.id !== `leave-req-${leaveReq.id}`));
+                }
             },
             onError: (errs) => {
                 const msg = Object.values(errs)[0] || 'Failed to approve leave request.';
@@ -2318,7 +2337,7 @@ export default function Inbox({
                                                                 )}
                                                                 {notif.type === 'emergency_declaration' && notif.leave_request && (
                                                                     <span className="text-[10px] font-medium text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.2 rounded border border-rose-200/60 dark:border-rose-800/40">
-                                                                        🚨 {notif.leave_request.emergency_category_label || 'Emergency'}
+                                                                        🚨 {notif.leave_request.is_acknowledged ? 'In Triage' : (notif.leave_request.emergency_category_label || 'Emergency')}
                                                                     </span>
                                                                 )}
                                                                 {notif.channel_id && (
@@ -2486,8 +2505,12 @@ export default function Inbox({
 
                                                         {isEmergency && (
                                                             <div className="flex items-center gap-2">
-                                                                <span className="px-2.5 py-1 rounded-md text-[10px] font-mono font-bold uppercase bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/25">
-                                                                    Urgent Triage
+                                                                <span className={`px-2.5 py-1 rounded-md text-[10px] font-mono font-bold uppercase border ${
+                                                                    req.is_acknowledged || req.status === 'approved'
+                                                                        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/25'
+                                                                        : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/25'
+                                                                }`}>
+                                                                    {req.is_acknowledged || req.status === 'approved' ? 'Triage In Progress' : 'Urgent Triage'}
                                                                 </span>
                                                             </div>
                                                         )}
@@ -2597,13 +2620,18 @@ export default function Inbox({
                                                                                 </span>
                                                                             </div>
                                                                             {task.project_id && (
-                                                                                <a
-                                                                                    href={route('tenant.projects.show', { tenant: workspaceSlug, project: task.project_id })}
+                                                                                <Link
+                                                                                    href={route('tenant.projects.show', {
+                                                                                        tenant: workspaceSlug,
+                                                                                        project: task.project_id,
+                                                                                        view: 'sprint',
+                                                                                        reassign_task_id: task.id,
+                                                                                    })}
                                                                                     className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors shrink-0 flex items-center gap-1"
                                                                                 >
                                                                                     <span>Reassign</span>
                                                                                     <ArrowRight className="w-3 h-3" />
-                                                                                </a>
+                                                                                </Link>
                                                                             )}
                                                                         </div>
                                                                     ))}
@@ -2618,34 +2646,46 @@ export default function Inbox({
                                                     </div>
 
                                                     {/* Approval / Acknowledgement Footer */}
-                                                    <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2.5">
-                                                        <button
-                                                            type="button"
-                                                            disabled={isProcessing}
-                                                            onClick={() => setDeclineModalReq(req)}
-                                                            className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 hover:text-rose-600 text-xs font-semibold transition-colors disabled:opacity-50"
-                                                        >
-                                                            {isEmergency ? 'Decline Declaration' : 'Decline'}
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            disabled={isProcessing}
-                                                            onClick={() => handleApproveLeave(req)}
-                                                            className={`px-5 py-2.5 rounded-xl text-white text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5 ${
-                                                                isEmergency 
-                                                                    ? 'bg-linear-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800' 
-                                                                    : 'bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700'
-                                                            }`}>
-                                                            {isProcessing ? (
-                                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                            ) : isEmergency ? (
-                                                                <ShieldAlert className="w-3.5 h-3.5" />
-                                                            ) : (
-                                                                <Check className="w-3.5 h-3.5" />
-                                                            )}
-                                                            <span>{isEmergency ? 'Acknowledge Emergency & Triage' : 'Approve Leave Request'}</span>
-                                                        </button>
-                                                    </div>
+                                                    {req.is_acknowledged || req.status === 'approved' ? (
+                                                        <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 w-full">
+                                                            <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-1.5 rounded-xl border border-emerald-200/80 dark:border-emerald-800/40">
+                                                                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                                                <span>Emergency Acknowledged • Triage Active</span>
+                                                            </div>
+                                                            <span className="text-[11px] text-slate-400 font-mono">
+                                                                {req.reviewed_at ? `Acknowledged ${req.reviewed_at}` : 'In active triage'}
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2.5">
+                                                            <button
+                                                                type="button"
+                                                                disabled={isProcessing}
+                                                                onClick={() => setDeclineModalReq(req)}
+                                                                className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 hover:text-rose-600 text-xs font-semibold transition-colors disabled:opacity-50"
+                                                            >
+                                                                {isEmergency ? 'Decline Declaration' : 'Decline'}
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                disabled={isProcessing}
+                                                                onClick={() => handleApproveLeave(req)}
+                                                                className={`px-5 py-2.5 rounded-xl text-white text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5 ${
+                                                                    isEmergency 
+                                                                        ? 'bg-linear-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800' 
+                                                                        : 'bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700'
+                                                                }`}>
+                                                                {isProcessing ? (
+                                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                                ) : isEmergency ? (
+                                                                    <ShieldAlert className="w-3.5 h-3.5" />
+                                                                ) : (
+                                                                    <Check className="w-3.5 h-3.5" />
+                                                                )}
+                                                                <span>{isEmergency ? 'Acknowledge Emergency & Triage' : 'Approve Leave Request'}</span>
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })()}

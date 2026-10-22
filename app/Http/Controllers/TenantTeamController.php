@@ -355,6 +355,19 @@ class TenantTeamController extends Controller
             ? "Leave request approved. Scheduled absence starts on ".Carbon::parse($leaveReq->leave_start_date)->format('M d, Y')." (member remains Active until then)."
             : "{$typeLabel} approved successfully.";
 
+        // Ensure notification is marked as read for the reviewer
+        if (\Illuminate\Support\Facades\Schema::hasTable('notification_reads')) {
+            \App\Models\NotificationRead::firstOrCreate(
+                [
+                    'user_id' => auth()->id(),
+                    'notification_id' => "leave-req-{$leaveReq->id}",
+                ],
+                [
+                    'read_at' => now(),
+                ]
+            );
+        }
+
         return redirect()->back()->with('status', "leave-approved:{$statusMsg}");
     }
 

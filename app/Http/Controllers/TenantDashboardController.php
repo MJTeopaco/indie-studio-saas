@@ -1209,7 +1209,14 @@ class TenantDashboardController extends Controller
             if ($canManage) {
                 $leaveQuery = LeaveRequest::with(['user.globalProfile.position'])
                     ->where('studio_id', tenant('id'))
-                    ->where('status', 'pending');
+                    ->where(function ($q) {
+                        $q->where('status', 'pending')
+                            ->orWhere(function ($eq) {
+                                $eq->where('request_type', LeaveRequest::TYPE_EMERGENCY)
+                                    ->where('status', 'approved')
+                                    ->where('created_at', '>=', now()->subDays(14));
+                            });
+                    });
 
                 if (! $isOwner) {
                     $leaveQuery->where('requester_role', 'member')
@@ -1233,6 +1240,7 @@ class TenantDashboardController extends Controller
                     $end = $req->leave_end_date ? Carbon::parse($req->leave_end_date) : null;
 
                     $isEmergency = ($req->request_type ?? 'leave') === LeaveRequest::TYPE_EMERGENCY;
+                    $isAcknowledged = $req->status === 'approved';
                     $categoryLabels = LeaveRequest::emergencyCategoryLabels();
                     $catLabel = $isEmergency && $req->emergency_category && isset($categoryLabels[$req->emergency_category])
                         ? $categoryLabels[$req->emergency_category]
@@ -1252,9 +1260,11 @@ class TenantDashboardController extends Controller
                     $calendarDays = $start && $end ? $start->diffInDays($end) + 1 : 0;
                     $roleLabel = $req->requester_role === 'leader' ? 'Team Leader' : 'Team Member';
                     $notifId = 'leave-req-'.$req->id;
-                    $title = $isEmergency ? "🚨 Emergency Declared: {$reqUser->name}" : "Leave Request: {$reqUser->name}";
+                    $title = $isEmergency
+                        ? ($isAcknowledged ? "🚨 Emergency (In Triage): {$reqUser->name}" : "🚨 Emergency Declared: {$reqUser->name}")
+                        : "Leave Request: {$reqUser->name}";
                     $body = $isEmergency
-                        ? "{$reqUser->name} ({$roleLabel}) declared an emergency: {$catLabel}".($end ? ' (Est. return: '.$end->format('M d, Y').')' : '')
+                        ? "{$reqUser->name} ({$roleLabel}) declared an emergency: {$catLabel}".($end ? ' (Est. return: '.$end->format('M d, Y').')' : '').($isAcknowledged ? ' [Acknowledged • In Triage]' : '')
                         : "{$reqUser->name} ({$roleLabel}) requested absence from ".($start ? $start->format('M d, Y') : '').' to '.($end ? $end->format('M d, Y') : '')." ({$calendarDays} calendar day".($calendarDays === 1 ? '' : 's').').'.($req->reason ? " Handover: {$req->reason}" : '');
 
                     return [
@@ -1281,6 +1291,9 @@ class TenantDashboardController extends Controller
                             'position' => $reqPos,
                             'requester_role' => $req->requester_role,
                             'request_type' => $req->request_type ?? 'leave',
+                            'status' => $req->status,
+                            'is_acknowledged' => $isAcknowledged,
+                            'reviewed_at' => $req->reviewed_at ? $req->reviewed_at->diffForHumans() : null,
                             'emergency_category' => $req->emergency_category,
                             'emergency_category_label' => $catLabel,
                             'confidential_note' => $req->confidential_note,
@@ -1303,7 +1316,7 @@ class TenantDashboardController extends Controller
                                 'project_id' => $t->project_id,
                             ])->all(),
                         ],
-                        'read' => in_array($notifId, $readNotificationIds),
+                        'read' => in_array($notifId, $readNotificationIds) || $isAcknowledged,
                         'created_at_human' => $req->created_at ? $req->created_at->diffForHumans() : 'Pending',
                     ];
                 })->all();

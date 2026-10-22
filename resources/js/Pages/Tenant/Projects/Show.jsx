@@ -276,6 +276,43 @@ export default function Show({
         setTaskRows(project?.tasks || []);
     }, [project?.id, project?.tasks]);
 
+    const handledReassignRef = useRef(false);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const params = new URLSearchParams(window.location.search);
+        const requestedView = params.get('view');
+        const reassignTaskId = params.get('reassign_task_id');
+
+        if (requestedView) {
+            setActiveView(requestedView);
+        }
+
+        if (reassignTaskId && !handledReassignRef.current) {
+            const taskIdNum = Number(reassignTaskId);
+            const allCandidateTasks = [
+                ...(taskRows || []),
+                ...(project?.tasks || []),
+                ...(backlogTasks || []),
+                ...(sprints || []).flatMap(s => s.tasks || [])
+            ];
+            const foundTask = allCandidateTasks.find(t => Number(t.id) === taskIdNum);
+            if (foundTask) {
+                handledReassignRef.current = true;
+                setAssignmentTask(foundTask);
+                setIsAssignmentModalOpen(true);
+
+                try {
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('reassign_task_id');
+                    window.history.replaceState({}, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
+                } catch (e) {
+                    // Ignore URL history errors
+                }
+            }
+        }
+    }, [taskRows, project?.id, project?.tasks, sprints, backlogTasks]);
+
     const allTasks = taskRows;
     const activeSprint = useMemo(() => sprints?.find(s => s.status === 'active') || sprints?.[0], [sprints]);
 
