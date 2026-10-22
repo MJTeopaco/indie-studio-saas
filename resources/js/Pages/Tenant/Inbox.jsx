@@ -1018,25 +1018,25 @@ export default function Inbox({
                 const isEmergency = leaveReq.request_type === 'emergency';
                 showToast(isEmergency ? `Emergency acknowledged for ${leaveReq.user_name}.` : `Leave request approved for ${leaveReq.user_name}.`, 'success');
                 setApproveModalReq(null);
-                if (isEmergency) {
-                    setNotificationsList(prev => prev.map(n => {
-                        if (n.id === `leave-req-${leaveReq.id}`) {
-                            return {
-                                ...n,
-                                read: true,
-                                title: `🚨 Emergency Absence: ${leaveReq.user_name}`,
-                                leave_request: {
-                                    ...n.leave_request,
-                                    status: 'approved',
-                                    is_acknowledged: true,
-                                }
-                            };
-                        }
-                        return n;
-                    }));
-                } else {
-                    setNotificationsList(prev => prev.filter(n => n.id !== `leave-req-${leaveReq.id}`));
-                }
+                setNotificationsList(prev => prev.map(n => {
+                    if (n.id === `leave-req-${leaveReq.id}`) {
+                        return {
+                            ...n,
+                            read: true,
+                            title: isEmergency 
+                                ? `🚨 Emergency Absence: ${leaveReq.user_name}` 
+                                : `🏖️ Leave Approved: ${leaveReq.user_name}`,
+                            icon: isEmergency ? 'ban' : 'check-circle',
+                            color: isEmergency ? 'rose' : 'emerald',
+                            leave_request: {
+                                ...n.leave_request,
+                                status: 'approved',
+                                is_acknowledged: isEmergency,
+                            }
+                        };
+                    }
+                    return n;
+                }));
             },
             onError: (errs) => {
                 const msg = Object.values(errs)[0] || 'Failed to approve leave request.';
@@ -2335,8 +2335,12 @@ export default function Inbox({
                                                                     </span>
                                                                 )}
                                                                 {notif.type === 'leave_request' && notif.leave_request && (
-                                                                    <span className="text-[10px] font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.2 rounded border border-amber-200/60 dark:border-amber-800/40">
-                                                                        {notif.leave_request.calendar_days}d absence
+                                                                    <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded border ${
+                                                                        notif.leave_request.status === 'approved'
+                                                                            ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200/60 dark:border-emerald-800/40'
+                                                                            : 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-200/60 dark:border-amber-800/40'
+                                                                    }`}>
+                                                                        {notif.leave_request.status === 'approved' ? `✓ Approved (${notif.leave_request.calendar_days}d)` : `${notif.leave_request.calendar_days}d absence`}
                                                                     </span>
                                                                 )}
                                                                 {notif.type === 'emergency_declaration' && notif.leave_request && (
@@ -2471,6 +2475,7 @@ export default function Inbox({
                                             const isResolvedNotification = activeNotification.type === 'emergency_resolved';
                                             const isEmergencyDeclaration = activeNotification.type === 'emergency_declaration' || (req.request_type === 'emergency' && !isResolvedNotification);
                                             const isResolvedReq = !!req.is_resolved;
+                                            const isLeaveApproved = req.status === 'approved';
                                             const isLeaderReq = req.requester_role === 'leader';
                                             const isProcessing = leaveActionProcessingId === req.id;
                                             const hasConflicts = req.conflicting_tasks && req.conflicting_tasks.length > 0;
@@ -2485,6 +2490,8 @@ export default function Inbox({
                                                             ? (isResolvedReq 
                                                                 ? 'bg-slate-500/5 dark:bg-slate-800/40 border-slate-300 dark:border-slate-700' 
                                                                 : 'bg-rose-500/5 dark:bg-rose-950/20 border-rose-500/30') 
+                                                            : isLeaveApproved
+                                                            ? 'bg-emerald-500/5 dark:bg-emerald-950/20 border-emerald-500/30'
                                                             : 'bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80'
                                                     }`}>
                                                         <div className="flex items-center gap-3">
@@ -2497,6 +2504,8 @@ export default function Inbox({
                                                                             ? 'bg-linear-to-tr from-emerald-600 to-teal-600'
                                                                             : isEmergencyDeclaration
                                                                             ? (isResolvedReq ? 'bg-linear-to-tr from-slate-600 to-slate-700' : 'bg-linear-to-tr from-rose-600 to-rose-700')
+                                                                            : isLeaveApproved
+                                                                            ? 'bg-linear-to-tr from-emerald-600 to-teal-600'
                                                                             : 'bg-linear-to-tr from-brand to-indigo-600'
                                                                     }`}>
                                                                         {req.user_name.slice(0, 2).toUpperCase()}
@@ -2519,12 +2528,16 @@ export default function Inbox({
                                                                             ? (isResolvedReq
                                                                                 ? 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                                                                                 : 'bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300')
+                                                                            : isLeaveApproved
+                                                                            ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
                                                                             : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                                                                     }`}>
                                                                         {isResolvedNotification 
                                                                             ? '✅ Active Status Restored' 
                                                                             : isEmergencyDeclaration 
                                                                             ? (isResolvedReq ? '🚨 Emergency (Concluded)' : '🚨 Emergency Absence') 
+                                                                            : isLeaveApproved
+                                                                            ? '🏖️ Leave Approved'
                                                                             : (isLeaderReq ? 'Team Leader' : 'Team Member')}
                                                                     </span>
                                                                 </div>
@@ -2555,6 +2568,12 @@ export default function Inbox({
                                                                         {req.is_acknowledged || req.status === 'approved' ? 'Reassignment Pending' : 'Action Needed'}
                                                                     </span>
                                                                 )}
+                                                            </div>
+                                                        ) : isLeaveApproved ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="px-2.5 py-1 rounded-md text-[10px] font-mono font-bold uppercase border bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/25">
+                                                                    Approved
+                                                                </span>
                                                             </div>
                                                         ) : null}
                                                     </div>
@@ -2767,7 +2786,7 @@ export default function Inbox({
                                                                 {req.resolved_at_formatted ? `Returned ${req.resolved_at_formatted}` : (req.resolved_at ? `Returned ${req.resolved_at}` : 'Concluded')}
                                                             </span>
                                                         </div>
-                                                    ) : req.is_acknowledged || req.status === 'approved' ? (
+                                                    ) : isEmergencyDeclaration && (req.is_acknowledged || req.status === 'approved') ? (
                                                         <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 w-full">
                                                             <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-1.5 rounded-xl border border-emerald-200/80 dark:border-emerald-800/40">
                                                                 <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -2775,6 +2794,16 @@ export default function Inbox({
                                                             </div>
                                                             <span className="text-[11px] text-slate-400 font-mono">
                                                                 {req.reviewed_at ? `Acknowledged ${req.reviewed_at}` : 'Reassignment pending'}
+                                                            </span>
+                                                        </div>
+                                                    ) : !isEmergencyDeclaration && req.status === 'approved' ? (
+                                                        <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 w-full">
+                                                            <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-1.5 rounded-xl border border-emerald-200/80 dark:border-emerald-800/40">
+                                                                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                                                <span>Leave Request Approved • Schedule Updated</span>
+                                                            </div>
+                                                            <span className="text-[11px] text-slate-400 font-mono">
+                                                                {req.reviewed_at ? `Approved ${req.reviewed_at}` : 'Approved'}
                                                             </span>
                                                         </div>
                                                     ) : (

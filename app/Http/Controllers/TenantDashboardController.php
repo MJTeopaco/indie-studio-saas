@@ -1218,6 +1218,18 @@ class TenantDashboardController extends Controller
                                         $dateQ->where('created_at', '>=', now()->subDays(14))
                                             ->orWhere('resolved_at', '>=', now()->subDays(14));
                                     });
+                            })
+                            ->orWhere(function ($lq) {
+                                $lq->where(function ($sub) {
+                                    $sub->where('request_type', '!=', LeaveRequest::TYPE_EMERGENCY)
+                                        ->orWhereNull('request_type');
+                                })
+                                    ->where('status', 'approved')
+                                    ->where(function ($dateQ) {
+                                        $dateQ->where('leave_end_date', '>=', now()->toDateString())
+                                            ->orWhere('reviewed_at', '>=', now()->subDays(14))
+                                            ->orWhere('created_at', '>=', now()->subDays(14));
+                                    });
                             });
                     });
 
@@ -1320,22 +1332,23 @@ class TenantDashboardController extends Controller
 
                     // 2. The declaration / leave request notification itself is preserved for historical audit & backtracking
                     $declNotifId = 'leave-req-'.$req->id;
+                    $isLeaveApproved = $req->status === 'approved';
                     $declTitle = $isEmergency
                         ? ($isResolved
                             ? "🚨 Emergency Absence: {$reqUser->name} [Concluded]"
                             : ($isAcknowledged ? "🚨 Emergency Absence: {$reqUser->name}" : "🚨 Emergency Declared: {$reqUser->name}"))
-                        : "Leave Request: {$reqUser->name}";
+                        : ($isLeaveApproved ? "🏖️ Leave Approved: {$reqUser->name}" : "Leave Request: {$reqUser->name}");
                     $declBody = $isEmergency
                         ? "{$reqUser->name} ({$roleLabel}) declared an emergency: {$catLabel}".($end ? ' (Est. return: '.$end->format('M d, Y').')' : '').($isResolved ? ' [Concluded • Returned]' : ($isAcknowledged ? ' [Acknowledged • Reassign Tasks]' : ''))
-                        : "{$reqUser->name} ({$roleLabel}) requested absence from ".($start ? $start->format('M d, Y') : '').' to '.($end ? $end->format('M d, Y') : '')." ({$calendarDays} calendar day".($calendarDays === 1 ? '' : 's').').'.($req->reason ? " Handover: {$req->reason}" : '');
+                        : "{$reqUser->name} ({$roleLabel}) requested absence from ".($start ? $start->format('M d, Y') : '').' to '.($end ? $end->format('M d, Y') : '')." ({$calendarDays} calendar day".($calendarDays === 1 ? '' : 's').').'.($req->reason ? " Handover: {$req->reason}" : '').($isLeaveApproved ? ' [Approved]' : '');
 
                     $items[] = [
                         'id' => $declNotifId,
                         'type' => $isEmergency ? 'emergency_declaration' : 'leave_request',
                         'title' => $declTitle,
                         'body' => $declBody,
-                        'icon' => $isEmergency ? 'ban' : 'calendar',
-                        'color' => $isEmergency ? 'rose' : 'amber',
+                        'icon' => $isEmergency ? 'ban' : ($isLeaveApproved ? 'check-circle' : 'calendar'),
+                        'color' => $isEmergency ? 'rose' : ($isLeaveApproved ? 'emerald' : 'amber'),
                         'priority' => null,
                         'task_id' => null,
                         'task_title' => null,
@@ -1381,7 +1394,7 @@ class TenantDashboardController extends Controller
                                 'project_id' => $t->project_id,
                             ])->all(),
                         ],
-                        'read' => in_array($declNotifId, $readNotificationIds) || $isAcknowledged,
+                        'read' => in_array($declNotifId, $readNotificationIds) || $isAcknowledged || $isLeaveApproved,
                         'created_at_human' => $req->created_at ? $req->created_at->diffForHumans() : 'Pending',
                     ];
 
@@ -1958,12 +1971,7 @@ class TenantDashboardController extends Controller
                 $leaveReqs = LeaveRequest::where('studio_id', tenant('id'))
                     ->where(function ($q) {
                         $q->where('status', 'pending')
-                            ->orWhere(function ($eq) {
-                                $eq->where('request_type', LeaveRequest::TYPE_EMERGENCY)
-                                    ->where('status', 'approved')
-                                    ->whereNotNull('resolved_at')
-                                    ->where('resolved_at', '>=', now()->subDays(14));
-                            });
+                            ->orWhere('status', 'approved');
                     })
                     ->get(['id', 'resolved_at']);
 
@@ -2030,12 +2038,7 @@ class TenantDashboardController extends Controller
                 $leaveReqs = LeaveRequest::where('studio_id', tenant('id'))
                     ->where(function ($q) {
                         $q->where('status', 'pending')
-                            ->orWhere(function ($eq) {
-                                $eq->where('request_type', LeaveRequest::TYPE_EMERGENCY)
-                                    ->where('status', 'approved')
-                                    ->whereNotNull('resolved_at')
-                                    ->where('resolved_at', '>=', now()->subDays(14));
-                            });
+                            ->orWhere('status', 'approved');
                     })
                     ->get(['id', 'resolved_at']);
 
