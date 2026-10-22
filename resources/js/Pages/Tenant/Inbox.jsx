@@ -1020,7 +1020,7 @@ export default function Inbox({
                             return {
                                 ...n,
                                 read: true,
-                                title: `🚨 Emergency (In Triage): ${leaveReq.user_name}`,
+                                title: `🚨 Emergency Absence: ${leaveReq.user_name}`,
                                 leave_request: {
                                     ...n.leave_request,
                                     status: 'approved',
@@ -2337,7 +2337,7 @@ export default function Inbox({
                                                                 )}
                                                                 {notif.type === 'emergency_declaration' && notif.leave_request && (
                                                                     <span className="text-[10px] font-medium text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.2 rounded border border-rose-200/60 dark:border-rose-800/40">
-                                                                        🚨 {notif.leave_request.is_acknowledged ? 'In Triage' : (notif.leave_request.emergency_category_label || 'Emergency')}
+                                                                        🚨 {notif.leave_request.is_acknowledged ? 'Reassign Tasks' : (notif.leave_request.emergency_category_label || 'Emergency')}
                                                                     </span>
                                                                 )}
                                                                 {notif.channel_id && (
@@ -2510,7 +2510,7 @@ export default function Inbox({
                                                                         ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/25'
                                                                         : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/25'
                                                                 }`}>
-                                                                    {req.is_acknowledged || req.status === 'approved' ? 'Triage In Progress' : 'Urgent Triage'}
+                                                                    {req.is_acknowledged || req.status === 'approved' ? 'Reassignment Pending' : 'Action Needed'}
                                                                 </span>
                                                             </div>
                                                         )}
@@ -2575,11 +2575,11 @@ export default function Inbox({
                                                         </div>
                                                     )}
 
-                                                    {/* Task Conflict & Triage Intelligence */}
+                                                    {/* In-Flight Tasks & Reassignment Intelligence */}
                                                     <div className="space-y-2">
                                                         <div className="flex items-center justify-between">
                                                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                                                {isEmergency ? 'In-Flight Tasks Requiring Triage / Reassignment' : 'Schedule Conflict Analysis'}
+                                                                {isEmergency ? 'In-Flight Tasks Requiring Reassignment' : 'Schedule Conflict Analysis'}
                                                             </span>
                                                             {isEmergency && (
                                                                 <span className="text-xs font-mono font-bold text-rose-600 dark:text-rose-400">
@@ -2650,10 +2650,10 @@ export default function Inbox({
                                                         <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 w-full">
                                                             <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-1.5 rounded-xl border border-emerald-200/80 dark:border-emerald-800/40">
                                                                 <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                                                                <span>Emergency Acknowledged • Triage Active</span>
+                                                                <span>Emergency Acknowledged • Reassign Tasks</span>
                                                             </div>
                                                             <span className="text-[11px] text-slate-400 font-mono">
-                                                                {req.reviewed_at ? `Acknowledged ${req.reviewed_at}` : 'In active triage'}
+                                                                {req.reviewed_at ? `Acknowledged ${req.reviewed_at}` : 'Reassignment pending'}
                                                             </span>
                                                         </div>
                                                     ) : (
@@ -2682,7 +2682,7 @@ export default function Inbox({
                                                                 ) : (
                                                                     <Check className="w-3.5 h-3.5" />
                                                                 )}
-                                                                <span>{isEmergency ? 'Acknowledge Emergency & Triage' : 'Approve Leave Request'}</span>
+                                                                <span>{isEmergency ? 'Acknowledge Emergency' : 'Approve Leave Request'}</span>
                                                             </button>
                                                         </div>
                                                     )}

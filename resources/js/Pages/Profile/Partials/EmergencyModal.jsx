@@ -233,8 +233,8 @@ export default function EmergencyModal({
                                 {isOwner
                                     ? 'As Studio Owner, emergency status activates immediately across workspace channels.'
                                     : isLeader
-                                        ? 'As Team Leader, declaration notifies the Studio Owner for urgent triage and task reallocation.'
-                                        : 'Declaration routes urgently to your Team Leader and Studio Owner for agile sprint triage.'
+                                        ? 'As Team Leader, declaration notifies the Studio Owner for urgent task reassignment and handover.'
+                                        : 'Declaration routes urgently to your Team Leader and Studio Owner for sprint task reassignment.'
                                 }
                             </p>
                         </div>

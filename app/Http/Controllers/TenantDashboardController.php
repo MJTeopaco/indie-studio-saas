@@ -1261,10 +1261,10 @@ class TenantDashboardController extends Controller
                     $roleLabel = $req->requester_role === 'leader' ? 'Team Leader' : 'Team Member';
                     $notifId = 'leave-req-'.$req->id;
                     $title = $isEmergency
-                        ? ($isAcknowledged ? "🚨 Emergency (In Triage): {$reqUser->name}" : "🚨 Emergency Declared: {$reqUser->name}")
+                        ? ($isAcknowledged ? "🚨 Emergency Absence: {$reqUser->name}" : "🚨 Emergency Declared: {$reqUser->name}")
                         : "Leave Request: {$reqUser->name}";
                     $body = $isEmergency
-                        ? "{$reqUser->name} ({$roleLabel}) declared an emergency: {$catLabel}".($end ? ' (Est. return: '.$end->format('M d, Y').')' : '').($isAcknowledged ? ' [Acknowledged • In Triage]' : '')
+                        ? "{$reqUser->name} ({$roleLabel}) declared an emergency: {$catLabel}".($end ? ' (Est. return: '.$end->format('M d, Y').')' : '').($isAcknowledged ? ' [Acknowledged • Reassign Tasks]' : '')
                         : "{$reqUser->name} ({$roleLabel}) requested absence from ".($start ? $start->format('M d, Y') : '').' to '.($end ? $end->format('M d, Y') : '')." ({$calendarDays} calendar day".($calendarDays === 1 ? '' : 's').').'.($req->reason ? " Handover: {$req->reason}" : '');
 
                     return [

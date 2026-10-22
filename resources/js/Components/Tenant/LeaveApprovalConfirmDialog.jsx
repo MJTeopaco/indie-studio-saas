@@ -28,7 +28,7 @@ export default function LeaveApprovalConfirmDialog({
     const isEmergency = leaveRequest.request_type === 'emergency';
     const isApprove = mode === 'approve';
     const title = isEmergency
-        ? (isApprove ? 'Acknowledge Emergency & Authorize Triage' : 'Decline Emergency Declaration')
+        ? (isApprove ? 'Acknowledge Emergency Declaration' : 'Decline Emergency Declaration')
         : (isApprove ? 'Approve Leave Request' : 'Decline Leave Request');
 
     const description = isEmergency
