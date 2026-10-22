@@ -991,7 +991,7 @@ export default function Inbox({
     // Category count metrics
     const unreadCount = useMemo(() => notificationsList.filter(n => !n.read).length, [notificationsList]);
     const actionRequiredCount = useMemo(() =>
-        notificationsList.filter(n => ['leave_request', 'review_request', 'estimate_pending'].includes(n.type) && !n.read).length,
+        notificationsList.filter(n => ['leave_request', 'emergency_declaration', 'review_request', 'estimate_pending'].includes(n.type) && !n.read).length,
     [notificationsList]);
     const messagesNotifCount = useMemo(() =>
         notificationsList.filter(n => ['direct_message', 'channel_mention'].includes(n.type) && !n.read).length,
@@ -1120,7 +1120,7 @@ export default function Inbox({
             if (onlyUnread && item.read) return false;
 
             if (notifFilter === 'action') {
-                return ['leave_request', 'review_request', 'estimate_pending'].includes(item.type);
+                return ['leave_request', 'emergency_declaration', 'review_request', 'estimate_pending'].includes(item.type);
             }
             if (notifFilter === 'messages') {
                 return ['direct_message', 'channel_mention'].includes(item.type);
@@ -2316,6 +2316,11 @@ export default function Inbox({
                                                                         {notif.leave_request.calendar_days}d absence
                                                                     </span>
                                                                 )}
+                                                                {notif.type === 'emergency_declaration' && notif.leave_request && (
+                                                                    <span className="text-[10px] font-medium text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.2 rounded border border-rose-200/60 dark:border-rose-800/40">
+                                                                        🚨 {notif.leave_request.emergency_category_label || 'Emergency'}
+                                                                    </span>
+                                                                )}
                                                                 {notif.channel_id && (
                                                                     <button
                                                                         type="button"
@@ -2593,7 +2598,7 @@ export default function Inbox({
                                                                             </div>
                                                                             {task.project_id && (
                                                                                 <a
-                                                                                    href={route('tenant.projects.show', { project: task.project_id })}
+                                                                                    href={route('tenant.projects.show', { tenant: workspaceSlug, project: task.project_id })}
                                                                                     className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors shrink-0 flex items-center gap-1"
                                                                                 >
                                                                                     <span>Reassign</span>

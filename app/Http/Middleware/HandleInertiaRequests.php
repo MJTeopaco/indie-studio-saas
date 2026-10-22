@@ -389,9 +389,10 @@ class HandleInertiaRequests extends Middleware
             }
 
             $pendingLeaveCount = 0;
-            if (Schema::hasTable('leave_requests')) {
+            $centralConnection = config('tenancy.database.central_connection', 'central');
+            if (Schema::connection($centralConnection)->hasTable('leave_requests')) {
                 try {
-                    $currentUserMember = DB::connection(config('tenancy.database.central_connection', 'central'))
+                    $currentUserMember = DB::connection($centralConnection)
                         ->table('studio_members')
                         ->where('studio_id', tenant('id'))
                         ->where('user_id', $user->id)
