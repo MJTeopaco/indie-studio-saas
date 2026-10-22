@@ -127,33 +127,7 @@ class HandleInertiaRequests extends Middleware
             },
 
             // Share pending estimates count for the current user
-            'pendingEstimatesCount' => function () use ($request) {
-                if (! tenant() || ! $request->user()) {
-                    return 0;
-                }
-                try {
-                    $user = $request->user();
-
-                    return Task::where('story_points_locked', false)
-                        ->where('needs_estimate_review', false)
-                        ->get()
-                        ->filter(function ($task) use ($user) {
-                            if (empty($task->expected_estimators)) {
-                                return $task->assigned_user_id === $user->id;
-                            }
-
-                            return in_array($user->id, $task->expected_estimators);
-                        })
-                        ->filter(function ($task) use ($user) {
-                            return ! TaskEstimateSubmission::where('task_id', $task->id)
-                                ->where('developer_id', $user->id)
-                                ->exists();
-                        })
-                        ->count();
-                } catch (\Exception $e) {
-                    return 0;
-                }
-            },
+            'pendingEstimatesCount' => fn () => 0,
 
             // Share total inbox/notification count (reviews pending + unstarted tasks)
             'inboxNotificationCount' => function () use ($request) {
@@ -318,30 +292,14 @@ class HandleInertiaRequests extends Middleware
                 }
             }
 
-            // Pending estimates bundle notification
-            $pendingEstimatesNotif = 0;
-            if (empty($readSet['estimates-pending'])) {
+            // Flagged complexity tasks notification for manager
+            $flaggedTasksCount = 0;
+            if ($isLeaderOrOwner) {
                 try {
-                    $hasPending = Task::where('story_points_locked', false)
-                        ->where('needs_estimate_review', false)
+                    $flaggedTasksCount = Task::where('needs_estimate_review', true)
                         ->get()
-                        ->contains(function ($task) use ($user) {
-                            $isEstimator = empty($task->expected_estimators)
-                                ? $task->assigned_user_id === $user->id
-                                : in_array($user->id, $task->expected_estimators);
-
-                            if (! $isEstimator) {
-                                return false;
-                            }
-
-                            return ! TaskEstimateSubmission::where('task_id', $task->id)
-                                ->where('developer_id', $user->id)
-                                ->exists();
-                        });
-
-                    if ($hasPending) {
-                        $pendingEstimatesNotif = 1;
-                    }
+                        ->filter(fn ($t) => empty($readSet["task-{$t->id}-complexity_flagged"]))
+                        ->count();
                 } catch (\Exception $e) {
                 }
             }
@@ -433,7 +391,7 @@ class HandleInertiaRequests extends Middleware
                 }
             }
 
-            $notificationsCount = $reviewTasksCount + $unstartedTasksCount + $pendingLeaveCount + $alertTasksCount + $pendingEstimatesNotif;
+            $notificationsCount = $reviewTasksCount + $unstartedTasksCount + $pendingLeaveCount + $alertTasksCount + $flaggedTasksCount;
 
             return [
                 'notifications' => $notificationsCount,

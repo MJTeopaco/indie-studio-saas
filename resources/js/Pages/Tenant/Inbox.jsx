@@ -873,9 +873,9 @@ const TYPE_CONFIG = {
         label: 'Active Member',
         badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60',
     },
-    estimate_pending: {
-        label: 'Estimation',
-        badgeClass: 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200/80 dark:border-purple-800/60',
+    task_complexity_flagged: {
+        label: 'Complexity Review',
+        badgeClass: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/60',
     },
     overdue: {
         label: 'Overdue',
@@ -986,6 +986,8 @@ export default function Inbox({
     const [detailModalOpen, setDetailModalOpen] = useState(false);
     const [quickReplyText, setQuickReplyText] = useState('');
     const [quickReplySuccess, setQuickReplySuccess] = useState(false);
+    const [managerAdjustSp, setManagerAdjustSp] = useState(null);
+    const [isResolvingComplexity, setIsResolvingComplexity] = useState(false);
 
     // Leave approval states
     const [leaveActionProcessingId, setLeaveActionProcessingId] = useState(null);
@@ -995,7 +997,7 @@ export default function Inbox({
     // Category count metrics
     const unreadCount = useMemo(() => notificationsList.filter(n => !n.read).length, [notificationsList]);
     const actionRequiredCount = useMemo(() =>
-        notificationsList.filter(n => ['leave_request', 'emergency_declaration', 'review_request', 'estimate_pending'].includes(n.type) && !n.read).length,
+        notificationsList.filter(n => ['leave_request', 'emergency_declaration', 'review_request', 'task_complexity_flagged'].includes(n.type) && !n.read).length,
     [notificationsList]);
     const messagesNotifCount = useMemo(() =>
         notificationsList.filter(n => ['direct_message', 'channel_mention'].includes(n.type) && !n.read).length,
@@ -1143,7 +1145,7 @@ export default function Inbox({
             if (onlyUnread && item.read) return false;
 
             if (notifFilter === 'action') {
-                return ['leave_request', 'emergency_declaration', 'review_request', 'estimate_pending'].includes(item.type);
+                return ['leave_request', 'emergency_declaration', 'review_request', 'task_complexity_flagged'].includes(item.type);
             }
             if (notifFilter === 'messages') {
                 return ['direct_message', 'channel_mention'].includes(item.type);
@@ -1164,6 +1166,12 @@ export default function Inbox({
         if (!activeNotification?.task_id) return null;
         return myTasks.find(t => t.id === activeNotification.task_id) || activeNotification.task || null;
     }, [activeNotification, myTasks]);
+
+    useEffect(() => {
+        if (activeNotification?.type === 'task_complexity_flagged' && activeTask) {
+            setManagerAdjustSp(activeTask.suggested_story_points || activeTask.story_points || 5);
+        }
+    }, [activeNotification?.id, activeTask?.id, activeTask?.suggested_story_points]);
 
     // ── CHANNELS STATE ───────────────────────────────────────────────────────
     const [channels, setChannels] = useState(DEFAULT_CHANNELS);
@@ -2026,7 +2034,6 @@ export default function Inbox({
         markAsRead(notif.id);
     };
 
-    // ── Notification handlers ────────────────────────────────────────────────
     const handleSendQuickReply = () => {
         if (!quickReplyText.trim()) return;
         setQuickReplySuccess(true);
@@ -2035,7 +2042,40 @@ export default function Inbox({
     };
 
     const handleOpenTaskDetail = (task) => { if (!task) return; setSelectedTask(task); setDetailModalOpen(true); };
-    const handleTaskUpdated = () => { if (activeNotification) markAsRead(activeNotification.id); };
+    const handleTaskUpdated = (updatedTask) => {
+        if (activeNotification) markAsRead(activeNotification.id);
+        if (updatedTask) {
+            setNotificationsList(prev => prev.map(n => n.task_id === updatedTask.id ? { ...n, task: { ...n.task, ...updatedTask } } : n));
+        }
+    };
+
+    const handleResolveComplexity = async (action) => {
+        if (!activeTask) return;
+        setIsResolvingComplexity(true);
+        try {
+            const url = route('tenant.tasks.resolve-complexity', {
+                tenant: workspaceSlug,
+                task: activeTask.id,
+            });
+            const chosenSp = action === 'dismiss' ? null : Number(managerAdjustSp || activeTask.suggested_story_points || activeTask.story_points || 5);
+            const res = await axios.post(url, {
+                action,
+                story_points: chosenSp,
+            });
+            showToast(res.data?.message || 'Complexity resolution saved.', 'success');
+            markAsRead(activeNotification.id);
+
+            const updatedTask = res.data?.task;
+            if (updatedTask) {
+                setNotificationsList(prev => prev.map(n => n.id === activeNotification.id ? { ...n, read: true, task: { ...n.task, ...updatedTask } } : n));
+            }
+        } catch (err) {
+            console.error('Failed to resolve complexity', err);
+            showToast(err.response?.data?.message || 'Could not resolve complexity.', 'error');
+        } finally {
+            setIsResolvingComplexity(false);
+        }
+    };
 
     const iconMap = {
         eye: Eye,
@@ -2865,28 +2905,95 @@ export default function Inbox({
                                             </div>
                                         )}
 
-                                        {/* Estimate Pending Voting Module */}
-                                        {activeNotification.type === 'estimate_pending' && !activeTask && (
+                                        {/* Complexity Flagged Review Module for Manager */}
+                                        {activeNotification.type === 'task_complexity_flagged' && activeTask && (
                                             <div className="p-5 space-y-3">
                                                 <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                                    Sprint Planning Action
+                                                    Complexity Issue Review
                                                 </div>
-                                                <div className="p-4 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/50 dark:bg-amber-950/20 space-y-3">
-                                                    <div className="flex items-center gap-2 text-xs font-bold text-amber-900 dark:text-amber-200">
-                                                        <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                                                        <span>Story Point Voting Required</span>
+                                                <div className="p-4 rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/60 dark:bg-amber-950/20 space-y-3.5">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300">
+                                                                <AlertTriangle className="w-4 h-4" />
+                                                            </span>
+                                                            <span className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                                                                Member Flagged Complexity
+                                                            </span>
+                                                        </div>
+                                                        <span className="px-2.5 py-0.5 rounded text-[11px] font-mono font-bold bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200">
+                                                            Proposed: {activeTask.suggested_story_points ?? '—'} SP
+                                                        </span>
                                                     </div>
-                                                    <p className="text-xs text-slate-600 dark:text-slate-300">
-                                                        {activeNotification.body}
-                                                    </p>
-                                                    <Link
-                                                        href={`/studio/${workspaceSlug}/estimates/pending`}
-                                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-colors shadow-2xs"
-                                                    >
-                                                        <Sparkles className="w-3.5 h-3.5" />
-                                                        <span>Open Fibonacci Estimation Queue</span>
-                                                        <ArrowRight className="w-3.5 h-3.5" />
-                                                    </Link>
+
+                                                    <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/70 border border-amber-200/60 dark:border-amber-900/40 text-xs text-slate-700 dark:text-slate-300 space-y-1">
+                                                        <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                                                            <span>Note from {activeTask.assignee || 'Assigned Member'}:</span>
+                                                            <span className="font-mono">Current: {activeTask.story_points ?? 0} SP</span>
+                                                        </div>
+                                                        <p className="italic leading-relaxed">
+                                                            "{activeTask.estimate_review_note || 'No comment provided.'}"
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                                                            <span>Decide Final Story Points:</span>
+                                                            <span className="font-mono text-amber-600 dark:text-amber-400 font-bold">
+                                                                {managerAdjustSp ?? activeTask.suggested_story_points ?? activeTask.story_points} SP
+                                                            </span>
+                                                        </label>
+                                                        <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
+                                                            {[1, 2, 3, 5, 8, 13, 21, 34].map(val => (
+                                                                <button
+                                                                    key={val}
+                                                                    type="button"
+                                                                    onClick={() => setManagerAdjustSp(val)}
+                                                                    className={`py-1.5 rounded-lg font-mono text-xs font-bold border transition-all cursor-pointer ${
+                                                                        (managerAdjustSp ?? activeTask.suggested_story_points ?? activeTask.story_points) === val
+                                                                            ? 'bg-amber-500 text-white border-amber-600 shadow-xs ring-1 ring-amber-400'
+                                                                            : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-amber-400'
+                                                                    }`}
+                                                                >
+                                                                    {val}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="pt-2 border-t border-amber-200/60 dark:border-amber-900/40 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleOpenTaskDetail(activeTask)}
+                                                            className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1"
+                                                        >
+                                                            <Eye className="w-3.5 h-3.5" />
+                                                            <span>Open Full Task</span>
+                                                        </button>
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                type="button"
+                                                                disabled={isResolvingComplexity}
+                                                                onClick={() => handleResolveComplexity('dismiss')}
+                                                                className="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                                                            >
+                                                                Dismiss Flag
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                disabled={isResolvingComplexity}
+                                                                onClick={() => handleResolveComplexity('accept')}
+                                                                className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                                                            >
+                                                                {isResolvingComplexity ? (
+                                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                                ) : (
+                                                                    <Check className="w-3.5 h-3.5" />
+                                                                )}
+                                                                <span>Update to {managerAdjustSp ?? activeTask.suggested_story_points ?? activeTask.story_points} SP</span>
+                                                            </button>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         )}
@@ -2931,17 +3038,11 @@ export default function Inbox({
                                                         <button
                                                             type="button"
                                                             onClick={() => handleOpenTaskDetail(activeTask)}
-                                                            className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:opacity-90 transition-opacity flex items-center gap-1.5"
+                                                            className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:opacity-90 transition-opacity flex items-center gap-1.5 cursor-pointer"
                                                         >
                                                             <Eye className="w-3.5 h-3.5" />
                                                             <span>Open Full Task Details</span>
                                                         </button>
-                                                        {activeNotification.type === 'estimate_pending' && (
-                                                            <Link href={`/studio/${activeWorkspace}/estimates/pending`}
-                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 text-white hover:bg-amber-600 transition-colors shadow-2xs">
-                                                                <Sparkles className="w-3.5 h-3.5" /><span>Vote Story Points Now</span>
-                                                            </Link>
-                                                        )}
                                                     </div>
                                                 </div>
                                                 <div className="pt-2">

@@ -981,6 +981,9 @@ class TenantDashboardController extends Controller
             'epic_id' => $task->epic_id,
             'epic_name' => $task->epic?->name,
             'epic_color' => $task->epic?->color,
+            'needs_estimate_review' => (bool) $task->needs_estimate_review,
+            'suggested_story_points' => $task->suggested_story_points,
+            'estimate_review_note' => $task->estimate_review_note,
         ];
     }
 
@@ -1149,46 +1152,44 @@ class TenantDashboardController extends Controller
                 } catch (\Exception $e) {
                 }
             }
+
+            // Manager: Complexity Flagged / Estimate Review Notifications
+            if ($isManager) {
+                try {
+                    $flaggedTasks = Task::with(['assignee', 'project', 'epic'])
+                        ->where('needs_estimate_review', true)
+                        ->get();
+
+                    foreach ($flaggedTasks as $ft) {
+                        $notifId = "task-{$ft->id}-complexity_flagged";
+                        $assigneeName = $ft->assignee?->name ?? 'Assigned Member';
+                        $suggestedSp = $ft->suggested_story_points ?? '—';
+                        $currentSp = $ft->story_points ?? '0';
+
+                        $notifications[] = [
+                            'id' => $notifId,
+                            'type' => 'task_complexity_flagged',
+                            'title' => "Complexity Flagged: #{$ft->id} {$ft->title}",
+                            'body' => "{$assigneeName} flagged complexity (Current: {$currentSp} SP, Suggested: {$suggestedSp} SP): \"{$ft->estimate_review_note}\"",
+                            'icon' => 'alert',
+                            'color' => 'amber',
+                            'task_id' => $ft->id,
+                            'task_title' => $ft->title,
+                            'task' => $this->formatTaskForMember($ft, $user),
+                            'project_name' => $ft->project?->name ?? null,
+                            'epic_name' => $ft->epic?->name ?? null,
+                            'epic_color' => $ft->epic?->color ?? null,
+                            'priority' => $ft->priority ?? 'High',
+                            'days_until_deadline' => $ft->days_until_deadline,
+                            'read' => in_array($notifId, $readNotificationIds),
+                            'created_at_human' => 'Action Needed',
+                        ];
+                    }
+                } catch (\Exception $e) {
+                }
+            }
         } catch (\Exception $e) {
             $notifications = [];
-        }
-
-        $pendingEstimatesCount = 0;
-        try {
-            $pendingEstimatesCount = Task::where('story_points_locked', false)
-                ->where('needs_estimate_review', false)
-                ->get()
-                ->filter(fn ($task) => empty($task->expected_estimators)
-                    ? $task->assigned_user_id === $user->id
-                    : in_array($user->id, $task->expected_estimators ?? [])
-                )
-                ->filter(fn ($task) => ! TaskEstimateSubmission::where('task_id', $task->id)
-                    ->where('developer_id', $user->id)
-                    ->exists()
-                )
-                ->count();
-        } catch (\Exception $e) {
-        }
-
-        if ($pendingEstimatesCount > 0) {
-            $notifications[] = [
-                'id' => 'estimates-pending',
-                'type' => 'estimate_pending',
-                'title' => 'Story Point Estimation Needed',
-                'body' => "You have {$pendingEstimatesCount} task(s) awaiting your Fibonacci estimate vote before sprint start.",
-                'icon' => 'sparkles',
-                'color' => 'amber',
-                'task_id' => null,
-                'task_title' => null,
-                'task' => null,
-                'project_name' => null,
-                'epic_name' => null,
-                'epic_color' => null,
-                'priority' => 'high',
-                'days_until_deadline' => null,
-                'read' => in_array('estimates-pending', $readNotificationIds),
-                'created_at_human' => 'Pending',
-            ];
         }
 
         $notifications = array_merge($notifications, $this->getMessageNotifications($user, $readNotificationIds));
@@ -1509,7 +1510,6 @@ class TenantDashboardController extends Controller
             'notifications' => $notifications,
             'myTasks' => $myTasks,
             'teamMembers' => $teamMembers,
-            'pendingEstimatesCount' => $pendingEstimatesCount,
         ]);
     }
 
@@ -1955,16 +1955,6 @@ class TenantDashboardController extends Controller
                         );
                     }
                 }
-
-                ChannelRead::updateOrCreate(
-                    [
-                        'channel_id' => 'notif:estimates-pending',
-                        'user_id' => $user->id,
-                    ],
-                    [
-                        'last_read_at' => now(),
-                    ]
-                );
             }
 
             if (Schema::hasTable('leave_requests')) {
@@ -2029,10 +2019,9 @@ class TenantDashboardController extends Controller
                 foreach ($allStudioTasks as $atId) {
                     $notifIds[] = "task-{$atId}-leader-overdue";
                     $notifIds[] = "task-{$atId}-leader-stuck";
+                    $notifIds[] = "task-{$atId}-complexity_flagged";
                 }
             }
-
-            $notifIds[] = 'estimates-pending';
 
             if (Schema::hasTable('leave_requests')) {
                 $leaveReqs = LeaveRequest::where('studio_id', tenant('id'))

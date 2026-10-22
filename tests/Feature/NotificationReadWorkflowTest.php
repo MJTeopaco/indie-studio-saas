@@ -86,11 +86,6 @@ class NotificationReadWorkflowTest extends TestCase
             'user_id' => $this->user->id,
             'notification_id' => "task-{$task->id}-task_assigned",
         ]);
-
-        $this->assertDatabaseHas('notification_reads', [
-            'user_id' => $this->user->id,
-            'notification_id' => 'estimates-pending',
-        ]);
     }
 
     public function test_can_get_inbox_unread_count(): void
