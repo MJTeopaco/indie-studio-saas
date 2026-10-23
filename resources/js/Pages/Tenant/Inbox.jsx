@@ -899,7 +899,20 @@ const TYPE_CONFIG = {
     },
 };
 
-function getTypeConfig(type) {
+const resolvePersonName = (person, fallback = '—') => {
+    if (!person) return fallback;
+    if (typeof person === 'string') return person;
+    if (typeof person === 'object' && person.name) return person.name;
+    return fallback;
+};
+
+function getTypeConfig(type, notif = null) {
+    if (type === 'task_complexity_flagged' && (notif?.is_resolved || (notif?.task && !notif.task.needs_estimate_review))) {
+        return {
+            label: 'Complexity Review',
+            badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60',
+        };
+    }
     return TYPE_CONFIG[type] || {
         label: (type || 'Notice').replace(/_/g, ' '),
         badgeClass: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700',
@@ -2045,7 +2058,21 @@ export default function Inbox({
     const handleTaskUpdated = (updatedTask) => {
         if (activeNotification) markAsRead(activeNotification.id);
         if (updatedTask) {
-            setNotificationsList(prev => prev.map(n => n.task_id === updatedTask.id ? { ...n, task: { ...n.task, ...updatedTask } } : n));
+            const assigneeName = typeof updatedTask.assignee === 'object'
+                ? (updatedTask.assignee?.name || 'Assigned Member')
+                : (updatedTask.assignee || 'Assigned Member');
+            const reviewerName = typeof updatedTask.reviewer === 'object'
+                ? (updatedTask.reviewer?.name || 'None')
+                : (updatedTask.reviewer || 'None');
+            setNotificationsList(prev => prev.map(n => n.task_id === updatedTask.id ? {
+                ...n,
+                task: {
+                    ...n.task,
+                    ...updatedTask,
+                    assignee: assigneeName,
+                    reviewer: reviewerName,
+                }
+            } : n));
         }
     };
 
@@ -2067,7 +2094,41 @@ export default function Inbox({
 
             const updatedTask = res.data?.task;
             if (updatedTask) {
-                setNotificationsList(prev => prev.map(n => n.id === activeNotification.id ? { ...n, read: true, task: { ...n.task, ...updatedTask } } : n));
+                const assigneeName = typeof updatedTask.assignee === 'object'
+                    ? (updatedTask.assignee?.name || resolvePersonName(activeTask.assignee, 'Assigned Member'))
+                    : (updatedTask.assignee || resolvePersonName(activeTask.assignee, 'Assigned Member'));
+                const reviewerName = typeof updatedTask.reviewer === 'object'
+                    ? (updatedTask.reviewer?.name || resolvePersonName(activeTask.reviewer, 'None'))
+                    : (updatedTask.reviewer || resolvePersonName(activeTask.reviewer, 'None'));
+                const projectName = typeof updatedTask.project === 'object'
+                    ? (updatedTask.project?.name || activeNotification.project_name || '')
+                    : (updatedTask.project_name || activeNotification.project_name || '');
+                const finalSp = action === 'dismiss' ? (activeTask.story_points ?? 0) : (chosenSp || updatedTask.story_points);
+
+                setNotificationsList(prev => prev.map(n => {
+                    if (n.id === activeNotification.id) {
+                        return {
+                            ...n,
+                            read: true,
+                            created_at_human: 'Resolved',
+                            is_resolved: true,
+                            color: 'emerald',
+                            body: `${assigneeName} flagged complexity: "${activeTask.estimate_review_note || ''}" (Resolved: ${finalSp} SP)`,
+                            task: {
+                                ...n.task,
+                                ...updatedTask,
+                                needs_estimate_review: false,
+                                suggested_story_points: null,
+                                story_points: finalSp,
+                                story_points_locked: true,
+                                assignee: assigneeName,
+                                reviewer: reviewerName,
+                                project_name: projectName,
+                            },
+                        };
+                    }
+                    return n;
+                }));
             }
         } catch (err) {
             console.error('Failed to resolve complexity', err);
@@ -2310,7 +2371,7 @@ export default function Inbox({
                                     ) : (
                                         filteredNotifications.map(notif => {
                                             const isSelected = selectedNotifId === notif.id;
-                                            const typeConfig = getTypeConfig(notif.type);
+                                            const typeConfig = getTypeConfig(notif.type, notif);
 
                                             return (
                                                 <div
@@ -2372,6 +2433,17 @@ export default function Inbox({
                                                                 {notif.priority && notif.type !== 'leave_request' && (
                                                                     <span className="text-[9px] font-bold px-1.5 py-0.2 rounded uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                                                                         {notif.priority}
+                                                                    </span>
+                                                                )}
+                                                                {notif.type === 'task_complexity_flagged' && (
+                                                                    <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded border ${
+                                                                        (notif.is_resolved || (notif.task && !notif.task.needs_estimate_review))
+                                                                            ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200/60 dark:border-emerald-800/40'
+                                                                            : 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-200/60 dark:border-amber-800/40'
+                                                                    }`}>
+                                                                        {(notif.is_resolved || (notif.task && !notif.task.needs_estimate_review))
+                                                                            ? `✓ Resolved (${notif.task?.story_points ?? '—'} SP)`
+                                                                            : `Proposed: ${notif.task?.suggested_story_points ?? '—'} SP`}
                                                                     </span>
                                                                 )}
                                                                 {notif.type === 'leave_request' && notif.leave_request && (
@@ -2443,8 +2515,8 @@ export default function Inbox({
                                             <div className="flex items-start justify-between gap-4">
                                                 <div className="space-y-1.5 flex-1 min-w-0">
                                                     <div className="flex items-center gap-2 flex-wrap">
-                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${getTypeConfig(activeNotification.type).badgeClass}`}>
-                                                            {getTypeConfig(activeNotification.type).label}
+                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${getTypeConfig(activeNotification.type, activeNotification).badgeClass}`}>
+                                                            {getTypeConfig(activeNotification.type, activeNotification).label}
                                                         </span>
                                                         {activeNotification.project_name && (
                                                             <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
@@ -2911,90 +2983,137 @@ export default function Inbox({
                                                 <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                                     Complexity Issue Review
                                                 </div>
-                                                <div className="p-4 rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/60 dark:bg-amber-950/20 space-y-3.5">
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300">
-                                                                <AlertTriangle className="w-4 h-4" />
-                                                            </span>
-                                                            <span className="text-xs font-bold text-amber-900 dark:text-amber-200">
-                                                                Member Flagged Complexity
+                                                {(activeTask.needs_estimate_review || activeNotification.created_at_human === 'Action Needed') && !activeNotification.is_resolved ? (
+                                                    <div className="p-4 rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/60 dark:bg-amber-950/20 space-y-3.5">
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300">
+                                                                    <AlertTriangle className="w-4 h-4" />
+                                                                </span>
+                                                                <span className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                                                                    Member Flagged Complexity
+                                                                </span>
+                                                            </div>
+                                                            <span className="px-2.5 py-0.5 rounded text-[11px] font-mono font-bold bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200">
+                                                                Proposed: {activeTask.suggested_story_points ?? '—'} SP
                                                             </span>
                                                         </div>
-                                                        <span className="px-2.5 py-0.5 rounded text-[11px] font-mono font-bold bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200">
-                                                            Proposed: {activeTask.suggested_story_points ?? '—'} SP
-                                                        </span>
-                                                    </div>
 
-                                                    <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/70 border border-amber-200/60 dark:border-amber-900/40 text-xs text-slate-700 dark:text-slate-300 space-y-1">
-                                                        <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                                                            <span>Note from {activeTask.assignee || 'Assigned Member'}:</span>
-                                                            <span className="font-mono">Current: {activeTask.story_points ?? 0} SP</span>
+                                                        <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/70 border border-amber-200/60 dark:border-amber-900/40 text-xs text-slate-700 dark:text-slate-300 space-y-1">
+                                                            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                                                                <span>Note from {resolvePersonName(activeTask.assignee, 'Assigned Member')}:</span>
+                                                                <span className="font-mono">Current: {activeTask.story_points ?? 0} SP</span>
+                                                            </div>
+                                                            <p className="italic leading-relaxed">
+                                                                "{activeTask.estimate_review_note || 'No comment provided.'}"
+                                                            </p>
                                                         </div>
-                                                        <p className="italic leading-relaxed">
-                                                            "{activeTask.estimate_review_note || 'No comment provided.'}"
-                                                        </p>
-                                                    </div>
 
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
-                                                            <span>Decide Final Story Points:</span>
-                                                            <span className="font-mono text-amber-600 dark:text-amber-400 font-bold">
-                                                                {managerAdjustSp ?? activeTask.suggested_story_points ?? activeTask.story_points} SP
-                                                            </span>
-                                                        </label>
-                                                        <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
-                                                            {[1, 2, 3, 5, 8, 13, 21, 34].map(val => (
+                                                        <div className="space-y-1.5">
+                                                            <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                                                                <span>Decide Final Story Points:</span>
+                                                                <span className="font-mono text-amber-600 dark:text-amber-400 font-bold">
+                                                                    {managerAdjustSp ?? activeTask.suggested_story_points ?? activeTask.story_points} SP
+                                                                </span>
+                                                            </label>
+                                                            <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
+                                                                {[1, 2, 3, 5, 8, 13, 21, 34].map(val => (
+                                                                    <button
+                                                                        key={val}
+                                                                        type="button"
+                                                                        onClick={() => setManagerAdjustSp(val)}
+                                                                        className={`py-1.5 rounded-lg font-mono text-xs font-bold border transition-all cursor-pointer ${
+                                                                            (managerAdjustSp ?? activeTask.suggested_story_points ?? activeTask.story_points) === val
+                                                                                ? 'bg-amber-500 text-white border-amber-600 shadow-xs ring-1 ring-amber-400'
+                                                                                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-amber-400'
+                                                                        }`}
+                                                                    >
+                                                                        {val}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="pt-2 border-t border-amber-200/60 dark:border-amber-900/40 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleOpenTaskDetail(activeTask)}
+                                                                className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1"
+                                                            >
+                                                                <Eye className="w-3.5 h-3.5" />
+                                                                <span>Open Full Task</span>
+                                                            </button>
+                                                            <div className="flex items-center gap-2">
                                                                 <button
-                                                                    key={val}
                                                                     type="button"
-                                                                    onClick={() => setManagerAdjustSp(val)}
-                                                                    className={`py-1.5 rounded-lg font-mono text-xs font-bold border transition-all cursor-pointer ${
-                                                                        (managerAdjustSp ?? activeTask.suggested_story_points ?? activeTask.story_points) === val
-                                                                            ? 'bg-amber-500 text-white border-amber-600 shadow-xs ring-1 ring-amber-400'
-                                                                            : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-amber-400'
-                                                                    }`}
+                                                                    disabled={isResolvingComplexity}
+                                                                    onClick={() => handleResolveComplexity('dismiss')}
+                                                                    className="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
                                                                 >
-                                                                    {val}
+                                                                    Dismiss Flag
                                                                 </button>
-                                                            ))}
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={isResolvingComplexity}
+                                                                    onClick={() => handleResolveComplexity('accept')}
+                                                                    className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                                                                >
+                                                                    {isResolvingComplexity ? (
+                                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                                    ) : (
+                                                                        <Check className="w-3.5 h-3.5" />
+                                                                    )}
+                                                                    <span>Update to {managerAdjustSp ?? activeTask.suggested_story_points ?? activeTask.story_points} SP</span>
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                     </div>
+                                                ) : (
+                                                    <div className="p-4 rounded-2xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/60 dark:bg-emerald-950/20 space-y-3.5">
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300">
+                                                                    <CheckCircle2 className="w-4 h-4" />
+                                                                </span>
+                                                                <div>
+                                                                    <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200 block">
+                                                                        Complexity Review Resolved
+                                                                    </span>
+                                                                    <span className="text-[11px] text-emerald-700 dark:text-emerald-400">
+                                                                        This request has been reviewed and finalized
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <span className="px-2.5 py-0.5 rounded text-[11px] font-mono font-bold bg-emerald-200 dark:bg-emerald-900/60 text-emerald-900 dark:text-emerald-200">
+                                                                {activeTask.story_points ?? '—'} SP Locked
+                                                            </span>
+                                                        </div>
 
-                                                    <div className="pt-2 border-t border-amber-200/60 dark:border-amber-900/40 flex flex-col sm:flex-row items-center justify-between gap-2.5">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleOpenTaskDetail(activeTask)}
-                                                            className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1"
-                                                        >
-                                                            <Eye className="w-3.5 h-3.5" />
-                                                            <span>Open Full Task</span>
-                                                        </button>
-                                                        <div className="flex items-center gap-2">
+                                                        <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/70 border border-emerald-200/60 dark:border-emerald-900/40 text-xs text-slate-700 dark:text-slate-300 space-y-1">
+                                                            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                                                                <span>Original Note from {resolvePersonName(activeTask.assignee, 'Assigned Member')}:</span>
+                                                                <span className="font-mono text-emerald-700 dark:text-emerald-300 font-bold">Final: {activeTask.story_points ?? 0} SP</span>
+                                                            </div>
+                                                            <p className="italic leading-relaxed text-slate-600 dark:text-slate-300">
+                                                                "{activeTask.estimate_review_note || 'No comment provided.'}"
+                                                            </p>
+                                                        </div>
+
+                                                        <div className="pt-2 border-t border-emerald-200/60 dark:border-emerald-900/40 flex items-center justify-between">
+                                                            <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                                Task estimate is finalized and in progress.
+                                                            </span>
                                                             <button
                                                                 type="button"
-                                                                disabled={isResolvingComplexity}
-                                                                onClick={() => handleResolveComplexity('dismiss')}
-                                                                className="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                                                                onClick={() => handleOpenTaskDetail(activeTask)}
+                                                                className="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                                                             >
-                                                                Dismiss Flag
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                disabled={isResolvingComplexity}
-                                                                onClick={() => handleResolveComplexity('accept')}
-                                                                className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
-                                                            >
-                                                                {isResolvingComplexity ? (
-                                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                                ) : (
-                                                                    <Check className="w-3.5 h-3.5" />
-                                                                )}
-                                                                <span>Update to {managerAdjustSp ?? activeTask.suggested_story_points ?? activeTask.story_points} SP</span>
+                                                                <Eye className="w-3.5 h-3.5" />
+                                                                <span>View Task</span>
                                                             </button>
                                                         </div>
                                                     </div>
-                                                </div>
+                                                )}
                                             </div>
                                         )}
 
@@ -3018,11 +3137,11 @@ export default function Inbox({
                                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2.5 border-t border-slate-200/60 dark:border-slate-700/60">
                                                         <div>
                                                             <span className="text-[10px] text-slate-400 font-semibold uppercase">Assignee</span>
-                                                            <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate mt-0.5">{activeTask.assignee || 'Unassigned'}</p>
+                                                            <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate mt-0.5">{resolvePersonName(activeTask.assignee, 'Unassigned')}</p>
                                                         </div>
                                                         <div>
                                                             <span className="text-[10px] text-slate-400 font-semibold uppercase">Reviewer</span>
-                                                            <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate mt-0.5">{activeTask.reviewer || 'None'}</p>
+                                                            <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate mt-0.5">{resolvePersonName(activeTask.reviewer, 'None')}</p>
                                                         </div>
                                                         <div>
                                                             <span className="text-[10px] text-slate-400 font-semibold uppercase">Story Points</span>

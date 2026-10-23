@@ -372,13 +372,17 @@ export default function MemberTaskDetailModal({ isOpen, onClose, task, tenantId,
                             {task.assignee && (
                                 <div>
                                     <span className="block text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase">Doer</span>
-                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-0.5 inline-block">{task.assignee}</span>
+                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-0.5 inline-block">
+                                        {typeof task.assignee === 'object' ? task.assignee?.name : task.assignee}
+                                    </span>
                                 </div>
                             )}
                             {task.reviewer && (
                                 <div>
                                     <span className="block text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase">Reviewer</span>
-                                    <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 mt-0.5 inline-block">{task.reviewer}</span>
+                                    <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 mt-0.5 inline-block">
+                                        {typeof task.reviewer === 'object' ? task.reviewer?.name : task.reviewer}
+                                    </span>
                                 </div>
                             )}
                             {task.hard_constraint_date && (

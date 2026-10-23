@@ -1157,22 +1157,39 @@ class TenantDashboardController extends Controller
             if ($isManager) {
                 try {
                     $flaggedTasks = Task::with(['assignee', 'project', 'epic'])
-                        ->where('needs_estimate_review', true)
+                        ->where(function ($q) {
+                            $q->where('needs_estimate_review', true)
+                                ->orWhere(function ($resolvedQ) {
+                                    $resolvedQ->where('needs_estimate_review', false)
+                                        ->whereNotNull('estimate_review_note')
+                                        ->where('updated_at', '>=', now()->subDays(60));
+                                });
+                        })
+                        ->orderByDesc('updated_at')
                         ->get();
 
                     foreach ($flaggedTasks as $ft) {
+                        $isPending = (bool) $ft->needs_estimate_review;
                         $notifId = "task-{$ft->id}-complexity_flagged";
                         $assigneeName = $ft->assignee?->name ?? 'Assigned Member';
-                        $suggestedSp = $ft->suggested_story_points ?? '—';
+                        $suggestedSp = $ft->suggested_story_points ?? null;
                         $currentSp = $ft->story_points ?? '0';
+
+                        $body = $isPending
+                            ? "{$assigneeName} flagged complexity (Current: {$currentSp} SP".($suggestedSp ? ", Suggested: {$suggestedSp} SP" : '')."): \"{$ft->estimate_review_note}\""
+                            : "{$assigneeName} flagged complexity: \"{$ft->estimate_review_note}\" (Resolved: {$currentSp} SP)";
+
+                        $title = $isPending
+                            ? "Complexity Flagged: #{$ft->id} {$ft->title}"
+                            : "Complexity Review: #{$ft->id} {$ft->title}";
 
                         $notifications[] = [
                             'id' => $notifId,
                             'type' => 'task_complexity_flagged',
-                            'title' => "Complexity Flagged: #{$ft->id} {$ft->title}",
-                            'body' => "{$assigneeName} flagged complexity (Current: {$currentSp} SP, Suggested: {$suggestedSp} SP): \"{$ft->estimate_review_note}\"",
-                            'icon' => 'alert',
-                            'color' => 'amber',
+                            'title' => $title,
+                            'body' => $body,
+                            'icon' => $isPending ? 'alert' : 'sparkles',
+                            'color' => $isPending ? 'amber' : 'emerald',
                             'task_id' => $ft->id,
                             'task_title' => $ft->title,
                             'task' => $this->formatTaskForMember($ft, $user),
@@ -1181,8 +1198,9 @@ class TenantDashboardController extends Controller
                             'epic_color' => $ft->epic?->color ?? null,
                             'priority' => $ft->priority ?? 'High',
                             'days_until_deadline' => $ft->days_until_deadline,
-                            'read' => in_array($notifId, $readNotificationIds),
-                            'created_at_human' => 'Action Needed',
+                            'read' => ! $isPending || in_array($notifId, $readNotificationIds),
+                            'created_at_human' => $isPending ? 'Action Needed' : 'Resolved',
+                            'is_resolved' => ! $isPending,
                         ];
                     }
                 } catch (\Exception $e) {
