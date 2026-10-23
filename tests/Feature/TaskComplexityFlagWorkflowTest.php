@@ -132,4 +132,30 @@ class TaskComplexityFlagWorkflowTest extends TestCase
         $this->assertNull($task->suggested_story_points);
         $this->assertEquals(5, $task->story_points);
     }
+
+    public function test_tasks_page_index_serializes_complexity_review_fields(): void
+    {
+        $this->actingAs($this->member);
+
+        $task = Task::create([
+            'project_id' => $this->project->id,
+            'assigned_user_id' => $this->member->id,
+            'title' => 'Shader Optimization Pass',
+            'status' => 'in_progress',
+            'story_points' => 8,
+            'needs_estimate_review' => true,
+            'suggested_story_points' => 13,
+            'estimate_review_note' => 'Needs driver fixes for mobile GPUs.',
+        ]);
+
+        $response = $this->get('/studio/test-studio/tasks');
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->component('Tenant/Tasks/Index')
+            ->has('tasks')
+            ->where('tasks.' . $this->project->id . '.0.needs_estimate_review', true)
+            ->where('tasks.' . $this->project->id . '.0.suggested_story_points', 13)
+            ->where('tasks.' . $this->project->id . '.0.estimate_review_note', 'Needs driver fixes for mobile GPUs.')
+        );
+    }
 }

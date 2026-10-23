@@ -19,6 +19,9 @@ import {
     Tag,
 } from 'lucide-react';
 import { showToast } from '@/Components/SystemToast';
+import { usePage } from '@inertiajs/react';
+import axios from 'axios';
+import FlagComplexityModal from './FlagComplexityModal';
 import { resolveCpaStatus } from '@/lib/cpaTerminology';
 import {
     STATUS_CONFIG,
@@ -43,8 +46,14 @@ export default function TaskFlyoutInspector({
     canManage = false,
     currentUserId = null,
     teamMembers = [],
+    tenantId = null,
+    onTaskUpdated = null,
 }) {
+    const { activeWorkspace } = usePage().props;
+    const resolvedTenantId = tenantId || activeWorkspace;
+
     const [activeTab, setActiveTab] = useState('details');
+    const [currentTask, setCurrentTask] = useState(task);
     const [selectedStatus, setSelectedStatus] = useState('todo');
     const [selectedPriority, setSelectedPriority] = useState('Medium');
     const [selectedAssignee, setSelectedAssignee] = useState('');
@@ -52,6 +61,8 @@ export default function TaskFlyoutInspector({
     const [commentText, setCommentText] = useState('');
     const [comments, setComments] = useState([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isFlagModalOpen, setIsFlagModalOpen] = useState(false);
+    const [isResolvingFlag, setIsResolvingFlag] = useState(false);
 
     const sheetRef = useRef(null);
     const closeBtnRef = useRef(null);
@@ -60,6 +71,7 @@ export default function TaskFlyoutInspector({
     // Sync state from task prop
     useEffect(() => {
         if (task) {
+            setCurrentTask(task);
             const normalized = normalizeStatusKey(task.status, task.sprint_status);
             setSelectedStatus(normalized);
             setSelectedPriority(task.priority || 'Medium');
@@ -86,6 +98,7 @@ export default function TaskFlyoutInspector({
         previousActiveElementRef.current = document.activeElement;
 
         const handleKeyDown = (e) => {
+            if (isFlagModalOpen) return;
             if (e.key === 'Escape') {
                 e.preventDefault();
                 onClose?.();
@@ -129,43 +142,87 @@ export default function TaskFlyoutInspector({
 
     if (!isOpen || !task) return null;
 
-    const taskKey = task.task_key || `TASK-${String(task.id).padStart(3, '0')}`;
-    const projectName = task.project_name || task.project?.name || 'StudioSprint Core';
+    const activeTask = currentTask || task;
+    const taskKey = activeTask.task_key || `TASK-${String(activeTask.id).padStart(3, '0')}`;
+    const projectName = activeTask.project_name || activeTask.project?.name || 'StudioSprint Core';
     const isCompleted = selectedStatus === 'completed';
 
     const isCritical = Boolean(
-        task.is_critical || (task.total_float !== null && task.total_float !== undefined && Number(task.total_float) <= 0)
+        activeTask.is_critical || (activeTask.total_float !== null && activeTask.total_float !== undefined && Number(activeTask.total_float) <= 0)
     );
-    const totalFloat = task.total_float !== null && task.total_float !== undefined ? Number(task.total_float) : null;
-    const rawDueDate = task.hard_constraint_date || task.due_date || task.dueDate;
+    const totalFloat = activeTask.total_float !== null && activeTask.total_float !== undefined ? Number(activeTask.total_float) : null;
+    const rawDueDate = activeTask.hard_constraint_date || activeTask.due_date || activeTask.dueDate;
     const dueInfo = formatRelativeDueDate(rawDueDate);
 
     // Permission and role checks
-    const hasReviewer = Boolean(task?.reviewer_user_id || task?.reviewer);
+    const hasReviewer = Boolean(activeTask?.reviewer_user_id || activeTask?.reviewer);
     const isReviewer = Boolean(
-        currentUserId && task?.reviewer_user_id && Number(task.reviewer_user_id) === Number(currentUserId)
+        currentUserId && activeTask?.reviewer_user_id && Number(activeTask.reviewer_user_id) === Number(currentUserId)
     );
     const isDoer = Boolean(
         currentUserId && (
-            (task?.assigned_user_id && Number(task.assigned_user_id) === Number(currentUserId)) ||
-            (task?.assignee?.id && Number(task.assignee.id) === Number(currentUserId))
+            (activeTask?.assigned_user_id && Number(activeTask.assigned_user_id) === Number(currentUserId)) ||
+            (activeTask?.assignee?.id && Number(activeTask.assignee.id) === Number(currentUserId))
         )
     );
+    const canFlagComplexity = canManage || isDoer;
     const canMarkDone = Boolean(canManage || isReviewer || (!hasReviewer && isDoer));
-    const reviewerDisplayName = typeof task?.reviewer === 'string'
-        ? task.reviewer
-        : (task?.reviewer?.name || 'the assigned reviewer');
+    const reviewerDisplayName = typeof activeTask?.reviewer === 'string'
+        ? activeTask.reviewer
+        : (activeTask?.reviewer?.name || 'the assigned reviewer');
 
     const cpaInfo = resolveCpaStatus({
         totalFloat,
-        isCritical: task.is_critical,
+        isCritical: activeTask.is_critical,
         dueDate: rawDueDate,
-        daysUntilDeadline: task.days_until_deadline,
-        dependentCount: task.dependent_tasks_count || task.downstream_count || 0,
+        daysUntilDeadline: activeTask.days_until_deadline,
+        dependentCount: activeTask.dependent_tasks_count || activeTask.downstream_count || 0,
         status: selectedStatus,
     });
 
     const isCantSlip = isCritical || cpaInfo.tier === 'vigilance' || (totalFloat !== null && totalFloat <= 0);
+
+    const handleResolveComplexity = async (action, spValue = null) => {
+        if (!resolvedTenantId || !activeTask?.id) return;
+        setIsResolvingFlag(true);
+        try {
+            const url = route('tenant.tasks.resolve-complexity', {
+                tenant: resolvedTenantId,
+                task: activeTask.id,
+            });
+            const payload = { action };
+            if (spValue !== null && spValue !== undefined) {
+                payload.story_points = Number(spValue);
+            }
+            const res = await axios.post(url, payload);
+            showToast(res.data?.message || 'Complexity resolution saved.', 'success');
+            const updated = res.data?.task || {
+                ...activeTask,
+                needs_estimate_review: false,
+                suggested_story_points: null,
+                story_points: action === 'accept' && spValue ? Number(spValue) : activeTask.story_points,
+            };
+            setCurrentTask(updated);
+            if (action === 'accept' && spValue) {
+                setStoryPoints(spValue);
+            }
+            if (typeof onTaskUpdated === 'function') {
+                onTaskUpdated(updated);
+            } else if (typeof updateTask === 'function') {
+                updateTask(updated.id, {
+                    needs_estimate_review: false,
+                    suggested_story_points: null,
+                    ...(action === 'accept' && spValue ? { story_points: Number(spValue) } : {}),
+                });
+            }
+        } catch (err) {
+            console.error('Failed to resolve complexity flag', err);
+            const msg = err.response?.data?.message || 'Could not resolve complexity flag.';
+            showToast(msg, 'error');
+        } finally {
+            setIsResolvingFlag(false);
+        }
+    };
 
     // Handle field updates
     const handleFieldChange = async (field, value) => {
@@ -189,9 +246,9 @@ export default function TaskFlyoutInspector({
 
         try {
             if (typeof updateTask === 'function') {
-                await updateTask(task.id, patch);
+                await updateTask(activeTask.id, patch);
             } else if (typeof onUpdateStatus === 'function' && (field === 'status' || field === 'sprint_status')) {
-                await onUpdateStatus(task, value);
+                await onUpdateStatus(activeTask, value);
             }
         } catch (err) {
             console.error('Failed to update task property', err);
@@ -210,9 +267,9 @@ export default function TaskFlyoutInspector({
         try {
             setSelectedStatus('completed');
             if (typeof updateTask === 'function') {
-                await updateTask(task.id, { status: 'completed', sprint_status: 'done' });
+                await updateTask(activeTask.id, { status: 'completed', sprint_status: 'done' });
             } else if (typeof onUpdateStatus === 'function') {
-                await onUpdateStatus(task, 'completed', 'Marked complete via inspector');
+                await onUpdateStatus(activeTask, 'completed', 'Marked complete via inspector');
             }
             showToast('Task marked as complete', 'success');
         } catch (err) {
@@ -250,8 +307,10 @@ export default function TaskFlyoutInspector({
     const activeStatusObj = STATUS_CONFIG[selectedStatus] || STATUS_CONFIG.todo;
 
     // Render portal into document body
-    return createPortal(
-        <div
+    return (
+        <>
+            {createPortal(
+                <div
             className="fixed inset-0 z-[60] overflow-hidden"
             role="dialog"
             aria-modal="true"
@@ -301,7 +360,7 @@ export default function TaskFlyoutInspector({
                             id="task-details-title"
                             className="type-section-title font-bold text-[var(--foreground)] line-clamp-3 leading-snug select-text"
                         >
-                            {task.title}
+                            {activeTask.title}
                         </h2>
                     </div>
 
@@ -519,6 +578,82 @@ export default function TaskFlyoutInspector({
                                     </div>
                                 </div>
                             </section>
+
+                            {/* Flag Complexity (UX Escape Hatch) */}
+                            <div className="p-4 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 space-y-3">
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                    <div className="space-y-0.5">
+                                        <div className="flex items-center gap-2">
+                                            <label className="text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                                                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                                <span>Flag Complexity Issue</span>
+                                            </label>
+                                            {activeTask.needs_estimate_review && (
+                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200">
+                                                    Awaiting Review
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                                            {activeTask.needs_estimate_review
+                                                ? `Proposed: ${activeTask.suggested_story_points ?? '—'} SP (Current: ${activeTask.story_points ?? '0'} SP) • Note: "${activeTask.estimate_review_note || ''}"`
+                                                : `Is this task harder than ${activeTask.story_points ?? 0} SP?`}
+                                        </p>
+                                    </div>
+
+                                    {/* Action button(s) */}
+                                    <div className="flex items-center gap-2 flex-wrap shrink-0">
+                                        {canFlagComplexity ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsFlagModalOpen(true)}
+                                                className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors shrink-0 whitespace-nowrap cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                                            >
+                                                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                                <span>{activeTask.needs_estimate_review ? 'Update Flag' : 'Notify Manager'}</span>
+                                            </button>
+                                        ) : (
+                                            <span className="text-[11px] text-slate-400 italic">
+                                                Assignee only
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Manager Quick Resolution Actions when awaiting review */}
+                                {canManage && activeTask.needs_estimate_review && (
+                                    <div className="pt-2 border-t border-amber-200/60 dark:border-amber-900/40 flex items-center justify-between gap-2 flex-wrap">
+                                        <span className="text-[11px] font-semibold text-amber-800 dark:text-amber-300">
+                                            Manager Review:
+                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                disabled={isResolvingFlag}
+                                                onClick={() => handleResolveComplexity('dismiss')}
+                                                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-400 hover:bg-amber-100/60 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                            >
+                                                Dismiss Flag
+                                            </button>
+                                            {activeTask.suggested_story_points && (
+                                                <button
+                                                    type="button"
+                                                    disabled={isResolvingFlag}
+                                                    onClick={() => handleResolveComplexity('accept', activeTask.suggested_story_points)}
+                                                    className="px-3 py-1 rounded-lg text-[11px] font-bold bg-amber-600 hover:bg-amber-700 text-white transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
+                                                >
+                                                    {isResolvingFlag ? (
+                                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                                    ) : (
+                                                        <Check className="w-3 h-3" />
+                                                    )}
+                                                    <span>Accept {activeTask.suggested_story_points} SP</span>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
 
                             <hr className="border-[var(--border)]" />
 
@@ -760,5 +895,27 @@ export default function TaskFlyoutInspector({
             </div>
         </div>,
         document.body
+    )}
+
+    {/* Flag Complexity Modal */}
+    <FlagComplexityModal
+        isOpen={isFlagModalOpen}
+        onClose={() => setIsFlagModalOpen(false)}
+        task={activeTask}
+        tenantId={resolvedTenantId}
+        onComplexityFlagged={(updatedTask) => {
+            setCurrentTask(updatedTask);
+            if (typeof onTaskUpdated === 'function') {
+                onTaskUpdated(updatedTask);
+            } else if (typeof updateTask === 'function') {
+                updateTask(updatedTask.id, {
+                    needs_estimate_review: updatedTask.needs_estimate_review,
+                    suggested_story_points: updatedTask.suggested_story_points,
+                    estimate_review_note: updatedTask.estimate_review_note,
+                });
+            }
+        }}
+    />
+    </>
     );
 }
