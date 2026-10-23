@@ -39,6 +39,7 @@ import {
     Check,
     CheckCheck,
     CheckCircle2,
+    XCircle,
     CornerUpLeft,
     Copy,
     Forward,
@@ -877,6 +878,14 @@ const TYPE_CONFIG = {
         label: 'Complexity Review',
         badgeClass: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/60',
     },
+    task_complexity_approved: {
+        label: 'Complexity Approved',
+        badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60',
+    },
+    task_complexity_dismissed: {
+        label: 'Complexity Dismissed',
+        badgeClass: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700',
+    },
     overdue: {
         label: 'Overdue',
         badgeClass: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/60',
@@ -912,6 +921,12 @@ function getTypeConfig(type, notif = null) {
             label: 'Complexity Review',
             badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60',
         };
+    }
+    if (type === 'task_complexity_approved') {
+        return TYPE_CONFIG.task_complexity_approved;
+    }
+    if (type === 'task_complexity_dismissed') {
+        return TYPE_CONFIG.task_complexity_dismissed;
     }
     return TYPE_CONFIG[type] || {
         label: (type || 'Notice').replace(/_/g, ' '),
@@ -1010,13 +1025,16 @@ export default function Inbox({
     // Category count metrics
     const unreadCount = useMemo(() => notificationsList.filter(n => !n.read).length, [notificationsList]);
     const actionRequiredCount = useMemo(() =>
-        notificationsList.filter(n => ['leave_request', 'emergency_declaration', 'review_request', 'task_complexity_flagged'].includes(n.type) && !n.read).length,
+        notificationsList.filter(n => (
+            ['leave_request', 'emergency_declaration', 'review_request'].includes(n.type) ||
+            (n.type === 'task_complexity_flagged' && !n.is_resolved && n.task?.needs_estimate_review)
+        ) && !n.read).length,
     [notificationsList]);
     const messagesNotifCount = useMemo(() =>
         notificationsList.filter(n => ['direct_message', 'channel_mention'].includes(n.type) && !n.read).length,
     [notificationsList]);
     const alertsNotifCount = useMemo(() =>
-        notificationsList.filter(n => ['overdue', 'stuck', 'emergency_resolved'].includes(n.type) && !n.read).length,
+        notificationsList.filter(n => ['overdue', 'stuck', 'emergency_resolved', 'task_complexity_approved', 'task_complexity_dismissed'].includes(n.type) && !n.read).length,
     [notificationsList]);
 
     const handleApproveLeave = (leaveReq) => {
@@ -1158,13 +1176,14 @@ export default function Inbox({
             if (onlyUnread && item.read) return false;
 
             if (notifFilter === 'action') {
-                return ['leave_request', 'emergency_declaration', 'review_request', 'task_complexity_flagged'].includes(item.type);
+                return ['leave_request', 'emergency_declaration', 'review_request'].includes(item.type) ||
+                    (item.type === 'task_complexity_flagged' && !item.is_resolved && item.task?.needs_estimate_review);
             }
             if (notifFilter === 'messages') {
                 return ['direct_message', 'channel_mention'].includes(item.type);
             }
             if (notifFilter === 'alerts') {
-                return ['overdue', 'stuck', 'emergency_resolved'].includes(item.type);
+                return ['overdue', 'stuck', 'emergency_resolved', 'task_complexity_approved', 'task_complexity_dismissed'].includes(item.type);
             }
             return true;
         });
@@ -2148,6 +2167,9 @@ export default function Inbox({
         'message-square': MessageSquare,
         mail: Mail,
         calendar: Calendar,
+        'check-circle': CheckCircle2,
+        'x-circle': XCircle,
+        check: Check,
     };
     const colorMap = {
         blue: { bg: 'bg-blue-50/80 dark:bg-blue-950/30', border: 'border-blue-200 dark:border-blue-900/50', icon: 'bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400', badge: 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' },
@@ -2155,6 +2177,7 @@ export default function Inbox({
         rose: { bg: 'bg-rose-50/80 dark:bg-rose-950/30', border: 'border-rose-200 dark:border-rose-900/50', icon: 'bg-rose-100 dark:bg-rose-900/60 text-rose-600 dark:text-rose-400', badge: 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300' },
         amber: { bg: 'bg-amber-50/80 dark:bg-amber-950/30', border: 'border-amber-200 dark:border-amber-900/50', icon: 'bg-amber-100 dark:bg-amber-900/60 text-amber-600 dark:text-amber-400', badge: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' },
         emerald: { bg: 'bg-emerald-50/80 dark:bg-emerald-950/30', border: 'border-emerald-200 dark:border-emerald-900/50', icon: 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400', badge: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300' },
+        slate: { bg: 'bg-slate-50/80 dark:bg-slate-800/30', border: 'border-slate-200 dark:border-slate-800', icon: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400', badge: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300' },
     };
 
     return (
@@ -2444,6 +2467,16 @@ export default function Inbox({
                                                                         {(notif.is_resolved || (notif.task && !notif.task.needs_estimate_review))
                                                                             ? `✓ Resolved (${notif.task?.story_points ?? '—'} SP)`
                                                                             : `Proposed: ${notif.task?.suggested_story_points ?? '—'} SP`}
+                                                                    </span>
+                                                                )}
+                                                                {notif.type === 'task_complexity_approved' && (
+                                                                    <span className="text-[10px] font-medium px-1.5 py-0.2 rounded border text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200/60 dark:border-emerald-800/40">
+                                                                        ✓ Approved ({notif.task?.story_points ?? '—'} SP)
+                                                                    </span>
+                                                                )}
+                                                                {notif.type === 'task_complexity_dismissed' && (
+                                                                    <span className="text-[10px] font-medium px-1.5 py-0.2 rounded border text-slate-700 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700">
+                                                                        ✕ Dismissed ({notif.task?.story_points ?? '—'} SP)
                                                                     </span>
                                                                 )}
                                                                 {notif.type === 'leave_request' && notif.leave_request && (
@@ -2977,13 +3010,13 @@ export default function Inbox({
                                             </div>
                                         )}
 
-                                        {/* Complexity Flagged Review Module for Manager */}
-                                        {activeNotification.type === 'task_complexity_flagged' && activeTask && (
+                                        {/* Complexity Flagged Review Module (Manager Review & Member Notification) */}
+                                        {['task_complexity_flagged', 'task_complexity_approved', 'task_complexity_dismissed'].includes(activeNotification.type) && activeTask && (
                                             <div className="p-5 space-y-3">
                                                 <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                                     Complexity Issue Review
                                                 </div>
-                                                {(activeTask.needs_estimate_review || activeNotification.created_at_human === 'Action Needed') && !activeNotification.is_resolved ? (
+                                                {canManage && activeNotification.type === 'task_complexity_flagged' && ((activeTask.needs_estimate_review || activeNotification.created_at_human === 'Action Needed') && !activeNotification.is_resolved) ? (
                                                     <div className="p-4 rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/60 dark:bg-amber-950/20 space-y-3.5">
                                                         <div className="flex items-center justify-between gap-2">
                                                             <div className="flex items-center gap-2">
@@ -3068,6 +3101,51 @@ export default function Inbox({
                                                             </div>
                                                         </div>
                                                     </div>
+                                                ) : activeNotification.type === 'task_complexity_dismissed' ? (
+                                                    <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 space-y-3.5">
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                                                    <XCircle className="w-4 h-4" />
+                                                                </span>
+                                                                <div>
+                                                                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block">
+                                                                        Complexity Review Dismissed
+                                                                    </span>
+                                                                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                                        Manager reviewed and dismissed the complexity flag
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <span className="px-2.5 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-300">
+                                                                {activeTask.story_points ?? '—'} SP Retained
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/70 border border-slate-200/60 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 space-y-1">
+                                                            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                                                                <span>Original Note from {resolvePersonName(activeTask.assignee, 'Assigned Member')}:</span>
+                                                                <span className="font-mono text-slate-700 dark:text-slate-300 font-bold">Current: {activeTask.story_points ?? 0} SP</span>
+                                                            </div>
+                                                            <p className="italic leading-relaxed text-slate-600 dark:text-slate-300">
+                                                                "{activeTask.estimate_review_note || 'No comment provided.'}"
+                                                            </p>
+                                                        </div>
+
+                                                        <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
+                                                            <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                                Story points remain at {activeTask.story_points ?? 0} SP. Continue task execution.
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleOpenTaskDetail(activeTask)}
+                                                                className="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                                                            >
+                                                                <Eye className="w-3.5 h-3.5" />
+                                                                <span>View Task</span>
+                                                            </button>
+                                                        </div>
+                                                    </div>
                                                 ) : (
                                                     <div className="p-4 rounded-2xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/60 dark:bg-emerald-950/20 space-y-3.5">
                                                         <div className="flex items-center justify-between gap-2">
@@ -3077,7 +3155,7 @@ export default function Inbox({
                                                                 </span>
                                                                 <div>
                                                                     <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200 block">
-                                                                        Complexity Review Resolved
+                                                                        Complexity Review Approved
                                                                     </span>
                                                                     <span className="text-[11px] text-emerald-700 dark:text-emerald-400">
                                                                         This request has been reviewed and finalized

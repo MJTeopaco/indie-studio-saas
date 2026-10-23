@@ -462,6 +462,7 @@ class TenantTaskController extends Controller
             'needs_estimate_review' => true,
             'suggested_story_points' => $validated['suggested_story_points'],
             'estimate_review_note' => $validated['feedback'],
+            'complexity_review_status' => 'pending',
         ]);
 
         try {
@@ -520,9 +521,14 @@ class TenantTaskController extends Controller
             'story_points' => 'required_if:action,accept,modify|nullable|integer|in:1,2,3,5,8,13,21,34',
         ]);
 
+        $status = in_array($validated['action'], ['accept', 'modify'])
+            ? ($validated['action'] === 'modify' ? 'modified' : 'approved')
+            : 'dismissed';
+
         $updates = [
             'needs_estimate_review' => false,
             'suggested_story_points' => null,
+            'complexity_review_status' => $status,
         ];
 
         if (in_array($validated['action'], ['accept', 'modify']) && ! empty($validated['story_points'])) {

@@ -192,4 +192,74 @@ class TaskComplexityFlagWorkflowTest extends TestCase
             ->where('notifications.0.created_at_human', 'Resolved')
         );
     }
+
+    public function test_member_receives_approved_notification_when_manager_accepts_complexity_flag(): void
+    {
+        $task = Task::create([
+            'project_id' => $this->project->id,
+            'assigned_user_id' => $this->member->id,
+            'title' => 'Gameplay Ability System',
+            'status' => 'in_progress',
+            'story_points' => 5,
+            'needs_estimate_review' => true,
+            'suggested_story_points' => 13,
+            'estimate_review_note' => 'Complex combo trees and cooldown tags.',
+        ]);
+
+        // Manager accepts the complexity request
+        $this->actingAs($this->manager);
+        $resolveResponse = $this->postJson("/studio/test-studio/tasks/{$task->id}/resolve-complexity", [
+            'action' => 'accept',
+            'story_points' => 13,
+        ]);
+        $resolveResponse->assertOk();
+
+        // Now member logs in and visits inbox
+        $this->actingAs($this->member);
+        $inboxResponse = $this->get('/studio/test-studio/inbox?tab=notifications');
+        $inboxResponse->assertOk();
+        $inboxResponse->assertInertia(fn ($page) => $page
+            ->component('Tenant/Inbox')
+            ->has('notifications')
+            ->where('notifications.0.type', 'task_complexity_approved')
+            ->where('notifications.0.is_resolved', true)
+            ->where('notifications.0.task.story_points', 13)
+            ->where('notifications.0.title', "Complexity Flag Approved: #{$task->id} Gameplay Ability System")
+        );
+    }
+
+    public function test_member_receives_dismissed_notification_when_manager_dismisses_complexity_flag(): void
+    {
+        $task = Task::create([
+            'project_id' => $this->project->id,
+            'assigned_user_id' => $this->member->id,
+            'title' => 'Settings Audio Slider',
+            'status' => 'in_progress',
+            'story_points' => 3,
+            'needs_estimate_review' => true,
+            'suggested_story_points' => 8,
+            'estimate_review_note' => 'Seems tricky.',
+        ]);
+
+        // Manager dismisses the complexity request
+        $this->actingAs($this->manager);
+        $resolveResponse = $this->postJson("/studio/test-studio/tasks/{$task->id}/resolve-complexity", [
+            'action' => 'dismiss',
+        ]);
+        $resolveResponse->assertOk();
+
+        // Now member logs in and visits inbox
+        $this->actingAs($this->member);
+        $inboxResponse = $this->get('/studio/test-studio/inbox?tab=notifications');
+        $inboxResponse->assertOk();
+        $inboxResponse->assertInertia(fn ($page) => $page
+            ->component('Tenant/Inbox')
+            ->has('notifications')
+            ->where('notifications.0.type', 'task_complexity_dismissed')
+            ->where('notifications.0.is_resolved', true)
+            ->where('notifications.0.task.story_points', 3)
+            ->where('notifications.0.title', "Complexity Flag Dismissed: #{$task->id} Settings Audio Slider")
+        );
+    }
 }
+

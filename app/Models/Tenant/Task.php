@@ -62,6 +62,7 @@ class Task extends Model
         'suggested_story_points',
         'needs_estimate_review',
         'estimate_review_note',
+        'complexity_review_status',
         'expected_estimators',
         'duration_optimistic',
         'duration_likely',

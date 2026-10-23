@@ -984,6 +984,7 @@ class TenantDashboardController extends Controller
             'needs_estimate_review' => (bool) $task->needs_estimate_review,
             'suggested_story_points' => $task->suggested_story_points,
             'estimate_review_note' => $task->estimate_review_note,
+            'complexity_review_status' => $task->complexity_review_status,
         ];
     }
 
@@ -1037,7 +1038,48 @@ class TenantDashboardController extends Controller
 
             $myTasks = $assignedTasks->map(fn (Task $task) => $this->formatTaskForMember($task, $user))->values()->all();
 
-            $notifications = collect($myTasks)->map(function ($t) use ($readNotificationIds) {
+            $notifications = collect($myTasks)->flatMap(function ($t) use ($readNotificationIds) {
+                $items = [];
+
+                // 1. Manager resolved complexity flag (approved, modified, or dismissed)
+                $isDoer = ! empty($t['is_doer']);
+                $complexityStatus = $t['complexity_review_status'] ?? null;
+                if (! $complexityStatus && empty($t['needs_estimate_review']) && ! empty($t['estimate_review_note'])) {
+                    $complexityStatus = ! empty($t['story_points_locked']) ? 'approved' : 'dismissed';
+                }
+
+                if ($isDoer && in_array($complexityStatus, ['approved', 'modified', 'dismissed'])) {
+                    $isApproved = in_array($complexityStatus, ['approved', 'modified']);
+                    $finalSp = $t['story_points'] ?? $t['suggested_story_points'] ?? 0;
+                    $notifType = $isApproved ? 'task_complexity_approved' : 'task_complexity_dismissed';
+                    $notifId = "task-{$t['id']}-complexity_resolved";
+
+                    $items[] = [
+                        'id' => $notifId,
+                        'type' => $notifType,
+                        'title' => $isApproved
+                            ? "Complexity Flag Approved: #{$t['id']} {$t['title']}"
+                            : "Complexity Flag Dismissed: #{$t['id']} {$t['title']}",
+                        'body' => $isApproved
+                            ? "Manager approved your complexity review request. Story points updated to {$finalSp} SP."
+                            : "Manager reviewed and dismissed your complexity flag. Story points remain at {$finalSp} SP.",
+                        'icon' => $isApproved ? 'check-circle' : 'x-circle',
+                        'color' => $isApproved ? 'emerald' : 'slate',
+                        'task_id' => $t['id'],
+                        'task_title' => $t['title'],
+                        'task' => $t,
+                        'project_name' => $t['project_name'] ?? null,
+                        'epic_name' => $t['epic_name'] ?? null,
+                        'epic_color' => $t['epic_color'] ?? null,
+                        'priority' => $t['priority'] ?? null,
+                        'days_until_deadline' => $t['days_until_deadline'] ?? null,
+                        'read' => in_array($notifId, $readNotificationIds),
+                        'created_at_human' => 'Resolved',
+                        'is_resolved' => true,
+                    ];
+                }
+
+                // 2. Standard task workflow notifications
                 $type = null;
                 $title = null;
                 $body = null;
@@ -1079,31 +1121,31 @@ class TenantDashboardController extends Controller
                     $color = 'indigo';
                 }
 
-                if (! $type) {
-                    return null;
+                if ($type) {
+                    $notifId = 'task-'.$t['id'].'-'.$type;
+
+                    $items[] = [
+                        'id' => $notifId,
+                        'type' => $type,
+                        'title' => $title,
+                        'body' => $body,
+                        'icon' => $icon,
+                        'color' => $color,
+                        'task_id' => $t['id'],
+                        'task_title' => $t['title'],
+                        'task' => $t,
+                        'project_name' => $t['project_name'] ?? null,
+                        'epic_name' => $t['epic_name'] ?? null,
+                        'epic_color' => $t['epic_color'] ?? null,
+                        'priority' => $t['priority'] ?? null,
+                        'days_until_deadline' => $t['days_until_deadline'] ?? null,
+                        'read' => in_array($notifId, $readNotificationIds),
+                        'created_at_human' => 'Today',
+                    ];
                 }
 
-                $notifId = 'task-'.$t['id'].'-'.$type;
-
-                return [
-                    'id' => $notifId,
-                    'type' => $type,
-                    'title' => $title,
-                    'body' => $body,
-                    'icon' => $icon,
-                    'color' => $color,
-                    'task_id' => $t['id'],
-                    'task_title' => $t['title'],
-                    'task' => $t,
-                    'project_name' => $t['project_name'] ?? null,
-                    'epic_name' => $t['epic_name'] ?? null,
-                    'epic_color' => $t['epic_color'] ?? null,
-                    'priority' => $t['priority'] ?? null,
-                    'days_until_deadline' => $t['days_until_deadline'] ?? null,
-                    'read' => in_array($notifId, $readNotificationIds),
-                    'created_at_human' => 'Today',
-                ];
-            })->filter()->values()->all();
+                return $items;
+            })->values()->all();
 
             // Team Leader Overdue Notifications
             if ($isManager) {
@@ -1961,7 +2003,7 @@ class TenantDashboardController extends Controller
                     ->pluck('id');
 
                 foreach ($assignedTaskIds as $tId) {
-                    foreach (['task_assigned', 'review_request', 'overdue', 'stuck'] as $tType) {
+                    foreach (['task_assigned', 'review_request', 'overdue', 'stuck', 'complexity_resolved'] as $tType) {
                         ChannelRead::updateOrCreate(
                             [
                                 'channel_id' => "notif:task-{$tId}-{$tType}",
@@ -2030,6 +2072,7 @@ class TenantDashboardController extends Controller
                 $notifIds[] = "task-{$t->id}-task_assigned";
                 $notifIds[] = "task-{$t->id}-overdue";
                 $notifIds[] = "task-{$t->id}-stuck";
+                $notifIds[] = "task-{$t->id}-complexity_resolved";
             }
 
             if ($this->resolveIsManager($user, tenant('id'))) {
