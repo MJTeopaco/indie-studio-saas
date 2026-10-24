@@ -636,6 +636,31 @@ class TenantProjectController extends Controller
         $backlogTasksData = $validated['backlog_tasks'] ?? [];
         $projectModel = Project::findOrFail($project);
 
+        // Safety net: if epics were provided but no sprints, auto-generate a sprint plan.
+        // This handles cases where the LLM omitted sprint_suggestions and the frontend
+        // fallback was bypassed (e.g. older client version or edge-case timing).
+        if (!empty($epicsData) && empty($sprintsData)) {
+            \Log::warning('[storeBulkHierarchy] No sprints in payload but epics exist — auto-generating sprint plan.', [
+                'project_id' => $projectModel->id,
+                'epic_count' => count($epicsData),
+            ]);
+            $EPICS_PER_SPRINT = 3;
+            $epicIndices = array_keys($epicsData);
+            $chunks = array_chunk($epicIndices, $EPICS_PER_SPRINT);
+            foreach ($chunks as $i => $chunk) {
+                $epicNames = implode(', ', array_map(
+                    fn($idx) => $epicsData[$idx]['epic_name'] ?? "Epic {$idx}",
+                    $chunk
+                ));
+                $sprintsData[] = [
+                    'name'         => 'Sprint ' . ($i + 1),
+                    'goal'         => "Complete: {$epicNames}",
+                    'epic_indices' => $chunk,
+                    'tasks'        => [],
+                ];
+            }
+        }
+
         // 1. Pre-fetch the tenant's valid phases and priorities for epics to avoid N+1 issues
         $tenantId = tenant('id') ?? 'default';
         $defaultPhase = EpicPhase::where('tenant_id', $tenantId)->first();
