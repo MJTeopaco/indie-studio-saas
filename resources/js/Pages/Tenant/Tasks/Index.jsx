@@ -76,6 +76,12 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
                     });
                     return next;
                 });
+                setSelectedTask(prev => {
+                    if (prev && prev.id === data.taskId) {
+                        return { ...prev, status: data.status, ...(data.task || {}) };
+                    }
+                    return prev;
+                });
             }
         });
 
@@ -454,6 +460,19 @@ export default function TasksIndex({ studio, projects = [], tasks = {}, isManage
                     onUpdateStatus={(t, newStatus) => handleStatusChange(t, newStatus)}
                     canManage={hasManagerRights}
                     currentUserId={usePage().props.auth?.user?.id}
+                    tenantId={studio?.id || activeWorkspace}
+                    onTaskUpdated={(updatedTask) => {
+                        setSelectedTask(updatedTask);
+                        setLocalTasksMap(prev => {
+                            const next = { ...prev };
+                            Object.keys(next).forEach(pid => {
+                                next[pid] = (next[pid] || []).map(t =>
+                                    t.id === updatedTask.id ? { ...t, ...updatedTask } : t
+                                );
+                            });
+                            return next;
+                        });
+                    }}
                 />
             )}
 

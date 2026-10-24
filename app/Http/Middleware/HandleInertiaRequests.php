@@ -292,6 +292,34 @@ class HandleInertiaRequests extends Middleware
                 }
             }
 
+            // Resolved complexity flags notification for member
+            $resolvedComplexityTasksCount = 0;
+            try {
+                $resolvedComplexityTasksCount = Task::where(function ($q) use ($user) {
+                    $q->where('assigned_user_id', $user->id);
+                    if (Schema::hasTable('assignments')) {
+                        $q->orWhereIn('id', function ($sub) use ($user) {
+                            $sub->select('task_id')
+                                ->from('assignments')
+                                ->where('employee_user_id', $user->id)
+                                ->where('status', 'active');
+                        });
+                    }
+                })
+                    ->where(function ($q) {
+                        $q->whereIn('complexity_review_status', ['approved', 'modified', 'dismissed'])
+                            ->orWhere(function ($fallback) {
+                                $fallback->whereNull('complexity_review_status')
+                                    ->where('needs_estimate_review', false)
+                                    ->whereNotNull('estimate_review_note');
+                            });
+                    })
+                    ->pluck('id')
+                    ->filter(fn ($id) => empty($readSet["task-{$id}-complexity_resolved"]))
+                    ->count();
+            } catch (\Exception $e) {
+            }
+
             // Flagged complexity tasks notification for manager
             $flaggedTasksCount = 0;
             if ($isLeaderOrOwner) {
@@ -391,7 +419,7 @@ class HandleInertiaRequests extends Middleware
                 }
             }
 
-            $notificationsCount = $reviewTasksCount + $unstartedTasksCount + $pendingLeaveCount + $alertTasksCount + $flaggedTasksCount;
+            $notificationsCount = $reviewTasksCount + $unstartedTasksCount + $pendingLeaveCount + $alertTasksCount + $flaggedTasksCount + $resolvedComplexityTasksCount;
 
             return [
                 'notifications' => $notificationsCount,

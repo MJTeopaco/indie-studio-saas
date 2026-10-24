@@ -194,6 +194,10 @@ class TenantTaskController extends Controller
                         'sprint_status' => $task->sprint_status,
                         'sprint_priority' => $task->sprint_priority,
                         'story_points' => $task->story_points,
+                        'story_points_locked' => (bool) $task->story_points_locked,
+                        'needs_estimate_review' => (bool) $task->needs_estimate_review,
+                        'suggested_story_points' => $task->suggested_story_points,
+                        'estimate_review_note' => $task->estimate_review_note,
                         'github_link' => $task->github_link,
                         'is_critical' => (bool) $task->is_critical,
                         'assignee' => $assigneeName,
@@ -458,6 +462,7 @@ class TenantTaskController extends Controller
             'needs_estimate_review' => true,
             'suggested_story_points' => $validated['suggested_story_points'],
             'estimate_review_note' => $validated['feedback'],
+            'complexity_review_status' => 'pending',
         ]);
 
         try {
@@ -516,9 +521,14 @@ class TenantTaskController extends Controller
             'story_points' => 'required_if:action,accept,modify|nullable|integer|in:1,2,3,5,8,13,21,34',
         ]);
 
+        $status = in_array($validated['action'], ['accept', 'modify'])
+            ? ($validated['action'] === 'modify' ? 'modified' : 'approved')
+            : 'dismissed';
+
         $updates = [
             'needs_estimate_review' => false,
             'suggested_story_points' => null,
+            'complexity_review_status' => $status,
         ];
 
         if (in_array($validated['action'], ['accept', 'modify']) && ! empty($validated['story_points'])) {

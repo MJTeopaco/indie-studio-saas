@@ -131,12 +131,23 @@ function TaskCard({ task, onClick, onDragStart }) {
                 <p className="text-[10px] text-gray-400 dark:text-slate-500 font-medium truncate">
                     {task.project_name ? task.project_name : (task.client ? `Client: ${task.client}` : `Task #${task.id}`)}
                 </p>
-                {overdue && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-300/60 dark:border-rose-800 shrink-0 shadow-2xs">
-                        <AlertTriangleIcon />
-                        <span>{overdueDays > 0 ? `${overdueDays}d Late` : 'Overdue'}</span>
-                    </span>
-                )}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                    {task.needs_estimate_review && (
+                        <span
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 border border-amber-300/60 dark:border-amber-800 shrink-0 shadow-2xs"
+                            title={`Flagged for complexity review: ${task.suggested_story_points ?? '—'} SP`}
+                        >
+                            <AlertTriangleIcon />
+                            <span>SP Review</span>
+                        </span>
+                    )}
+                    {overdue && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-300/60 dark:border-rose-800 shrink-0 shadow-2xs">
+                            <AlertTriangleIcon />
+                            <span>{overdueDays > 0 ? `${overdueDays}d Late` : 'Overdue'}</span>
+                        </span>
+                    )}
+                </div>
             </div>
 
             {/* Task title */}
