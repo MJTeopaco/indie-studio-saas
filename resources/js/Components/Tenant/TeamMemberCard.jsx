@@ -22,8 +22,21 @@ export default function TeamMemberCard({
     const rawWorkload = Number(stats.active_load_hours ?? member.weekly_hours ?? member.workload ?? 0);
     const workloadHours = Math.round(rawWorkload * 10) / 10;
 
-    const isOverCapacity = workloadHours > maxHours || member.working_status === 'emergency';
+    const isOverCapacity = workloadHours > maxHours;
     const progressVal = maxHours > 0 ? Math.min(100, Math.round((workloadHours / maxHours) * 100)) : 0;
+
+    // Health & Operational status (synchronized with TeamMemberProfileModal)
+    const health = member.profile?.health || { label: 'Healthy', tone: 'success' };
+    const healthBadgeClass =
+        health.tone === 'danger'
+            ? 'border-[var(--critical)]/30 bg-[var(--critical)]/10 text-[var(--critical)]'
+            : health.tone === 'warning'
+            ? 'border-[var(--warning)]/30 bg-[var(--warning)]/10 text-[var(--warning)]'
+            : 'border-[var(--success)]/30 bg-[var(--success)]/10 text-[var(--success)]';
+
+    const isEmergency = member.working_status === 'emergency';
+    const isOnLeave = member.working_status === 'on_leave';
+    const isLeavePending = member.leave_request_status === 'pending' && !isOnLeave;
 
     // Extract skill tags
     const skills = React.useMemo(() => {
@@ -49,7 +62,7 @@ export default function TeamMemberCard({
                 className
             )}
         >
-            {/* 1. Top row: 32px avatar + availability badge */}
+            {/* 1. Top row: 32px avatar + operational status & health badges */}
             <div className="flex items-center justify-between gap-2">
                 <Avatar className="h-8 w-8 rounded-full border border-[var(--border)] shrink-0">
                     {member.avatar_url && (
@@ -60,17 +73,43 @@ export default function TeamMemberCard({
                     </AvatarFallback>
                 </Avatar>
 
-                <Badge
-                    variant={isOverCapacity ? 'warning' : 'success'}
-                    className={cn(
-                        'text-[10px] font-medium px-2 py-0.5 rounded-full border shrink-0',
-                        isOverCapacity
-                            ? 'border-[var(--warning)]/30 bg-[var(--warning)]/10 text-[var(--warning)]'
-                            : 'border-[var(--success)]/30 bg-[var(--success)]/10 text-[var(--success)]'
+                <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    {/* Operational exception badges */}
+                    {isEmergency && (
+                        <Badge
+                            variant="destructive"
+                            className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-[var(--critical)]/30 bg-[var(--critical)]/10 text-[var(--critical)] shrink-0"
+                        >
+                            Emergency
+                        </Badge>
                     )}
-                >
-                    {isOverCapacity ? 'At capacity' : 'Available'}
-                </Badge>
+                    {isOnLeave && (
+                        <Badge
+                            variant="warning"
+                            className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-[var(--warning)]/30 bg-[var(--warning)]/10 text-[var(--warning)] shrink-0"
+                        >
+                            On Leave
+                        </Badge>
+                    )}
+                    {isLeavePending && (
+                        <Badge
+                            variant="warning"
+                            className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-[var(--warning)]/30 bg-[var(--warning)]/10 text-[var(--warning)] shrink-0"
+                        >
+                            Leave Pending
+                        </Badge>
+                    )}
+
+                    {/* Member Profile Health badge (matches modal header) */}
+                    <Badge
+                        className={cn(
+                            'text-[10px] font-medium px-2 py-0.5 rounded-full border shrink-0',
+                            healthBadgeClass
+                        )}
+                    >
+                        {health.label}
+                    </Badge>
+                </div>
             </div>
 
             {/* 2. Member name (13px, medium weight) */}
@@ -91,11 +130,18 @@ export default function TeamMemberCard({
                 </p>
             </div>
 
-            {/* 4. Workload row: Weekly workload label + mono Xh/Yh + slim Progress */}
+            {/* 4. Workload row: Weekly workload label (+ Over capacity chip) + mono Xh/Yh + slim Progress */}
             <div className="space-y-1.5 pt-1">
                 <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-[var(--muted-foreground)]">Weekly workload</span>
-                    <span className="font-mono text-[var(--foreground)] font-medium">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-[var(--muted-foreground)] truncate">Weekly workload</span>
+                        {isOverCapacity && (
+                            <span className="text-[9px] font-medium text-[var(--warning)] bg-[var(--warning)]/10 px-1.5 py-0.5 rounded border border-[var(--warning)]/20 whitespace-nowrap">
+                                Over capacity
+                            </span>
+                        )}
+                    </div>
+                    <span className="font-mono text-[var(--foreground)] font-medium shrink-0 ml-1">
                         {workloadHours}h / {maxHours}h
                     </span>
                 </div>

@@ -803,7 +803,7 @@ class TenantDashboardController extends Controller
         $upcomingTasks = Task::with(['project', 'assignee'])
             ->where('status', '!=', 'completed')
             ->orderByRaw("CASE WHEN hard_constraint_date IS NOT NULL THEN hard_constraint_date ELSE '9999-12-31' END ASC")
-            ->orderByRaw("CASE WHEN days_until_deadline IS NOT NULL THEN days_until_deadline ELSE 999 END ASC")
+            ->orderByRaw('CASE WHEN days_until_deadline IS NOT NULL THEN days_until_deadline ELSE 999 END ASC')
             ->latest('updated_at')
             ->take(12)
             ->get()
@@ -981,6 +981,10 @@ class TenantDashboardController extends Controller
             'epic_id' => $task->epic_id,
             'epic_name' => $task->epic?->name,
             'epic_color' => $task->epic?->color,
+            'needs_estimate_review' => (bool) $task->needs_estimate_review,
+            'suggested_story_points' => $task->suggested_story_points,
+            'estimate_review_note' => $task->estimate_review_note,
+            'complexity_review_status' => $task->complexity_review_status,
         ];
     }
 
@@ -988,6 +992,7 @@ class TenantDashboardController extends Controller
     {
         $studio = Studio::find(tenant('id'));
         $user = auth()->user();
+        $isManager = $this->resolveIsManager($user, tenant('id'));
 
         $readNotifIds = [];
         if (Schema::hasTable('channel_reads')) {
@@ -1033,7 +1038,48 @@ class TenantDashboardController extends Controller
 
             $myTasks = $assignedTasks->map(fn (Task $task) => $this->formatTaskForMember($task, $user))->values()->all();
 
-            $notifications = collect($myTasks)->map(function ($t) use ($readNotificationIds) {
+            $notifications = collect($myTasks)->flatMap(function ($t) use ($readNotificationIds) {
+                $items = [];
+
+                // 1. Manager resolved complexity flag (approved, modified, or dismissed)
+                $isDoer = ! empty($t['is_doer']);
+                $complexityStatus = $t['complexity_review_status'] ?? null;
+                if (! $complexityStatus && empty($t['needs_estimate_review']) && ! empty($t['estimate_review_note'])) {
+                    $complexityStatus = ! empty($t['story_points_locked']) ? 'approved' : 'dismissed';
+                }
+
+                if ($isDoer && in_array($complexityStatus, ['approved', 'modified', 'dismissed'])) {
+                    $isApproved = in_array($complexityStatus, ['approved', 'modified']);
+                    $finalSp = $t['story_points'] ?? $t['suggested_story_points'] ?? 0;
+                    $notifType = $isApproved ? 'task_complexity_approved' : 'task_complexity_dismissed';
+                    $notifId = "task-{$t['id']}-complexity_resolved";
+
+                    $items[] = [
+                        'id' => $notifId,
+                        'type' => $notifType,
+                        'title' => $isApproved
+                            ? "Complexity Flag Approved: #{$t['id']} {$t['title']}"
+                            : "Complexity Flag Dismissed: #{$t['id']} {$t['title']}",
+                        'body' => $isApproved
+                            ? "Manager approved your complexity review request. Story points updated to {$finalSp} SP."
+                            : "Manager reviewed and dismissed your complexity flag. Story points remain at {$finalSp} SP.",
+                        'icon' => $isApproved ? 'check-circle' : 'x-circle',
+                        'color' => $isApproved ? 'emerald' : 'slate',
+                        'task_id' => $t['id'],
+                        'task_title' => $t['title'],
+                        'task' => $t,
+                        'project_name' => $t['project_name'] ?? null,
+                        'epic_name' => $t['epic_name'] ?? null,
+                        'epic_color' => $t['epic_color'] ?? null,
+                        'priority' => $t['priority'] ?? null,
+                        'days_until_deadline' => $t['days_until_deadline'] ?? null,
+                        'read' => in_array($notifId, $readNotificationIds),
+                        'created_at_human' => 'Resolved',
+                        'is_resolved' => true,
+                    ];
+                }
+
+                // 2. Standard task workflow notifications
                 $type = null;
                 $title = null;
                 $body = null;
@@ -1042,7 +1088,10 @@ class TenantDashboardController extends Controller
 
                 $isReviewForMe = ! empty($t['is_reviewer']) && in_array($t['sprint_status'] ?? $t['status'] ?? '', ['waiting_for_review', 'review']);
                 $isNewAssignment = ! empty($t['is_doer']) && (in_array($t['sprint_status'] ?? '', ['ready_to_start', '']) || ($t['sprint_status'] === null && $t['status'] === 'todo'));
-                $isOverdue = isset($t['days_until_deadline']) && $t['days_until_deadline'] !== null && $t['days_until_deadline'] < 0;
+                $isOverdue = (isset($t['days_until_deadline']) && $t['days_until_deadline'] !== null && $t['days_until_deadline'] < 0)
+                    || (! empty($t['dueDate']) && $t['dueDate'] < now()->toDateString())
+                    || (! empty($t['hard_constraint_date']) && $t['hard_constraint_date'] < now()->toDateString())
+                    || (($t['status'] ?? '') === 'overdue');
                 $isStuck = ($t['sprint_status'] ?? $t['status'] ?? '') === 'stuck';
 
                 if ($isReviewForMe) {
@@ -1051,16 +1100,11 @@ class TenantDashboardController extends Controller
                     $body = "{$t['assignee']} submitted \"{$t['title']}\" for your peer code review.";
                     $icon = 'eye';
                     $color = 'blue';
-                } elseif ($isNewAssignment) {
-                    $type = 'task_assigned';
-                    $title = 'New Task Assigned';
-                    $body = "You were assigned to \"{$t['title']}\"".(! empty($t['project_name']) ? " in {$t['project_name']}" : '').'. Ready to start!';
-                    $icon = 'clipboard';
-                    $color = 'indigo';
                 } elseif ($isOverdue) {
+                    $daysOverdue = abs((int) ($t['days_until_deadline'] ?? 1));
                     $type = 'overdue';
                     $title = 'Task Overdue Alert';
-                    $body = "\"{$t['title']}\" is past due by ".abs($t['days_until_deadline']).' day(s). Update progress or flag as stuck.';
+                    $body = "\"{$t['title']}\" is past due by {$daysOverdue} day(s). Please update progress or coordinate with your team leader.";
                     $icon = 'alert';
                     $color = 'rose';
                 } elseif ($isStuck) {
@@ -1069,73 +1113,143 @@ class TenantDashboardController extends Controller
                     $body = "\"{$t['title']}\" is currently flagged as blocked. Team lead assistance needed.";
                     $icon = 'ban';
                     $color = 'rose';
+                } elseif ($isNewAssignment) {
+                    $type = 'task_assigned';
+                    $title = 'New Task Assigned';
+                    $body = "You were assigned to \"{$t['title']}\"".(! empty($t['project_name']) ? " in {$t['project_name']}" : '').'. Ready to start!';
+                    $icon = 'clipboard';
+                    $color = 'indigo';
                 }
 
-                if (! $type) {
-                    return null;
+                if ($type) {
+                    $notifId = 'task-'.$t['id'].'-'.$type;
+
+                    $items[] = [
+                        'id' => $notifId,
+                        'type' => $type,
+                        'title' => $title,
+                        'body' => $body,
+                        'icon' => $icon,
+                        'color' => $color,
+                        'task_id' => $t['id'],
+                        'task_title' => $t['title'],
+                        'task' => $t,
+                        'project_name' => $t['project_name'] ?? null,
+                        'epic_name' => $t['epic_name'] ?? null,
+                        'epic_color' => $t['epic_color'] ?? null,
+                        'priority' => $t['priority'] ?? null,
+                        'days_until_deadline' => $t['days_until_deadline'] ?? null,
+                        'read' => in_array($notifId, $readNotificationIds),
+                        'created_at_human' => 'Today',
+                    ];
                 }
 
-                $notifId = 'task-'.$t['id'].'-'.$type;
+                return $items;
+            })->values()->all();
 
-                return [
-                    'id' => $notifId,
-                    'type' => $type,
-                    'title' => $title,
-                    'body' => $body,
-                    'icon' => $icon,
-                    'color' => $color,
-                    'task_id' => $t['id'],
-                    'task_title' => $t['title'],
-                    'task' => $t,
-                    'project_name' => $t['project_name'] ?? null,
-                    'epic_name' => $t['epic_name'] ?? null,
-                    'epic_color' => $t['epic_color'] ?? null,
-                    'priority' => $t['priority'] ?? null,
-                    'days_until_deadline' => $t['days_until_deadline'] ?? null,
-                    'read' => in_array($notifId, $readNotificationIds),
-                    'created_at_human' => 'Today',
-                ];
-            })->filter()->values()->all();
+            // Team Leader Overdue Notifications
+            if ($isManager) {
+                try {
+                    $teamOverdueTasks = Task::with(['assignee', 'project', 'epic'])
+                        ->where('status', '!=', 'completed')
+                        ->where(function ($q) use ($user) {
+                            $q->where('assigned_user_id', '!=', $user->id)
+                                ->orWhereNull('assigned_user_id');
+                        })
+                        ->where(function ($q) {
+                            $q->where(function ($sq) {
+                                $sq->whereNotNull('days_until_deadline')
+                                    ->where('days_until_deadline', '<', 0);
+                            })->orWhere(function ($sq) {
+                                $sq->whereNotNull('hard_constraint_date')
+                                    ->where('hard_constraint_date', '<', now()->toDateString());
+                            })->orWhere('status', 'overdue');
+                        })
+                        ->get();
+
+                    foreach ($teamOverdueTasks as $lt) {
+                        $notifId = "task-{$lt->id}-leader-overdue";
+                        $assigneeName = $lt->assignee?->name ?? 'Unassigned';
+                        $daysOverdue = abs((int) ($lt->days_until_deadline ?? 1));
+
+                        $notifications[] = [
+                            'id' => $notifId,
+                            'type' => 'overdue',
+                            'title' => 'Team Overdue: '.$lt->title,
+                            'body' => "Task #{$lt->id} \"{$lt->title}\" assigned to {$assigneeName} is past due by {$daysOverdue} day(s). Action or reassignment required.",
+                            'icon' => 'alert',
+                            'color' => 'rose',
+                            'task_id' => $lt->id,
+                            'task_title' => $lt->title,
+                            'task' => $this->formatTaskForMember($lt, $user),
+                            'project_name' => $lt->project?->name ?? null,
+                            'epic_name' => $lt->epic?->name ?? null,
+                            'epic_color' => $lt->epic?->color ?? null,
+                            'priority' => $lt->priority ?? 'High',
+                            'days_until_deadline' => $lt->days_until_deadline,
+                            'read' => in_array($notifId, $readNotificationIds),
+                            'created_at_human' => 'Overdue',
+                        ];
+                    }
+                } catch (\Exception $e) {
+                }
+            }
+
+            // Manager: Complexity Flagged / Estimate Review Notifications
+            if ($isManager) {
+                try {
+                    $flaggedTasks = Task::with(['assignee', 'project', 'epic'])
+                        ->where(function ($q) {
+                            $q->where('needs_estimate_review', true)
+                                ->orWhere(function ($resolvedQ) {
+                                    $resolvedQ->where('needs_estimate_review', false)
+                                        ->whereNotNull('estimate_review_note')
+                                        ->where('updated_at', '>=', now()->subDays(60));
+                                });
+                        })
+                        ->orderByDesc('updated_at')
+                        ->get();
+
+                    foreach ($flaggedTasks as $ft) {
+                        $isPending = (bool) $ft->needs_estimate_review;
+                        $notifId = "task-{$ft->id}-complexity_flagged";
+                        $assigneeName = $ft->assignee?->name ?? 'Assigned Member';
+                        $suggestedSp = $ft->suggested_story_points ?? null;
+                        $currentSp = $ft->story_points ?? '0';
+
+                        $body = $isPending
+                            ? "{$assigneeName} flagged complexity (Current: {$currentSp} SP".($suggestedSp ? ", Suggested: {$suggestedSp} SP" : '')."): \"{$ft->estimate_review_note}\""
+                            : "{$assigneeName} flagged complexity: \"{$ft->estimate_review_note}\" (Resolved: {$currentSp} SP)";
+
+                        $title = $isPending
+                            ? "Complexity Flagged: #{$ft->id} {$ft->title}"
+                            : "Complexity Review: #{$ft->id} {$ft->title}";
+
+                        $notifications[] = [
+                            'id' => $notifId,
+                            'type' => 'task_complexity_flagged',
+                            'title' => $title,
+                            'body' => $body,
+                            'icon' => $isPending ? 'alert' : 'sparkles',
+                            'color' => $isPending ? 'amber' : 'emerald',
+                            'task_id' => $ft->id,
+                            'task_title' => $ft->title,
+                            'task' => $this->formatTaskForMember($ft, $user),
+                            'project_name' => $ft->project?->name ?? null,
+                            'epic_name' => $ft->epic?->name ?? null,
+                            'epic_color' => $ft->epic?->color ?? null,
+                            'priority' => $ft->priority ?? 'High',
+                            'days_until_deadline' => $ft->days_until_deadline,
+                            'read' => ! $isPending || in_array($notifId, $readNotificationIds),
+                            'created_at_human' => $isPending ? 'Action Needed' : 'Resolved',
+                            'is_resolved' => ! $isPending,
+                        ];
+                    }
+                } catch (\Exception $e) {
+                }
+            }
         } catch (\Exception $e) {
             $notifications = [];
-        }
-
-        $pendingEstimatesCount = 0;
-        try {
-            $pendingEstimatesCount = Task::where('story_points_locked', false)
-                ->where('needs_estimate_review', false)
-                ->get()
-                ->filter(fn ($task) => empty($task->expected_estimators)
-                    ? $task->assigned_user_id === $user->id
-                    : in_array($user->id, $task->expected_estimators ?? [])
-                )
-                ->filter(fn ($task) => ! TaskEstimateSubmission::where('task_id', $task->id)
-                    ->where('developer_id', $user->id)
-                    ->exists()
-                )
-                ->count();
-        } catch (\Exception $e) {
-        }
-
-        if ($pendingEstimatesCount > 0) {
-            $notifications[] = [
-                'id' => 'estimates-pending',
-                'type' => 'estimate_pending',
-                'title' => 'Story Point Estimation Needed',
-                'body' => "You have {$pendingEstimatesCount} task(s) awaiting your Fibonacci estimate vote before sprint start.",
-                'icon' => 'sparkles',
-                'color' => 'amber',
-                'task_id' => null,
-                'task_title' => null,
-                'task' => null,
-                'project_name' => null,
-                'epic_name' => null,
-                'epic_color' => null,
-                'priority' => 'high',
-                'days_until_deadline' => null,
-                'read' => in_array('estimates-pending', $readNotificationIds),
-                'created_at_human' => 'Pending',
-            ];
         }
 
         $notifications = array_merge($notifications, $this->getMessageNotifications($user, $readNotificationIds));
@@ -1156,7 +1270,29 @@ class TenantDashboardController extends Controller
             if ($canManage) {
                 $leaveQuery = LeaveRequest::with(['user.globalProfile.position'])
                     ->where('studio_id', tenant('id'))
-                    ->where('status', 'pending');
+                    ->where(function ($q) {
+                        $q->where('status', 'pending')
+                            ->orWhere(function ($eq) {
+                                $eq->where('request_type', LeaveRequest::TYPE_EMERGENCY)
+                                    ->where('status', 'approved')
+                                    ->where(function ($dateQ) {
+                                        $dateQ->where('created_at', '>=', now()->subDays(14))
+                                            ->orWhere('resolved_at', '>=', now()->subDays(14));
+                                    });
+                            })
+                            ->orWhere(function ($lq) {
+                                $lq->where(function ($sub) {
+                                    $sub->where('request_type', '!=', LeaveRequest::TYPE_EMERGENCY)
+                                        ->orWhereNull('request_type');
+                                })
+                                    ->where('status', 'approved')
+                                    ->where(function ($dateQ) {
+                                        $dateQ->where('leave_end_date', '>=', now()->toDateString())
+                                            ->orWhere('reviewed_at', '>=', now()->subDays(14))
+                                            ->orWhere('created_at', '>=', now()->subDays(14));
+                                    });
+                            });
+                    });
 
                 if (! $isOwner) {
                     $leaveQuery->where('requester_role', 'member')
@@ -1165,7 +1301,7 @@ class TenantDashboardController extends Controller
 
                 $rawRequests = $leaveQuery->latest()->get();
 
-                $leaveNotifications = $rawRequests->map(function ($req) use ($readNotificationIds) {
+                $leaveNotifications = $rawRequests->flatMap(function ($req) use ($readNotificationIds) {
                     $reqUser = $req->user;
                     $reqPos = $reqUser && $reqUser->globalProfile && $reqUser->globalProfile->position
                         ? $reqUser->globalProfile->position->name
@@ -1174,36 +1310,106 @@ class TenantDashboardController extends Controller
                     $assignedTasks = Task::query()
                         ->where('assigned_user_id', $req->user_id)
                         ->where('status', '!=', 'completed')
-                        ->get(['id', 'title', 'status', 'priority', 'hard_constraint_date', 'estimated_hours']);
+                        ->get(['id', 'title', 'status', 'priority', 'hard_constraint_date', 'estimated_hours', 'is_critical', 'project_id']);
 
                     $start = $req->leave_start_date ? Carbon::parse($req->leave_start_date) : null;
                     $end = $req->leave_end_date ? Carbon::parse($req->leave_end_date) : null;
 
-                    $conflicts = $assignedTasks->filter(function ($task) use ($start, $end) {
-                        if (! $task->hard_constraint_date || ! $start || ! $end) {
-                            return false;
-                        }
-                        $due = Carbon::parse($task->hard_constraint_date);
+                    $isEmergency = ($req->request_type ?? 'leave') === LeaveRequest::TYPE_EMERGENCY;
+                    $isResolved = $isEmergency && ! empty($req->resolved_at);
+                    $isAcknowledged = $req->status === 'approved';
+                    $categoryLabels = LeaveRequest::emergencyCategoryLabels();
+                    $catLabel = $isEmergency && $req->emergency_category && isset($categoryLabels[$req->emergency_category])
+                        ? $categoryLabels[$req->emergency_category]
+                        : ($req->reason ?: 'Emergency Absence');
 
-                        return $due->betweenIncluded($start, $end);
-                    })->values();
+                    // In the emergency declaration record, maintain the assigned tasks conflict list for historical review
+                    $conflicts = $isEmergency
+                        ? $assignedTasks
+                        : $assignedTasks->filter(function ($task) use ($start, $end) {
+                            if (! $task->hard_constraint_date || ! $start || ! $end) {
+                                return false;
+                            }
+                            $due = Carbon::parse($task->hard_constraint_date);
+
+                            return $due->betweenIncluded($start, $end);
+                        })->values();
 
                     $calendarDays = $start && $end ? $start->diffInDays($end) + 1 : 0;
-                    $isEmergency = ($req->request_type ?? 'leave') === 'emergency';
                     $roleLabel = $req->requester_role === 'leader' ? 'Team Leader' : 'Team Member';
-                    $notifId = 'leave-req-'.$req->id;
-                    $title = $isEmergency ? "🚨 Emergency Declared: {$reqUser->name}" : "Leave Request: {$reqUser->name}";
-                    $body = $isEmergency
-                        ? "{$reqUser->name} ({$roleLabel}) declared an operational emergency: \"{$req->reason}\"".($end ? ' (Est. return: '.$end->format('M d, Y').')' : '')
-                        : "{$reqUser->name} ({$roleLabel}) requested absence from ".($start ? $start->format('M d, Y') : '').' to '.($end ? $end->format('M d, Y') : '')." ({$calendarDays} calendar day".($calendarDays === 1 ? '' : 's').').'.($req->reason ? " Handover: {$req->reason}" : '');
 
-                    return [
-                        'id' => $notifId,
+                    $items = [];
+
+                    // 1. If resolved, emit a brand new separate "Back Online" notification so leadership is alerted to availability
+                    if ($isResolved) {
+                        $resolvedNotifId = 'leave-req-'.$req->id.'-resolved';
+                        $items[] = [
+                            'id' => $resolvedNotifId,
+                            'type' => 'emergency_resolved',
+                            'title' => "✅ {$reqUser->name} is Back Online",
+                            'body' => "{$reqUser->name} ({$roleLabel}) has returned to active status and is available for sprint task assignments.",
+                            'icon' => 'check-circle',
+                            'color' => 'emerald',
+                            'priority' => null,
+                            'task_id' => null,
+                            'task_title' => null,
+                            'task' => null,
+                            'project_name' => null,
+                            'epic_name' => null,
+                            'epic_color' => null,
+                            'days_until_deadline' => null,
+                            'leave_request' => [
+                                'id' => $req->id,
+                                'user_id' => $req->user_id,
+                                'user_name' => $reqUser ? $reqUser->name : 'Studio Member',
+                                'user_email' => $reqUser ? $reqUser->email : '',
+                                'avatar' => $reqUser ? $reqUser->avatar : null,
+                                'position' => $reqPos,
+                                'requester_role' => $req->requester_role,
+                                'request_type' => $req->request_type ?? 'leave',
+                                'status' => $req->status,
+                                'is_acknowledged' => true,
+                                'is_resolved' => true,
+                                'resolved_at' => $req->resolved_at ? Carbon::parse($req->resolved_at)->diffForHumans() : null,
+                                'resolved_at_formatted' => $req->resolved_at ? Carbon::parse($req->resolved_at)->format('M d, Y h:i A') : null,
+                                'reviewed_at' => $req->reviewed_at ? $req->reviewed_at->diffForHumans() : null,
+                                'emergency_category' => $req->emergency_category,
+                                'emergency_category_label' => $catLabel,
+                                'confidential_note' => $req->confidential_note,
+                                'leave_start_date' => $start ? $start->format('Y-m-d') : null,
+                                'leave_end_date' => $end ? $end->format('Y-m-d') : null,
+                                'leave_start_formatted' => $start ? $start->format('M d, Y') : '',
+                                'leave_end_formatted' => $end ? $end->format('M d, Y') : '',
+                                'calendar_days' => $calendarDays,
+                                'reason' => $req->reason,
+                                'created_at' => $req->created_at ? $req->created_at->diffForHumans() : 'Recently',
+                                'active_tasks_count' => $assignedTasks->count(),
+                                'conflicting_tasks' => [],
+                            ],
+                            'read' => in_array($resolvedNotifId, $readNotificationIds),
+                            'created_at_human' => Carbon::parse($req->resolved_at)->diffForHumans(),
+                        ];
+                    }
+
+                    // 2. The declaration / leave request notification itself is preserved for historical audit & backtracking
+                    $declNotifId = 'leave-req-'.$req->id;
+                    $isLeaveApproved = $req->status === 'approved';
+                    $declTitle = $isEmergency
+                        ? ($isResolved
+                            ? "🚨 Emergency Absence: {$reqUser->name} [Concluded]"
+                            : ($isAcknowledged ? "🚨 Emergency Absence: {$reqUser->name}" : "🚨 Emergency Declared: {$reqUser->name}"))
+                        : ($isLeaveApproved ? "🏖️ Leave Approved: {$reqUser->name}" : "Leave Request: {$reqUser->name}");
+                    $declBody = $isEmergency
+                        ? "{$reqUser->name} ({$roleLabel}) declared an emergency: {$catLabel}".($end ? ' (Est. return: '.$end->format('M d, Y').')' : '').($isResolved ? ' [Concluded • Returned]' : ($isAcknowledged ? ' [Acknowledged • Reassign Tasks]' : ''))
+                        : "{$reqUser->name} ({$roleLabel}) requested absence from ".($start ? $start->format('M d, Y') : '').' to '.($end ? $end->format('M d, Y') : '')." ({$calendarDays} calendar day".($calendarDays === 1 ? '' : 's').').'.($req->reason ? " Handover: {$req->reason}" : '').($isLeaveApproved ? ' [Approved]' : '');
+
+                    $items[] = [
+                        'id' => $declNotifId,
                         'type' => $isEmergency ? 'emergency_declaration' : 'leave_request',
-                        'title' => $title,
-                        'body' => $body,
-                        'icon' => $isEmergency ? 'ban' : 'calendar',
-                        'color' => $isEmergency ? 'rose' : 'amber',
+                        'title' => $declTitle,
+                        'body' => $declBody,
+                        'icon' => $isEmergency ? 'ban' : ($isLeaveApproved ? 'check-circle' : 'calendar'),
+                        'color' => $isEmergency ? 'rose' : ($isLeaveApproved ? 'emerald' : 'amber'),
                         'priority' => null,
                         'task_id' => null,
                         'task_title' => null,
@@ -1220,6 +1426,16 @@ class TenantDashboardController extends Controller
                             'avatar' => $reqUser ? $reqUser->avatar : null,
                             'position' => $reqPos,
                             'requester_role' => $req->requester_role,
+                            'request_type' => $req->request_type ?? 'leave',
+                            'status' => $req->status,
+                            'is_acknowledged' => $isAcknowledged,
+                            'is_resolved' => $isResolved,
+                            'resolved_at' => $req->resolved_at ? Carbon::parse($req->resolved_at)->diffForHumans() : null,
+                            'resolved_at_formatted' => $req->resolved_at ? Carbon::parse($req->resolved_at)->format('M d, Y h:i A') : null,
+                            'reviewed_at' => $req->reviewed_at ? $req->reviewed_at->diffForHumans() : null,
+                            'emergency_category' => $req->emergency_category,
+                            'emergency_category_label' => $catLabel,
+                            'confidential_note' => $req->confidential_note,
                             'leave_start_date' => $start ? $start->format('Y-m-d') : null,
                             'leave_end_date' => $end ? $end->format('Y-m-d') : null,
                             'leave_start_formatted' => $start ? $start->format('M d, Y') : '',
@@ -1233,12 +1449,17 @@ class TenantDashboardController extends Controller
                                 'title' => $t->title,
                                 'status' => $t->status,
                                 'priority' => $t->priority,
+                                'is_critical' => (bool) $t->is_critical,
+                                'estimated_hours' => $t->estimated_hours,
                                 'due_date' => $t->hard_constraint_date ? Carbon::parse($t->hard_constraint_date)->format('M d, Y') : 'No deadline',
+                                'project_id' => $t->project_id,
                             ])->all(),
                         ],
-                        'read' => in_array($notifId, $readNotificationIds),
+                        'read' => in_array($declNotifId, $readNotificationIds) || $isAcknowledged || $isLeaveApproved,
                         'created_at_human' => $req->created_at ? $req->created_at->diffForHumans() : 'Pending',
                     ];
+
+                    return $items;
                 })->all();
 
                 $notifications = array_merge($leaveNotifications, $notifications);
@@ -1349,7 +1570,6 @@ class TenantDashboardController extends Controller
             'notifications' => $notifications,
             'myTasks' => $myTasks,
             'teamMembers' => $teamMembers,
-            'pendingEstimatesCount' => $pendingEstimatesCount,
         ]);
     }
 
@@ -1671,6 +1891,70 @@ class TenantDashboardController extends Controller
                     'is_liked' => false,
                 ];
             }
+
+            // Overdue Tasks in Activity Feed
+            try {
+                $overdueFeedQuery = Task::with(['assignee', 'project'])
+                    ->where('status', '!=', 'completed')
+                    ->where(function ($q) {
+                        $q->where(function ($sq) {
+                            $sq->whereNotNull('days_until_deadline')
+                                ->where('days_until_deadline', '<', 0);
+                        })->orWhere(function ($sq) {
+                            $sq->whereNotNull('hard_constraint_date')
+                                ->where('hard_constraint_date', '<', now()->toDateString());
+                        })->orWhere('status', 'overdue');
+                    });
+
+                if (! $isManager) {
+                    $overdueFeedQuery->where(function ($q) use ($user) {
+                        $q->where('assigned_user_id', $user->id);
+                    });
+                }
+
+                foreach ($overdueFeedQuery->take(10)->get() as $ot) {
+                    $notifId = ((int) $ot->assigned_user_id === (int) $user->id)
+                        ? "task-{$ot->id}-overdue"
+                        : "task-{$ot->id}-leader-overdue";
+                    $isRead = in_array($notifId, $readNotificationIds);
+                    $daysOverdue = abs((int) ($ot->days_until_deadline ?? 1));
+                    $assigneeName = $ot->assignee?->name ?? 'Unassigned';
+
+                    $feed[] = [
+                        'id' => $notifId,
+                        'feed_type' => 'overdue',
+                        'title' => "Task Overdue: {$ot->title}",
+                        'context_name' => "Tasks > {$ot->project?->name} > #{$ot->id}",
+                        'context_type' => 'task',
+                        'context_url' => url("/studio/{$tenantId}/tasks"),
+                        'channel_id' => null,
+                        'task_id' => $ot->id,
+                        'task' => [
+                            'id' => $ot->id,
+                            'title' => $ot->title,
+                            'status' => $ot->status,
+                            'priority' => $ot->priority ?? 'CRITICAL',
+                        ],
+                        'author' => [
+                            'id' => null,
+                            'name' => 'Sprint Watchdog',
+                            'avatar' => null,
+                            'role' => 'System Alert',
+                            'initials' => 'SW',
+                        ],
+                        'body' => "Task #{$ot->id} '{$ot->title}' (assigned to {$assigneeName}) is past due by {$daysOverdue} day(s). Action or reassignment required.",
+                        'attachments' => [],
+                        'created_at' => $ot->updated_at?->toIso8601String() ?? now()->toIso8601String(),
+                        'created_at_human' => 'Overdue',
+                        'is_read' => (bool) $isRead,
+                        'is_mention' => true,
+                        'likes_count' => 0,
+                        'is_liked' => false,
+                    ];
+                }
+            } catch (\Throwable $e) {
+                // Ignore fallback
+            }
         } catch (\Throwable $e) {
             // Ignore fallback
         }
@@ -1719,7 +2003,7 @@ class TenantDashboardController extends Controller
                     ->pluck('id');
 
                 foreach ($assignedTaskIds as $tId) {
-                    foreach (['task_assigned', 'review_request', 'overdue', 'stuck'] as $tType) {
+                    foreach (['task_assigned', 'review_request', 'overdue', 'stuck', 'complexity_resolved'] as $tType) {
                         ChannelRead::updateOrCreate(
                             [
                                 'channel_id' => "notif:task-{$tId}-{$tType}",
@@ -1731,33 +2015,38 @@ class TenantDashboardController extends Controller
                         );
                     }
                 }
-
-                ChannelRead::updateOrCreate(
-                    [
-                        'channel_id' => 'notif:estimates-pending',
-                        'user_id' => $user->id,
-                    ],
-                    [
-                        'last_read_at' => now(),
-                    ]
-                );
             }
 
             if (Schema::hasTable('leave_requests')) {
-                $pendingLeaveIds = LeaveRequest::where('studio_id', tenant('id'))
-                    ->where('status', 'pending')
-                    ->pluck('id');
+                $leaveReqs = LeaveRequest::where('studio_id', tenant('id'))
+                    ->where(function ($q) {
+                        $q->where('status', 'pending')
+                            ->orWhere('status', 'approved');
+                    })
+                    ->get(['id', 'resolved_at']);
 
-                foreach ($pendingLeaveIds as $lId) {
+                foreach ($leaveReqs as $lr) {
                     ChannelRead::updateOrCreate(
                         [
-                            'channel_id' => "notif:leave-req-{$lId}",
+                            'channel_id' => "notif:leave-req-{$lr->id}",
                             'user_id' => $user->id,
                         ],
                         [
                             'last_read_at' => now(),
                         ]
                     );
+
+                    if (! empty($lr->resolved_at)) {
+                        ChannelRead::updateOrCreate(
+                            [
+                                'channel_id' => "notif:leave-req-{$lr->id}-resolved",
+                                'user_id' => $user->id,
+                            ],
+                            [
+                                'last_read_at' => now(),
+                            ]
+                        );
+                    }
                 }
             }
         }
@@ -1783,13 +2072,31 @@ class TenantDashboardController extends Controller
                 $notifIds[] = "task-{$t->id}-task_assigned";
                 $notifIds[] = "task-{$t->id}-overdue";
                 $notifIds[] = "task-{$t->id}-stuck";
+                $notifIds[] = "task-{$t->id}-complexity_resolved";
             }
-            $notifIds[] = 'estimates-pending';
+
+            if ($this->resolveIsManager($user, tenant('id'))) {
+                $allStudioTasks = Task::pluck('id');
+                foreach ($allStudioTasks as $atId) {
+                    $notifIds[] = "task-{$atId}-leader-overdue";
+                    $notifIds[] = "task-{$atId}-leader-stuck";
+                    $notifIds[] = "task-{$atId}-complexity_flagged";
+                }
+            }
 
             if (Schema::hasTable('leave_requests')) {
-                $leaveReqs = LeaveRequest::where('studio_id', tenant('id'))->where('status', 'pending')->pluck('id');
-                foreach ($leaveReqs as $lId) {
-                    $notifIds[] = "leave-req-{$lId}";
+                $leaveReqs = LeaveRequest::where('studio_id', tenant('id'))
+                    ->where(function ($q) {
+                        $q->where('status', 'pending')
+                            ->orWhere('status', 'approved');
+                    })
+                    ->get(['id', 'resolved_at']);
+
+                foreach ($leaveReqs as $lr) {
+                    $notifIds[] = "leave-req-{$lr->id}";
+                    if (! empty($lr->resolved_at)) {
+                        $notifIds[] = "leave-req-{$lr->id}-resolved";
+                    }
                 }
             }
 

@@ -70,6 +70,10 @@ Route::prefix('/studio/{tenant}')->middleware([
 
     Route::patch('/tasks/{task}/status', [TenantTaskController::class, 'updateStatus'])
         ->name('tenant.tasks.update-status');
+    Route::post('/tasks/{task}/flag-complexity', [TenantTaskController::class, 'flagComplexity'])
+        ->name('tenant.tasks.flag-complexity');
+    Route::post('/tasks/{task}/resolve-complexity', [TenantTaskController::class, 'resolveComplexity'])
+        ->name('tenant.tasks.resolve-complexity');
 
     Route::get('/schedule', [TenantScheduleController::class, 'index'])
         ->name('tenant.schedule');
@@ -126,7 +130,7 @@ Route::prefix('/studio/{tenant}')->middleware([
     Route::get('/reports/data', [TenantReportController::class, 'getReportData'])->name('tenant.reports.data');
     Route::post('/reports/archive', [TenantReportController::class, 'archive'])->name('tenant.reports.archive');
     Route::delete('/reports/archive/{report}', [TenantReportController::class, 'deleteReport'])->name('tenant.reports.archive.delete');
-    Route::get('/reports/download-pdf', [TenantReportController::class, 'downloadPdf'])->name('tenant.reports.download-pdf');
+    Route::match(['get', 'post'], '/reports/download-pdf', [TenantReportController::class, 'downloadPdf'])->name('tenant.reports.download-pdf');
     Route::post('/reports/share-email', [TenantReportController::class, 'shareEmail'])->name('tenant.reports.share-email');
     Route::post('/reports/share-chat', [TenantReportController::class, 'shareChat'])->name('tenant.reports.share-chat');
     Route::get('/reports/export-csv', [TenantReportController::class, 'exportCsv'])->name('tenant.reports.export-csv');

@@ -89,19 +89,51 @@ class ReportPdfGenerator
         $p1[] = '1 1 1 rg';
         $p1[] = "0 0 {$this->pageWidth} {$this->pageHeight} re f";
 
-        // ── TOP HEADER SECTION ──
+        // ── VAULTERA BRAND LOGO (Hexagon mark only, no name) ──
+        // Brand blue: #007CFF = 0.0 0.486 1.0 in PDF RGB
         $topY = $this->pageHeight - 38;
+        $logoX = 40;
+        $hexS = 11.0; // half-height of hexagon
 
-        // Black "WS" Square Icon
-        $p1[] = '0.06 0.09 0.16 rg'; // Slate-900 / Black
-        $p1[] = '40 '.($topY - 14).' 15 15 re f';
+        // Hexagon shape (flat-top orientation, 6 vertices)
+        $hcx = $logoX + 11.0;
+        $hcy = $topY - 6.0;
+        $hw = 10.5;
+        $hh = $hexS;
+
+        $p1[] = '0.0 0.486 1.0 rg'; // Brand blue fill
+        $p1[] = '0.0 0.486 1.0 RG 0.3 w';
+        $p1[] = implode(' ', [
+            // Flat-top hexagon path
+            number_format($hcx - $hw, 3).' '.number_format($hcy, 3).' m',
+            number_format($hcx - $hw * 0.5, 3).' '.number_format($hcy + $hh, 3).' l',
+            number_format($hcx + $hw * 0.5, 3).' '.number_format($hcy + $hh, 3).' l',
+            number_format($hcx + $hw, 3).' '.number_format($hcy, 3).' l',
+            number_format($hcx + $hw * 0.5, 3).' '.number_format($hcy - $hh, 3).' l',
+            number_format($hcx - $hw * 0.5, 3).' '.number_format($hcy - $hh, 3).' l',
+            'h f',
+        ]);
+
+        // White lock icon centered inside hexagon
         $p1[] = '1 1 1 rg';
-        $p1[] = 'BT /F2 8.5 Tf 43.5 '.($topY - 10.5).' Td (WS) Tj ET';
-
-        // Organization Subtitle
-        $p1[] = '0.40 0.45 0.55 rg';
-        $orgName = strtoupper($this->escapePdfText($this->studioName)).' - EXECUTIVE ENGINEERING OPERATIONS';
-        $p1[] = 'BT /F2 7.5 Tf 62 '.($topY - 10.5)." Td ({$orgName}) Tj ET";
+        $lbx = $hcx - 3.2;
+        $lby = $hcy - 4.5;
+        $p1[] = "{$lbx} {$lby} 6.4 5.5 re f"; // lock body
+        // Lock shackle arc (top portion)
+        $p1[] = '1 1 1 RG 1.3 w';
+        $sax = $hcx;
+        $say = $lby + 5.5;
+        $sr = 2.7;
+        $k = $sr * 0.5523;
+        $p1[] = implode(' ', [
+            number_format($sax - $sr, 3).' '.number_format($say, 3).' m',
+            number_format($sax - $sr, 3).' '.number_format($say + $k, 3),
+            number_format($sax - $k, 3).' '.number_format($say + $sr, 3),
+            number_format($sax, 3).' '.number_format($say + $sr, 3).' c',
+            number_format($sax + $k, 3).' '.number_format($say + $sr, 3),
+            number_format($sax + $sr, 3).' '.number_format($say + $k, 3),
+            number_format($sax + $sr, 3).' '.number_format($say, 3).' c S',
+        ]);
 
         // ── DOCUMENT CONTROL BOX (TOP RIGHT) ──
         $docW = 155;
@@ -119,7 +151,7 @@ class ReportPdfGenerator
         $p1[] = 'BT /F2 7 Tf '.($docX + $docW - 8 - 82).' '.($docY + $docH - 13).' Td (DOCUMENT CONTROL) Tj ET';
 
         $p1[] = '0.15 0.20 0.30 rg';
-        $p1[] = 'BT /F2 7.5 Tf '.($docX + $docW - 8 - 72).' '.($docY + $docH - 25).' Td (REF: WS-RPT-'.$this->escapePdfText((string) $refId).') Tj ET';
+        $p1[] = 'BT /F2 7.5 Tf '.($docX + $docW - 8 - 72).' '.($docY + $docH - 25).' Td (REF: SS-RPT-'.$this->escapePdfText((string) $refId).') Tj ET';
 
         $p1[] = '0.35 0.40 0.50 rg';
         $p1[] = 'BT /F1 7.5 Tf '.($docX + $docW - 8 - 45).' '.($docY + $docH - 37).' Td ('.$this->escapePdfText($dateStr).') Tj ET';

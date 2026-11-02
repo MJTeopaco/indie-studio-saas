@@ -438,6 +438,39 @@ def decompose_project_into_tasks(project_description: str) -> list[dict]:
     raise ValueError(f"Sprint decomposition failed after 2 attempts: {last_error}")
 
 
+def _auto_generate_sprint_suggestions(result: dict) -> dict:
+    """
+    Post-processing guard: if the LLM returned no sprint_suggestions but did
+    return epics, auto-batch epics into reasonable sprints (3 epics per sprint).
+
+    This ensures the downstream save pipeline always receives a non-empty sprint
+    plan, even when the LLM forgets to generate one.
+    """
+    epics = result.get("epics", [])
+    sprints = result.get("sprint_suggestions", [])
+
+    if epics and not sprints:
+        logger.warning(
+            "LLM returned %d epics but no sprint_suggestions — auto-generating sprint plan.",
+            len(epics),
+        )
+        EPICS_PER_SPRINT = 3
+        auto_sprints = []
+        for i in range(0, len(epics), EPICS_PER_SPRINT):
+            batch_indices = list(range(i, min(i + EPICS_PER_SPRINT, len(epics))))
+            sprint_num = len(auto_sprints) + 1
+            batch_epic_names = ", ".join(epics[j]["epic_name"] for j in batch_indices)
+            auto_sprints.append({
+                "name": f"Sprint {sprint_num}",
+                "goal": f"Complete: {batch_epic_names}",
+                "epic_indices": batch_indices,
+            })
+        result["sprint_suggestions"] = auto_sprints
+        logger.info("Auto-generated %d sprint(s) from %d epics.", len(auto_sprints), len(epics))
+
+    return result
+
+
 def decompose_project_hierarchically(project_description: str) -> dict:
     """
     Given a plain-language project description, ask the LLM to decompose it
@@ -462,9 +495,14 @@ def decompose_project_hierarchically(project_description: str) -> dict:
             response = llm.invoke(messages)
             raw_json = _extract_json_from_response(response.content)
             parsed_data = json.loads(raw_json)
-            
+
             validated = HierarchicalDecomposition(**parsed_data)
-            return validated.model_dump()
+            result = validated.model_dump()
+
+            # Guard: ensure sprint_suggestions is always populated
+            result = _auto_generate_sprint_suggestions(result)
+
+            return result
         except Exception as exc:
             last_error = exc
             logger.warning("Hierarchical decompose attempt %d failed: %s", attempt, exc)

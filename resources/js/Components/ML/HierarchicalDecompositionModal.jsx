@@ -904,22 +904,44 @@ export default function HierarchicalDecompositionModal({
 
             if (outputMode === 'hierarchical') {
                 const url = route('tenant.projects.hierarchy.bulk', { tenant: tenantId, project: projectId });
-                
+
                 // Re-nest tasks into epics for the backend payload
                 const payloadEpics = epics.map((epic, eIdx) => ({
                     ...epic,
                     tasks: tasksWithAssignments.filter(t => t.epic_index === eIdx)
                 }));
 
-                // Group tasks that belong to a sprint but not to an epic
-                const payloadSprints = sprints.map((sprint, sIdx) => ({
+                // Fallback: if the LLM returned no sprint_suggestions, auto-batch epics
+                // into sprints before saving so tasks are never silently dropped to backlog.
+                let resolvedSprints = sprints;
+                if (epics.length > 0 && sprints.length === 0) {
+                    const EPICS_PER_SPRINT = 3;
+                    resolvedSprints = [];
+                    for (let i = 0; i < epics.length; i += EPICS_PER_SPRINT) {
+                        const batchIndices = Array.from(
+                            { length: Math.min(EPICS_PER_SPRINT, epics.length - i) },
+                            (_, k) => i + k
+                        );
+                        resolvedSprints.push({
+                            name: `Sprint ${resolvedSprints.length + 1}`,
+                            goal: batchIndices.map(idx => epics[idx].epic_name).join(', '),
+                            epic_indices: batchIndices,
+                        });
+                    }
+                }
+
+                // Tasks that belong to a sprint but NOT to any epic (sprint-only tasks)
+                const payloadSprints = resolvedSprints.map((sprint, sIdx) => ({
                     ...sprint,
-                    tasks: tasksWithAssignments.filter(t => t.sprint_index === sIdx && (t.epic_index === undefined || t.epic_index === -1 || t.epic_index === null))
+                    tasks: tasksWithAssignments.filter(t =>
+                        t.sprint_index === sIdx &&
+                        (t.epic_index === undefined || t.epic_index === -1 || t.epic_index === null)
+                    ),
                 }));
 
-                // Tasks that belong to neither
-                const backlogTasks = tasksWithAssignments.filter(t => 
-                    (t.epic_index === undefined || t.epic_index === -1 || t.epic_index === null) && 
+                // Tasks that belong to neither an epic nor a sprint
+                const backlogTasks = tasksWithAssignments.filter(t =>
+                    (t.epic_index === undefined || t.epic_index === -1 || t.epic_index === null) &&
                     (t.sprint_index === undefined || t.sprint_index === -1 || t.sprint_index === null)
                 );
 
@@ -1143,8 +1165,19 @@ export default function HierarchicalDecompositionModal({
                             <p className="text-sm font-semibold text-gray-800 dark:text-slate-200">Hierarchical Outline</p>
                             <p className="text-sm text-gray-500 dark:text-slate-400">Review the generated Epic and Sprint structure.</p>
 
+                            {/* Warn user when no sprint plan was generated — a default will be created on save */}
+                            {sprints.length === 0 && (
+                                <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/30 text-amber-700 dark:text-amber-400 text-xs">
+                                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                                    <span>
+                                        The AI did not generate a sprint plan for this decomposition.
+                                        A default sprint will be created automatically when you save.
+                                    </span>
+                                </div>
+                            )}
+
                             <div className="space-y-6 mt-4">
-                                {sprints.map((sprint, sIdx) => {
+                                {sprints.length > 0 ? sprints.map((sprint, sIdx) => {
                                     const sprintEpics = epics.filter((_, eIdx) => sprint.epic_indices?.includes(eIdx));
                                     return (
                                         <div key={sIdx} className="rounded-xl border border-gray-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900 shadow-xs">
@@ -1168,6 +1201,22 @@ export default function HierarchicalDecompositionModal({
                                                         </div>
                                                     );
                                                 })}
+                                            </div>
+                                        </div>
+                                    );
+                                }) : epics.map((epic, eIdx) => {
+                                    // Fallback view: show epics directly when no sprint plan exists
+                                    const epicTasks = editableTasks ? editableTasks.filter(t => t.epic_index === eIdx) : [];
+                                    return (
+                                        <div key={eIdx} className="rounded-xl border border-gray-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900 shadow-xs">
+                                            <h3 className="text-sm font-bold text-gray-800 dark:text-slate-100">
+                                                <Layers className="inline w-4 h-4 mr-1 text-brand" /> {epic.epic_name}
+                                            </h3>
+                                            {epic.epic_description && (
+                                                <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{epic.epic_description}</p>
+                                            )}
+                                            <div className="mt-2 text-[10px] font-semibold text-gray-400">
+                                                {epicTasks.length} {epicTasks.length === 1 ? 'task' : 'tasks'}
                                             </div>
                                         </div>
                                     );

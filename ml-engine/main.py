@@ -474,6 +474,11 @@ async def decompose_project_hierarchical_stream(request: HierarchicalDecomposeRe
                 yield _sse("progress", {"stage": "llm", "message": "AI is generating hierarchy — still working...", "pct": pct})
             
             result = await work
+
+            # Guard: ensure sprint_suggestions is always populated even if LLM omits them
+            from orchestration.intent_parser import _auto_generate_sprint_suggestions
+            result = _auto_generate_sprint_suggestions(result)
+
             epics = result.get("epics", [])
             sprints = result.get("sprint_suggestions", [])
 

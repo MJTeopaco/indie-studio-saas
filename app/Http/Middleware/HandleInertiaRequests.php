@@ -127,33 +127,7 @@ class HandleInertiaRequests extends Middleware
             },
 
             // Share pending estimates count for the current user
-            'pendingEstimatesCount' => function () use ($request) {
-                if (! tenant() || ! $request->user()) {
-                    return 0;
-                }
-                try {
-                    $user = $request->user();
-
-                    return Task::where('story_points_locked', false)
-                        ->where('needs_estimate_review', false)
-                        ->get()
-                        ->filter(function ($task) use ($user) {
-                            if (empty($task->expected_estimators)) {
-                                return $task->assigned_user_id === $user->id;
-                            }
-
-                            return in_array($user->id, $task->expected_estimators);
-                        })
-                        ->filter(function ($task) use ($user) {
-                            return ! TaskEstimateSubmission::where('task_id', $task->id)
-                                ->where('developer_id', $user->id)
-                                ->exists();
-                        })
-                        ->count();
-                } catch (\Exception $e) {
-                    return 0;
-                }
-            },
+            'pendingEstimatesCount' => fn () => 0,
 
             // Share total inbox/notification count (reviews pending + unstarted tasks)
             'inboxNotificationCount' => function () use ($request) {
@@ -237,55 +211,123 @@ class HandleInertiaRequests extends Middleware
                 ->filter(fn ($id) => empty($readSet["task-{$id}-task_assigned"]))
                 ->count();
 
-            // Overdue and stuck alerts
+            // Overdue and stuck alerts for member & team leader
             $alertTasksCount = 0;
-            $myActiveTasks = Task::where(function ($q) use ($user) {
-                $q->where('assigned_user_id', $user->id);
-                if (Schema::hasTable('assignments')) {
-                    $q->orWhereIn('id', function ($sub) use ($user) {
-                        $sub->select('task_id')
-                            ->from('assignments')
-                            ->where('employee_user_id', $user->id)
-                            ->where('status', 'active');
-                    });
-                }
-            })
-                ->where('status', '!=', 'completed')
-                ->get(['id', 'status', 'sprint_status', 'days_until_deadline']);
+            $isLeaderOrOwner = false;
+            if ($user->role === User::ROLE_ADMIN) {
+                $isLeaderOrOwner = true;
+            } else {
+                $memberRecord = DB::connection(config('tenancy.database.central_connection', 'central'))
+                    ->table('studio_members')
+                    ->where('studio_id', tenant('id'))
+                    ->where('user_id', $user->id)
+                    ->first();
+                $isLeaderOrOwner = $memberRecord && in_array($memberRecord->role, ['owner', 'leader', 'manager']);
+            }
 
-            foreach ($myActiveTasks as $at) {
-                if ($at->days_until_deadline !== null && $at->days_until_deadline < 0 && empty($readSet["task-{$at->id}-overdue"])) {
-                    $alertTasksCount++;
+            if ($isLeaderOrOwner) {
+                $studioOverdueTasks = Task::where('status', '!=', 'completed')
+                    ->where(function ($q) {
+                        $q->where(function ($sq) {
+                            $sq->whereNotNull('days_until_deadline')
+                                ->where('days_until_deadline', '<', 0);
+                        })->orWhere(function ($sq) {
+                            $sq->whereNotNull('hard_constraint_date')
+                                ->where('hard_constraint_date', '<', now()->toDateString());
+                        })->orWhere('status', 'overdue');
+                    })
+                    ->get(['id', 'assigned_user_id', 'status', 'sprint_status', 'days_until_deadline']);
+
+                foreach ($studioOverdueTasks as $tot) {
+                    $readKey = ((int) $tot->assigned_user_id === (int) $user->id)
+                        ? "task-{$tot->id}-overdue"
+                        : "task-{$tot->id}-leader-overdue";
+
+                    if (empty($readSet[$readKey])) {
+                        $alertTasksCount++;
+                    }
                 }
-                if (($at->sprint_status === 'stuck' || $at->status === 'stuck') && empty($readSet["task-{$at->id}-stuck"])) {
-                    $alertTasksCount++;
+
+                $studioStuckTasks = Task::where('status', '!=', 'completed')
+                    ->where(function ($q) {
+                        $q->where('status', 'stuck')->orWhere('sprint_status', 'stuck');
+                    })
+                    ->get(['id', 'assigned_user_id']);
+
+                foreach ($studioStuckTasks as $st) {
+                    $readKey = ((int) $st->assigned_user_id === (int) $user->id)
+                        ? "task-{$st->id}-stuck"
+                        : "task-{$st->id}-leader-stuck";
+
+                    if (empty($readSet[$readKey])) {
+                        $alertTasksCount++;
+                    }
+                }
+            } else {
+                $myActiveTasks = Task::where(function ($q) use ($user) {
+                    $q->where('assigned_user_id', $user->id);
+                    if (Schema::hasTable('assignments')) {
+                        $q->orWhereIn('id', function ($sub) use ($user) {
+                            $sub->select('task_id')
+                                ->from('assignments')
+                                ->where('employee_user_id', $user->id)
+                                ->where('status', 'active');
+                        });
+                    }
+                })
+                    ->where('status', '!=', 'completed')
+                    ->get(['id', 'status', 'sprint_status', 'days_until_deadline', 'hard_constraint_date']);
+
+                foreach ($myActiveTasks as $at) {
+                    $isTaskOverdue = ($at->days_until_deadline !== null && $at->days_until_deadline < 0)
+                        || ($at->hard_constraint_date && $at->hard_constraint_date < now()->toDateString())
+                        || $at->status === 'overdue';
+
+                    if ($isTaskOverdue && empty($readSet["task-{$at->id}-overdue"])) {
+                        $alertTasksCount++;
+                    }
+                    if (($at->sprint_status === 'stuck' || $at->status === 'stuck') && empty($readSet["task-{$at->id}-stuck"])) {
+                        $alertTasksCount++;
+                    }
                 }
             }
 
-            // Pending estimates bundle notification
-            $pendingEstimatesNotif = 0;
-            if (empty($readSet['estimates-pending'])) {
-                try {
-                    $hasPending = Task::where('story_points_locked', false)
-                        ->where('needs_estimate_review', false)
-                        ->get()
-                        ->contains(function ($task) use ($user) {
-                            $isEstimator = empty($task->expected_estimators)
-                                ? $task->assigned_user_id === $user->id
-                                : in_array($user->id, $task->expected_estimators);
-
-                            if (! $isEstimator) {
-                                return false;
-                            }
-
-                            return ! TaskEstimateSubmission::where('task_id', $task->id)
-                                ->where('developer_id', $user->id)
-                                ->exists();
+            // Resolved complexity flags notification for member
+            $resolvedComplexityTasksCount = 0;
+            try {
+                $resolvedComplexityTasksCount = Task::where(function ($q) use ($user) {
+                    $q->where('assigned_user_id', $user->id);
+                    if (Schema::hasTable('assignments')) {
+                        $q->orWhereIn('id', function ($sub) use ($user) {
+                            $sub->select('task_id')
+                                ->from('assignments')
+                                ->where('employee_user_id', $user->id)
+                                ->where('status', 'active');
                         });
-
-                    if ($hasPending) {
-                        $pendingEstimatesNotif = 1;
                     }
+                })
+                    ->where(function ($q) {
+                        $q->whereIn('complexity_review_status', ['approved', 'modified', 'dismissed'])
+                            ->orWhere(function ($fallback) {
+                                $fallback->whereNull('complexity_review_status')
+                                    ->where('needs_estimate_review', false)
+                                    ->whereNotNull('estimate_review_note');
+                            });
+                    })
+                    ->pluck('id')
+                    ->filter(fn ($id) => empty($readSet["task-{$id}-complexity_resolved"]))
+                    ->count();
+            } catch (\Exception $e) {
+            }
+
+            // Flagged complexity tasks notification for manager
+            $flaggedTasksCount = 0;
+            if ($isLeaderOrOwner) {
+                try {
+                    $flaggedTasksCount = Task::where('needs_estimate_review', true)
+                        ->get()
+                        ->filter(fn ($t) => empty($readSet["task-{$t->id}-complexity_flagged"]))
+                        ->count();
                 } catch (\Exception $e) {
                 }
             }
@@ -333,9 +375,10 @@ class HandleInertiaRequests extends Middleware
             }
 
             $pendingLeaveCount = 0;
-            if (Schema::hasTable('leave_requests')) {
+            $centralConnection = config('tenancy.database.central_connection', 'central');
+            if (Schema::connection($centralConnection)->hasTable('leave_requests')) {
                 try {
-                    $currentUserMember = DB::connection(config('tenancy.database.central_connection', 'central'))
+                    $currentUserMember = DB::connection($centralConnection)
                         ->table('studio_members')
                         ->where('studio_id', tenant('id'))
                         ->where('user_id', $user->id)
@@ -346,22 +389,37 @@ class HandleInertiaRequests extends Middleware
 
                     if ($isOwner || in_array($currentUserRole, ['leader', 'manager'])) {
                         $leaveQuery = LeaveRequest::where('studio_id', tenant('id'))
-                            ->where('status', 'pending');
+                            ->where(function ($q) {
+                                $q->where('status', 'pending')
+                                    ->orWhere(function ($eq) {
+                                        $eq->where('request_type', LeaveRequest::TYPE_EMERGENCY)
+                                            ->where('status', 'approved')
+                                            ->whereNotNull('resolved_at')
+                                            ->where('resolved_at', '>=', now()->subDays(14));
+                                    });
+                            });
 
                         if (! $isOwner) {
                             $leaveQuery->where('requester_role', 'member')
                                 ->where('user_id', '!=', $user->id);
                         }
 
-                        $pendingLeaveCount = $leaveQuery->pluck('id')
-                            ->filter(fn ($id) => empty($readSet["leave-req-{$id}"]))
-                            ->count();
+                        $pendingLeaveCount = 0;
+                        $leaveItems = $leaveQuery->get(['id', 'status', 'resolved_at']);
+                        foreach ($leaveItems as $item) {
+                            if ($item->status === 'pending' && empty($readSet["leave-req-{$item->id}"])) {
+                                $pendingLeaveCount++;
+                            }
+                            if (! empty($item->resolved_at) && empty($readSet["leave-req-{$item->id}-resolved"])) {
+                                $pendingLeaveCount++;
+                            }
+                        }
                     }
                 } catch (\Exception $e) {
                 }
             }
 
-            $notificationsCount = $reviewTasksCount + $unstartedTasksCount + $pendingLeaveCount + $alertTasksCount + $pendingEstimatesNotif;
+            $notificationsCount = $reviewTasksCount + $unstartedTasksCount + $pendingLeaveCount + $alertTasksCount + $flaggedTasksCount + $resolvedComplexityTasksCount;
 
             return [
                 'notifications' => $notificationsCount,

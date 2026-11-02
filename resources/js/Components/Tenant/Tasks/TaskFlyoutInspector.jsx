@@ -1,27 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
     X,
     Calendar,
     CheckCircle2,
     CheckSquare,
-    SlidersHorizontal,
     Flame,
     Check,
     Loader2,
     MessageSquare,
     Clock,
-    AlertTriangle
+    AlertTriangle,
+    ShieldAlert,
+    ChevronDown,
+    SlidersHorizontal,
+    User,
+    Users,
+    Tag,
 } from 'lucide-react';
 import { showToast } from '@/Components/SystemToast';
+import { usePage } from '@inertiajs/react';
+import axios from 'axios';
+import FlagComplexityModal from './FlagComplexityModal';
 import { resolveCpaStatus } from '@/lib/cpaTerminology';
-
-const SPRINT_STATUS_OPTIONS = [
-    { value: 'todo', label: 'To Do' },
-    { value: 'in_progress', label: 'In Progress' },
-    { value: 'review', label: 'Under Review' },
-    { value: 'completed', label: 'Done' },
-    { value: 'stuck', label: 'Blocked / Stuck' },
-];
+import {
+    STATUS_CONFIG,
+    WORKFLOW_STATUS_KEYS,
+    normalizeStatusKey,
+    formatRelativeDueDate,
+} from '@/lib/taskStatusConfig';
 
 const PRIORITY_OPTIONS = [
     { value: 'Low', label: 'Low' },
@@ -39,84 +46,185 @@ export default function TaskFlyoutInspector({
     canManage = false,
     currentUserId = null,
     teamMembers = [],
+    tenantId = null,
+    onTaskUpdated = null,
 }) {
+    const { activeWorkspace } = usePage().props;
+    const resolvedTenantId = tenantId || activeWorkspace;
+
     const [activeTab, setActiveTab] = useState('details');
-    const [selectedStatus, setSelectedStatus] = useState(task?.status || task?.sprint_status || 'todo');
-    const [selectedPriority, setSelectedPriority] = useState(task?.priority || 'Medium');
-    const [selectedAssignee, setSelectedAssignee] = useState(
-        typeof task?.assignee === 'string' ? task?.assignee : (task?.assignee?.name || task?.assigned_user_id || '')
-    );
-    const [storyPoints, setStoryPoints] = useState(task?.story_points ?? '');
+    const [currentTask, setCurrentTask] = useState(task);
+    const [selectedStatus, setSelectedStatus] = useState('todo');
+    const [selectedPriority, setSelectedPriority] = useState('Medium');
+    const [selectedAssignee, setSelectedAssignee] = useState('');
+    const [storyPoints, setStoryPoints] = useState('');
     const [commentText, setCommentText] = useState('');
     const [comments, setComments] = useState([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isFlagModalOpen, setIsFlagModalOpen] = useState(false);
+    const [isResolvingFlag, setIsResolvingFlag] = useState(false);
 
+    const sheetRef = useRef(null);
+    const closeBtnRef = useRef(null);
+    const previousActiveElementRef = useRef(null);
+
+    // Sync state from task prop
     useEffect(() => {
         if (task) {
-            setSelectedStatus(task.status || task.sprint_status || 'todo');
+            setCurrentTask(task);
+            const normalized = normalizeStatusKey(task.status, task.sprint_status);
+            setSelectedStatus(normalized);
             setSelectedPriority(task.priority || 'Medium');
             setSelectedAssignee(
-                typeof task.assignee === 'string' ? task.assignee : (task.assignee?.name || task.assigned_user_id || '')
+                typeof task.assignee === 'string'
+                    ? task.assignee
+                    : (task.assignee?.name || task.assigned_user_id || '')
             );
             setStoryPoints(task.story_points ?? '');
             setCommentText('');
-            setComments(task.comments || [
-                { id: 1, user: 'System', text: 'Task logged and scheduled in sprint', time: '1d ago' },
-                { id: 2, user: task.assignee?.name || 'Assignee', text: 'Started preliminary analysis and branch setup', time: '4h ago' }
-            ]);
+            setComments(
+                task.comments || [
+                    { id: 1, user: 'System', text: 'Task scheduled in sprint roadmap', time: '1d ago' },
+                    { id: 2, user: task.assignee?.name || 'Assignee', text: 'Preliminary investigation completed', time: '4h ago' },
+                ]
+            );
         }
     }, [task]);
 
-    // Handle ESC key press
+    // Keyboard management: Escape key and Focus restoration
     useEffect(() => {
+        if (!isOpen) return;
+
+        previousActiveElementRef.current = document.activeElement;
+
         const handleKeyDown = (e) => {
-            if (e.key === 'Escape' && isOpen) {
+            if (isFlagModalOpen) return;
+            if (e.key === 'Escape') {
+                e.preventDefault();
                 onClose?.();
+                return;
+            }
+
+            // Tab trap
+            if (e.key === 'Tab' && sheetRef.current) {
+                const focusable = sheetRef.current.querySelectorAll(
+                    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+                );
+                if (focusable.length === 0) return;
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+
+                if (e.shiftKey && document.activeElement === first) {
+                    e.preventDefault();
+                    last.focus();
+                } else if (!e.shiftKey && document.activeElement === last) {
+                    e.preventDefault();
+                    first.focus();
+                }
             }
         };
+
         window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
+
+        // Auto-focus close button on mount
+        const timer = setTimeout(() => {
+            closeBtnRef.current?.focus();
+        }, 50);
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            clearTimeout(timer);
+            if (previousActiveElementRef.current && typeof previousActiveElementRef.current.focus === 'function') {
+                previousActiveElementRef.current.focus();
+            }
+        };
     }, [isOpen, onClose]);
 
     if (!isOpen || !task) return null;
 
-    const taskKey = task.task_key || `TASK-${String(task.id).padStart(3, '0')}`;
-    const projectName = task.project_name || task.project?.name || 'StudioSprint Core';
-    const isCompleted = selectedStatus === 'completed' || selectedStatus === 'done';
+    const activeTask = currentTask || task;
+    const taskKey = activeTask.task_key || `TASK-${String(activeTask.id).padStart(3, '0')}`;
+    const projectName = activeTask.project_name || activeTask.project?.name || 'StudioSprint Core';
+    const isCompleted = selectedStatus === 'completed';
 
     const isCritical = Boolean(
-        task.is_critical || (task.total_float !== null && task.total_float !== undefined && Number(task.total_float) <= 0)
+        activeTask.is_critical || (activeTask.total_float !== null && activeTask.total_float !== undefined && Number(activeTask.total_float) <= 0)
     );
-    const totalFloat = task.total_float !== null && task.total_float !== undefined ? Number(task.total_float) : null;
-    const dueDateDisplay = task.hard_constraint_date 
-        ? String(task.hard_constraint_date).split('T')[0] 
-        : (task.due_date || task.dueDate || 'Sprint Target');
+    const totalFloat = activeTask.total_float !== null && activeTask.total_float !== undefined ? Number(activeTask.total_float) : null;
+    const rawDueDate = activeTask.hard_constraint_date || activeTask.due_date || activeTask.dueDate;
+    const dueInfo = formatRelativeDueDate(rawDueDate);
 
-    const hasReviewer = Boolean(task?.reviewer_user_id || task?.reviewer);
+    // Permission and role checks
+    const hasReviewer = Boolean(activeTask?.reviewer_user_id || activeTask?.reviewer);
     const isReviewer = Boolean(
-        currentUserId && task?.reviewer_user_id && Number(task.reviewer_user_id) === Number(currentUserId)
+        currentUserId && activeTask?.reviewer_user_id && Number(activeTask.reviewer_user_id) === Number(currentUserId)
     );
     const isDoer = Boolean(
         currentUserId && (
-            (task?.assigned_user_id && Number(task.assigned_user_id) === Number(currentUserId)) ||
-            (task?.assignee?.id && Number(task.assignee.id) === Number(currentUserId))
+            (activeTask?.assigned_user_id && Number(activeTask.assigned_user_id) === Number(currentUserId)) ||
+            (activeTask?.assignee?.id && Number(activeTask.assignee.id) === Number(currentUserId))
         )
     );
+    const canFlagComplexity = canManage || isDoer;
     const canMarkDone = Boolean(canManage || isReviewer || (!hasReviewer && isDoer));
-    const reviewerDisplayName = typeof task?.reviewer === 'string' 
-        ? task.reviewer 
-        : (task?.reviewer?.name || 'the assigned reviewer');
+    const reviewerDisplayName = typeof activeTask?.reviewer === 'string'
+        ? activeTask.reviewer
+        : (activeTask?.reviewer?.name || 'the assigned reviewer');
 
     const cpaInfo = resolveCpaStatus({
         totalFloat,
-        isCritical: task.is_critical,
-        dueDate: task.hard_constraint_date || task.due_date || task.dueDate,
-        daysUntilDeadline: task.days_until_deadline,
-        dependentCount: task.dependent_tasks_count || task.downstream_count || 0,
+        isCritical: activeTask.is_critical,
+        dueDate: rawDueDate,
+        daysUntilDeadline: activeTask.days_until_deadline,
+        dependentCount: activeTask.dependent_tasks_count || activeTask.downstream_count || 0,
         status: selectedStatus,
     });
 
-    // Safe inline updater
+    const isCantSlip = isCritical || cpaInfo.tier === 'vigilance' || (totalFloat !== null && totalFloat <= 0);
+
+    const handleResolveComplexity = async (action, spValue = null) => {
+        if (!resolvedTenantId || !activeTask?.id) return;
+        setIsResolvingFlag(true);
+        try {
+            const url = route('tenant.tasks.resolve-complexity', {
+                tenant: resolvedTenantId,
+                task: activeTask.id,
+            });
+            const payload = { action };
+            if (spValue !== null && spValue !== undefined) {
+                payload.story_points = Number(spValue);
+            }
+            const res = await axios.post(url, payload);
+            showToast(res.data?.message || 'Complexity resolution saved.', 'success');
+            const updated = res.data?.task || {
+                ...activeTask,
+                needs_estimate_review: false,
+                suggested_story_points: null,
+                story_points: action === 'accept' && spValue ? Number(spValue) : activeTask.story_points,
+            };
+            setCurrentTask(updated);
+            if (action === 'accept' && spValue) {
+                setStoryPoints(spValue);
+            }
+            if (typeof onTaskUpdated === 'function') {
+                onTaskUpdated(updated);
+            } else if (typeof updateTask === 'function') {
+                updateTask(updated.id, {
+                    needs_estimate_review: false,
+                    suggested_story_points: null,
+                    ...(action === 'accept' && spValue ? { story_points: Number(spValue) } : {}),
+                });
+            }
+        } catch (err) {
+            console.error('Failed to resolve complexity flag', err);
+            const msg = err.response?.data?.message || 'Could not resolve complexity flag.';
+            showToast(msg, 'error');
+        } finally {
+            setIsResolvingFlag(false);
+        }
+    };
+
+    // Handle field updates
     const handleFieldChange = async (field, value) => {
         if ((field === 'status' || field === 'sprint_status') && (value === 'completed' || value === 'done')) {
             if (!canMarkDone) {
@@ -138,9 +246,9 @@ export default function TaskFlyoutInspector({
 
         try {
             if (typeof updateTask === 'function') {
-                await updateTask(task.id, patch);
+                await updateTask(activeTask.id, patch);
             } else if (typeof onUpdateStatus === 'function' && (field === 'status' || field === 'sprint_status')) {
-                await onUpdateStatus(task, value);
+                await onUpdateStatus(activeTask, value);
             }
         } catch (err) {
             console.error('Failed to update task property', err);
@@ -154,13 +262,14 @@ export default function TaskFlyoutInspector({
             showToast(`Only ${reviewerDisplayName} or a manager can mark this task as done.`, 'warning');
             return;
         }
+
         setIsSubmitting(true);
         try {
             setSelectedStatus('completed');
             if (typeof updateTask === 'function') {
-                await updateTask(task.id, { status: 'completed', sprint_status: 'done' });
+                await updateTask(activeTask.id, { status: 'completed', sprint_status: 'done' });
             } else if (typeof onUpdateStatus === 'function') {
-                await onUpdateStatus(task, 'completed', 'Marked complete via inspector');
+                await onUpdateStatus(activeTask, 'completed', 'Marked complete via inspector');
             }
             showToast('Task marked as complete', 'success');
         } catch (err) {
@@ -178,379 +287,259 @@ export default function TaskFlyoutInspector({
             id: Date.now(),
             user: 'You',
             text: trimmed,
-            time: 'Just now'
+            time: 'Just now',
         };
-        setComments(prev => [...prev, newEntry]);
+        setComments((prev) => [...prev, newEntry]);
         setCommentText('');
         showToast('Comment added', 'success');
     };
 
-    // Parse acceptance criteria
+    // Acceptance criteria parsing
     const rawCriteria = task.acceptance_criteria || [
         'Deterministic CPM start & finish conditions met',
         'Story point estimation reviewed with engineering team',
-        'Branch pull request submitted with zero regressions'
+        'Branch pull request submitted with zero regressions',
     ];
-    const acceptanceItems = Array.isArray(rawCriteria) 
-        ? rawCriteria 
+    const acceptanceItems = Array.isArray(rawCriteria)
+        ? rawCriteria
         : String(rawCriteria).split('\n').filter(Boolean);
 
-    return (
-        <div 
-            className="fixed inset-0 z-50 overflow-hidden" 
-            aria-labelledby="task-drawer-title" 
-            role="dialog" 
-            aria-modal="true"
-        >
-            {/* Embedded styles for responsive <= 480px compaction */}
-            <style>{`
-                @media (max-width: 480px) {
-                    .task-drawer-sheet {
-                        width: 100vw !important;
-                        max-width: 100vw !important;
-                    }
-                    .task-drawer-heading {
-                        padding: 14px 16px 10px !important;
-                    }
-                    .task-drawer-tabs {
-                        padding: 0 16px !important;
-                    }
-                    .task-drawer-section {
-                        padding: 12px 16px !important;
-                    }
-                    .task-drawer-footer {
-                        padding: 10px 16px max(10px, env(safe-area-inset-bottom)) 16px !important;
-                    }
-                }
-            `}</style>
+    const activeStatusObj = STATUS_CONFIG[selectedStatus] || STATUS_CONFIG.todo;
 
-            {/* Darkened & heavily blurred backdrop scrim so sidebar is seen clearly as an overlay */}
+    // Render portal into document body
+    return (
+        <>
+            {createPortal(
+                <div
+            className="fixed inset-0 z-[60] overflow-hidden"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="task-details-title"
+        >
+            {/* Backdrop Scrim: existing overlay style, no blur */}
             <div
-                className="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-md animate-backdrop-in"
+                className="fixed inset-0 bg-slate-950/50 dark:bg-black/70 animate-in fade-in duration-200"
                 onClick={onClose}
                 aria-hidden="true"
             />
 
-            {/* Right-Side Drawer Sheet with smooth slide-in popup animation */}
+            {/* Right-anchored Drawer Sheet */}
             <div
-                className="task-drawer-sheet fixed inset-y-0 right-0 z-50 flex flex-col transform animate-drawer-in"
-                style={{
-                    width: 'min(100%, 400px)',
-                    height: '100dvh',
-                    backgroundColor: 'var(--elevated)',
-                    borderLeft: '1px solid var(--border)',
-                    boxShadow: '-12px 0 32px -4px rgba(0, 0, 0, 0.45), -4px 0 12px -2px rgba(0, 0, 0, 0.2)'
-                }}
+                ref={sheetRef}
+                className="fixed inset-y-0 right-0 z-[70] flex flex-col h-[100dvh] max-h-[100dvh] w-full md:w-[clamp(32rem,40vw,45rem)] max-w-full bg-[var(--elevated)] border-l border-[var(--border)] shadow-2xl animate-in slide-in-from-right duration-300 ease-out select-none"
             >
-                {/* ── Topline (height: 50px) ── */}
-                <div
-                    className="relative flex items-center justify-between shrink-0"
-                    style={{
-                        height: '50px',
-                        padding: '0 54px 0 20px',
-                        borderBottom: '1px solid var(--border)',
-                        backgroundColor: 'var(--elevated)'
-                    }}
-                >
-                    <div className="flex items-center gap-2 min-w-0">
-                        <span
-                            className="font-bold tracking-wider uppercase shrink-0"
-                            style={{
-                                fontSize: '10px',
-                                fontFamily: 'var(--font-mono)',
-                                color: 'var(--foreground)'
-                            }}
+                {/* ── STICKY HEADER ──────────────────────────────────────────────── */}
+                <div className="shrink-0 sticky top-0 z-10 bg-[var(--elevated)] border-b border-[var(--border)]">
+                    {/* Topline: Project & Task ID, Close Button */}
+                    <div className="px-6 pt-5 pb-2 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                            <span className="type-caption font-mono font-bold text-[var(--foreground)] shrink-0">
+                                {taskKey}
+                            </span>
+                            <span className="text-[var(--border)]">•</span>
+                            <span className="type-caption text-[var(--muted-foreground)] truncate">
+                                {projectName}
+                            </span>
+                        </div>
+
+                        <button
+                            ref={closeBtnRef}
+                            type="button"
+                            onClick={onClose}
+                            title="ESC to close"
+                            aria-label="Close task details (ESC)"
+                            className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--card)] transition-colors cursor-pointer focus-ring"
                         >
-                            {taskKey}
-                        </span>
-                        <span
-                            className="truncate uppercase font-medium"
-                            style={{
-                                fontSize: '9px',
-                                color: 'var(--muted-foreground)'
-                            }}
-                        >
-                            Task Details
-                        </span>
+                            <X className="w-4 h-4" />
+                        </button>
                     </div>
 
-                    <span
-                        className="text-[9px] uppercase font-mono tracking-wider hidden sm:inline"
-                        style={{ color: 'var(--muted-foreground)' }}
-                    >
-                        ESC to close
-                    </span>
+                    {/* Task Title (Wraps to 3 lines) */}
+                    <div className="px-6 pt-1 pb-3">
+                        <h2
+                            id="task-details-title"
+                            className="type-section-title font-bold text-[var(--foreground)] line-clamp-3 leading-snug select-text"
+                        >
+                            {activeTask.title}
+                        </h2>
+                    </div>
 
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        aria-label="Close task details"
-                        className="absolute right-4 top-3.5 p-1 rounded-md transition-colors cursor-pointer"
-                        style={{
-                            color: 'var(--muted-foreground)',
-                            backgroundColor: 'transparent'
-                        }}
-                    >
-                        <X style={{ width: '13px', height: '13px' }} />
-                    </button>
-                </div>
+                    {/* Status & Urgency Row (Beneath Title) */}
+                    <div className="px-6 pb-4 flex items-center gap-2 flex-wrap">
+                        {/* Status Pill */}
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${activeStatusObj.pill}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${activeStatusObj.dot}`} />
+                            <span>{activeStatusObj.label}</span>
+                        </span>
 
-                {/* ── Heading (padding: 16px 20px 12px) ── */}
-                <div
-                    className="task-drawer-heading shrink-0"
-                    style={{
-                        padding: '16px 20px 12px',
-                        borderBottom: '1px solid var(--border)',
-                        backgroundColor: 'var(--elevated)'
-                    }}
-                >
-                    <p
-                        className="truncate font-medium uppercase tracking-wider"
-                        style={{
-                            fontSize: '10px',
-                            marginBottom: '5px',
-                            color: 'var(--muted-foreground)'
-                        }}
-                    >
-                        {projectName}
-                    </p>
+                        {/* Due Date Urgency Badge */}
+                        {rawDueDate && (
+                            <span
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
+                                    dueInfo.isOverdue
+                                        ? 'bg-rose-50 text-rose-700 border-rose-300/70 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/70 font-semibold'
+                                        : 'bg-[var(--card)] text-[var(--muted-foreground)] border-[var(--border)]'
+                                }`}
+                            >
+                                <Clock className={`w-3.5 h-3.5 ${dueInfo.isOverdue ? 'text-rose-600 dark:text-rose-400' : 'text-[var(--muted-foreground)]'}`} />
+                                <span>{dueInfo.text}</span>
+                            </span>
+                        )}
 
-                    <h2
-                        id="task-drawer-title"
-                        className="font-semibold tracking-tight"
-                        style={{
-                            fontSize: '17px',
-                            lineHeight: 1.4,
-                            color: 'var(--foreground)'
-                        }}
-                    >
-                        {task.title}
-                    </h2>
+                        {/* Priority Pill */}
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-[var(--card)] border border-[var(--border)] text-[var(--muted-foreground)]">
+                            {selectedPriority} Priority
+                        </span>
 
+                        {/* Can't Slip Flag (Zero Leeway) */}
+                        {isCantSlip && !isCompleted && (
+                            <span
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-300/70 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/70"
+                                title="Zero schedule leeway — any delay directly postpones project delivery."
+                            >
+                                <ShieldAlert className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                                <span>Can't slip</span>
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Tabs (Details & Activity) */}
                     <div
-                        className="flex items-center gap-1.5 flex-wrap"
-                        style={{ marginTop: '10px' }}
+                        className="px-6 flex items-center gap-6 border-t border-[var(--border)]/60 bg-[var(--elevated)]"
+                        role="tablist"
                     >
-                        {task.task_classification && (
-                            <span
-                                className="font-semibold px-2 py-0.5 rounded-[4px] border"
-                                style={{
-                                    fontSize: '9px',
-                                    backgroundColor: 'var(--card)',
-                                    borderColor: 'var(--border)',
-                                    color: 'var(--muted-foreground)'
-                                }}
-                            >
-                                {task.task_classification}
-                            </span>
-                        )}
-                        {task.story_points !== null && task.story_points !== undefined && (
-                            <span
-                                className="font-semibold px-2 py-0.5 rounded-[4px] border"
-                                style={{
-                                    fontSize: '9px',
-                                    fontFamily: 'var(--font-mono)',
-                                    backgroundColor: 'var(--card)',
-                                    borderColor: 'var(--border)',
-                                    color: 'var(--primary)'
-                                }}
-                            >
-                                {task.story_points} pts
-                            </span>
-                        )}
-                        <span
-                            className="font-semibold px-2 py-0.5 rounded-[4px] border uppercase"
-                            style={{
-                                fontSize: '9px',
-                                backgroundColor: 'var(--card)',
-                                borderColor: 'var(--border)',
-                                color: isCritical ? 'var(--warning)' : 'var(--muted-foreground)'
-                            }}
+                        <button
+                            type="button"
+                            role="tab"
+                            id="tab-details"
+                            aria-selected={activeTab === 'details'}
+                            aria-controls="panel-details"
+                            onClick={() => setActiveTab('details')}
+                            className={`h-10 text-xs font-semibold transition-all border-b-2 cursor-pointer flex items-center gap-1.5 ${
+                                activeTab === 'details'
+                                    ? 'border-[var(--primary)] text-[var(--primary)]'
+                                    : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                            }`}
                         >
-                            {selectedPriority}
-                        </span>
+                            <SlidersHorizontal className="w-3.5 h-3.5" />
+                            <span>Details</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            role="tab"
+                            id="tab-activity"
+                            aria-selected={activeTab === 'activity'}
+                            aria-controls="panel-activity"
+                            onClick={() => setActiveTab('activity')}
+                            className={`h-10 text-xs font-semibold transition-all border-b-2 cursor-pointer flex items-center gap-1.5 ${
+                                activeTab === 'activity'
+                                    ? 'border-[var(--primary)] text-[var(--primary)]'
+                                    : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                            }`}
+                        >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>Activity</span>
+                            <span className="px-1.5 py-0.5 rounded-full font-mono text-[10px] bg-[var(--card)] text-[var(--muted-foreground)] border border-[var(--border)]">
+                                {comments.length}
+                            </span>
+                        </button>
                     </div>
                 </div>
 
-                {/* ── Tabs (height: 36px, gap: 16px) ── */}
-                <div
-                    className="task-drawer-tabs flex items-center shrink-0"
-                    role="tablist"
-                    style={{
-                        gap: '16px',
-                        padding: '0 20px',
-                        borderBottom: '1px solid var(--border)',
-                        backgroundColor: 'var(--elevated)'
-                    }}
-                >
-                    <button
-                        type="button"
-                        role="tab"
-                        id="tab-details"
-                        aria-selected={activeTab === 'details'}
-                        aria-controls="panel-details"
-                        onClick={() => setActiveTab('details')}
-                        className="text-[11px] font-medium transition-colors cursor-pointer relative"
-                        style={{
-                            height: '36px',
-                            paddingBottom: '9px',
-                            borderBottom: activeTab === 'details' ? '2px solid var(--primary)' : '2px solid transparent',
-                            color: activeTab === 'details' ? 'var(--primary)' : 'var(--muted-foreground)',
-                            fontWeight: activeTab === 'details' ? 600 : 500
-                        }}
-                    >
-                        Details
-                    </button>
-
-                    <button
-                        type="button"
-                        role="tab"
-                        id="tab-activity"
-                        aria-selected={activeTab === 'activity'}
-                        aria-controls="panel-activity"
-                        onClick={() => setActiveTab('activity')}
-                        className="text-[11px] font-medium transition-colors cursor-pointer relative flex items-center gap-1.5"
-                        style={{
-                            height: '36px',
-                            paddingBottom: '9px',
-                            borderBottom: activeTab === 'activity' ? '2px solid var(--primary)' : '2px solid transparent',
-                            color: activeTab === 'activity' ? 'var(--primary)' : 'var(--muted-foreground)',
-                            fontWeight: activeTab === 'activity' ? 600 : 500
-                        }}
-                    >
-                        <span>Activity</span>
-                        <span
-                            className="px-1.5 py-0.2 rounded-full font-mono text-[9px]"
-                            style={{
-                                backgroundColor: 'var(--card)',
-                                color: 'var(--muted-foreground)',
-                                border: '1px solid var(--border)'
-                            }}
-                        >
-                            {comments.length}
-                        </span>
-                    </button>
-                </div>
-
-                {/* ── Middle Scrollable Region ── */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar">
+                {/* ── SCROLLABLE BODY ────────────────────────────────────────────── */}
+                <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-6 space-y-6">
                     {activeTab === 'details' ? (
-                        <div id="panel-details" role="tabpanel" aria-labelledby="tab-details">
-                            {/* Section 1: Properties */}
-                            <div
-                                className="task-drawer-section"
-                                style={{
-                                    padding: '14px 20px',
-                                    borderBottom: '1px solid var(--border)'
-                                }}
-                            >
-                                <h3
-                                    className="font-semibold uppercase tracking-wider flex items-center gap-1.5"
-                                    style={{
-                                        fontSize: '10px',
-                                        marginBottom: '10px',
-                                        color: 'var(--muted-foreground)'
-                                    }}
-                                >
-                                    <SlidersHorizontal style={{ width: '12px', height: '12px' }} />
-                                    <span>Properties</span>
+                        <div id="panel-details" role="tabpanel" aria-labelledby="tab-details" className="space-y-6">
+                            {/* Group 1: Properties */}
+                            <section aria-labelledby="heading-properties" className="space-y-4">
+                                <h3 id="heading-properties" className="type-section-title font-bold text-[var(--foreground)] flex items-center gap-2">
+                                    <SlidersHorizontal className="w-4 h-4 text-[var(--primary)]" />
+                                    <span>Task Properties</span>
                                 </h3>
 
-                                <div className="space-y-1.5">
+                                <div className="space-y-3">
                                     {/* Assignee */}
-                                    <div
-                                        className="grid items-center gap-2"
-                                        style={{
-                                            gridTemplateColumns: '1fr 1.35fr',
-                                            minHeight: '34px'
-                                        }}
-                                    >
-                                        <label
-                                            htmlFor="prop-assignee"
-                                            className="font-medium"
-                                            style={{
-                                                fontSize: '10px',
-                                                color: 'var(--muted-foreground)'
-                                            }}
-                                        >
+                                    <div className="flex items-center justify-between gap-4">
+                                        <label htmlFor="prop-assignee" className="type-subheading text-[var(--muted-foreground)] shrink-0">
                                             Assignee
                                         </label>
-                                        <select
-                                            id="prop-assignee"
-                                            value={selectedAssignee}
-                                            onChange={(e) => handleFieldChange('assignee', e.target.value)}
-                                            className="rounded-[6px] outline-none transition-colors cursor-pointer"
-                                            style={{
-                                                fontSize: '10px',
-                                                padding: '5px 8px',
-                                                backgroundColor: 'var(--card)',
-                                                border: '1px solid var(--border)',
-                                                color: 'var(--foreground)'
-                                            }}
-                                        >
-                                            <option value="">Unassigned</option>
-                                            {selectedAssignee && !teamMembers.some(m => m.name === selectedAssignee) && (
-                                                <option value={selectedAssignee}>{selectedAssignee}</option>
-                                            )}
-                                            {teamMembers.map(m => (
-                                                <option key={m.id || m.name} value={m.name || m.id}>{m.name}</option>
-                                            ))}
-                                        </select>
+                                        <div className="relative min-w-48 max-w-64">
+                                            <select
+                                                id="prop-assignee"
+                                                value={selectedAssignee}
+                                                onChange={(e) => handleFieldChange('assignee', e.target.value)}
+                                                className="w-full h-9 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 pr-8 text-xs font-bold text-[var(--foreground)] focus-ring appearance-none cursor-pointer"
+                                            >
+                                                <option value="">Unassigned</option>
+                                                {selectedAssignee && !teamMembers.some((m) => m.name === selectedAssignee) && (
+                                                    <option value={selectedAssignee}>{selectedAssignee}</option>
+                                                )}
+                                                {teamMembers.map((m) => (
+                                                    <option key={m.id || m.name} value={m.name || m.id}>
+                                                        {m.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <ChevronDown className="w-3.5 h-3.5 text-[var(--muted-foreground)] absolute right-2.5 top-3 pointer-events-none" />
+                                        </div>
                                     </div>
 
+                                    {/* Co-Contributors & Handover Attribution */}
+                                    {task?.co_contributors && task.co_contributors.length > 0 && (
+                                        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs space-y-2">
+                                            <div className="flex items-center justify-between text-amber-700 dark:text-amber-300 font-bold text-[11px] uppercase tracking-wider">
+                                                <span className="flex items-center gap-1.5">
+                                                    <Users className="w-3.5 h-3.5 text-amber-500" />
+                                                    Co-Contributors & Handover
+                                                </span>
+                                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-800 dark:text-amber-200">
+                                                    {task.co_contributors.length} prior {task.co_contributors.length === 1 ? 'member' : 'members'}
+                                                </span>
+                                            </div>
+                                            <div className="space-y-1.5 divide-y divide-amber-500/10 pt-0.5">
+                                                {task.co_contributors.map((contrib, idx) => (
+                                                    <div key={idx} className="pt-1.5 first:pt-0 flex items-center justify-between text-xs text-slate-700 dark:text-slate-300">
+                                                        <div className="flex items-center gap-1.5 truncate">
+                                                            <span className="w-5 h-5 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center font-bold text-[10px] shrink-0">
+                                                                🤝
+                                                            </span>
+                                                            <span className="font-semibold truncate">{contrib.name}</span>
+                                                        </div>
+                                                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono shrink-0 ml-2">
+                                                            {contrib.handover_reason === 'emergency_absence' ? 'Emergency Absence' : 'Handed Over'} {contrib.handed_over_at ? `(${contrib.handed_over_at})` : ''}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Priority */}
-                                    <div
-                                        className="grid items-center gap-2"
-                                        style={{
-                                            gridTemplateColumns: '1fr 1.35fr',
-                                            minHeight: '34px'
-                                        }}
-                                    >
-                                        <label
-                                            htmlFor="prop-priority"
-                                            className="font-medium"
-                                            style={{
-                                                fontSize: '10px',
-                                                color: 'var(--muted-foreground)'
-                                            }}
-                                        >
+                                    <div className="flex items-center justify-between gap-4">
+                                        <label htmlFor="prop-priority" className="type-subheading text-[var(--muted-foreground)] shrink-0">
                                             Priority
                                         </label>
-                                        <select
-                                            id="prop-priority"
-                                            value={selectedPriority}
-                                            onChange={(e) => handleFieldChange('priority', e.target.value)}
-                                            className="rounded-[6px] outline-none transition-colors cursor-pointer"
-                                            style={{
-                                                fontSize: '10px',
-                                                padding: '5px 8px',
-                                                backgroundColor: 'var(--card)',
-                                                border: '1px solid var(--border)',
-                                                color: 'var(--foreground)'
-                                            }}
-                                        >
-                                            {PRIORITY_OPTIONS.map(opt => (
-                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                            ))}
-                                        </select>
+                                        <div className="relative min-w-48 max-w-64">
+                                            <select
+                                                id="prop-priority"
+                                                value={selectedPriority}
+                                                onChange={(e) => handleFieldChange('priority', e.target.value)}
+                                                className="w-full h-9 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 pr-8 text-xs font-bold text-[var(--foreground)] focus-ring appearance-none cursor-pointer"
+                                            >
+                                                {PRIORITY_OPTIONS.map((opt) => (
+                                                    <option key={opt.value} value={opt.value}>
+                                                        {opt.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <ChevronDown className="w-3.5 h-3.5 text-[var(--muted-foreground)] absolute right-2.5 top-3 pointer-events-none" />
+                                        </div>
                                     </div>
 
                                     {/* Story Points */}
-                                    <div
-                                        className="grid items-center gap-2"
-                                        style={{
-                                            gridTemplateColumns: '1fr 1.35fr',
-                                            minHeight: '34px'
-                                        }}
-                                    >
-                                        <label
-                                            htmlFor="prop-points"
-                                            className="font-medium"
-                                            style={{
-                                                fontSize: '10px',
-                                                color: 'var(--muted-foreground)'
-                                            }}
-                                        >
+                                    <div className="flex items-center justify-between gap-4">
+                                        <label htmlFor="prop-points" className="type-subheading text-[var(--muted-foreground)] shrink-0">
                                             Story Points
                                         </label>
                                         <input
@@ -561,312 +550,320 @@ export default function TaskFlyoutInspector({
                                             value={storyPoints}
                                             onChange={(e) => handleFieldChange('story_points', e.target.value ? Number(e.target.value) : '')}
                                             placeholder="—"
-                                            className="rounded-[6px] outline-none transition-colors"
-                                            style={{
-                                                width: '56px',
-                                                fontSize: '10px',
-                                                fontFamily: 'var(--font-mono)',
-                                                padding: '5px 8px',
-                                                backgroundColor: 'var(--card)',
-                                                border: '1px solid var(--border)',
-                                                color: 'var(--foreground)',
-                                                textAlign: 'right'
-                                            }}
+                                            className="h-9 w-24 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-xs font-mono font-bold text-[var(--foreground)] text-right focus-ring"
                                         />
                                     </div>
-                                </div>
-                            </div>
 
-                            {/* Section 2: Schedule */}
-                            <div
-                                className="task-drawer-section"
-                                style={{
-                                    padding: '14px 20px',
-                                    borderBottom: '1px solid var(--border)'
-                                }}
-                            >
-                                <h3
-                                    className="font-semibold uppercase tracking-wider flex items-center gap-1.5"
-                                    style={{
-                                        fontSize: '10px',
-                                        marginBottom: '10px',
-                                        color: 'var(--muted-foreground)'
-                                    }}
-                                >
-                                    <Clock style={{ width: '12px', height: '12px' }} />
-                                    <span>Schedule</span>
-                                </h3>
-
-                                <div
-                                    style={{
-                                        padding: '10px 12px',
-                                        borderRadius: '8px',
-                                        backgroundColor: 'var(--card)',
-                                        border: '1px solid var(--border)'
-                                    }}
-                                >
-                                    <div className="flex items-center justify-between gap-2">
-                                        <div className="flex items-center gap-2">
-                                            <Calendar
-                                                style={{
-                                                    width: '16px',
-                                                    height: '16px',
-                                                    color: 'var(--primary)'
-                                                }}
-                                                className="shrink-0"
-                                            />
-                                            <span
-                                                className="block font-bold tracking-tight text-sm font-mono"
-                                                style={{ color: 'var(--foreground)' }}
-                                            >
-                                                {dueDateDisplay}
+                                    {/* Task Classification / Type */}
+                                    {task.task_classification && (
+                                        <div className="flex items-center justify-between gap-4">
+                                            <span className="type-subheading text-[var(--muted-foreground)] shrink-0">
+                                                Task Type
+                                            </span>
+                                            <span className="type-body font-semibold text-[var(--foreground)]">
+                                                {task.task_classification}
                                             </span>
                                         </div>
-                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${cpaInfo.badgeClass}`}>
-                                            {cpaInfo.label}
+                                    )}
+
+                                    {/* Due Date Display */}
+                                    <div className="flex items-center justify-between gap-4">
+                                        <span className="type-subheading text-[var(--muted-foreground)] shrink-0">
+                                            Due Date
+                                        </span>
+                                        <span className="type-body font-bold text-[var(--foreground)] flex items-center gap-1.5">
+                                            <Calendar className="w-3.5 h-3.5 text-[var(--muted-foreground)]" />
+                                            <span>{dueInfo.formattedDate || 'Sprint Target'}</span>
                                         </span>
                                     </div>
+                                </div>
+                            </section>
 
-                                    {/* Consequence statement */}
-                                    <div
-                                        className="flex items-start gap-1.5 leading-snug mt-2 text-[10.5px]"
-                                    >
-                                        {cpaInfo.tier === 'emergency' ? (
-                                            <AlertTriangle style={{ width: '13px', height: '13px' }} className="shrink-0 text-rose-500 mt-0.5" />
-                                        ) : cpaInfo.tier === 'vigilance' ? (
-                                            <Flame style={{ width: '13px', height: '13px' }} className="shrink-0 text-amber-500 mt-0.5" />
-                                        ) : cpaInfo.tier === 'safe' ? (
-                                            <CheckCircle2 style={{ width: '13px', height: '13px' }} className="shrink-0 text-emerald-500 mt-0.5" />
+                            {/* Flag Complexity (UX Escape Hatch) */}
+                            <div className="p-4 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 space-y-3">
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                    <div className="space-y-0.5">
+                                        <div className="flex items-center gap-2">
+                                            <label className="text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                                                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                                <span>Flag Complexity Issue</span>
+                                            </label>
+                                            {activeTask.needs_estimate_review && (
+                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200">
+                                                    Awaiting Review
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                                            {activeTask.needs_estimate_review
+                                                ? `Proposed: ${activeTask.suggested_story_points ?? '—'} SP (Current: ${activeTask.story_points ?? '0'} SP) • Note: "${activeTask.estimate_review_note || ''}"`
+                                                : `Is this task harder than ${activeTask.story_points ?? 0} SP?`}
+                                        </p>
+                                    </div>
+
+                                    {/* Action button(s) */}
+                                    <div className="flex items-center gap-2 flex-wrap shrink-0">
+                                        {canFlagComplexity ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsFlagModalOpen(true)}
+                                                className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors shrink-0 whitespace-nowrap cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                                            >
+                                                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                                <span>{activeTask.needs_estimate_review ? 'Update Flag' : 'Notify Manager'}</span>
+                                            </button>
                                         ) : (
-                                            <Clock style={{ width: '13px', height: '13px' }} className="shrink-0 text-amber-500 mt-0.5" />
+                                            <span className="text-[11px] text-slate-400 italic">
+                                                Assignee only
+                                            </span>
                                         )}
-                                        <span className="text-slate-600 dark:text-slate-300 font-medium">
-                                            {cpaInfo.consequence}
+                                    </div>
+                                </div>
+
+                                {/* Manager Quick Resolution Actions when awaiting review */}
+                                {canManage && activeTask.needs_estimate_review && (
+                                    <div className="pt-2 border-t border-amber-200/60 dark:border-amber-900/40 flex items-center justify-between gap-2 flex-wrap">
+                                        <span className="text-[11px] font-semibold text-amber-800 dark:text-amber-300">
+                                            Manager Review:
                                         </span>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                disabled={isResolvingFlag}
+                                                onClick={() => handleResolveComplexity('dismiss')}
+                                                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-400 hover:bg-amber-100/60 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                            >
+                                                Dismiss Flag
+                                            </button>
+                                            {activeTask.suggested_story_points && (
+                                                <button
+                                                    type="button"
+                                                    disabled={isResolvingFlag}
+                                                    onClick={() => handleResolveComplexity('accept', activeTask.suggested_story_points)}
+                                                    className="px-3 py-1 rounded-lg text-[11px] font-bold bg-amber-600 hover:bg-amber-700 text-white transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
+                                                >
+                                                    {isResolvingFlag ? (
+                                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                                    ) : (
+                                                        <Check className="w-3 h-3" />
+                                                    )}
+                                                    <span>Accept {activeTask.suggested_story_points} SP</span>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <hr className="border-[var(--border)]" />
+
+                            {/* Group 2: Schedule & Timing */}
+                            <section aria-labelledby="heading-schedule" className="space-y-4">
+                                <h3 id="heading-schedule" className="type-section-title font-bold text-[var(--foreground)] flex items-center gap-2">
+                                    <Clock className="w-4 h-4 text-[var(--primary)]" />
+                                    <span>Schedule & Timing</span>
+                                </h3>
+
+                                <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--card)]/50 space-y-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <Calendar className="w-4 h-4 text-[var(--primary)]" />
+                                            <span className="type-body font-bold text-[var(--foreground)] font-mono">
+                                                {dueInfo.formattedDate ? `Target: ${dueInfo.formattedDate}` : 'Target: Sprint Milestone'}
+                                            </span>
+                                        </div>
+
+                                        {isCantSlip ? (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-300/70 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/70">
+                                                <Flame className="w-3 h-3 text-rose-600" />
+                                                <span>Can't slip</span>
+                                            </span>
+                                        ) : (
+                                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${cpaInfo.badgeClass}`}>
+                                                {cpaInfo.label}
+                                            </span>
+                                        )}
                                     </div>
 
-                                    {/* Action Invitation Card */}
-                                    {cpaInfo.actionPrompt && (
-                                        <div
-                                            className="mt-2.5 pt-2 border-t flex items-start gap-1.5"
-                                            style={{ borderColor: 'var(--border)' }}
-                                        >
-                                            <span className="text-[10px] font-bold uppercase tracking-wider text-brand shrink-0 mt-0.5">
-                                                Next Step:
+                                    {/* Plain sentence consequence explanation */}
+                                    <p className="type-body text-[var(--muted-foreground)] leading-relaxed select-text">
+                                        {isCantSlip
+                                            ? 'Zero schedule leeway — any delay directly postpones project delivery.'
+                                            : cpaInfo.consequence}
+                                    </p>
+
+                                    {/* Shortened Next Step coaching line (Owners and leaders only) */}
+                                    {canManage && cpaInfo.actionPrompt && (
+                                        <div className="mt-2 pt-2.5 border-t border-[var(--border)]/60 flex items-start gap-2">
+                                            <span className="type-caption font-bold uppercase text-[var(--primary)] shrink-0 mt-0.5">
+                                                Leader Note:
                                             </span>
-                                            <span className="text-[11px] font-semibold text-slate-800 dark:text-slate-100">
+                                            <span className="type-caption font-medium text-[var(--foreground)]">
                                                 {cpaInfo.actionPrompt}
                                             </span>
                                         </div>
                                     )}
                                 </div>
-                            </div>
+                            </section>
 
-                            {/* Section 3: Acceptance Criteria */}
-                            <div
-                                className="task-drawer-section"
-                                style={{
-                                    padding: '14px 20px',
-                                    borderBottom: '1px solid var(--border)'
-                                }}
-                            >
-                                <h3
-                                    className="font-semibold uppercase tracking-wider flex items-center gap-1.5"
-                                    style={{
-                                        fontSize: '10px',
-                                        marginBottom: '10px',
-                                        color: 'var(--muted-foreground)'
-                                    }}
-                                >
-                                    <CheckSquare style={{ width: '12px', height: '12px' }} />
+                            <hr className="border-[var(--border)]" />
+
+                            {/* Group 3: Acceptance Criteria */}
+                            <section aria-labelledby="heading-criteria" className="space-y-4">
+                                <h3 id="heading-criteria" className="type-section-title font-bold text-[var(--foreground)] flex items-center gap-2">
+                                    <CheckSquare className="w-4 h-4 text-[var(--primary)]" />
                                     <span>Acceptance Criteria</span>
                                 </h3>
 
-                                <div
-                                    className="flex flex-col"
-                                    style={{ gap: '7px' }}
-                                >
-                                    {acceptanceItems.map((item, idx) => (
-                                        <div
-                                            key={idx}
-                                            className="flex items-start gap-2 leading-snug"
-                                            style={{
-                                                fontSize: '10px',
-                                                color: 'var(--foreground)'
-                                            }}
-                                        >
-                                            <span
-                                                className="w-1.5 h-1.5 rounded-full shrink-0 mt-1"
-                                                style={{ backgroundColor: 'var(--primary)' }}
-                                            />
-                                            <span>{item}</span>
-                                        </div>
-                                    ))}
+                                <div className="space-y-2.5 max-w-prose">
+                                    {acceptanceItems.length === 0 ? (
+                                        <p className="type-body text-[var(--muted-foreground)] italic">
+                                            No acceptance criteria specified for this task.
+                                        </p>
+                                    ) : (
+                                        acceptanceItems.map((item, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="flex items-start gap-3 p-2.5 rounded-lg border border-[var(--border)]/50 bg-[var(--card)]/30 hover:bg-[var(--card)] transition-colors select-text"
+                                            >
+                                                <span className="w-2 h-2 rounded-full bg-[var(--primary)] shrink-0 mt-1.5" />
+                                                <span className="type-body text-[var(--foreground)] leading-relaxed">
+                                                    {item}
+                                                </span>
+                                            </div>
+                                        ))
+                                    )}
                                 </div>
-                            </div>
+                            </section>
 
-                            {/* Section 4: Task Status Grid */}
-                            <div
-                                className="task-drawer-section"
-                                style={{
-                                    padding: '14px 20px',
-                                    borderBottom: '1px solid var(--border)'
-                                }}
-                            >
-                                <h3
-                                    className="font-semibold uppercase tracking-wider flex items-center gap-1.5"
-                                    style={{
-                                        fontSize: '10px',
-                                        marginBottom: '10px',
-                                        color: 'var(--muted-foreground)'
-                                    }}
-                                >
-                                    <CheckCircle2 style={{ width: '12px', height: '12px' }} />
-                                    <span>Task Status</span>
+                            <hr className="border-[var(--border)]" />
+
+                            {/* Group 4: Status Picker */}
+                            <section aria-labelledby="heading-status-picker" className="space-y-4">
+                                <h3 id="heading-status-picker" className="type-section-title font-bold text-[var(--foreground)] flex items-center gap-2">
+                                    <CheckCircle2 className="w-4 h-4 text-[var(--primary)]" />
+                                    <span>Update Status</span>
                                 </h3>
 
-                                <div
-                                    className="grid grid-cols-2"
-                                    style={{ gap: '6px' }}
-                                >
-                                    {SPRINT_STATUS_OPTIONS.map((opt) => {
-                                        const isSelected = selectedStatus === opt.value;
-                                        const isDoneOpt = opt.value === 'completed';
+                                {/* Normal linear flow in board order */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    {WORKFLOW_STATUS_KEYS.map((key) => {
+                                        const cfg = STATUS_CONFIG[key];
+                                        const isSelected = selectedStatus === key;
+                                        const isDoneOpt = key === 'completed';
                                         const isOptDisabled = isDoneOpt && !canMarkDone;
+
                                         return (
                                             <button
-                                                key={opt.value}
+                                                key={key}
                                                 type="button"
-                                                onClick={() => handleFieldChange('status', opt.value)}
+                                                onClick={() => handleFieldChange('status', key)}
                                                 disabled={isOptDisabled}
                                                 title={isOptDisabled ? `Only ${reviewerDisplayName} or a manager can mark this task as done.` : ''}
-                                                className={`px-2.5 rounded-[6px] text-left flex items-center justify-between transition-colors shadow-none ${isOptDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
-                                                style={{
-                                                    height: '32px',
-                                                    fontSize: '9px',
-                                                    fontWeight: isSelected ? 600 : 500,
-                                                    backgroundColor: isSelected
-                                                        ? 'color-mix(in oklch, var(--primary) 12%, var(--card))'
-                                                        : 'var(--card)',
-                                                    border: isSelected
-                                                        ? '1px solid var(--primary)'
-                                                        : '1px solid var(--border)',
-                                                    color: 'var(--foreground)'
-                                                }}
+                                                className={`h-9 px-3 rounded-lg flex items-center justify-between text-xs font-semibold transition-all border cursor-pointer focus-ring ${
+                                                    isSelected
+                                                        ? `${cfg.selectedPicker} shadow-xs`
+                                                        : 'bg-[var(--card)] border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--muted)]'
+                                                } ${isOptDisabled ? 'opacity-40 cursor-not-allowed' : ''}`}
                                             >
-                                                <span className="truncate">{opt.label}</span>
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
+                                                    <span className="truncate">{cfg.label}</span>
+                                                </div>
                                                 {isSelected && (
-                                                    <Check
-                                                        style={{
-                                                            width: '12px',
-                                                            height: '12px',
-                                                            color: 'var(--primary)'
-                                                        }}
-                                                        className="shrink-0"
-                                                    />
+                                                    <Check className="w-3.5 h-3.5 text-current shrink-0" />
                                                 )}
                                             </button>
                                         );
                                     })}
                                 </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <div id="panel-activity" role="tabpanel" aria-labelledby="tab-activity" className="p-4 sm:p-5 space-y-4">
-                            {/* Activity Feed Entries */}
-                            <div className="space-y-2.5">
-                                {comments.map((entry) => (
-                                    <div
-                                        key={entry.id}
-                                        style={{
-                                            padding: '10px 0',
-                                            gap: '10px',
-                                            fontSize: '10px',
-                                            borderBottom: '1px solid var(--border)'
-                                        }}
-                                        className="flex flex-col"
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <span className="font-semibold text-[var(--foreground)]">{entry.user}</span>
-                                            <span style={{ fontSize: '9px' }} className="text-[var(--muted-foreground)] font-mono">{entry.time}</span>
-                                        </div>
-                                        <p className="text-[var(--foreground)] leading-relaxed">{entry.text}</p>
-                                    </div>
-                                ))}
-                            </div>
 
-                            {/* Comment Composer */}
-                            <form onSubmit={handleAddComment} style={{ marginTop: '12px' }}>
-                                <label htmlFor="comment-composer" className="sr-only">Add Comment</label>
-                                <textarea
-                                    id="comment-composer"
-                                    rows={2}
-                                    value={commentText}
-                                    onChange={(e) => setCommentText(e.target.value)}
-                                    placeholder="Add an activity update or review note..."
-                                    className="w-full rounded-[6px] outline-none transition-colors"
-                                    style={{
-                                        fontSize: '11px',
-                                        padding: '8px 10px',
-                                        backgroundColor: 'var(--card)',
-                                        border: '1px solid var(--border)',
-                                        color: 'var(--foreground)',
-                                        resize: 'none'
-                                    }}
-                                />
-
-                                <div
-                                    className="flex items-center justify-between"
-                                    style={{ marginTop: '8px' }}
-                                >
-                                    <span
-                                        style={{ fontSize: '9px' }}
-                                        className="text-[var(--muted-foreground)] font-mono"
-                                    >
-                                        Preview Activity
-                                    </span>
-
+                                {/* Separated Stuck / Blocked Option */}
+                                <div className="pt-2">
                                     <button
-                                        type="submit"
-                                        disabled={!commentText.trim()}
-                                        className="font-medium rounded-[6px] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                                        style={{
-                                            height: '28px',
-                                            fontSize: '10px',
-                                            padding: '0 12px',
-                                            backgroundColor: 'var(--primary)',
-                                            color: '#ffffff'
-                                        }}
+                                        type="button"
+                                        onClick={() => handleFieldChange('status', 'stuck')}
+                                        className={`w-full h-9 px-3 rounded-lg flex items-center justify-between text-xs font-semibold transition-all border cursor-pointer focus-ring ${
+                                            selectedStatus === 'stuck'
+                                                ? `${STATUS_CONFIG.stuck.selectedPicker} shadow-xs`
+                                                : 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-300/50 dark:border-rose-800/40 text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/40'
+                                        }`}
                                     >
-                                        Post Note
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_CONFIG.stuck.dot}`} />
+                                            <span>{STATUS_CONFIG.stuck.actionLabel}</span>
+                                        </div>
+                                        {selectedStatus === 'stuck' && (
+                                            <Check className="w-3.5 h-3.5 text-current shrink-0" />
+                                        )}
                                     </button>
                                 </div>
-                            </form>
+                            </section>
+                        </div>
+                    ) : (
+                        /* Activity Tab */
+                        <div id="panel-activity" role="tabpanel" aria-labelledby="tab-activity" className="space-y-6">
+                            <section aria-labelledby="heading-activity-feed" className="space-y-4">
+                                <h3 id="heading-activity-feed" className="type-section-title font-bold text-[var(--foreground)] flex items-center gap-2">
+                                    <MessageSquare className="w-4 h-4 text-[var(--primary)]" />
+                                    <span>Task Activity Feed</span>
+                                </h3>
+
+                                <div className="space-y-3">
+                                    {comments.map((entry) => (
+                                        <div
+                                            key={entry.id}
+                                            className="p-3.5 rounded-xl border border-[var(--border)] bg-[var(--card)]/40 space-y-1.5 select-text"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <span className="type-body font-bold text-[var(--foreground)]">
+                                                    {entry.user}
+                                                </span>
+                                                <span className="type-caption font-mono text-[var(--muted-foreground)]">
+                                                    {entry.time}
+                                                </span>
+                                            </div>
+                                            <p className="type-body text-[var(--foreground)]/90 leading-relaxed">
+                                                {entry.text}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Comment Composer */}
+                                <form onSubmit={handleAddComment} className="space-y-3 pt-3 border-t border-[var(--border)]">
+                                    <label htmlFor="task-comment-composer" className="type-subheading text-[var(--muted-foreground)] block">
+                                        Add review note or activity update
+                                    </label>
+                                    <textarea
+                                        id="task-comment-composer"
+                                        rows={3}
+                                        value={commentText}
+                                        onChange={(e) => setCommentText(e.target.value)}
+                                        placeholder="Type an update or resolution note..."
+                                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-3 type-body text-[var(--foreground)] outline-hidden focus-ring resize-none"
+                                    />
+                                    <div className="flex justify-end">
+                                        <button
+                                            type="submit"
+                                            disabled={!commentText.trim()}
+                                            className="h-9 px-4 rounded-lg bg-[var(--primary)] hover:opacity-90 active:scale-[0.98] text-white text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer focus-ring"
+                                        >
+                                            Post Update
+                                        </button>
+                                    </div>
+                                </form>
+                            </section>
                         </div>
                     )}
                 </div>
 
-                {/* ── Sticky Action Footer (padding: 10px 20px, buttons: height 34px) ── */}
-                <div
-                    className="task-drawer-footer shrink-0 flex items-center justify-end gap-2.5"
-                    style={{
-                        padding: '10px 20px',
-                        borderTop: '1px solid var(--border)',
-                        backgroundColor: 'var(--elevated)'
-                    }}
-                >
+                {/* ── STICKY ACTION FOOTER ────────────────────────────────────────── */}
+                <div className="shrink-0 sticky bottom-0 z-10 bg-[var(--elevated)] border-t border-[var(--border)] px-6 py-4 flex items-center justify-end gap-3">
                     <button
                         type="button"
                         onClick={onClose}
-                        className="font-medium rounded-[6px] transition-colors cursor-pointer"
-                        style={{
-                            height: '34px',
-                            fontSize: '11px',
-                            padding: '0 14px',
-                            backgroundColor: 'var(--card)',
-                            border: '1px solid var(--border)',
-                            color: 'var(--foreground)'
-                        }}
+                        className="h-9 px-4 rounded-lg border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--muted)] text-xs font-semibold text-[var(--foreground)] transition-colors cursor-pointer focus-ring"
                     >
                         Close
                     </button>
@@ -876,23 +873,16 @@ export default function TaskFlyoutInspector({
                         onClick={handleMarkComplete}
                         disabled={isCompleted || isSubmitting || !canMarkDone}
                         title={!canMarkDone ? `Only ${reviewerDisplayName} or a manager can mark this task as done.` : ''}
-                        className="font-semibold rounded-[6px] transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                        style={{
-                            height: '34px',
-                            fontSize: '11px',
-                            padding: '0 16px',
-                            backgroundColor: 'var(--primary)',
-                            color: '#ffffff'
-                        }}
+                        className="h-9 px-5 rounded-lg bg-[var(--primary)] hover:opacity-90 active:scale-[0.98] text-white text-xs font-bold transition-all shadow-xs cursor-pointer focus-ring disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                     >
                         {isSubmitting ? (
                             <>
-                                <Loader2 style={{ width: '12px', height: '12px' }} className="animate-spin" />
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                 <span>Updating...</span>
                             </>
                         ) : isCompleted ? (
                             <>
-                                <Check style={{ width: '12px', height: '12px' }} />
+                                <Check className="w-3.5 h-3.5" />
                                 <span>Completed</span>
                             </>
                         ) : !canMarkDone ? (
@@ -903,6 +893,29 @@ export default function TaskFlyoutInspector({
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
+    )}
+
+    {/* Flag Complexity Modal */}
+    <FlagComplexityModal
+        isOpen={isFlagModalOpen}
+        onClose={() => setIsFlagModalOpen(false)}
+        task={activeTask}
+        tenantId={resolvedTenantId}
+        onComplexityFlagged={(updatedTask) => {
+            setCurrentTask(updatedTask);
+            if (typeof onTaskUpdated === 'function') {
+                onTaskUpdated(updatedTask);
+            } else if (typeof updateTask === 'function') {
+                updateTask(updatedTask.id, {
+                    needs_estimate_review: updatedTask.needs_estimate_review,
+                    suggested_story_points: updatedTask.suggested_story_points,
+                    estimate_review_note: updatedTask.estimate_review_note,
+                });
+            }
+        }}
+    />
+    </>
     );
 }

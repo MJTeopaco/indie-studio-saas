@@ -410,4 +410,56 @@ class MemberTaskManagementTest extends TestCase
             ->where('myTasks.0.is_doer', true)
         );
     }
+
+    public function test_task_can_be_updated_to_overdue_status(): void
+    {
+        $task = Task::factory()->create([
+            'project_id' => $this->project->id,
+            'assigned_user_id' => $this->memberUser->id,
+            'status' => 'todo',
+            'sprint_status' => 'ready_to_start',
+        ]);
+
+        $this->actingAs($this->memberUser);
+
+        $response = $this->patchJson(route('tenant.tasks.update-status', [
+            'tenant' => 'test',
+            'task' => $task->id,
+        ]), [
+            'status' => 'overdue',
+        ]);
+
+        $response->assertOk();
+
+        $task->refresh();
+        $this->assertEquals('overdue', $task->status);
+        $this->assertEquals('overdue', $task->sprint_status);
+    }
+
+    public function test_overdue_task_creates_notifications_for_member_and_leader(): void
+    {
+        $overdueTask = Task::factory()->create([
+            'project_id' => $this->project->id,
+            'assigned_user_id' => $this->memberUser->id,
+            'title' => 'Overdue Critical Engine Fix',
+            'status' => 'in_progress',
+            'days_until_deadline' => -3,
+        ]);
+
+        // Member gets overdue notification in inbox
+        $this->actingAs($this->memberUser);
+        $memberResponse = $this->get(route('tenant.inbox', ['tenant' => 'test']));
+        $memberResponse->assertOk();
+        $memberResponse->assertInertia(fn ($page) => $page->component('Tenant/Inbox')
+            ->where('notifications', fn ($notifs) => collect($notifs)->contains(fn ($n) => ($n['type'] ?? '') === 'overdue' && ($n['task_id'] ?? null) === $overdueTask->id))
+        );
+
+        // Leader gets team overdue notification in inbox
+        $this->actingAs($this->managerUser);
+        $leaderResponse = $this->get(route('tenant.inbox', ['tenant' => 'test']));
+        $leaderResponse->assertOk();
+        $leaderResponse->assertInertia(fn ($page) => $page->component('Tenant/Inbox')
+            ->where('notifications', fn ($notifs) => collect($notifs)->contains(fn ($n) => ($n['type'] ?? '') === 'overdue' && ($n['task_id'] ?? null) === $overdueTask->id))
+        );
+    }
 }

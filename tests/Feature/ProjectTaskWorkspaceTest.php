@@ -92,6 +92,32 @@ class ProjectTaskWorkspaceTest extends TestCase
         $this->assertDatabaseHas('assignments', ['task_id' => $task->id, 'employee_user_id' => $assignee->id, 'status' => 'active']);
     }
 
+    public function test_task_update_saves_manual_assignees_as_json(): void
+    {
+        Queue::fake();
+        $project = Project::factory()->create();
+        $task = Task::factory()->create(['project_id' => $project->id]);
+        $assignee = User::factory()->create(['name' => 'Lucas Miller']);
+
+        $response = $this->patchJson(route('tenant.projects.tasks.update', [
+            'tenant' => 'test',
+            'project' => $project->id,
+            'task' => $task->id,
+        ]), [
+            'assignees' => [$assignee->id],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('status', 'success');
+
+        $this->assertDatabaseHas('tasks', ['id' => $task->id, 'assigned_user_id' => $assignee->id]);
+        $this->assertDatabaseHas('assignments', [
+            'task_id' => $task->id,
+            'employee_user_id' => $assignee->id,
+            'status' => 'active',
+        ]);
+    }
+
     public function test_bulk_task_save_uses_the_project_route_parameter_and_queues_schedule_recalculation(): void
     {
         Queue::fake();

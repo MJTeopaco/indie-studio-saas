@@ -91,6 +91,14 @@ const STATUS_CONFIG = {
         bgClass: 'bg-[var(--success)]',
         badgeBg: 'bg-[var(--success)]/10 text-[var(--success)] border-[var(--success)]/25',
     },
+    overdue: {
+        id: 'overdue',
+        label: 'Overdue',
+        sprintKey: 'overdue',
+        color: '#f43f5e',
+        bgClass: 'bg-rose-500',
+        badgeBg: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25',
+    },
     stuck: {
         id: 'stuck',
         label: 'Blocked',
@@ -144,6 +152,23 @@ function normalizeTaskStatus(task) {
     const s = task.status || '';
     const sp = task.sprint_status || '';
     if (s === 'completed' || sp === 'done') return 'completed';
+    if (s === 'overdue' || sp === 'overdue') return 'overdue';
+
+    if (task.days_until_deadline !== null && task.days_until_deadline !== undefined && Number(task.days_until_deadline) < 0) {
+        return 'overdue';
+    }
+
+    const targetDate = task.dueDate || task.due_date || task.hard_constraint_date;
+    if (targetDate) {
+        const due = new Date(targetDate);
+        if (!isNaN(due.getTime())) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            due.setHours(0, 0, 0, 0);
+            if (due.getTime() < today.getTime()) return 'overdue';
+        }
+    }
+
     if (s === 'stuck' || sp === 'stuck') return 'stuck';
     if (s === 'review' || sp === 'waiting_for_review') return 'review';
     if (s === 'in_progress' || sp === 'in_progress') return 'in_progress';
@@ -245,10 +270,48 @@ export default function Show({
     const [statusEditingTask, setStatusEditingTask] = useState(null);
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
     const [aiModalTask, setAiModalTask] = useState(null);
+    const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false);
 
     useEffect(() => {
         setTaskRows(project?.tasks || []);
     }, [project?.id, project?.tasks]);
+
+    const handledReassignRef = useRef(false);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const params = new URLSearchParams(window.location.search);
+        const requestedView = params.get('view');
+        const reassignTaskId = params.get('reassign_task_id');
+
+        if (requestedView) {
+            setActiveView(requestedView);
+        }
+
+        if (reassignTaskId && !handledReassignRef.current) {
+            const taskIdNum = Number(reassignTaskId);
+            const allCandidateTasks = [
+                ...(taskRows || []),
+                ...(project?.tasks || []),
+                ...(backlogTasks || []),
+                ...(sprints || []).flatMap(s => s.tasks || [])
+            ];
+            const foundTask = allCandidateTasks.find(t => Number(t.id) === taskIdNum);
+            if (foundTask) {
+                handledReassignRef.current = true;
+                setAssignmentTask(foundTask);
+                setIsAssignmentModalOpen(true);
+
+                try {
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('reassign_task_id');
+                    window.history.replaceState({}, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
+                } catch (e) {
+                    // Ignore URL history errors
+                }
+            }
+        }
+    }, [taskRows, project?.id, project?.tasks, sprints, backlogTasks]);
 
     const allTasks = taskRows;
     const activeSprint = useMemo(() => sprints?.find(s => s.status === 'active') || sprints?.[0], [sprints]);
@@ -377,11 +440,11 @@ export default function Show({
     };
 
     const handleUpdateTask = (taskId, fields) => {
-        setTaskRows(rows => rows.map(t => (t.id === taskId ? { ...t, ...fields } : t)));
-        if (selectedInspectorTask?.id === taskId) {
+        setTaskRows(rows => rows.map(t => (Number(t.id) === Number(taskId) ? { ...t, ...fields } : t)));
+        if (Number(selectedInspectorTask?.id) === Number(taskId)) {
             setSelectedInspectorTask(prev => ({ ...prev, ...fields }));
         }
-        window.dispatchEvent(new CustomEvent('task-updated', { detail: { taskId, updates: fields } }));
+        window.dispatchEvent(new CustomEvent('task-updated', { detail: { taskId: Number(taskId), updates: fields } }));
     };
 
     const handleStatusChange = (task, newStatus) => {
@@ -442,7 +505,7 @@ export default function Show({
 
     const projectKey = project?.key || project?.code || (project?.name ? project.name.substring(0, 3).toUpperCase() : 'PRJ');
     const projectType = project?.type || project?.category || 'Internal tooling';
-    const techStack = project?.tech_stack || project?.description || 'C++';
+    const techStack = project?.tech_stack || null;
 
     return (
         <ProjectLayout auth={currentAuth} project={project} studioName={studio?.name}>
@@ -462,10 +525,16 @@ export default function Show({
                             <h1 className="font-heading font-bold text-[25px] leading-tight text-[var(--foreground)] tracking-tight">
                                 {project?.name || 'Forge Engine'}
                             </h1>
-                            {/* Project Type */}
-                            <p className="text-[11px] text-[var(--muted-foreground)] mt-0.5">
-                                {projectType} · {techStack}
-                            </p>
+                            {/* Project Type & Stack */}
+                            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-[var(--muted-foreground)]">
+                                <span>{projectType}</span>
+                                {techStack && (
+                                    <>
+                                        <span className="text-[var(--border)]">•</span>
+                                        <span className="font-mono text-[10px] text-[var(--foreground)]">{techStack}</span>
+                                    </>
+                                )}
+                            </div>
                         </div>
 
                         {/* Top Actions: Status Badge & Add Task */}
@@ -712,9 +781,14 @@ export default function Show({
 
                                 {/* Project details (narrow panel, padding 14px 18px) */}
                                 <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-[14px_18px] shadow-2xs flex flex-col justify-between">
-                                    <h2 className="font-heading font-bold text-sm text-[var(--foreground)] mb-2.5">
-                                        Project details
-                                    </h2>
+                                    <div className="flex items-center justify-between gap-2 mb-3">
+                                        <h2 className="font-heading font-bold text-sm text-[var(--foreground)]">
+                                            Project details
+                                        </h2>
+                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-medium bg-[var(--muted)] text-[var(--muted-foreground)] border border-[var(--border)]/60">
+                                            {projectType}
+                                        </span>
+                                    </div>
 
                                     {/* 2x2 dl grid */}
                                     <dl className="grid grid-cols-2 gap-y-3 gap-x-4 text-xs">
@@ -759,11 +833,44 @@ export default function Show({
                                         </div>
                                     </dl>
 
-                                    {/* Mini visual overlay strip */}
-                                    <div className="mt-3.5 pt-2.5 border-t border-[var(--border)]/60 flex items-center justify-between text-[11px] text-[var(--muted-foreground)]">
-                                        <span className="font-mono text-[10px]">{projectType}</span>
-                                        <span className="font-mono text-[10px] text-[var(--foreground)] font-semibold">{techStack}</span>
-                                    </div>
+                                    {/* Description / Scope Overview */}
+                                    {project?.description ? (
+                                        <div className="mt-3.5 pt-3 border-t border-[var(--border)]/60 flex flex-col justify-between flex-1">
+                                            <div>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+                                                        Scope & Overview
+                                                    </span>
+                                                    {project.description.length > 90 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setIsDescriptionModalOpen(true)}
+                                                            className="text-[10px] font-medium text-[var(--primary)] hover:underline inline-flex items-center gap-0.5 cursor-pointer transition-colors"
+                                                        >
+                                                            <span>Read full</span>
+                                                            <ChevronRight className="w-3 h-3" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <p className="text-[11px] text-[var(--muted-foreground)] line-clamp-2 leading-relaxed">
+                                                    {project.description}
+                                                </p>
+                                            </div>
+                                            {techStack && (
+                                                <div className="mt-2.5 pt-2 border-t border-[var(--border)]/40 flex items-center justify-between text-[10px] font-mono text-[var(--muted-foreground)]">
+                                                    <span>Stack</span>
+                                                    <span className="text-[var(--foreground)] font-semibold truncate max-w-[160px]">{techStack}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        techStack && (
+                                            <div className="mt-3.5 pt-2.5 border-t border-[var(--border)]/60 flex items-center justify-between text-[11px] text-[var(--muted-foreground)]">
+                                                <span className="font-mono text-[10px]">Stack</span>
+                                                <span className="font-mono text-[10px] text-[var(--foreground)] font-semibold truncate max-w-[180px]">{techStack}</span>
+                                            </div>
+                                        )
+                                    )}
                                 </div>
 
                             </div>
@@ -1288,7 +1395,7 @@ export default function Show({
                         VIEW 6: BOARD TAB (Kanban Columns)
                     ══════════════════════════════════════════════════════════ */}
                     {activeView === 'board' && (
-                        <div className="flex min-w-max gap-5 overflow-x-auto pb-4 custom-scrollbar animate-in fade-in duration-200">
+                        <div className="flex min-w-max gap-5 overflow-x-auto pb-8 custom-scrollbar animate-in fade-in duration-200 items-start">
                             {Object.values(STATUS_CONFIG).map(col => {
                                 const colTasks = allTasks.filter(t => normalizeTaskStatus(t) === col.id);
 
@@ -1296,18 +1403,18 @@ export default function Show({
                                     <div
                                         key={col.id}
                                         onDragOver={e => {
-                                            e.preventDefault();
-                                            if (hoveredColId !== col.id) setHoveredColId(col.id);
+                                             e.preventDefault();
+                                             if (hoveredColId !== col.id) setHoveredColId(col.id);
                                         }}
                                         onDragLeave={() => setHoveredColId(null)}
                                         onDrop={e => {
-                                            e.preventDefault();
-                                            handleDropTask(col.id);
+                                             e.preventDefault();
+                                             handleDropTask(col.id);
                                         }}
-                                        className={`w-72 flex flex-col rounded-xl border transition-all ${
-                                            hoveredColId === col.id && draggedTask && normalizeTaskStatus(draggedTask) !== col.id
-                                                ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/20 bg-[var(--secondary)]'
-                                                : 'border-[var(--border)] bg-[var(--card)]'
+                                        className={`w-72 flex flex-col rounded-xl border min-h-[500px] transition-all ${
+                                             hoveredColId === col.id && draggedTask && normalizeTaskStatus(draggedTask) !== col.id
+                                                 ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/20 bg-[var(--secondary)]'
+                                                 : 'border-[var(--border)] bg-[var(--card)]'
                                         }`}
                                     >
                                         {/* Column Header */}
@@ -1324,7 +1431,7 @@ export default function Show({
                                         </div>
 
                                         {/* Column Task Cards */}
-                                        <div className="p-3 space-y-2.5 flex-1 overflow-y-auto max-h-[calc(100vh-280px)] custom-scrollbar">
+                                        <div className="p-3 space-y-2.5 flex-1">
                                             {colTasks.map(task => {
                                                 const assignees = getTaskAssignees(task);
                                                 const primaryAssignee = assignees[0] || 'Unassigned';
@@ -1453,6 +1560,57 @@ export default function Show({
                 isOpen={Boolean(aiModalTask)}
                 onClose={() => setAiModalTask(null)}
             />
+
+            {/* Project Description Modal */}
+            {isDescriptionModalOpen && project?.description && (
+                <div 
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4" 
+                    onClick={() => setIsDescriptionModalOpen(false)}
+                >
+                    <div 
+                        className="w-full max-w-xl rounded-2xl bg-[var(--card)] border border-[var(--border)] p-6 shadow-2xl text-[var(--foreground)] flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200" 
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between border-b border-[var(--border)]/70 pb-3 mb-4">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
+                                    <Target className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <h2 className="text-base font-bold font-heading text-[var(--foreground)]">
+                                        Project Overview & Scope
+                                    </h2>
+                                    <p className="text-xs text-[var(--muted-foreground)] font-mono">
+                                        {project?.name} ({projectKey})
+                                    </p>
+                                </div>
+                            </div>
+                            <button 
+                                type="button" 
+                                onClick={() => setIsDescriptionModalOpen(false)} 
+                                className="p-1 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors cursor-pointer"
+                                aria-label="Close modal"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="overflow-y-auto pr-2 space-y-4 text-xs sm:text-sm text-[var(--foreground)]/90 leading-relaxed font-sans whitespace-pre-line select-text">
+                            {project.description}
+                        </div>
+
+                        <div className="mt-5 pt-3 border-t border-[var(--border)]/70 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setIsDescriptionModalOpen(false)}
+                                className="px-4 py-2 rounded-lg bg-[var(--muted)] hover:bg-[var(--border)] text-xs font-semibold text-[var(--foreground)] transition-colors cursor-pointer"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </ProjectLayout>
     );
 }

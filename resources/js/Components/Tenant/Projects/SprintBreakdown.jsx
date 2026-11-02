@@ -966,14 +966,14 @@ export default function SprintBreakdown({ sprints: initialSprints, backlogTasks:
         const handleTaskUpdated = (e) => {
             const { taskId, updates } = e.detail;
             
-            const applyUpdates = (tasks) => tasks.map(t => {
-                if (t.id === taskId) {
+            const applyUpdates = (tasks) => (tasks || []).map(t => {
+                if (Number(t.id) === Number(taskId)) {
                     return { ...t, ...updates };
                 }
                 return t;
             });
 
-            setSprints(current => current.map(s => ({ ...s, tasks: applyUpdates(s.tasks) })));
+            setSprints(current => (current || []).map(s => ({ ...s, tasks: applyUpdates(s.tasks) })));
             setBacklogTasks(current => applyUpdates(current));
         };
         

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\LeaveRequest;
+use App\Models\NotificationRead;
 use App\Models\Studio;
 use App\Models\Tenant\Project;
 use App\Models\Tenant\ProjectMember;
@@ -314,6 +315,18 @@ class TenantTeamController extends Controller
             'reviewed_at' => now(),
         ]);
 
+        if (Schema::hasTable('notification_reads')) {
+            NotificationRead::updateOrCreate(
+                [
+                    'user_id' => auth()->id(),
+                    'notification_id' => "leave-req-{$leaveReq->id}",
+                ],
+                [
+                    'read_at' => now(),
+                ]
+            );
+        }
+
         $today = now()->toDateString();
         if ($leaveReq->request_type === LeaveRequest::TYPE_EMERGENCY) {
             $targetStatus = 'emergency';
@@ -354,6 +367,19 @@ class TenantTeamController extends Controller
         $statusMsg = $targetStatus === 'active'
             ? "Leave request approved. Scheduled absence starts on ".Carbon::parse($leaveReq->leave_start_date)->format('M d, Y')." (member remains Active until then)."
             : "{$typeLabel} approved successfully.";
+
+        // Ensure notification is marked as read for the reviewer
+        if (\Illuminate\Support\Facades\Schema::hasTable('notification_reads')) {
+            \App\Models\NotificationRead::firstOrCreate(
+                [
+                    'user_id' => auth()->id(),
+                    'notification_id' => "leave-req-{$leaveReq->id}",
+                ],
+                [
+                    'read_at' => now(),
+                ]
+            );
+        }
 
         return redirect()->back()->with('status', "leave-approved:{$statusMsg}");
     }

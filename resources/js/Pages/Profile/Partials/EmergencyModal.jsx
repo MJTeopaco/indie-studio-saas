@@ -12,9 +12,52 @@ import {
     Calendar,
     Send,
     CheckCircle2,
-    Info
+    Info,
+    Activity,
+    Users,
+    Heart,
+    Lock,
+    ShieldCheck
 } from 'lucide-react';
 import { showToast } from '@/Components/SystemToast';
+
+const EMERGENCY_CATEGORIES = [
+    {
+        id: 'medical',
+        label: 'Medical / Health Emergency',
+        description: 'Sudden illness, medical procedure, or acute healthcare condition',
+        icon: Activity,
+        badge: 'Medical',
+    },
+    {
+        id: 'family',
+        label: 'Family & Dependent Care',
+        description: 'Urgent family crisis, dependent care, or immediate family emergency',
+        icon: Users,
+        badge: 'Family',
+    },
+    {
+        id: 'bereavement',
+        label: 'Bereavement / Compassionate',
+        description: 'Loss of an immediate family member or loved one',
+        icon: Heart,
+        badge: 'Compassionate',
+    },
+    {
+        id: 'disaster',
+        label: 'Disaster / Infrastructure',
+        description: 'Severe weather, power grid blackout, or natural disaster',
+        icon: AlertTriangle,
+        badge: 'Disaster',
+    },
+    {
+        id: 'other',
+        label: 'Other Urgent Operational Emergency',
+        description: 'Other unforeseen acute circumstances preventing work',
+        icon: ShieldAlert,
+        badge: 'Operational',
+    },
+];
 
 export default function EmergencyModal({
     isOpen,
@@ -29,14 +72,16 @@ export default function EmergencyModal({
     const [studioId, setStudioId] = useState(
         initialStudioId || (joinedStudios.length > 0 ? joinedStudios[0].id : '')
     );
-    const [reason, setReason] = useState('');
+    const [category, setCategory] = useState('medical');
+    const [confidentialNote, setConfidentialNote] = useState('');
     const [estimatedReturnDate, setEstimatedReturnDate] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
             document.body.style.overflow = 'hidden';
-            setReason('');
+            setCategory('medical');
+            setConfidentialNote('');
             setEstimatedReturnDate('');
         } else {
             document.body.style.overflow = '';
@@ -55,24 +100,25 @@ export default function EmergencyModal({
     const isOwner = Boolean(activeStudio?.is_owner || activeStudio?.role === 'owner');
     const isLeader = !isOwner && ['leader', 'manager'].includes(activeStudio?.role);
 
-    const minChars = 15;
-    const reasonLength = reason.trim().length;
-    const isReasonValid = reasonLength >= minChars;
-
     const handleSubmit = (e) => {
         e.preventDefault();
 
-        if (!isReasonValid) {
-            showToast(`Emergency reason must be at least ${minChars} characters for operational context.`, 'warning');
+        if (!category) {
+            showToast('Please select an emergency category.', 'warning');
             return;
         }
 
         setIsSubmitting(true);
 
+        const selectedCatObj = EMERGENCY_CATEGORIES.find(c => c.id === category);
+        const categoryLabel = selectedCatObj ? selectedCatObj.label : 'Emergency Absence';
+
         router.post(route('profile.emergency-status.store'), {
             scope,
             studio_id: scope === 'specific' ? studioId : null,
-            reason: reason.trim(),
+            emergency_category: category,
+            confidential_note: confidentialNote.trim() || null,
+            reason: categoryLabel,
             estimated_return_date: estimatedReturnDate || null,
         }, {
             preserveScroll: true,
@@ -140,15 +186,15 @@ export default function EmergencyModal({
                 {/* Form Body */}
                 <form onSubmit={handleSubmit} className="overflow-y-auto p-6 sm:p-8 space-y-6 flex-1">
                     
-                    {/* Operational Safety Notice */}
-                    <div className="p-4 sm:p-5 rounded-2xl bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 flex items-start gap-3.5 shadow-2xs">
-                        <Info className="w-5 h-5 text-brand mt-0.5 shrink-0" />
+                    {/* Privacy Protection Notice */}
+                    <div className="p-4 sm:p-5 rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/30 flex items-start gap-3.5 shadow-2xs">
+                        <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
                         <div className="space-y-1 text-slate-700 dark:text-slate-300 leading-relaxed">
-                            <strong className="text-slate-900 dark:text-white block font-bold text-sm sm:text-base">
-                                Independent Operational State
+                            <strong className="text-slate-900 dark:text-white block font-bold text-sm">
+                                Standardized Category Privacy Protection
                             </strong>
-                            <span className="text-xs sm:text-sm font-normal block">
-                                Declaring an emergency documents an audit trail and alerts leadership. Any existing pending or future scheduled leave requests remain safely preserved.
+                            <span className="text-xs sm:text-sm font-normal block text-slate-600 dark:text-slate-300">
+                                To protect your health and personal privacy, notification feeds and activity logs only display your standardized category label. Any private notes are strictly restricted to leadership.
                             </span>
                         </div>
                     </div>
@@ -187,8 +233,8 @@ export default function EmergencyModal({
                                 {isOwner
                                     ? 'As Studio Owner, emergency status activates immediately across workspace channels.'
                                     : isLeader
-                                        ? 'As Team Leader, declaration notifies the Studio Owner for urgent review. You may freely self-withdraw if the incident resolves.'
-                                        : 'Declaration routes urgently to your Team Leader and Studio Owner. You may freely self-withdraw if the incident resolves.'
+                                        ? 'As Team Leader, declaration notifies the Studio Owner for urgent task reassignment and handover.'
+                                        : 'Declaration routes urgently to your Team Leader and Studio Owner for sprint task reassignment.'
                                 }
                             </p>
                         </div>
@@ -251,37 +297,72 @@ export default function EmergencyModal({
                         </div>
                     )}
 
-                    {/* Emergency Reason (Required, min 15 chars) */}
+                    {/* Emergency Category Selector (Required) */}
+                    <div className="space-y-2.5">
+                        <label className="text-sm font-bold text-slate-900 dark:text-white flex items-center justify-between">
+                            <span>Emergency Category <span className="text-rose-500">*</span></span>
+                            <span className="text-xs font-mono font-medium text-slate-500 dark:text-slate-400">Broad classification</span>
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            {EMERGENCY_CATEGORIES.map((cat) => {
+                                const IconComponent = cat.icon;
+                                const isSelected = category === cat.id;
+                                return (
+                                    <button
+                                        key={cat.id}
+                                        type="button"
+                                        onClick={() => setCategory(cat.id)}
+                                        className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
+                                            isSelected
+                                                ? 'bg-rose-500/10 border-rose-500 text-slate-900 dark:text-white ring-2 ring-rose-500/40 shadow-xs'
+                                                : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700'
+                                        }`}
+                                    >
+                                        <div className={`p-2 rounded-xl shrink-0 ${
+                                            isSelected 
+                                                ? 'bg-rose-500 text-white' 
+                                                : 'bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                        }`}>
+                                            <IconComponent className="w-4 h-4" />
+                                        </div>
+                                        <div className="space-y-0.5">
+                                            <div className="font-bold text-xs sm:text-sm">
+                                                {cat.label}
+                                            </div>
+                                            <div className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                                                {cat.description}
+                                            </div>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Confidential Note for Leadership (Optional) */}
                     <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                            <label className="text-sm font-bold text-slate-900 dark:text-white">
-                                Emergency Nature & Context <span className="text-rose-500">*</span>
+                            <label className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                <Lock className="w-3.5 h-3.5 text-slate-400" />
+                                <span>Confidential Note for Leadership</span>
+                                <span className="text-xs font-normal text-slate-400 dark:text-slate-500">(Optional)</span>
                             </label>
-                            <span className={`text-xs font-mono font-bold ${
-                                isReasonValid 
-                                    ? 'text-emerald-600 dark:text-emerald-400' 
-                                    : 'text-amber-600 dark:text-amber-400'
-                            }`}>
-                                {reasonLength} / {minChars} min chars
+                            <span className="text-[11px] font-mono text-slate-400">
+                                {confidentialNote.length} / 500 chars
                             </span>
                         </div>
                         <textarea
                             rows={3}
-                            value={reason}
-                            onChange={(e) => setReason(e.target.value)}
-                            placeholder="e.g., Severe power outage in sector, unable to connect until morning..."
-                            className={`w-full px-4 py-3 text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:ring-1 font-medium ${
-                                reason && !isReasonValid 
-                                    ? 'border-amber-400 dark:border-amber-500 focus:ring-amber-500' 
-                                    : 'border-slate-300 dark:border-slate-700 focus:ring-rose-500'
-                            }`}
-                            required
+                            maxLength={500}
+                            value={confidentialNote}
+                            onChange={(e) => setConfidentialNote(e.target.value)}
+                            placeholder="Optional private message for leadership/manager review only (e.g. key handoff links or emergency contact info)..."
+                            className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:ring-1 focus:ring-rose-500 font-medium"
                         />
-                        {reason && !isReasonValid && (
-                            <p className="text-xs sm:text-sm font-medium text-amber-700 dark:text-amber-400">
-                                Please provide at least {minChars - reasonLength} more character{minChars - reasonLength === 1 ? '' : 's'} of actionable context for sprint leads.
-                            </p>
-                        )}
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                            <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                            Never published to public dashboards or notifications. Only accessible to the Studio Owner.
+                        </p>
                     </div>
 
                     {/* Estimated Return Date (Optional) */}
@@ -317,7 +398,7 @@ export default function EmergencyModal({
 
                         <button
                             type="submit"
-                            disabled={isSubmitting || !isReasonValid}
+                            disabled={isSubmitting || !category}
                             className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-sm font-bold shadow-xs hover:shadow-md disabled:opacity-50 transition-all cursor-pointer"
                         >
                             {isSubmitting ? (

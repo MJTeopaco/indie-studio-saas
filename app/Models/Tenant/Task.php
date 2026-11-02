@@ -13,10 +13,16 @@ class Task extends Model
     use HasFactory;
 
     public const STATUS_TODO = 'todo';
+
     public const STATUS_IN_PROGRESS = 'in_progress';
+
     public const STATUS_STUCK = 'stuck';
+
     public const STATUS_REVIEW = 'review';
+
     public const STATUS_COMPLETED = 'completed';
+
+    public const STATUS_OVERDUE = 'overdue';
 
     protected $table = 'tasks';
 
@@ -53,8 +59,10 @@ class Task extends Model
         'story_points',
         'story_points_locked',
         'story_points_ai_suggested',
+        'suggested_story_points',
         'needs_estimate_review',
         'estimate_review_note',
+        'complexity_review_status',
         'expected_estimators',
         'duration_optimistic',
         'duration_likely',
@@ -79,6 +87,7 @@ class Task extends Model
             'story_points' => 'integer',
             'story_points_locked' => 'boolean',
             'story_points_ai_suggested' => 'integer',
+            'suggested_story_points' => 'integer',
             'needs_estimate_review' => 'boolean',
             'expected_estimators' => 'array',
             'duration_optimistic' => 'float',

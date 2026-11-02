@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, AlertCircle } from 'lucide-react';
+import { router } from '@inertiajs/react';
 import axios from 'axios';
+import { showToast } from '@/Components/SystemToast';
 
 // Shared utility to compute text contrast based on background color
 function getContrastColor(hexColor) {
@@ -26,30 +28,44 @@ export default function UpdateTaskStatusModal({ isOpen, onClose, task, project, 
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedStatus, setSelectedStatus] = useState(task.sprint_status || 'ready_to_start');
+    const [errorMessage, setErrorMessage] = useState(null);
 
     useEffect(() => {
         if (isOpen && task) {
             setSelectedStatus(task.sprint_status || 'ready_to_start');
+            setErrorMessage(null);
         }
     }, [isOpen, task]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
+        setErrorMessage(null);
         
         const mappedStatus = SPRINT_STATUSES.find(s => s.value === selectedStatus);
+        const resolvedProjectId = project?.id || task.project_id;
         
         try {
-            await axios.patch(route('tenant.projects.tasks.update', { tenant: tenantId, project: project.id, task: task.id }), {
+            await axios.patch(route('tenant.projects.tasks.update', {
+                tenant: tenantId,
+                project: resolvedProjectId,
+                task: task.id
+            }), {
                 sprint_status: selectedStatus,
                 status: mappedStatus ? mappedStatus.kanban : task.status, // Sync Kanban board status
-            }, {
-                headers: { 'X-Inertia': 'true' }
             });
-            onSuccess(task.id, selectedStatus, mappedStatus ? mappedStatus.kanban : task.status);
+            
+            showToast('Task status updated successfully.', 'success');
+            if (onSuccess) {
+                onSuccess(task.id, selectedStatus, mappedStatus ? mappedStatus.kanban : task.status);
+            }
+            router.reload({ only: ['project', 'sprints', 'backlogTasks'] });
             onClose();
         } catch (error) {
             console.error('Error updating task status', error);
+            const msg = error.response?.data?.message || 'Failed to update task status. Please try again.';
+            setErrorMessage(msg);
+            showToast(msg, 'error');
         } finally {
             setIsSubmitting(false);
         }
@@ -69,6 +85,12 @@ export default function UpdateTaskStatusModal({ isOpen, onClose, task, project, 
                 </div>
                 
                 <form onSubmit={handleSubmit} className="space-y-4">
+                    {errorMessage && (
+                        <div className="flex items-center gap-2 p-3 text-xs text-red-700 bg-red-50 rounded-lg dark:bg-red-950/40 dark:text-red-400 border border-red-200 dark:border-red-900/50">
+                            <AlertCircle className="w-4 h-4 shrink-0" />
+                            <span>{errorMessage}</span>
+                        </div>
+                    )}
                     <div className="grid grid-cols-1 gap-2">
                         {SPRINT_STATUSES.map((status) => (
                             <button

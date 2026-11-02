@@ -1,9 +1,8 @@
 <?php
 
-namespace App\Services;
-
 namespace App\Http\Controllers;
 
+use App\Events\ChannelMessageSent;
 use App\Mail\ReportSharedMail;
 use App\Models\Studio;
 use App\Models\Tenant\ChannelMessage;
@@ -14,6 +13,7 @@ use App\Services\ReportDataService;
 use App\Services\ReportPdfGenerator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -45,27 +45,23 @@ class TenantReportController extends Controller
             ->orderBy('name', 'asc')
             ->get(['id', 'name', 'status', 'start_date', 'target_end_date']);
 
-        // Team members: Leaders get full team; members only get their own entry
+        // Team members: Full studio team for sharing in chat and for leader reporting
         $teamMembers = [];
         if ($studio) {
             try {
-                if ($isLeader) {
-                    $teamMembers = $studio->users()->orderBy('name')->get()->map(fn (User $u) => [
-                        'id' => $u->id,
-                        'name' => $u->name,
-                        'email' => $u->email,
-                        'role' => $u->role ?? 'Member',
-                    ])->all();
-                } else {
-                    $teamMembers = [[
-                        'id' => $user->id,
-                        'name' => $user->name,
-                        'email' => $user->email,
-                        'role' => $user->role ?? 'Member',
-                    ]];
-                }
+                $teamMembers = $studio->users()->orderBy('name')->get()->map(fn (User $u) => [
+                    'id' => $u->id,
+                    'name' => $u->name,
+                    'email' => $u->email,
+                    'role' => $u->role ?? 'Member',
+                ])->all();
             } catch (\Throwable $e) {
-                // Ignore fallback
+                $teamMembers = [[
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role ?? 'Member',
+                ]];
             }
         }
 
@@ -325,9 +321,15 @@ class TenantReportController extends Controller
         $user = $request->user();
 
         $reportData = null;
-        $orientation = $request->query('orientation', 'portrait');
+        $orientation = $request->input('orientation') ?? $request->query('orientation', 'portrait');
 
-        if ($request->has('archived_id')) {
+        if ($request->filled('metrics')) {
+            $rawMetrics = $request->input('metrics');
+            $reportData = is_string($rawMetrics) ? json_decode($rawMetrics, true) : $rawMetrics;
+            if (is_array($reportData) && ! empty($reportData['orientation'])) {
+                $orientation = $reportData['orientation'];
+            }
+        } elseif ($request->has('archived_id')) {
             $report = Report::findOrFail($request->query('archived_id'));
             if (! $this->reportDataService->canAccessReport($user, $report, $tenantId)) {
                 return response()->json(['message' => 'Unauthorized access to archived report.'], 403);
@@ -353,7 +355,9 @@ class TenantReportController extends Controller
 
         $reportData['orientation'] = $orientation;
         $pdfContent = ReportPdfGenerator::generate($reportData, $studioName, $user->name, $orientation);
-        $filename = Str::slug(($reportData['title'] ?? 'report').'-'.now()->format('Y-m-d')).'.pdf';
+        $reportTypeSlug = Str::studly(str_replace(['_', '-'], ' ', $reportData['type'] ?? 'report'));
+        $dlStudioSlug = Str::studly($studioName);
+        $filename = "StudioSprint_{$reportTypeSlug}_{$dlStudioSlug}_".now()->format('Y-m-d').'.pdf';
 
         return response()->streamDownload(function () use ($pdfContent) {
             echo $pdfContent;
@@ -418,11 +422,12 @@ class TenantReportController extends Controller
 
         $reportTitle = $reportData['title'] ?? 'Performance Report';
         $reportData['orientation'] = $orientation;
-        $cleanSlug = Str::slug($reportTitle).'-'.now()->format('Y-m-d');
-        $pdfFilename = "{$cleanSlug}.pdf";
-        $csvFilename = "{$cleanSlug}.csv";
 
-        $csvContent = $this->generateCsvString($reportData);
+        // Professional file naming: StudioSprint_[ReportType]_[Studio]_[Date].[ext]
+        $reportTypeSlug = Str::studly(str_replace(['_', '-'], ' ', $reportData['type'] ?? 'report'));
+        $studioSlug = Str::studly($studioName);
+        $dateSlug = now()->format('Y-m-d');
+        $pdfFilename = "StudioSprint_{$reportTypeSlug}_{$studioSlug}_{$dateSlug}.pdf";
 
         // Use client-rendered base64 PDF if provided, else fallback to PHP generator
         $pdfContent = null;
@@ -450,22 +455,29 @@ class TenantReportController extends Controller
                     personalNote: $validated['personal_note'] ?? null,
                     reportData: $reportData,
                     pdfContent: $pdfContent,
-                    csvContent: $csvContent,
-                    pdfFilename: $pdfFilename,
-                    csvFilename: $csvFilename
+                    pdfFilename: $pdfFilename
                 )
             );
 
             return response()->json([
                 'success' => true,
-                'message' => "Report delivered with PDF and CSV attachments to {$validated['recipient_email']}.",
+                'message' => "Report delivered with attached PDF to {$validated['recipient_email']}.",
             ]);
         } catch (\Throwable $e) {
-            \Log::error('Report email failed: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            Log::error('Report email failed: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
+
+            $errorMsg = $e->getMessage();
+            if (str_contains($errorMsg, '535') || str_contains($errorMsg, 'authenticate')) {
+                $userMsg = 'SMTP Authentication failed. Please verify the Gmail App Password in your .env configuration.';
+            } elseif (str_contains($errorMsg, 'Connection could not be established')) {
+                $userMsg = 'Could not establish connection to the SMTP mail server. Please verify network connectivity and port settings.';
+            } else {
+                $userMsg = 'Unable to send email right now: '.Str::limit($errorMsg, 120);
+            }
 
             return response()->json([
                 'success' => false,
-                'message' => 'Unable to send email right now. Please verify the recipient address or try again in a few moments.',
+                'message' => $userMsg,
             ], 500);
         }
     }
@@ -507,7 +519,18 @@ class TenantReportController extends Controller
             $channelId = "dm-{$first}_{$second}";
             $mentions = [$otherUserId];
         } else {
-            $channelId = $validated['recipient_id'];
+            $rawChannel = trim($validated['recipient_id']);
+            if (in_array($rawChannel, ['general', 'ch-general'], true)) {
+                $channelId = 'ch-general';
+            } elseif (in_array($rawChannel, ['sprint-room', 'sprint', 'ch-sprint'], true)) {
+                $channelId = 'ch-sprint';
+            } elseif (in_array($rawChannel, ['dev-help', 'dev', 'ch-dev'], true)) {
+                $channelId = 'ch-dev';
+            } elseif (str_starts_with($rawChannel, 'ch-')) {
+                $channelId = $rawChannel;
+            } else {
+                $channelId = 'ch-'.ltrim($rawChannel, '#');
+            }
         }
 
         $metrics = $validated['metrics'] ?? [];
@@ -528,11 +551,15 @@ class TenantReportController extends Controller
             'report_title' => $reportTitle,
             'scope' => $metrics['scope'] ?? ($metrics['type'] ?? 'report'),
             'project_name' => $metrics['project_name'] ?? 'Project',
+            'sprint_name' => $metrics['sprint_name'] ?? null,
             'completion_rate' => $metrics['completion_rate'] ?? 0,
             'total_tasks' => $metrics['total_tasks'] ?? 0,
             'completed_tasks' => $metrics['completed_tasks'] ?? 0,
             'completed_story_points' => $metrics['completed_story_points'] ?? 0,
+            'planned_story_points' => $metrics['planned_story_points'] ?? 0,
             'report_url' => "/studio/{$tenantId}/reports",
+            'report_data' => $metrics,
+            'orientation' => $metrics['orientation'] ?? 'portrait',
         ];
 
         $role = $this->reportDataService->isLeaderOrManager($user, $tenantId) ? 'Leader' : 'Member';
@@ -547,10 +574,38 @@ class TenantReportController extends Controller
             'mentions' => $mentions,
         ]);
 
+        $formatted = [
+            'id' => $message->id,
+            'channel_id' => $message->channel_id,
+            'user_id' => $message->user_id,
+            'sender' => $message->sender_name,
+            'role' => $message->sender_role ?? 'Member',
+            'text' => $message->body,
+            'is_unsent' => false,
+            'unsent_at' => null,
+            'unsent_by_name' => null,
+            'attachments' => [$attachment],
+            'mentions' => $mentions,
+            'reply_to' => null,
+            'reply_to_id' => null,
+            'is_pinned' => false,
+            'pinned_at' => null,
+            'forwarded_from' => null,
+            'deleted_for_user_ids' => [],
+            'time' => $message->created_at?->format('g:i A') ?? 'Just now',
+            'isSelf' => true,
+        ];
+
+        try {
+            broadcast(new ChannelMessageSent((string) $tenantId, (string) $channelId, $formatted))->toOthers();
+        } catch (\Throwable $e) {
+            Log::warning('Report share broadcast failed: '.$e->getMessage());
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Report shared successfully in WorkSync chat.',
-            'channel_message' => $message,
+            'channel_message' => $formatted,
         ], 201);
     }
 
